@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/types.rs`."><title>types.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/types.rs`."><title>types.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1339,13 +1340,13 @@
 
 <span class="kw">use </span>chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 <span class="kw">use </span>enumset::EnumSet;
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object,
     SkipSerialization, Value,
 };
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -1355,10 +1356,10 @@
 
 <span class="doccomment">/// An array-like wrapper used in various places.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue)]
-#[metastructure(process_func = <span class="string">&quot;process_values&quot;</span>)]
+#[metastructure(process_func = <span class="string">"process_values"</span>)]
 </span><span class="kw">pub struct </span>Values&lt;T&gt; {
     <span class="doccomment">/// The values of the collection.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>values: Annotated&lt;Array&lt;T&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -1366,13 +1367,13 @@
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl</span>&lt;T&gt; schemars::JsonSchema <span class="kw">for </span>Values&lt;T&gt;
 <span class="kw">where
     </span>T: schemars::JsonSchema,
 {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="macro">format!</span>(<span class="string">&quot;Values_for_{}&quot;</span>, T::schema_name())
+        <span class="macro">format!</span>(<span class="string">"Values_for_{}"</span>, T::schema_name())
     }
 
     <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
@@ -1411,7 +1412,7 @@
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>value {
             <span class="comment">// Example:
-            // {&quot;threads&quot;: [foo, bar, baz]}
+            // {"threads": [foo, bar, baz]}
             </span>Annotated(<span class="prelude-val">Some</span>(Value::Array(items)), meta) =&gt; Annotated(
                 <span class="prelude-val">Some</span>(Values {
                     values: Annotated(
@@ -1425,12 +1426,12 @@
             Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">mut </span>obj)), meta) =&gt; {
                 <span class="kw">if </span>obj.is_empty() {
                     <span class="comment">// Example:
-                    // {&quot;exception&quot;: {}}
-                    // {&quot;threads&quot;: {}}
+                    // {"exception": {}}
+                    // {"threads": {}}
                     </span>Annotated(<span class="prelude-val">None</span>, meta)
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(values) = obj.remove(<span class="string">&quot;values&quot;</span>) {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(values) = obj.remove(<span class="string">"values"</span>) {
                     <span class="comment">// Example:
-                    // {&quot;exception&quot;: {&quot;values&quot;: [foo, bar, baz]}}
+                    // {"exception": {"values": [foo, bar, baz]}}
                     </span>Annotated(
                         <span class="prelude-val">Some</span>(Values {
                             values: FromValue::from_value(values),
@@ -1440,7 +1441,7 @@
                     )
                 } <span class="kw">else </span>{
                     <span class="comment">// Example:
-                    // {&quot;exception&quot;: {&quot;type&quot;: &quot;ZeroDivisonError&quot;}
+                    // {"exception": {"type": "ZeroDivisonError"}
                     </span>Annotated(
                         <span class="prelude-val">Some</span>(Values {
                             values: Annotated(
@@ -1458,7 +1459,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a list or values object&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a list or values object"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -1543,12 +1544,12 @@
 
     <span class="doccomment">/// Returns a reference to the annotated value corresponding to the key.
     ///
-    /// The key may be any borrowed form of the pairlist&#39;s key type. If there are multiple entries
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
     /// with the same key, the first is returned.
-    </span><span class="kw">pub fn </span>get&lt;<span class="lifetime">&#39;a</span>, Q&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, key: Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Annotated&lt;V&gt;&gt;
+    </span><span class="kw">pub fn </span>get&lt;<span class="lifetime">'a</span>, Q&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, key: Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Annotated&lt;V&gt;&gt;
     <span class="kw">where
         </span>Q: AsRef&lt;str&gt;,
-        K: <span class="lifetime">&#39;a</span>,
+        K: <span class="lifetime">'a</span>,
     {
         <span class="self">self</span>.position(key)
             .and_then(|pos| <span class="self">self</span>.<span class="number">0</span>.get(pos))
@@ -1558,12 +1559,12 @@
 
     <span class="doccomment">/// Returns a reference to the value corresponding to the key.
     ///
-    /// The key may be any borrowed form of the pairlist&#39;s key type. If there are multiple entries
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
     /// with the same key, the first is returned.
-    </span><span class="kw">pub fn </span>get_value&lt;<span class="lifetime">&#39;a</span>, Q&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, key: Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>V&gt;
+    </span><span class="kw">pub fn </span>get_value&lt;<span class="lifetime">'a</span>, Q&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, key: Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>V&gt;
     <span class="kw">where
         </span>Q: AsRef&lt;str&gt;,
-        K: <span class="lifetime">&#39;a</span>,
+        K: <span class="lifetime">'a</span>,
     {
         <span class="self">self</span>.get(key).and_then(Annotated::value)
     }
@@ -1655,19 +1656,19 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl</span>&lt;T&gt; schemars::JsonSchema <span class="kw">for </span>PairList&lt;T&gt;
 <span class="kw">where
     </span>T: schemars::JsonSchema + AsPair,
     &lt;T <span class="kw">as </span>AsPair&gt;::Value: schemars::JsonSchema,
 {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="macro">format!</span>(<span class="string">&quot;PairList_of_{}&quot;</span>, T::schema_name())
+        <span class="macro">format!</span>(<span class="string">"PairList_of_{}"</span>, T::schema_name())
     }
 
     <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
         <span class="attr">#[derive(schemars::JsonSchema)]
-        #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(untagged))]
+        #[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(untagged))]
         #[allow(unused)]
         </span><span class="kw">enum </span>Helper&lt;T: AsPair + schemars::JsonSchema, V: schemars::JsonSchema&gt; {
             Object(Object&lt;V&gt;),
@@ -1696,7 +1697,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         meta: <span class="kw-2">&amp;mut </span>Meta,
         processor: <span class="kw-2">&amp;mut </span>P,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult
     <span class="kw">where
         </span>P: Processor,
@@ -1707,7 +1708,7 @@
     <span class="kw">fn </span>process_child_values&lt;P&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         processor: <span class="kw-2">&amp;mut </span>P,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult
     <span class="kw">where
         </span>P: Processor,
@@ -1727,7 +1728,7 @@
             <span class="kw">type </span><span class="prelude-val">Err </span>= <span class="macro-nonterminal">std::num::ParseIntError</span>;
 
             <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>, <span class="macro-nonterminal">Self::Err</span>&gt; {
-                <span class="kw">if </span>s.starts_with(<span class="string">&quot;0x&quot;</span>) || s.starts_with(<span class="string">&quot;0X&quot;</span>) {
+                <span class="kw">if </span>s.starts_with(<span class="string">"0x"</span>) || s.starts_with(<span class="string">"0X"</span>) {
                     u64::from_str_radix(<span class="kw-2">&amp;</span>s[<span class="number">2</span>..], <span class="number">16</span>).map(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
                 } <span class="kw">else </span>{
                     <span class="macro-nonterminal">s</span>.parse().map(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
@@ -1736,8 +1737,8 @@
         }
 
         <span class="kw">impl </span><span class="macro-nonterminal">fmt::Display </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-            <span class="kw">fn </span><span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-                <span class="macro">write!</span>(f, <span class="string">&quot;{:#x}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
+            <span class="kw">fn </span><span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+                <span class="macro">write!</span>(f, <span class="string">"{:#x}"</span>, <span class="self">self</span>.<span class="number">0</span>)
             }
         }
 
@@ -1791,7 +1792,7 @@
         }
 
         <span class="kw">impl </span>ProcessValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{}
-        <span class="attr">#[<span class="macro-nonterminal">cfg</span>(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+        <span class="attr">#[<span class="macro-nonterminal">cfg</span>(feature = <span class="string">"jsonschema"</span>)]
         </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
             <span class="kw">fn </span><span class="macro-nonterminal">schema_name</span>() -&gt; String {
                 <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">to_owned</span>()
@@ -1808,13 +1809,13 @@
     };
 }
 
-<span class="doccomment">/// Raised if a register value can&#39;t be parsed.
+<span class="doccomment">/// Raised if a register value can't be parsed.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>InvalidRegVal;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>InvalidRegVal {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid register value&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid register value"</span>)
     }
 }
 
@@ -1824,14 +1825,14 @@
 </span><span class="attr">#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 </span><span class="kw">pub struct </span>RegVal(<span class="kw">pub </span>u64);
 
-<span class="macro">hex_metrastructure!</span>(RegVal, <span class="string">&quot;register value&quot;</span>);
+<span class="macro">hex_metrastructure!</span>(RegVal, <span class="string">"register value"</span>);
 
 <span class="doccomment">/// An address
 </span><span class="attr">#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 </span><span class="kw">pub struct </span>Addr(<span class="kw">pub </span>u64);
 
-<span class="macro">hex_metrastructure!</span>(Addr, <span class="string">&quot;address&quot;</span>);
-<span class="macro">relay_common::impl_str_serde!</span>(Addr, <span class="string">&quot;an address&quot;</span>);
+<span class="macro">hex_metrastructure!</span>(Addr, <span class="string">"address"</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(Addr, <span class="string">"an address"</span>);
 
 <span class="doccomment">/// An ip address.
 </span><span class="attr">#[derive(
@@ -1839,7 +1840,7 @@
 )]
 </span><span class="kw">pub struct </span>IpAddr(<span class="kw">pub </span>String);
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>IpAddr {
     <span class="kw">fn </span>schema_name() -&gt; String {
         String::schema_name()
@@ -1857,7 +1858,7 @@
 <span class="kw">impl </span>IpAddr {
     <span class="doccomment">/// Returns the auto marker ip address.
     </span><span class="kw">pub fn </span>auto() -&gt; IpAddr {
-        IpAddr(<span class="string">&quot;{{auto}}&quot;</span>.into())
+        IpAddr(<span class="string">"{{auto}}"</span>.into())
     }
 
     <span class="doccomment">/// Parses an `IpAddr` from a string
@@ -1865,7 +1866,7 @@
     <span class="kw">where
         </span>S: AsRef&lt;str&gt; + Into&lt;String&gt;,
     {
-        <span class="kw">if </span>value.as_ref() == <span class="string">&quot;{{auto}}&quot; </span>{
+        <span class="kw">if </span>value.as_ref() == <span class="string">"{{auto}}" </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(IpAddr(value.into()));
         }
 
@@ -1877,7 +1878,7 @@
 
     <span class="doccomment">/// Checks if the ip address is set to the auto marker.
     </span><span class="kw">pub fn </span>is_auto(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.<span class="number">0 </span>== <span class="string">&quot;{{auto}}&quot;
+        <span class="self">self</span>.<span class="number">0 </span>== <span class="string">"{{auto}}"
     </span>}
 
     <span class="doccomment">/// Checks whether the contained ip address is still valid (relevant for PII processing).
@@ -1920,13 +1921,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>IpAddr {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>IpAddr {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
-        <span class="kw">let </span>string = Cow::&lt;<span class="lifetime">&#39;_</span>, str&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
-        IpAddr::parse(string).map_err(|<span class="kw">_</span>| serde::de::Error::custom(<span class="string">&quot;expected an ip address&quot;</span>))
+        <span class="kw">let </span>string = Cow::&lt;<span class="lifetime">'_</span>, str&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
+        IpAddr::parse(string).map_err(|<span class="kw">_</span>| serde::de::Error::custom(<span class="string">"expected an ip address"</span>))
     }
 }
 
@@ -1936,14 +1937,14 @@
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>IpAddr::parse(value) {
                 <span class="prelude-val">Ok</span>(addr) =&gt; Annotated(<span class="prelude-val">Some</span>(addr), meta),
                 <span class="prelude-val">Err</span>(value) =&gt; {
-                    meta.add_error(Error::expected(<span class="string">&quot;an ip address&quot;</span>));
+                    meta.add_error(Error::expected(<span class="string">"an ip address"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 }
             },
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;an ip address&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"an ip address"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -1964,8 +1965,8 @@
 </span><span class="kw">pub struct </span>ParseLevelError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseLevelError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid level&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid level"</span>)
     }
 }
 
@@ -1973,8 +1974,8 @@
 
 <span class="doccomment">/// Severity level of an event or breadcrumb.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(schemars::JsonSchema))]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(rename_all = <span class="string">&quot;lowercase&quot;</span>))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(schemars::JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(rename_all = <span class="string">"lowercase"</span>))]
 </span><span class="kw">pub enum </span>Level {
     <span class="doccomment">/// Indicates very spammy debug information.
     </span>Debug,
@@ -1990,13 +1991,13 @@
 }
 
 <span class="kw">impl </span>Level {
-    <span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            Level::Debug =&gt; <span class="string">&quot;debug&quot;</span>,
-            Level::Info =&gt; <span class="string">&quot;info&quot;</span>,
-            Level::Warning =&gt; <span class="string">&quot;warning&quot;</span>,
-            Level::Error =&gt; <span class="string">&quot;error&quot;</span>,
-            Level::Fatal =&gt; <span class="string">&quot;fatal&quot;</span>,
+            Level::Debug =&gt; <span class="string">"debug"</span>,
+            Level::Info =&gt; <span class="string">"info"</span>,
+            Level::Warning =&gt; <span class="string">"warning"</span>,
+            Level::Error =&gt; <span class="string">"error"</span>,
+            Level::Fatal =&gt; <span class="string">"fatal"</span>,
         }
     }
 
@@ -2017,18 +2018,18 @@
 
     <span class="kw">fn </span>from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>string {
-            <span class="string">&quot;debug&quot; </span>=&gt; Level::Debug,
-            <span class="string">&quot;info&quot; </span>| <span class="string">&quot;log&quot; </span>=&gt; Level::Info,
-            <span class="string">&quot;warning&quot; </span>=&gt; Level::Warning,
-            <span class="string">&quot;error&quot; </span>=&gt; Level::Error,
-            <span class="string">&quot;fatal&quot; </span>| <span class="string">&quot;critical&quot; </span>=&gt; Level::Fatal,
+            <span class="string">"debug" </span>=&gt; Level::Debug,
+            <span class="string">"info" </span>| <span class="string">"log" </span>=&gt; Level::Info,
+            <span class="string">"warning" </span>=&gt; Level::Warning,
+            <span class="string">"error" </span>=&gt; Level::Error,
+            <span class="string">"fatal" </span>| <span class="string">"critical" </span>=&gt; Level::Fatal,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseLevelError),
         })
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Level {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.name())
     }
 }
@@ -2064,7 +2065,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a level&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a level"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -2095,14 +2096,14 @@
     </span>}
 }
 
-<span class="doccomment">/// A &quot;into-string&quot; type of value. Emulates an invocation of `str(x)` in Python
+<span class="doccomment">/// A "into-string" type of value. Emulates an invocation of `str(x)` in Python
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>LenientString(<span class="kw">pub </span>String);
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>LenientString {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="string">&quot;LenientString&quot;</span>.to_owned()
+        <span class="string">"LenientString"</span>.to_owned()
     }
 
     <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
@@ -2157,22 +2158,22 @@
         <span class="kw">match </span>value {
             Annotated(<span class="prelude-val">Some</span>(Value::String(string)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(string), meta),
             <span class="comment">// XXX: True/False instead of true/false because of old python code
-            </span>Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">true</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">&quot;True&quot;</span>.to_string()), meta),
-            Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">false</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">&quot;False&quot;</span>.to_string()), meta),
+            </span>Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">true</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"True"</span>.to_string()), meta),
+            Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">false</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"False"</span>.to_string()), meta),
             Annotated(<span class="prelude-val">Some</span>(Value::U64(num)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(num.to_string()), meta),
             Annotated(<span class="prelude-val">Some</span>(Value::I64(num)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(num.to_string()), meta),
             Annotated(<span class="prelude-val">Some</span>(Value::F64(num)), <span class="kw-2">mut </span>meta) =&gt; {
                 <span class="kw">if </span>num.abs() &lt; (<span class="number">1i64 </span>&lt;&lt; <span class="number">53</span>) <span class="kw">as </span>f64 {
                     Annotated(<span class="prelude-val">Some</span>(num.trunc().to_string()), meta)
                 } <span class="kw">else </span>{
-                    meta.add_error(Error::expected(<span class="string">&quot;a number with JSON precision&quot;</span>));
+                    meta.add_error(Error::expected(<span class="string">"a number with JSON precision"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(num));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 }
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a primitive value&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a primitive value"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -2181,9 +2182,9 @@
     }
 }
 
-<span class="doccomment">/// A &quot;into-string&quot; type of value. All non-string values are serialized as JSON.
+<span class="doccomment">/// A "into-string" type of value. All non-string values are serialized as JSON.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>JsonLenientString(<span class="kw">pub </span>String);
 
 <span class="kw">impl </span>JsonLenientString {
@@ -2256,7 +2257,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         meta: <span class="kw-2">&amp;mut </span>Meta,
         processor: <span class="kw-2">&amp;mut </span>P,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult
     <span class="kw">where
         </span>P: Processor,
@@ -2300,7 +2301,7 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Timestamp {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="self">self</span>.<span class="number">0</span>.fmt(f)
     }
 }
@@ -2316,7 +2317,7 @@
     // number because it all ends up as a f64 on serialization.
     //
     // If we want to support nanoseconds at some point we will probably have to start using strings
-    // everywhere. Even then it&#39;s unclear how to deal with it in Python code as a `datetime` cannot
+    // everywhere. Even then it's unclear how to deal with it in Python code as a `datetime` cannot
     // store nanoseconds.
     //
     // We use `timestamp_subsec_nanos` instead of `timestamp_subsec_micros` anyway to get better
@@ -2333,12 +2334,12 @@
     <span class="kw">match </span>result {
         LocalResult::Single(value) =&gt; Annotated(<span class="prelude-val">Some</span>(value), meta),
         LocalResult::Ambiguous(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
-            meta.add_error(Error::expected(<span class="string">&quot;ambiguous timestamp&quot;</span>));
+            meta.add_error(Error::expected(<span class="string">"ambiguous timestamp"</span>));
             meta.set_original_value(<span class="prelude-val">Some</span>(original_value));
             Annotated(<span class="prelude-val">None</span>, meta)
         }
         LocalResult::None =&gt; {
-            meta.add_error(Error::invalid(<span class="string">&quot;timestamp out of range&quot;</span>));
+            meta.add_error(Error::invalid(<span class="string">"timestamp out of range"</span>));
             meta.set_original_value(<span class="prelude-val">Some</span>(original_value));
             Annotated(<span class="prelude-val">None</span>, meta)
         }
@@ -2349,7 +2350,7 @@
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>rv = <span class="kw">match </span>value {
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
-                <span class="comment">// NaiveDateTime parses &quot;%Y-%m-%dT%H:%M:%S%.f&quot;
+                <span class="comment">// NaiveDateTime parses "%Y-%m-%dT%H:%M:%S%.f"
                 </span><span class="kw">let </span>parsed = <span class="kw">match </span>value.parse::&lt;NaiveDateTime&gt;() {
                     <span class="prelude-val">Ok</span>(dt) =&gt; <span class="prelude-val">Ok</span>(DateTime::from_naive_utc_and_offset(dt, Utc)),
 
@@ -2385,7 +2386,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a timestamp&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a timestamp"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -2397,7 +2398,7 @@
                     <span class="comment">// We need to enforce this because Python has a max value for year and
                     // otherwise crashes. Also this is probably nicer UX than silently showing the
                     // wrong value.
-                    </span>meta.add_error(Error::invalid(<span class="string">&quot;timestamp out of range&quot;</span>));
+                    </span>meta.add_error(Error::invalid(<span class="string">"timestamp out of range"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(Timestamp(value)));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 } <span class="kw">else </span>{
@@ -2429,10 +2430,10 @@
     </span>}
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>Timestamp {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="string">&quot;Timestamp&quot;</span>.to_owned()
+        <span class="string">"Timestamp"</span>.to_owned()
     }
 
     <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
@@ -2441,7 +2442,7 @@
         ///
         /// Must be UTC.
         </span><span class="attr">#[derive(schemars::JsonSchema)]
-        #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(untagged))]
+        #[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(untagged))]
         #[allow(unused)]
         </span><span class="kw">enum </span>Helper {
             UnixTimestamp(f64),
@@ -2468,97 +2469,97 @@
             ]),
             other: Object::default(),
         });
-        <span class="macro">assert_eq!</span>(value.to_json().unwrap(), <span class="string">&quot;{\&quot;values\&quot;:[0,1,2]}&quot;</span>);
+        <span class="macro">assert_eq!</span>(value.to_json().unwrap(), <span class="string">"{\"values\":[0,1,2]}"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_values_deserialization() {
         <span class="attr">#[derive(Clone, Debug, Empty, FromValue, IntoValue, PartialEq)]
         </span><span class="kw">struct </span>Exception {
-            <span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+            <span class="attr">#[metastructure(field = <span class="string">"type"</span>)]
             </span>ty: Annotated&lt;String&gt;,
             value: Annotated&lt;String&gt;,
         }
         <span class="kw">let </span>value = Annotated::&lt;Values&lt;Exception&gt;&gt;::from_json(
-            <span class="string">r#&quot;{&quot;values&quot;: [{&quot;type&quot;: &quot;Test&quot;, &quot;value&quot;: &quot;aha!&quot;}]}&quot;#</span>,
+            <span class="string">r#"{"values": [{"type": "Test", "value": "aha!"}]}"#</span>,
         )
         .unwrap();
         <span class="macro">assert_eq!</span>(
             value,
             Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-                ty: Annotated::new(<span class="string">&quot;Test&quot;</span>.to_string()),
-                value: Annotated::new(<span class="string">&quot;aha!&quot;</span>.to_string()),
+                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
+                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
             })]))
         );
 
         <span class="kw">let </span>value =
-            Annotated::&lt;Values&lt;Exception&gt;&gt;::from_json(<span class="string">r#&quot;[{&quot;type&quot;: &quot;Test&quot;, &quot;value&quot;: &quot;aha!&quot;}]&quot;#</span>)
+            Annotated::&lt;Values&lt;Exception&gt;&gt;::from_json(<span class="string">r#"[{"type": "Test", "value": "aha!"}]"#</span>)
                 .unwrap();
         <span class="macro">assert_eq!</span>(
             value,
             Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-                ty: Annotated::new(<span class="string">&quot;Test&quot;</span>.to_string()),
-                value: Annotated::new(<span class="string">&quot;aha!&quot;</span>.to_string()),
+                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
+                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
             })]))
         );
 
         <span class="kw">let </span>value =
-            Annotated::&lt;Values&lt;Exception&gt;&gt;::from_json(<span class="string">r#&quot;{&quot;type&quot;: &quot;Test&quot;, &quot;value&quot;: &quot;aha!&quot;}&quot;#</span>)
+            Annotated::&lt;Values&lt;Exception&gt;&gt;::from_json(<span class="string">r#"{"type": "Test", "value": "aha!"}"#</span>)
                 .unwrap();
         <span class="macro">assert_eq!</span>(
             value,
             Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-                ty: Annotated::new(<span class="string">&quot;Test&quot;</span>.to_string()),
-                value: Annotated::new(<span class="string">&quot;aha!&quot;</span>.to_string()),
+                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
+                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
             })]))
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hex_to_string() {
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;0x0&quot;</span>, <span class="kw-2">&amp;</span>Addr(<span class="number">0</span>).to_string());
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;0x2a&quot;</span>, <span class="kw-2">&amp;</span>Addr(<span class="number">42</span>).to_string());
+        <span class="macro">assert_eq!</span>(<span class="string">"0x0"</span>, <span class="kw-2">&amp;</span>Addr(<span class="number">0</span>).to_string());
+        <span class="macro">assert_eq!</span>(<span class="string">"0x2a"</span>, <span class="kw-2">&amp;</span>Addr(<span class="number">42</span>).to_string());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hex_from_string() {
-        <span class="macro">assert_eq!</span>(Addr(<span class="number">0</span>), <span class="string">&quot;0&quot;</span>.parse().unwrap());
-        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">&quot;42&quot;</span>.parse().unwrap());
-        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">&quot;0x2a&quot;</span>.parse().unwrap());
-        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">&quot;0X2A&quot;</span>.parse().unwrap());
+        <span class="macro">assert_eq!</span>(Addr(<span class="number">0</span>), <span class="string">"0"</span>.parse().unwrap());
+        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">"42"</span>.parse().unwrap());
+        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">"0x2a"</span>.parse().unwrap());
+        <span class="macro">assert_eq!</span>(Addr(<span class="number">42</span>), <span class="string">"0X2A"</span>.parse().unwrap());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hex_serialization() {
-        <span class="kw">let </span>value = Value::String(<span class="string">&quot;0x2a&quot;</span>.to_string());
+        <span class="kw">let </span>value = Value::String(<span class="string">"0x2a"</span>.to_string());
         <span class="kw">let </span>addr: Annotated&lt;Addr&gt; = FromValue::from_value(Annotated::new(value));
-        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">&quot;\&quot;0x2a\&quot;&quot;</span>);
+        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">"\"0x2a\""</span>);
         <span class="kw">let </span>value = Value::U64(<span class="number">42</span>);
         <span class="kw">let </span>addr: Annotated&lt;Addr&gt; = FromValue::from_value(Annotated::new(value));
-        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">&quot;\&quot;0x2a\&quot;&quot;</span>);
+        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">"\"0x2a\""</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hex_deserialization() {
-        <span class="kw">let </span>addr = Annotated::&lt;Addr&gt;::from_json(<span class="string">&quot;\&quot;0x2a\&quot;&quot;</span>).unwrap();
-        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">&quot;\&quot;0x2a\&quot;&quot;</span>);
-        <span class="kw">let </span>addr = Annotated::&lt;Addr&gt;::from_json(<span class="string">&quot;42&quot;</span>).unwrap();
-        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">&quot;\&quot;0x2a\&quot;&quot;</span>);
+        <span class="kw">let </span>addr = Annotated::&lt;Addr&gt;::from_json(<span class="string">"\"0x2a\""</span>).unwrap();
+        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">"\"0x2a\""</span>);
+        <span class="kw">let </span>addr = Annotated::&lt;Addr&gt;::from_json(<span class="string">"42"</span>).unwrap();
+        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">"\"0x2a\""</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_level() {
         <span class="macro">assert_eq!</span>(
             Level::Info,
-            Annotated::&lt;Level&gt;::from_json(<span class="string">&quot;\&quot;log\&quot;&quot;</span>).unwrap().<span class="number">0</span>.unwrap()
+            Annotated::&lt;Level&gt;::from_json(<span class="string">"\"log\""</span>).unwrap().<span class="number">0</span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
             Level::Warning,
-            Annotated::&lt;Level&gt;::from_json(<span class="string">&quot;30&quot;</span>).unwrap().<span class="number">0</span>.unwrap()
+            Annotated::&lt;Level&gt;::from_json(<span class="string">"30"</span>).unwrap().<span class="number">0</span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
             Level::Fatal,
-            Annotated::&lt;Level&gt;::from_json(<span class="string">&quot;\&quot;critical\&quot;&quot;</span>)
+            Annotated::&lt;Level&gt;::from_json(<span class="string">"\"critical\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
@@ -2568,32 +2569,32 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_addr() {
         <span class="macro">assert_eq!</span>(
-            IpAddr(<span class="string">&quot;{{auto}}&quot;</span>.into()),
-            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">&quot;\&quot;{{auto}}\&quot;&quot;</span>)
+            IpAddr(<span class="string">"{{auto}}"</span>.into()),
+            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">"\"{{auto}}\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
-            IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.into()),
-            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">&quot;\&quot;127.0.0.1\&quot;&quot;</span>)
+            IpAddr(<span class="string">"127.0.0.1"</span>.into()),
+            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">"\"127.0.0.1\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
-            IpAddr(<span class="string">&quot;::1&quot;</span>.into()),
-            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">&quot;\&quot;::1\&quot;&quot;</span>)
+            IpAddr(<span class="string">"::1"</span>.into()),
+            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">"\"::1\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
             Annotated::from_error(
-                Error::expected(<span class="string">&quot;an ip address&quot;</span>),
-                <span class="prelude-val">Some</span>(Value::String(<span class="string">&quot;clearly invalid value&quot;</span>.into()))
+                Error::expected(<span class="string">"an ip address"</span>),
+                <span class="prelude-val">Some</span>(Value::String(<span class="string">"clearly invalid value"</span>.into()))
             ),
-            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">&quot;\&quot;clearly invalid value\&quot;&quot;</span>).unwrap()
+            Annotated::&lt;IpAddr&gt;::from_json(<span class="string">"\"clearly invalid value\""</span>).unwrap()
         );
     }
 
@@ -2604,27 +2605,27 @@
             foo: Annotated&lt;Timestamp&gt;,
         }
 
-        <span class="kw">let </span>x: Annotated&lt;Helper&gt; = Annotated::from_json(<span class="string">r#&quot;{&quot;foo&quot;: 1562770897893}&quot;#</span>).unwrap();
+        <span class="kw">let </span>x: Annotated&lt;Helper&gt; = Annotated::from_json(<span class="string">r#"{"foo": 1562770897893}"#</span>).unwrap();
         <span class="macro">assert_eq!</span>(
             x.to_json_pretty().unwrap(),
-            <span class="string">r#&quot;{
-  &quot;foo&quot;: null,
-  &quot;_meta&quot;: {
-    &quot;foo&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
+            <span class="string">r#"{
+  "foo": null,
+  "_meta": {
+    "foo": {
+      "": {
+        "err": [
           [
-            &quot;invalid_data&quot;,
+            "invalid_data",
             {
-              &quot;reason&quot;: &quot;timestamp out of range&quot;
+              "reason": "timestamp out of range"
             }
           ]
         ],
-        &quot;val&quot;: 1562770897893.0
+        "val": 1562770897893.0
       }
     }
   }
-}&quot;#
+}"#
         </span>);
     }
 
@@ -2636,27 +2637,27 @@
         }
 
         <span class="kw">let </span>x: Annotated&lt;Helper&gt; =
-            Annotated::from_json(<span class="string">r#&quot;{&quot;foo&quot;: -10000000000000000.0}&quot;#</span>).unwrap();
+            Annotated::from_json(<span class="string">r#"{"foo": -10000000000000000.0}"#</span>).unwrap();
         <span class="macro">assert_eq!</span>(
             x.to_json_pretty().unwrap(),
-            <span class="string">r#&quot;{
-  &quot;foo&quot;: null,
-  &quot;_meta&quot;: {
-    &quot;foo&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
+            <span class="string">r#"{
+  "foo": null,
+  "_meta": {
+    "foo": {
+      "": {
+        "err": [
           [
-            &quot;invalid_data&quot;,
+            "invalid_data",
             {
-              &quot;reason&quot;: &quot;timestamp out of range&quot;
+              "reason": "timestamp out of range"
             }
           ]
         ],
-        &quot;val&quot;: -1e16
+        "val": -1e16
       }
     }
   }
-}&quot;#
+}"#
         </span>);
     }
 }

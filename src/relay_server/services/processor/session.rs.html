@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor/session.rs`."><title>session.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor/session.rs`."><title>session.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -529,7 +530,7 @@
         <span class="macro">relay_log::trace!</span>(
             error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
             release,
-            <span class="string">&quot;skipping session with invalid release&quot;
+            <span class="string">"skipping session with invalid release"
         </span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(());
     }
@@ -539,7 +540,7 @@
             <span class="macro">relay_log::trace!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                 env,
-                <span class="string">&quot;removing invalid environment&quot;
+                <span class="string">"removing invalid environment"
             </span>);
             attributes.environment = <span class="prelude-val">None</span>;
             changed = <span class="bool-val">true</span>;
@@ -564,14 +565,14 @@
 ) -&gt; bool {
     <span class="kw">let </span>max_age = SignedDuration::seconds(max_session_secs_in_past);
     <span class="kw">if </span>(received - timestamp) &gt; max_age {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session older than {} days&quot;</span>, max_age.num_days());
+        <span class="macro">relay_log::trace!</span>(<span class="string">"skipping session older than {} days"</span>, max_age.num_days());
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
     <span class="kw">let </span>max_future = SignedDuration::seconds(max_secs_in_future);
     <span class="kw">if </span>(timestamp - received) &gt; max_future {
         <span class="macro">relay_log::trace!</span>(
-            <span class="string">&quot;skipping session more than {}s in the future&quot;</span>,
+            <span class="string">"skipping session more than {}s in the future"</span>,
             max_future.num_seconds()
         );
         <span class="kw">return </span><span class="bool-val">false</span>;
@@ -603,26 +604,26 @@
         <span class="prelude-val">Err</span>(error) =&gt; {
             <span class="macro">relay_log::trace!</span>(
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                <span class="string">&quot;skipping invalid session payload&quot;
+                <span class="string">"skipping invalid session payload"
             </span>);
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
     };
 
     <span class="kw">if </span>session.sequence == u64::MAX {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session due to sequence overflow&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"skipping session due to sequence overflow"</span>);
         <span class="kw">return </span><span class="bool-val">false</span>;
     };
 
     <span class="kw">if </span>clock_drift_processor.is_drifted() {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;applying clock drift correction to session&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"applying clock drift correction to session"</span>);
         clock_drift_processor.process_datetime(<span class="kw-2">&amp;mut </span>session.started);
         clock_drift_processor.process_datetime(<span class="kw-2">&amp;mut </span>session.timestamp);
         changed = <span class="bool-val">true</span>;
     }
 
     <span class="kw">if </span>session.timestamp &lt; session.started {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;fixing session timestamp to {}&quot;</span>, session.timestamp);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"fixing session timestamp to {}"</span>, session.timestamp);
         session.timestamp = session.started;
         changed = <span class="bool-val">true</span>;
     }
@@ -632,7 +633,7 @@
     <span class="kw">if </span>session_delay &gt; SignedDuration::minutes(<span class="number">1</span>) {
         <span class="macro">metric!</span>(
             timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
-            category = <span class="string">&quot;session&quot;</span>,
+            category = <span class="string">"session"</span>,
         );
     }
 
@@ -655,7 +656,7 @@
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
-    <span class="comment">// Extract metrics if they haven&#39;t been extracted by a prior Relay
+    <span class="comment">// Extract metrics if they haven't been extracted by a prior Relay
     </span><span class="kw">if </span>metrics_config.is_enabled()
         &amp;&amp; !item.metrics_extracted()
         &amp;&amp; !<span class="macro">matches!</span>(session.status, SessionStatus::Unknown(<span class="kw">_</span>))
@@ -679,7 +680,7 @@
         <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>session) {
             <span class="prelude-val">Ok</span>(json) =&gt; json,
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to serialize session&quot;</span>);
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to serialize session"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
         };
@@ -711,14 +712,14 @@
         <span class="prelude-val">Err</span>(error) =&gt; {
             <span class="macro">relay_log::trace!</span>(
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                <span class="string">&quot;skipping invalid sessions payload&quot;
+                <span class="string">"skipping invalid sessions payload"
             </span>);
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
     };
 
     <span class="kw">if </span>clock_drift_processor.is_drifted() {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;applying clock drift correction to session&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"applying clock drift correction to session"</span>);
         <span class="kw">for </span>aggregate <span class="kw">in </span><span class="kw-2">&amp;mut </span>session.aggregates {
             clock_drift_processor.process_datetime(<span class="kw-2">&amp;mut </span>aggregate.started);
         }
@@ -748,7 +749,7 @@
         }
     }
 
-    <span class="comment">// Extract metrics if they haven&#39;t been extracted by a prior Relay
+    <span class="comment">// Extract metrics if they haven't been extracted by a prior Relay
     </span><span class="kw">if </span>metrics_config.is_enabled() &amp;&amp; !item.metrics_extracted() {
         <span class="kw">for </span>aggregate <span class="kw">in </span><span class="kw-2">&amp;</span>session.aggregates {
             <span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics(
@@ -771,7 +772,7 @@
         <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>session) {
             <span class="prelude-val">Ok</span>(json) =&gt; json,
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to serialize session&quot;</span>);
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to serialize session"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
         };
@@ -788,17 +789,17 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">struct </span>TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">struct </span>TestProcessSessionArguments&lt;<span class="lifetime">'a</span>&gt; {
         item: Item,
         received: DateTime&lt;Utc&gt;,
-        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
         client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: ClockDriftProcessor,
         extracted_metrics: Vec&lt;Bucket&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TestProcessSessionArguments&lt;<span class="lifetime">'a</span>&gt; {
         <span class="kw">fn </span>run_session_producer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
             process_session(
                 <span class="kw-2">&amp;mut </span><span class="self">self</span>.item,
@@ -815,20 +816,20 @@
         <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
 
-            <span class="kw">let </span>session = <span class="string">r#&quot;{
-            &quot;init&quot;: false,
-            &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;attrs&quot;: {
-                &quot;release&quot;: &quot;1.0.0&quot;
+            <span class="kw">let </span>session = <span class="string">r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
             },
-            &quot;did&quot;: &quot;user123&quot;,
-            &quot;status&quot;: &quot;this is not a valid status!&quot;,
-            &quot;duration&quot;: 123.4
-        }&quot;#</span>;
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#</span>;
 
             item.set_payload(ContentType::Json, session);
-            <span class="kw">let </span>received = DateTime::from_str(<span class="string">&quot;2021-04-26T08:00:00+0100&quot;</span>).unwrap();
+            <span class="kw">let </span>received = DateTime::from_str(<span class="string">"2021-04-26T08:00:00+0100"</span>).unwrap();
 
             <span class="self">Self </span>{
                 item,
@@ -836,11 +837,11 @@
                 client: <span class="prelude-val">None</span>,
                 client_addr: <span class="prelude-val">None</span>,
                 metrics_config: serde_json::from_str(
-                    <span class="string">&quot;
+                    <span class="string">"
         {
-            \&quot;version\&quot;: 0,
-            \&quot;drop\&quot;: true
-        }&quot;</span>,
+            \"version\": 0,
+            \"drop\": true
+        }"</span>,
                 )
                 .unwrap(),
                 clock_drift_processor: ClockDriftProcessor::new(<span class="prelude-val">None</span>, received),
@@ -861,7 +862,7 @@
     </span><span class="kw">fn </span>test_process_session_invalid_json() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.item
-            .set_payload(ContentType::Json, <span class="string">&quot;this isnt valid json&quot;</span>);
+            .set_payload(ContentType::Json, <span class="string">"this isnt valid json"</span>);
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
 
@@ -870,18 +871,18 @@
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
         args.item.set_payload(
             ContentType::Json,
-            <span class="string">r#&quot;{
-            &quot;init&quot;: false,
-            &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;seq&quot;: 18446744073709551615,
-            &quot;attrs&quot;: {
-                &quot;release&quot;: &quot;1.0.0&quot;
+            <span class="string">r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "seq": 18446744073709551615,
+            "attrs": {
+                "release": "1.0.0"
             },
-            &quot;did&quot;: &quot;user123&quot;,
-            &quot;status&quot;: &quot;this is not a valid status!&quot;,
-            &quot;duration&quot;: 123.4
-        }&quot;#</span>,
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#</span>,
         );
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
@@ -889,7 +890,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_process_session_invalid_timestamp() {
         <span class="kw">let </span><span class="kw-2">mut </span>args = TestProcessSessionArguments::default();
-        args.received = DateTime::from_str(<span class="string">&quot;2021-05-26T08:00:00+0100&quot;</span>).unwrap();
+        args.received = DateTime::from_str(<span class="string">"2021-05-26T08:00:00+0100"</span>).unwrap();
         <span class="macro">assert!</span>(!args.run_session_producer());
     }
 

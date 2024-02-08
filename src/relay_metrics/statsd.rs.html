@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/statsd.rs`."><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/statsd.rs`."><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -184,15 +185,15 @@
     /// should run on the same CPU architecture, otherwise this metric is not reliable.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     ///  - `namespace`: The namespace of the metric for which the bucket was created.
     </span>UniqueBucketsCreated,
 }
 
 <span class="kw">impl </span>SetMetric <span class="kw">for </span>MetricSets {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::UniqueBucketsCreated =&gt; <span class="string">&quot;metrics.buckets.created.unique&quot;</span>,
+            <span class="self">Self</span>::UniqueBucketsCreated =&gt; <span class="string">"metrics.buckets.created.unique"</span>,
         }
     }
 }
@@ -202,14 +203,14 @@
     <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     ///  - `namespace`: The namespace of the metric.
     </span>MergeHit,
 
     <span class="doccomment">/// Incremented every time a bucket is created.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     ///  - `namespace`: The namespace of the metric.
     </span>MergeMiss,
 
@@ -218,7 +219,7 @@
     /// This should only happen when a project state is invalid during graceful shutdown.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsDropped,
     <span class="doccomment">/// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
@@ -226,20 +227,20 @@
     <span class="doccomment">/// Incremnted for every metric meta item added to the metric meta aggregator.
     </span>MetaAggregatorItems,
     <span class="doccomment">/// Incremented every time a redis key is updated to store or update metadata.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>MetaRedisUpdate,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>MetricCounters {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::MergeHit =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
-            <span class="self">Self</span>::MergeMiss =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
-            <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
-            <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">&quot;metrics.meta.agg.update&quot;</span>,
-            <span class="self">Self</span>::MetaAggregatorItems =&gt; <span class="string">&quot;metrics.meta.agg.items&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-            </span><span class="self">Self</span>::MetaRedisUpdate =&gt; <span class="string">&quot;metrics.meta.redis.update&quot;</span>,
+            <span class="self">Self</span>::MergeHit =&gt; <span class="string">"metrics.buckets.merge.hit"</span>,
+            <span class="self">Self</span>::MergeMiss =&gt; <span class="string">"metrics.buckets.merge.miss"</span>,
+            <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
+            <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">"metrics.meta.agg.update"</span>,
+            <span class="self">Self</span>::MetaAggregatorItems =&gt; <span class="string">"metrics.meta.agg.items"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+            </span><span class="self">Self</span>::MetaRedisUpdate =&gt; <span class="string">"metrics.meta.redis.update"</span>,
         }
     }
 }
@@ -253,14 +254,14 @@
     /// Sending the metric buckets to upstream is outside of this timer.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsScanDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>MetricTimers {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::BucketsScanDuration =&gt; <span class="string">&quot;metrics.buckets.scan_duration&quot;</span>,
+            <span class="self">Self</span>::BucketsScanDuration =&gt; <span class="string">"metrics.buckets.scan_duration"</span>,
         }
     }
 }
@@ -271,7 +272,7 @@
     <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsFlushed,
 
     <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.
@@ -281,7 +282,7 @@
     /// equivalent to the number of projects being flushed.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsFlushedPerProject,
 
     <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.
@@ -303,42 +304,42 @@
 }
 
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>MetricHistograms {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
-            <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
-            <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
-            <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
+            <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">"metrics.buckets.flushed"</span>,
+            <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">"metrics.buckets.flushed_per_project"</span>,
+            <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">"metrics.buckets.delay"</span>,
+            <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">"metrics.buckets.invalid_timestamp"</span>,
         }
     }
 }
 
 <span class="doccomment">/// Gauge metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricGauges {
-    <span class="doccomment">/// The total number of metric buckets in Relay&#39;s metrics aggregator.
+    <span class="doccomment">/// The total number of metric buckets in Relay's metrics aggregator.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>Buckets,
-    <span class="doccomment">/// The total storage cost of metric buckets in Relay&#39;s metrics aggregator.
+    <span class="doccomment">/// The total storage cost of metric buckets in Relay's metrics aggregator.
     ///
     /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsCost,
     <span class="doccomment">/// The average number of elements in a bucket when flushed.
     ///
     /// This metric is tagged with:
-    ///  - `metric_type`: &quot;c&quot;, &quot;d&quot;, &quot;g&quot; or &quot;s&quot;.
+    ///  - `metric_type`: "c", "d", "g" or "s".
     ///  - `namespace`: The namespace of the metric.
     </span>AvgBucketSize,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>MetricGauges {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::Buckets =&gt; <span class="string">&quot;metrics.buckets&quot;</span>,
-            <span class="self">Self</span>::BucketsCost =&gt; <span class="string">&quot;metrics.buckets.cost&quot;</span>,
-            <span class="self">Self</span>::AvgBucketSize =&gt; <span class="string">&quot;metrics.buckets.size&quot;</span>,
+            <span class="self">Self</span>::Buckets =&gt; <span class="string">"metrics.buckets"</span>,
+            <span class="self">Self</span>::BucketsCost =&gt; <span class="string">"metrics.buckets.cost"</span>,
+            <span class="self">Self</span>::AvgBucketSize =&gt; <span class="string">"metrics.buckets.size"</span>,
         }
     }
 }

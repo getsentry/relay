@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1263,10 +1264,10 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_common::time;
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>sentry_release_parser::Release <span class="kw">as </span>ParsedRelease;
 <span class="kw">use </span>uuid::Uuid;
@@ -1282,7 +1283,7 @@
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>EventId(<span class="kw">pub </span>Uuid);
 
 <span class="kw">impl </span>EventId {
@@ -1306,13 +1307,13 @@
     }
 }
 
-<span class="macro">relay_protocol::derive_string_meta_structure!</span>(EventId, <span class="string">&quot;event id&quot;</span>);
+<span class="macro">relay_protocol::derive_string_meta_structure!</span>(EventId, <span class="string">"event id"</span>);
 
 <span class="kw">impl </span>ProcessValue <span class="kw">for </span>EventId {}
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>EventId {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>.as_simple())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.<span class="number">0</span>.as_simple())
     }
 }
 
@@ -1324,12 +1325,12 @@
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(EventId, <span class="string">&quot;an event identifier&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(EventId, <span class="string">"an event identifier"</span>);
 
 <span class="attr">#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
-</span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(bag_size = <span class="string">&quot;larger&quot;</span>)] </span><span class="kw">pub </span>Value);
+</span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(bag_size = <span class="string">"larger"</span>)] </span><span class="kw">pub </span>Value);
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>ExtraValue {
     <span class="kw">fn </span>schema_name() -&gt; String {
         Value::schema_name()
@@ -1352,10 +1353,10 @@
 
 <span class="doccomment">/// An event processing error.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>EventProcessingError {
     <span class="doccomment">/// The error kind.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>, required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Affected key or deep path.
@@ -1365,7 +1366,7 @@
     </span><span class="kw">pub </span>value: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Additional data explaining this error.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -1376,7 +1377,7 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>GroupingConfig {
     <span class="doccomment">/// The id of the grouping config.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;String&gt;,
     <span class="doccomment">/// The enhancements configuration.
     </span><span class="kw">pub </span>enhancements: Annotated&lt;String&gt;,
@@ -1384,8 +1385,8 @@
 
 <span class="doccomment">/// The sentry v7 event structure.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_event&quot;</span>, value_type = <span class="string">&quot;Event&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_event"</span>, value_type = <span class="string">"Event"</span>)]
 </span><span class="kw">pub struct </span>Event {
     <span class="doccomment">/// Unique identifier of this event.
     ///
@@ -1401,10 +1402,10 @@
     ///
     /// ```json
     /// {
-    ///   &quot;event_id&quot;: &quot;fc6d8c0c43fc4630ad850ee518f1b9d0&quot;
+    ///   "event_id": "fc6d8c0c43fc4630ad850ee518f1b9d0"
     /// }
     /// ```
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;event_id&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"event_id"</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;EventId&gt;,
 
     <span class="doccomment">/// Severity level of the event. Defaults to `error`.
@@ -1412,7 +1413,7 @@
     /// Example:
     ///
     /// ```json
-    /// {&quot;level&quot;: &quot;warning&quot;}
+    /// {"level": "warning"}
     /// ```
     </span><span class="kw">pub </span>level: Annotated&lt;Level&gt;,
 
@@ -1431,7 +1432,7 @@
     ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces
     ///    for performance monitoring.
     ///
-    /// Transactions must explicitly specify the `&quot;transaction&quot;` event type. In all other cases,
+    /// Transactions must explicitly specify the `"transaction"` event type. In all other cases,
     /// Sentry infers the appropriate event type from the payload and overrides the stated type.
     /// SDKs should not send an event type other than for transactions.
     ///
@@ -1439,11 +1440,11 @@
     ///
     /// ```json
     /// {
-    ///   &quot;type&quot;: &quot;transaction&quot;,
-    ///   &quot;spans&quot;: []
+    ///   "type": "transaction",
+    ///   "spans": []
     /// }
     /// ```
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;EventType&gt;,
 
     <span class="doccomment">/// Manual fingerprint override.
@@ -1454,40 +1455,40 @@
     ///
     /// ```json
     /// {
-    ///     &quot;fingerprint&quot;: [&quot;myrpc&quot;, &quot;POST&quot;, &quot;/foo.bar&quot;]
+    ///     "fingerprint": ["myrpc", "POST", "/foo.bar"]
     /// }
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>fingerprint: Annotated&lt;Fingerprint&gt;,
 
     <span class="doccomment">/// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;culprit&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"culprit"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>culprit: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Transaction name of the event.
     ///
-    /// For example, in a web app, this might be the route name (`&quot;/users/&lt;username&gt;/&quot;` or
+    /// For example, in a web app, this might be the route name (`"/users/&lt;username&gt;/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;culprit&quot;</span>, trim_whitespace = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"culprit"</span>, trim_whitespace = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional information about the name of the transaction.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>transaction_info: Annotated&lt;TransactionInfo&gt;,
 
     <span class="doccomment">/// Time since the start of the transaction until the error occurred.
     </span><span class="kw">pub </span>time_spent: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Custom parameterized message for this event.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Message&quot;</span>, legacy_alias = <span class="string">&quot;message&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Message"</span>, legacy_alias = <span class="string">"message"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>logentry: Annotated&lt;LogEntry&gt;,
 
     <span class="doccomment">/// Logger that created the event.
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">&quot;logger&quot;</span>, <span class="comment">// DB-imposed limit
-        </span>deny_chars = <span class="string">&quot;\r\n&quot;</span>,
+        max_chars = <span class="string">"logger"</span>, <span class="comment">// DB-imposed limit
+        </span>deny_chars = <span class="string">"\r\n"</span>,
     )]
     </span><span class="kw">pub </span>logger: Annotated&lt;String&gt;,
 
@@ -1495,7 +1496,7 @@
     /// environment/application.
     ///
     /// ```json
-    /// { &quot;django&quot;: &quot;3.0.0&quot;, &quot;celery&quot;: &quot;4.2.1&quot; }
+    /// { "django": "3.0.0", "celery": "4.2.1" }
     /// ```
     ///
     /// In Python this is a list of installed packages as reported by `pkg_resources` together with
@@ -1504,10 +1505,10 @@
     /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
     /// and for making informed decisions on which frameworks to support in future development
     /// efforts.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>, bag_size = <span class="string">"large"</span>)]
     </span><span class="kw">pub </span>modules: Annotated&lt;Object&lt;String&gt;&gt;,
 
-    <span class="doccomment">/// Platform identifier of this event (defaults to &quot;other&quot;).
+    <span class="doccomment">/// Platform identifier of this event (defaults to "other").
     ///
     /// A string representing the platform the SDK is submitting from. This will be used by the
     /// Sentry interface to customize various components in the interface, but also to enter or
@@ -1538,14 +1539,14 @@
     /// All of these are the same date:
     ///
     /// ```json
-    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36Z&quot; }
-    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36&quot; }
-    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36.000&quot; }
-    /// { &quot;timestamp&quot;: 1304358096.0 }
+    /// { "timestamp": "2011-05-02T17:41:36Z" }
+    /// { "timestamp": "2011-05-02T17:41:36" }
+    /// { "timestamp": "2011-05-02T17:41:36.000" }
+    /// { "timestamp": 1304358096.0 }
     /// ```
     </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
 
-    <span class="doccomment">/// Timestamp when the event has started (relevant for event type = &quot;transaction&quot;)
+    <span class="doccomment">/// Timestamp when the event has started (relevant for event type = "transaction")
     </span><span class="attr">#[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
 
@@ -1555,7 +1556,7 @@
     <span class="doccomment">/// Server or device name the event was generated on.
     ///
     /// This is supposed to be a hostname.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
     </span><span class="kw">pub </span>server_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The release version of the application.
@@ -1563,16 +1564,16 @@
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// release ends in tag
+        max_chars = <span class="string">"tag_value"</span>,  <span class="comment">// release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
-        </span>required = <span class="string">&quot;false&quot;</span>,
-        trim_whitespace = <span class="string">&quot;true&quot;</span>,
-        nonempty = <span class="string">&quot;true&quot;</span>,
-        skip_serialization = <span class="string">&quot;empty&quot;
+        </span>required = <span class="string">"false"</span>,
+        trim_whitespace = <span class="string">"true"</span>,
+        nonempty = <span class="string">"true"</span>,
+        skip_serialization = <span class="string">"empty"
     </span>)]
     </span><span class="kw">pub </span>release: Annotated&lt;LenientString&gt;,
 
-    <span class="doccomment">/// Program&#39;s distribution identifier.
+    <span class="doccomment">/// Program's distribution identifier.
     ///
     /// The distribution of the application.
     ///
@@ -1580,111 +1581,111 @@
     /// an application. For example, the dist can be the build number of an XCode build or the
     /// version code of an Android build.
     </span><span class="attr">#[metastructure(
-        allow_chars = <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
-        trim_whitespace = <span class="string">&quot;true&quot;</span>,
-        required = <span class="string">&quot;false&quot;</span>,
-        nonempty = <span class="string">&quot;true&quot;
+        allow_chars = <span class="string">"a-zA-Z0-9_.-"</span>,
+        trim_whitespace = <span class="string">"true"</span>,
+        required = <span class="string">"false"</span>,
+        nonempty = <span class="string">"true"
     </span>)]
     </span><span class="kw">pub </span>dist: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The environment name, such as `production` or `staging`.
     ///
     /// ```json
-    /// { &quot;environment&quot;: &quot;production&quot; }
+    /// { "environment": "production" }
     /// ```
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">&quot;environment&quot;</span>,
+        max_chars = <span class="string">"environment"</span>,
         <span class="comment">// environment allowed chars are validated in the sentry-release-parser crate!
-        </span>nonempty = <span class="string">&quot;true&quot;</span>,
-        required = <span class="string">&quot;false&quot;</span>,
-        trim_whitespace = <span class="string">&quot;true&quot;
+        </span>nonempty = <span class="string">"true"</span>,
+        required = <span class="string">"false"</span>,
+        trim_whitespace = <span class="string">"true"
     </span>)]
     </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Deprecated in favor of tags.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
     </span><span class="kw">pub </span>site: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Information about the user who triggered this event.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.User&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.User"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>user: Annotated&lt;User&gt;,
 
     <span class="doccomment">/// Information about a web request that occurred during the event.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Http&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Http"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>request: Annotated&lt;Request&gt;,
 
     <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Contexts&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Contexts"</span>)]
     </span><span class="kw">pub </span>contexts: Annotated&lt;Contexts&gt;,
 
     <span class="doccomment">/// List of breadcrumbs recorded before this event.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Breadcrumbs&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Breadcrumbs"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>breadcrumbs: Annotated&lt;Values&lt;Breadcrumb&gt;&gt;,
 
     <span class="doccomment">/// One or multiple chained (nested) exceptions.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Exception&quot;</span>)]
-    #[metastructure(field = <span class="string">&quot;exception&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Exception"</span>)]
+    #[metastructure(field = <span class="string">"exception"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>exceptions: Annotated&lt;Values&lt;Exception&gt;&gt;,
 
     <span class="doccomment">/// Event stacktrace.
     ///
     /// DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
-    #[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Stacktrace&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
+    #[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Stacktrace"</span>)]
     </span><span class="kw">pub </span>stacktrace: Annotated&lt;Stacktrace&gt;,
 
     <span class="doccomment">/// Simplified template error location information.
     /// DEPRECATED: Non-Raven clients are not supposed to send this anymore, but rather just report
     /// synthetic frames.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Template&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Template"</span>)]
     #[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>template: Annotated&lt;TemplateInfo&gt;,
 
     <span class="doccomment">/// Threads that were active when the event occurred.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>threads: Annotated&lt;Values&lt;Thread&gt;&gt;,
 
     <span class="doccomment">/// Custom tags for this event.
     ///
     /// A map or list of tags for this event. Each tag must be less than 200 characters.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>tags: Annotated&lt;Tags&gt;,
 
     <span class="doccomment">/// Arbitrary extra information set by the user.
     ///
     /// ```json
     /// {
-    ///     &quot;extra&quot;: {
-    ///         &quot;my_key&quot;: 1,
-    ///         &quot;some_other_value&quot;: &quot;foo bar&quot;
+    ///     "extra": {
+    ///         "my_key": 1,
+    ///         "some_other_value": "foo bar"
     ///     }
     /// }```
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;massive&quot;</span>)]
-    #[metastructure(pii = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(bag_size = <span class="string">"massive"</span>)]
+    #[metastructure(pii = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>extra: Annotated&lt;Object&lt;ExtraValue&gt;&gt;,
 
     <span class="doccomment">/// Meta data for event processing and debugging.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>debug_meta: Annotated&lt;DebugMeta&gt;,
 
     <span class="doccomment">/// Information about the Sentry SDK that generated this event.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;sdk&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sdk"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>client_sdk: Annotated&lt;ClientSdkInfo&gt;,
 
     <span class="doccomment">/// Information about the Relays that processed this event during ingest.
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, omit_from_schema)]
+    </span><span class="attr">#[metastructure(bag_size = <span class="string">"medium"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>, omit_from_schema)]
     </span><span class="kw">pub </span>ingest_path: Annotated&lt;Array&lt;RelayInfo&gt;&gt;,
 
     <span class="doccomment">/// Errors encountered during processing. Intended to be phased out in favor of
     /// annotation/metadata system.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>errors: Annotated&lt;Array&lt;EventProcessingError&gt;&gt;,
 
     <span class="doccomment">/// Project key which sent this event.
@@ -1700,27 +1701,27 @@
     </span><span class="kw">pub </span>grouping_config: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Legacy checksum used for grouping before fingerprint hashes.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;hash&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"hash"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
     </span><span class="kw">pub </span>checksum: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// CSP (security) reports.
-    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Csp&quot;</span>)]
+    </span><span class="attr">#[metastructure(legacy_alias = <span class="string">"sentry.interfaces.Csp"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>csp: Annotated&lt;Csp&gt;,
 
     <span class="doccomment">/// HPKP (security) reports.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.Hpkp&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, legacy_alias = <span class="string">"sentry.interfaces.Hpkp"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>hpkp: Annotated&lt;Hpkp&gt;,
 
     <span class="doccomment">/// ExpectCT (security) reports.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.ExpectCT&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, legacy_alias = <span class="string">"sentry.interfaces.ExpectCT"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>expectct: Annotated&lt;ExpectCt&gt;,
 
     <span class="doccomment">/// ExpectStaple (security) reports.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.ExpectStaple&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, legacy_alias = <span class="string">"sentry.interfaces.ExpectStaple"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>expectstaple: Annotated&lt;ExpectStaple&gt;,
 
@@ -1732,12 +1733,12 @@
     ///
     /// Measurements are only available on transactions. They contain measurement values of observed
     /// values such as Largest Contentful Paint (LCP).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>measurements: Annotated&lt;Measurements&gt;,
 
     <span class="doccomment">/// Breakdowns which holds product-defined values such as span operation breakdowns.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>breakdowns: Annotated&lt;Breakdowns&gt;,
 
@@ -1760,7 +1761,7 @@
     </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -1787,7 +1788,7 @@
 
     <span class="doccomment">/// Returns the identifier of the client SDK if available.
     ///
-    /// Sentry&#39;s own SDKs use a naming schema prefixed with `sentry.`. Defaults to `&quot;unknown&quot;`.
+    /// Sentry's own SDKs use a naming schema prefixed with `sentry.`. Defaults to `"unknown"`.
     </span><span class="kw">pub fn </span>sdk_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = client_sdk.name.as_str() {
@@ -1795,12 +1796,12 @@
             }
         }
 
-        <span class="string">&quot;unknown&quot;
+        <span class="string">"unknown"
     </span>}
 
     <span class="doccomment">/// Returns the version of the client SDK if available.
     ///
-    /// Defaults to `&quot;unknown&quot;`.
+    /// Defaults to `"unknown"`.
     </span><span class="kw">pub fn </span>sdk_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = client_sdk.version.as_str() {
@@ -1808,12 +1809,12 @@
             }
         }
 
-        <span class="string">&quot;unknown&quot;
+        <span class="string">"unknown"
     </span>}
 
     <span class="doccomment">/// Returns the raw user agent string.
     ///
-    /// Returns `Some` if the event&#39;s request interface contains a `user-agent` header. Returns
+    /// Returns `Some` if the event's request interface contains a `user-agent` header. Returns
     /// `None` otherwise.
     </span><span class="kw">pub fn </span>user_agent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="kw">let </span>headers = <span class="self">self</span>.request.value()<span class="question-mark">?</span>.headers.value()<span class="question-mark">?</span>;
@@ -1821,7 +1822,7 @@
         <span class="kw">for </span>item <span class="kw">in </span>headers.iter() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw-2">ref </span>o_k, <span class="kw-2">ref </span>v)) = item.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = o_k.as_str() {
-                    <span class="kw">if </span>k.to_lowercase() == <span class="string">&quot;user-agent&quot; </span>{
+                    <span class="kw">if </span>k.to_lowercase() == <span class="string">"user-agent" </span>{
                         <span class="kw">return </span>v.as_str();
                     }
                 }
@@ -1833,10 +1834,10 @@
 
     <span class="doccomment">/// Returns extra data at the specified path.
     ///
-    /// The path is evaluated recursively where each path component is joined by a period (`&quot;.&quot;`).
+    /// The path is evaluated recursively where each path component is joined by a period (`"."`).
     /// Periods in extra keys are not supported.
     </span><span class="kw">pub fn </span>extra_at(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Value&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>path = path.split(<span class="string">&#39;.&#39;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>path = path.split(<span class="string">'.'</span>);
 
         <span class="comment">// Get the top-level item explicitly, since those have a different type
         </span><span class="kw">let </span><span class="kw-2">mut </span>value = <span class="kw-2">&amp;</span><span class="self">self</span>.extra.value()<span class="question-mark">?</span>.get(path.next()<span class="question-mark">?</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.<span class="number">0</span>;
@@ -1854,13 +1855,13 @@
     }
 
     <span class="doccomment">/// Returns parsed components of the Release string in [`Self::release`].
-    </span><span class="kw">pub fn </span>parse_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ParsedRelease&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+    </span><span class="kw">pub fn </span>parse_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ParsedRelease&lt;<span class="lifetime">'_</span>&gt;&gt; {
         sentry_release_parser::Release::parse(<span class="self">self</span>.release.as_str()<span class="question-mark">?</span>).ok()
     }
 
     <span class="doccomment">/// Returns the numeric measurement value.
     ///
-    /// The name is provided without a prefix, for example `&quot;lcp&quot;` loads `event.measurements.lcp`.
+    /// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
     </span><span class="kw">pub fn </span>measurement(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
         <span class="kw">let </span>annotated = <span class="self">self</span>.measurements.value()<span class="question-mark">?</span>.get(name)<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>(<span class="kw-2">*</span>annotated.value()<span class="question-mark">?</span>.value.value()<span class="question-mark">?</span>)
@@ -1885,31 +1886,31 @@
 
 <span class="kw">fn </span>or_none(string: <span class="kw-2">&amp;</span>Annotated&lt;<span class="kw">impl </span>AsRef&lt;str&gt;&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
     <span class="kw">match </span>string.as_str() {
-        <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>) =&gt; <span class="prelude-val">None</span>,
+        <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="string">""</span>) =&gt; <span class="prelude-val">None</span>,
         <span class="prelude-val">Some</span>(other) =&gt; <span class="prelude-val">Some</span>(other),
     }
 }
 
 <span class="kw">impl </span>Getter <span class="kw">for </span>Event {
-    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
-        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">&quot;event.&quot;</span>)<span class="question-mark">? </span>{
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
+        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">"event."</span>)<span class="question-mark">? </span>{
             <span class="comment">// Simple fields
-            </span><span class="string">&quot;level&quot; </span>=&gt; <span class="self">self</span>.level.value()<span class="question-mark">?</span>.name().into(),
-            <span class="string">&quot;release&quot; </span>=&gt; <span class="self">self</span>.release.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;dist&quot; </span>=&gt; <span class="self">self</span>.dist.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;environment&quot; </span>=&gt; <span class="self">self</span>.environment.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;transaction&quot; </span>=&gt; <span class="self">self</span>.transaction.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;logger&quot; </span>=&gt; <span class="self">self</span>.logger.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;platform&quot; </span>=&gt; <span class="self">self</span>.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>).into(),
+            </span><span class="string">"level" </span>=&gt; <span class="self">self</span>.level.value()<span class="question-mark">?</span>.name().into(),
+            <span class="string">"release" </span>=&gt; <span class="self">self</span>.release.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"dist" </span>=&gt; <span class="self">self</span>.dist.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"environment" </span>=&gt; <span class="self">self</span>.environment.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.transaction.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"logger" </span>=&gt; <span class="self">self</span>.logger.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"platform" </span>=&gt; <span class="self">self</span>.platform.as_str().unwrap_or(<span class="string">"other"</span>).into(),
 
-            <span class="comment">// Fields in top level structures (called &quot;interfaces&quot; in Sentry)
-            </span><span class="string">&quot;user.email&quot; </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.email)<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.id&quot; </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.id)<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.ip_address&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.ip_address.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.name&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.segment&quot; </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.segment)<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.geo.city&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.city.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.geo.country_code&quot; </span>=&gt; <span class="self">self
+            <span class="comment">// Fields in top level structures (called "interfaces" in Sentry)
+            </span><span class="string">"user.email" </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.email)<span class="question-mark">?</span>.into(),
+            <span class="string">"user.id" </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.id)<span class="question-mark">?</span>.into(),
+            <span class="string">"user.ip_address" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.ip_address.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"user.name" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"user.segment" </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.value()<span class="question-mark">?</span>.segment)<span class="question-mark">?</span>.into(),
+            <span class="string">"user.geo.city" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.city.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"user.geo.country_code" </span>=&gt; <span class="self">self
                 </span>.user
                 .value()<span class="question-mark">?
                 </span>.geo
@@ -1917,99 +1918,99 @@
                 </span>.country_code
                 .as_str()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;user.geo.region&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.region.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.geo.subdivision&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.subdivision.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;request.method&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.method.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;request.url&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.url.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;transaction.source&quot; </span>=&gt; <span class="self">self
+            <span class="string">"user.geo.region" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.region.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"user.geo.subdivision" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.subdivision.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"request.method" </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.method.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"request.url" </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.url.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"transaction.source" </span>=&gt; <span class="self">self
                 </span>.transaction_info
                 .value()<span class="question-mark">?
                 </span>.source
                 .value()<span class="question-mark">?
                 </span>.as_str()
                 .into(),
-            <span class="string">&quot;sdk.name&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;sdk.version&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"sdk.name" </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"sdk.version" </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
 
             <span class="comment">// Partial implementation of contexts.
-            </span><span class="string">&quot;contexts.app.in_foreground&quot; </span>=&gt; {
+            </span><span class="string">"contexts.app.in_foreground" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;AppContext&gt;()<span class="question-mark">?</span>.in_foreground.value()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.device.arch&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.arch.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.battery_level&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.arch" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.arch.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.battery_level" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.battery_level
                 .value()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.device.brand&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.brand.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.charging&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.charging.value()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.family&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.family.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.model&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.model.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.locale&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.locale.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.online&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.online.value()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.orientation&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.brand" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.brand.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.charging" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.charging.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.family" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.family.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.model" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.model.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.locale" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.locale.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.online" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.online.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.orientation" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.orientation
                 .as_str()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.device.name&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.device.screen_density&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.name" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.device.screen_density" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.screen_density
                 .value()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.device.screen_dpi&quot; </span>=&gt; {
+            <span class="string">"contexts.device.screen_dpi" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.screen_dpi.value()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.device.screen_width_pixels&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.screen_width_pixels" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.screen_width_pixels
                 .value()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.device.screen_height_pixels&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.screen_height_pixels" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.screen_height_pixels
                 .value()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.device.simulator&quot; </span>=&gt; {
+            <span class="string">"contexts.device.simulator" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.simulator.value()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.os.build&quot; </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.build.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.os.kernel_version&quot; </span>=&gt; {
+            <span class="string">"contexts.os.build" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.build.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.os.kernel_version" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.kernel_version.as_str()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.os.name&quot; </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.os.version&quot; </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.browser.name&quot; </span>=&gt; <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.browser.version&quot; </span>=&gt; {
+            <span class="string">"contexts.os.name" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.os.version" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.browser.name" </span>=&gt; <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.browser.version" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.profile.profile_id&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.profile.profile_id" </span>=&gt; <span class="self">self
                 </span>.context::&lt;ProfileContext&gt;()<span class="question-mark">?
                 </span>.profile_id
                 .value()<span class="question-mark">?
                 </span>.<span class="number">0
                 </span>.into(),
-            <span class="string">&quot;contexts.device.uuid&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.uuid.value()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.trace.status&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.device.uuid" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.uuid.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.trace.status" </span>=&gt; <span class="self">self
                 </span>.context::&lt;TraceContext&gt;()<span class="question-mark">?
                 </span>.status
                 .value()<span class="question-mark">?
                 </span>.as_str()
                 .into(),
-            <span class="string">&quot;contexts.trace.op&quot; </span>=&gt; <span class="self">self</span>.context::&lt;TraceContext&gt;()<span class="question-mark">?</span>.op.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;contexts.response.status_code&quot; </span>=&gt; <span class="self">self
+            <span class="string">"contexts.trace.op" </span>=&gt; <span class="self">self</span>.context::&lt;TraceContext&gt;()<span class="question-mark">?</span>.op.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.response.status_code" </span>=&gt; <span class="self">self
                 </span>.context::&lt;ResponseContext&gt;()<span class="question-mark">?
                 </span>.status_code
                 .value()<span class="question-mark">?
                 </span>.into(),
-            <span class="string">&quot;contexts.unreal.crash_type&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.contexts.value()<span class="question-mark">?</span>.get_key(<span class="string">&quot;unreal&quot;</span>)<span class="question-mark">? </span>{
-                <span class="kw">super</span>::Context::Other(context) =&gt; context.get(<span class="string">&quot;crash_type&quot;</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.unreal.crash_type" </span>=&gt; <span class="kw">match </span><span class="self">self</span>.contexts.value()<span class="question-mark">?</span>.get_key(<span class="string">"unreal"</span>)<span class="question-mark">? </span>{
+                <span class="kw">super</span>::Context::Other(context) =&gt; context.get(<span class="string">"crash_type"</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.into(),
                 <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
             },
 
             <span class="comment">// Computed fields (see Discover)
-            </span><span class="string">&quot;duration&quot; </span>=&gt; {
+            </span><span class="string">"duration" </span>=&gt; {
                 <span class="kw">let </span>start = <span class="self">self</span>.start_timestamp.value()<span class="question-mark">?</span>;
                 <span class="kw">let </span>end = <span class="self">self</span>.timestamp.value()<span class="question-mark">?</span>;
                 <span class="kw">if </span>start &lt;= end &amp;&amp; <span class="self">self</span>.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
@@ -2021,25 +2022,25 @@
 
             <span class="comment">// Dynamic access to certain data bags
             </span>path =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;release.&quot;</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"release."</span>) {
                     <span class="kw">let </span>release = <span class="self">self</span>.parse_release()<span class="question-mark">?</span>;
                     <span class="kw">match </span>rest {
-                        <span class="string">&quot;build&quot; </span>=&gt; release.build_hash()<span class="question-mark">?</span>.into(),
-                        <span class="string">&quot;package&quot; </span>=&gt; release.package()<span class="question-mark">?</span>.into(),
-                        <span class="string">&quot;version.short&quot; </span>=&gt; release.version()<span class="question-mark">?</span>.raw_short().into(),
+                        <span class="string">"build" </span>=&gt; release.build_hash()<span class="question-mark">?</span>.into(),
+                        <span class="string">"package" </span>=&gt; release.package()<span class="question-mark">?</span>.into(),
+                        <span class="string">"version.short" </span>=&gt; release.version()<span class="question-mark">?</span>.raw_short().into(),
                         <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
                     }
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;measurements.&quot;</span>) {
-                    <span class="kw">let </span>name = rest.strip_suffix(<span class="string">&quot;.value&quot;</span>)<span class="question-mark">?</span>;
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"measurements."</span>) {
+                    <span class="kw">let </span>name = rest.strip_suffix(<span class="string">".value"</span>)<span class="question-mark">?</span>;
                     <span class="self">self</span>.measurement(name)<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;breakdowns.&quot;</span>) {
-                    <span class="kw">let </span>(breakdown, measurement) = rest.split_once(<span class="string">&#39;.&#39;</span>)<span class="question-mark">?</span>;
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"breakdowns."</span>) {
+                    <span class="kw">let </span>(breakdown, measurement) = rest.split_once(<span class="string">'.'</span>)<span class="question-mark">?</span>;
                     <span class="self">self</span>.breakdown(breakdown, measurement)<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;extra.&quot;</span>) {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"extra."</span>) {
                     <span class="self">self</span>.extra_at(rest)<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;tags.&quot;</span>) {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"tags."</span>) {
                     <span class="self">self</span>.tags.value()<span class="question-mark">?</span>.get(rest)<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;request.headers.&quot;</span>) {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"request.headers."</span>) {
                     <span class="self">self</span>.request
                         .value()<span class="question-mark">?
                         </span>.headers
@@ -2069,93 +2070,93 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_roundtrip() {
         <span class="comment">// NOTE: Interfaces will be tested separately.
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;level&quot;: &quot;debug&quot;,
-  &quot;fingerprint&quot;: [
-    &quot;myprint&quot;
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "level": "debug",
+  "fingerprint": [
+    "myprint"
   ],
-  &quot;culprit&quot;: &quot;myculprit&quot;,
-  &quot;transaction&quot;: &quot;mytransaction&quot;,
-  &quot;logentry&quot;: {
-    &quot;formatted&quot;: &quot;mymessage&quot;
+  "culprit": "myculprit",
+  "transaction": "mytransaction",
+  "logentry": {
+    "formatted": "mymessage"
   },
-  &quot;logger&quot;: &quot;mylogger&quot;,
-  &quot;modules&quot;: {
-    &quot;mymodule&quot;: &quot;1.0.0&quot;
+  "logger": "mylogger",
+  "modules": {
+    "mymodule": "1.0.0"
   },
-  &quot;platform&quot;: &quot;myplatform&quot;,
-  &quot;timestamp&quot;: 946684800.0,
-  &quot;server_name&quot;: &quot;myhost&quot;,
-  &quot;release&quot;: &quot;myrelease&quot;,
-  &quot;dist&quot;: &quot;mydist&quot;,
-  &quot;environment&quot;: &quot;myenv&quot;,
-  &quot;tags&quot;: [
+  "platform": "myplatform",
+  "timestamp": 946684800.0,
+  "server_name": "myhost",
+  "release": "myrelease",
+  "dist": "mydist",
+  "environment": "myenv",
+  "tags": [
     [
-      &quot;tag&quot;,
-      &quot;value&quot;
+      "tag",
+      "value"
     ]
   ],
-  &quot;extra&quot;: {
-    &quot;extra&quot;: &quot;value&quot;
+  "extra": {
+    "extra": "value"
   },
-  &quot;other&quot;: &quot;value&quot;,
-  &quot;_meta&quot;: {
-    &quot;event_id&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
-          &quot;invalid_data&quot;
+  "other": "value",
+  "_meta": {
+    "event_id": {
+      "": {
+        "err": [
+          "invalid_data"
         ]
       }
     }
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>event = Annotated::new(Event {
             id: Annotated(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.parse().unwrap()),
+                <span class="prelude-val">Some</span>(<span class="string">"52df9022-8352-46ee-b317-dbd739ccd059"</span>.parse().unwrap()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             level: Annotated::new(Level::Debug),
-            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">&quot;myprint&quot;</span>.to_string()].into()),
-            culprit: Annotated::new(<span class="string">&quot;myculprit&quot;</span>.to_string()),
-            transaction: Annotated::new(<span class="string">&quot;mytransaction&quot;</span>.to_string()),
+            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">"myprint"</span>.to_string()].into()),
+            culprit: Annotated::new(<span class="string">"myculprit"</span>.to_string()),
+            transaction: Annotated::new(<span class="string">"mytransaction"</span>.to_string()),
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new(<span class="string">&quot;mymessage&quot;</span>.to_string().into()),
+                formatted: Annotated::new(<span class="string">"mymessage"</span>.to_string().into()),
                 ..Default::default()
             }),
-            logger: Annotated::new(<span class="string">&quot;mylogger&quot;</span>.to_string()),
+            logger: Annotated::new(<span class="string">"mylogger"</span>.to_string()),
             modules: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
-                map.insert(<span class="string">&quot;mymodule&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;1.0.0&quot;</span>.to_string()));
+                map.insert(<span class="string">"mymodule"</span>.to_string(), Annotated::new(<span class="string">"1.0.0"</span>.to_string()));
                 Annotated::new(map)
             },
-            platform: Annotated::new(<span class="string">&quot;myplatform&quot;</span>.to_string()),
+            platform: Annotated::new(<span class="string">"myplatform"</span>.to_string()),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
-            server_name: Annotated::new(<span class="string">&quot;myhost&quot;</span>.to_string()),
-            release: Annotated::new(<span class="string">&quot;myrelease&quot;</span>.to_string().into()),
-            dist: Annotated::new(<span class="string">&quot;mydist&quot;</span>.to_string()),
-            environment: Annotated::new(<span class="string">&quot;myenv&quot;</span>.to_string()),
+            server_name: Annotated::new(<span class="string">"myhost"</span>.to_string()),
+            release: Annotated::new(<span class="string">"myrelease"</span>.to_string().into()),
+            dist: Annotated::new(<span class="string">"mydist"</span>.to_string()),
+            environment: Annotated::new(<span class="string">"myenv"</span>.to_string()),
             tags: {
                 <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;tag&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;value&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"tag"</span>.to_string()),
+                    Annotated::new(<span class="string">"value"</span>.to_string()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;extra&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;value&quot;</span>.to_string()))),
+                    <span class="string">"extra"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"value"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -2168,7 +2169,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_default_values() {
-        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>json = <span class="string">"{}"</span>;
         <span class="kw">let </span>event = Annotated::new(Event::default());
 
         <span class="macro">assert_eq!</span>(event, Annotated::from_json(json).unwrap());
@@ -2177,48 +2178,48 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_default_values_with_meta() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;fingerprint&quot;: [
-    &quot;{{ default }}&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "fingerprint": [
+    "{{ default }}"
   ],
-  &quot;platform&quot;: &quot;other&quot;,
-  &quot;_meta&quot;: {
-    &quot;event_id&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
-          &quot;invalid_data&quot;
+  "platform": "other",
+  "_meta": {
+    "event_id": {
+      "": {
+        "err": [
+          "invalid_data"
         ]
       }
     },
-    &quot;fingerprint&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
-          &quot;invalid_data&quot;
+    "fingerprint": {
+      "": {
+        "err": [
+          "invalid_data"
         ]
       }
     },
-    &quot;platform&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
-          &quot;invalid_data&quot;
+    "platform": {
+      "": {
+        "err": [
+          "invalid_data"
         ]
       }
     }
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>event = Annotated::new(Event {
             id: Annotated(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.parse().unwrap()),
+                <span class="prelude-val">Some</span>(<span class="string">"52df9022-8352-46ee-b317-dbd739ccd059"</span>.parse().unwrap()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             fingerprint: Annotated(
-                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">&quot;{{ default }}&quot;</span>.to_string()].into()),
+                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"{{ default }}"</span>.to_string()].into()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             platform: Annotated(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;other&quot;</span>.to_string()),
+                <span class="prelude-val">Some</span>(<span class="string">"other"</span>.to_string()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             ..Default::default()
@@ -2232,7 +2233,7 @@
     </span><span class="kw">fn </span>test_event_type() {
         <span class="macro">assert_eq!</span>(
             EventType::Default,
-            <span class="kw-2">*</span>Annotated::&lt;EventType&gt;::from_json(<span class="string">&quot;\&quot;default\&quot;&quot;</span>)
+            <span class="kw-2">*</span>Annotated::&lt;EventType&gt;::from_json(<span class="string">"\"default\""</span>)
                 .unwrap()
                 .value()
                 .unwrap()
@@ -2241,9 +2242,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_fingerprint_empty_string() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;fingerprint&quot;:[&quot;&quot;]}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"fingerprint":[""]}"#</span>;
         <span class="kw">let </span>event = Annotated::new(Event {
-            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_string()].into()),
+            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">""</span>.to_string()].into()),
             ..Default::default()
         });
 
@@ -2253,8 +2254,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_fingerprint_null_values() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;fingerprint&quot;:[null]}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{}&quot;#</span>;
+        <span class="kw">let </span>input = <span class="string">r#"{"fingerprint":[null]}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{}"#</span>;
         <span class="kw">let </span>event = Annotated::new(Event {
             fingerprint: Annotated::new(<span class="macro">vec!</span>[].into()),
             ..Default::default()
@@ -2266,8 +2267,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_threads() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;threads&quot;: {}}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{}&quot;#</span>;
+        <span class="kw">let </span>input = <span class="string">r#"{"threads": {}}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{}"#</span>;
 
         <span class="kw">let </span>event = Annotated::new(Event::default());
 
@@ -2277,10 +2278,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_lenient_release() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;release&quot;:42}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;release&quot;:&quot;42&quot;}&quot;#</span>;
+        <span class="kw">let </span>input = <span class="string">r#"{"release":42}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{"release":"42"}"#</span>;
         <span class="kw">let </span>event = Annotated::new(Event {
-            release: Annotated::new(<span class="string">&quot;42&quot;</span>.to_string().into()),
+            release: Annotated::new(<span class="string">"42"</span>.to_string().into()),
             ..Default::default()
         });
 
@@ -2291,12 +2292,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extra_at() {
         <span class="kw">let </span>json = <span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;extra&quot;</span>: {
-                <span class="string">&quot;a&quot;</span>: <span class="string">&quot;string1&quot;</span>,
-                <span class="string">&quot;b&quot;</span>: <span class="number">42</span>,
-                <span class="string">&quot;c&quot;</span>: {
-                    <span class="string">&quot;d&quot;</span>: <span class="string">&quot;string2&quot;</span>,
-                    <span class="string">&quot;e&quot;</span>: null,
+            <span class="string">"extra"</span>: {
+                <span class="string">"a"</span>: <span class="string">"string1"</span>,
+                <span class="string">"b"</span>: <span class="number">42</span>,
+                <span class="string">"c"</span>: {
+                    <span class="string">"d"</span>: <span class="string">"string2"</span>,
+                    <span class="string">"e"</span>: null,
                 },
             },
         });
@@ -2305,26 +2306,26 @@
         <span class="kw">let </span>event = event.value().unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::String(<span class="string">&quot;string1&quot;</span>.to_owned())),
-            event.extra_at(<span class="string">&quot;a&quot;</span>)
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::String(<span class="string">"string1"</span>.to_owned())),
+            event.extra_at(<span class="string">"a"</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::I64(<span class="number">42</span>)), event.extra_at(<span class="string">&quot;b&quot;</span>));
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(event.extra_at(<span class="string">&quot;c&quot;</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::Object(<span class="kw">_</span>))));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">&quot;d&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::I64(<span class="number">42</span>)), event.extra_at(<span class="string">"b"</span>));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(event.extra_at(<span class="string">"c"</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::Object(<span class="kw">_</span>))));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">"d"</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::String(<span class="string">&quot;string2&quot;</span>.to_owned())),
-            event.extra_at(<span class="string">&quot;c.d&quot;</span>)
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::String(<span class="string">"string2"</span>.to_owned())),
+            event.extra_at(<span class="string">"c.d"</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">&quot;c.e&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">&quot;c.f&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">"c.e"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">"c.f"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrape_attempts() {
         <span class="kw">let </span>json = <span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;scraping_attempts&quot;</span>: [
-                {<span class="string">&quot;status&quot;</span>: <span class="string">&quot;not_attempted&quot;</span>, <span class="string">&quot;url&quot;</span>: <span class="string">&quot;http://example.com/embedded.js&quot;</span>},
-                {<span class="string">&quot;status&quot;</span>: <span class="string">&quot;not_attempted&quot;</span>, <span class="string">&quot;url&quot;</span>: <span class="string">&quot;http://example.com/embedded.js.map&quot;</span>},
+            <span class="string">"scraping_attempts"</span>: [
+                {<span class="string">"status"</span>: <span class="string">"not_attempted"</span>, <span class="string">"url"</span>: <span class="string">"http://example.com/embedded.js"</span>},
+                {<span class="string">"status"</span>: <span class="string">"not_attempted"</span>, <span class="string">"url"</span>: <span class="string">"http://example.com/embedded.js.map"</span>},
             ]
         });
 
@@ -2336,23 +2337,23 @@
     </span><span class="kw">fn </span>test_field_value_provider_event_filled() {
         <span class="kw">let </span>event = Event {
             level: Annotated::new(Level::Info),
-            release: Annotated::new(LenientString(<span class="string">&quot;1.1.1&quot;</span>.to_owned())),
-            environment: Annotated::new(<span class="string">&quot;prod&quot;</span>.to_owned()),
+            release: Annotated::new(LenientString(<span class="string">"1.1.1"</span>.to_owned())),
+            environment: Annotated::new(<span class="string">"prod"</span>.to_owned()),
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.to_owned())),
-                id: Annotated::new(LenientString(<span class="string">&quot;user-id&quot;</span>.into())),
-                segment: Annotated::new(<span class="string">&quot;user-seg&quot;</span>.into()),
+                ip_address: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
+                id: Annotated::new(LenientString(<span class="string">"user-id"</span>.into())),
+                segment: Annotated::new(<span class="string">"user-seg"</span>.into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
-                name: Annotated::new(<span class="string">&quot;sentry-javascript&quot;</span>.into()),
-                version: Annotated::new(<span class="string">&quot;1.87.0&quot;</span>.into()),
+                name: Annotated::new(<span class="string">"sentry-javascript"</span>.into()),
+                version: Annotated::new(<span class="string">"1.87.0"</span>.into()),
                 ..Default::default()
             }),
             exceptions: Annotated::new(Values {
                 values: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Exception {
                     value: Annotated::new(JsonLenientString::from(
-                        <span class="string">&quot;canvas.contentDocument&quot;</span>.to_owned(),
+                        <span class="string">"canvas.contentDocument"</span>.to_owned(),
                     )),
                     ..Default::default()
                 })]),
@@ -2360,47 +2361,47 @@
             }),
             request: Annotated::new(Request {
                 headers: Annotated::new(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
-                    Annotated::new(<span class="string">&quot;user-agent&quot;</span>.into()),
-                    Annotated::new(<span class="string">&quot;Slurp&quot;</span>.into()),
+                    Annotated::new(<span class="string">"user-agent"</span>.into()),
+                    Annotated::new(<span class="string">"Slurp"</span>.into()),
                 ))]))),
-                url: Annotated::new(<span class="string">&quot;https://sentry.io&quot;</span>.into()),
+                url: Annotated::new(<span class="string">"https://sentry.io"</span>.into()),
                 ..Default::default()
             }),
-            transaction: Annotated::new(<span class="string">&quot;some-transaction&quot;</span>.into()),
+            transaction: Annotated::new(<span class="string">"some-transaction"</span>.into()),
             transaction_info: Annotated::new(TransactionInfo {
                 source: Annotated::new(TransactionSource::Route),
                 ..Default::default()
             }),
             tags: {
                 <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;custom&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;custom-value&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"custom"</span>.to_string()),
+                    Annotated::new(<span class="string">"custom-value"</span>.to_string()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
             contexts: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    name: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
-                    family: Annotated::new(<span class="string">&quot;iphone-fam&quot;</span>.to_string()),
-                    model: Annotated::new(<span class="string">&quot;iphone7,3&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"iphone"</span>.to_string()),
+                    family: Annotated::new(<span class="string">"iphone-fam"</span>.to_string()),
+                    model: Annotated::new(<span class="string">"iphone7,3"</span>.to_string()),
                     screen_dpi: Annotated::new(<span class="number">560</span>),
                     screen_width_pixels: Annotated::new(<span class="number">1920</span>),
                     screen_height_pixels: Annotated::new(<span class="number">1080</span>),
-                    locale: Annotated::new(<span class="string">&quot;US&quot;</span>.into()),
-                    uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>)),
+                    locale: Annotated::new(<span class="string">"US"</span>.into()),
+                    uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">"abadcade-feed-dead-beef-baddadfeeded"</span>)),
                     charging: Annotated::new(<span class="bool-val">true</span>),
                     ..DeviceContext::default()
                 });
                 contexts.add(OsContext {
-                    name: Annotated::new(<span class="string">&quot;iOS&quot;</span>.to_string()),
-                    version: Annotated::new(<span class="string">&quot;11.4.2&quot;</span>.to_string()),
-                    kernel_version: Annotated::new(<span class="string">&quot;17.4.0&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"iOS"</span>.to_string()),
+                    version: Annotated::new(<span class="string">"11.4.2"</span>.to_string()),
+                    kernel_version: Annotated::new(<span class="string">"17.4.0"</span>.to_string()),
                     ..OsContext::default()
                 });
                 contexts.add(ProfileContext {
                     profile_id: Annotated::new(EventId(<span class="macro">uuid!</span>(
-                        <span class="string">&quot;abadcade-feed-dead-beef-8addadfeedaa&quot;
+                        <span class="string">"abadcade-feed-dead-beef-8addadfeedaa"
                     </span>))),
                 });
                 contexts
@@ -2408,93 +2409,93 @@
             ..Default::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;info&quot;</span>)), event.get_value(<span class="string">&quot;event.level&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">"info"</span>)), event.get_value(<span class="string">"event.level"</span>));
 
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;1.1.1&quot;</span>)), event.get_value(<span class="string">&quot;event.release&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">"1.1.1"</span>)), event.get_value(<span class="string">"event.release"</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;prod&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.environment&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"prod"</span>)),
+            event.get_value(<span class="string">"event.environment"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;user-id&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.user.id&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"user-id"</span>)),
+            event.get_value(<span class="string">"event.user.id"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;user-seg&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.user.segment&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"user-seg"</span>)),
+            event.get_value(<span class="string">"event.user.segment"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;some-transaction&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.transaction&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"some-transaction"</span>)),
+            event.get_value(<span class="string">"event.transaction"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;iphone&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.name&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"iphone"</span>)),
+            event.get_value(<span class="string">"event.contexts.device.name"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;iphone-fam&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.family&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"iphone-fam"</span>)),
+            event.get_value(<span class="string">"event.contexts.device.family"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;iOS&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.os.name&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"iOS"</span>)),
+            event.get_value(<span class="string">"event.contexts.os.name"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;11.4.2&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.os.version&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"11.4.2"</span>)),
+            event.get_value(<span class="string">"event.contexts.os.version"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;custom-value&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.tags.custom&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"custom-value"</span>)),
+            event.get_value(<span class="string">"event.tags.custom"</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.tags.doesntexist&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.tags.doesntexist"</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;sentry-javascript&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.sdk.name&quot;</span>)
-        );
-        <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;1.87.0&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.sdk.version&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"sentry-javascript"</span>)),
+            event.get_value(<span class="string">"event.sdk.name"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;17.4.0&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.os.kernel_version&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"1.87.0"</span>)),
+            event.get_value(<span class="string">"event.sdk.version"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"17.4.0"</span>)),
+            event.get_value(<span class="string">"event.contexts.os.kernel_version"</span>)
         );
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::I64(<span class="number">560</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.screen_dpi&quot;</span>)
+            event.get_value(<span class="string">"event.contexts.device.screen_dpi"</span>)
         );
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::Bool(<span class="bool-val">true</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.charging&quot;</span>)
+            event.get_value(<span class="string">"event.contexts.device.charging"</span>)
         );
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::U64(<span class="number">1920</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.screen_width_pixels&quot;</span>)
+            event.get_value(<span class="string">"event.contexts.device.screen_width_pixels"</span>)
         );
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::U64(<span class="number">1080</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.screen_height_pixels&quot;</span>)
+            event.get_value(<span class="string">"event.contexts.device.screen_height_pixels"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;US&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.contexts.device.locale&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"US"</span>)),
+            event.get_value(<span class="string">"event.contexts.device.locale"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>))),
-            event.get_value(<span class="string">&quot;event.contexts.device.uuid&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">"abadcade-feed-dead-beef-baddadfeeded"</span>))),
+            event.get_value(<span class="string">"event.contexts.device.uuid"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;https://sentry.io&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.request.url&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"https://sentry.io"</span>)),
+            event.get_value(<span class="string">"event.request.url"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-8addadfeedaa&quot;</span>))),
-            event.get_value(<span class="string">&quot;event.contexts.profile.profile_id&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">"abadcade-feed-dead-beef-8addadfeedaa"</span>))),
+            event.get_value(<span class="string">"event.contexts.profile.profile_id"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;route&quot;</span>)),
-            event.get_value(<span class="string">&quot;event.transaction.source&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"route"</span>)),
+            event.get_value(<span class="string">"event.transaction.source"</span>)
         );
     }
 
@@ -2502,10 +2503,10 @@
     </span><span class="kw">fn </span>test_field_value_provider_event_empty() {
         <span class="kw">let </span>event = Event::default();
 
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.release&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.environment&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.user.id&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.user.segment&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.release"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.environment"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.user.id"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.user.segment"</span>));
 
         <span class="comment">// now try with an empty user
         </span><span class="kw">let </span>event = Event {
@@ -2515,9 +2516,9 @@
             ..Default::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.user.id&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.user.segment&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">&quot;event.transaction&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.user.id"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.user.segment"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.get_value(<span class="string">"event.transaction"</span>));
     }
 }
 </code></pre></div></section></main></body></html>

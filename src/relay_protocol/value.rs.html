@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/value.rs`."><title>value.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/value.rs`."><title>value.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -522,7 +523,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::{fmt, str};
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 <span class="kw">use </span>serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 <span class="kw">use </span>serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
@@ -559,10 +560,10 @@
     </span>Object(Object&lt;Value&gt;),
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>JsonSchema <span class="kw">for </span>Value {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="string">&quot;Value&quot;</span>.to_owned()
+        <span class="string">"Value"</span>.to_owned()
     }
 
     <span class="kw">fn </span>json_schema(_gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
@@ -575,26 +576,26 @@
 }
 
 <span class="doccomment">/// Helper type that renders out a description of the value.
-</span><span class="kw">pub struct </span>ValueDescription&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Value);
+</span><span class="kw">pub struct </span>ValueDescription&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Value);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>ValueDescription&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Display <span class="kw">for </span>ValueDescription&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self</span>.<span class="number">0 </span>{
-            Value::Bool(<span class="bool-val">true</span>) =&gt; f.pad(<span class="string">&quot;true&quot;</span>),
-            Value::Bool(<span class="bool-val">false</span>) =&gt; f.pad(<span class="string">&quot;false&quot;</span>),
-            Value::I64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {val}&quot;</span>),
-            Value::U64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {val}&quot;</span>),
-            Value::F64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;float {val}&quot;</span>),
+            Value::Bool(<span class="bool-val">true</span>) =&gt; f.pad(<span class="string">"true"</span>),
+            Value::Bool(<span class="bool-val">false</span>) =&gt; f.pad(<span class="string">"false"</span>),
+            Value::I64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">"integer {val}"</span>),
+            Value::U64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">"integer {val}"</span>),
+            Value::F64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">"float {val}"</span>),
             Value::String(<span class="kw-2">ref </span>val) =&gt; f.pad(val),
-            Value::Array(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an array&quot;</span>),
-            Value::Object(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an object&quot;</span>),
+            Value::Array(<span class="kw">_</span>) =&gt; f.pad(<span class="string">"an array"</span>),
+            Value::Object(<span class="kw">_</span>) =&gt; f.pad(<span class="string">"an object"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>Value {
     <span class="doccomment">/// Returns a formattable that gives a helper description of the value.
-    </span><span class="kw">pub fn </span>describe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ValueDescription&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>describe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ValueDescription&lt;<span class="lifetime">'_</span>&gt; {
         ValueDescription(<span class="self">self</span>)
     }
 
@@ -619,7 +620,7 @@
                 } <span class="kw">else if let </span><span class="prelude-val">Some</span>(val) = num.as_f64() {
                     Value::F64(val)
                 } <span class="kw">else </span>{
-                    <span class="comment">// NB: Without the &quot;arbitrary_precision&quot; feature, serde_json&#39;s number will
+                    <span class="comment">// NB: Without the "arbitrary_precision" feature, serde_json's number will
                     // always be one of the above.
                     </span><span class="macro">unreachable!</span>()
                 }
@@ -751,8 +752,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>Value {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
         Value::String(value.to_string())
     }
 }
@@ -775,19 +776,19 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Value {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Value {
     <span class="attr">#[inline]
     </span><span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Value, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">struct </span>ValueVisitor;
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>ValueVisitor {
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>ValueVisitor {
             <span class="kw">type </span>Value = Value;
 
-            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-                formatter.write_str(<span class="string">&quot;any valid JSON value&quot;</span>)
+            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+                formatter.write_str(<span class="string">"any valid JSON value"</span>)
             }
 
             <span class="attr">#[inline]
@@ -831,7 +832,7 @@
             <span class="attr">#[inline]
             </span><span class="kw">fn </span>visit_some&lt;D&gt;(<span class="self">self</span>, deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Value, D::Error&gt;
             <span class="kw">where
-                </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+                </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
             {
                 Deserialize::deserialize(deserializer)
             }
@@ -839,7 +840,7 @@
             <span class="attr">#[inline]
             </span><span class="kw">fn </span>visit_seq&lt;V&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;Value, V::Error&gt;
             <span class="kw">where
-                </span>V: SeqAccess&lt;<span class="lifetime">&#39;de</span>&gt;,
+                </span>V: SeqAccess&lt;<span class="lifetime">'de</span>&gt;,
             {
                 <span class="kw">let </span><span class="kw-2">mut </span>vec = Vec::new();
                 <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = visitor.next_element()<span class="question-mark">? </span>{
@@ -850,7 +851,7 @@
 
             <span class="kw">fn </span>visit_map&lt;V&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;Value, V::Error&gt;
             <span class="kw">where
-                </span>V: MapAccess&lt;<span class="lifetime">&#39;de</span>&gt;,
+                </span>V: MapAccess&lt;<span class="lifetime">'de</span>&gt;,
             {
                 <span class="kw">let </span><span class="kw-2">mut </span>values = Map::new();
                 <span class="kw">while let </span><span class="prelude-val">Some</span>((key, value)) = visitor.next_entry()<span class="question-mark">? </span>{
@@ -874,19 +875,19 @@
 
 <span class="doccomment">/// Borrowed version of [`Array`].
 </span><span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">pub struct </span>Arr&lt;<span class="lifetime">&#39;a</span>&gt; {
-    _phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>()&gt;,
+</span><span class="kw">pub struct </span>Arr&lt;<span class="lifetime">'a</span>&gt; {
+    _phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>()&gt;,
 }
 
 <span class="doccomment">/// Borrowed version of [`Object`].
 </span><span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">pub struct </span>Obj&lt;<span class="lifetime">&#39;a</span>&gt; {
-    _phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>()&gt;,
+</span><span class="kw">pub struct </span>Obj&lt;<span class="lifetime">'a</span>&gt; {
+    _phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>()&gt;,
 }
 
 <span class="doccomment">/// Borrowed version of [`Value`].
 </span><span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">pub enum </span>Val&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub enum </span>Val&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// A boolean value.
     </span>Bool(bool),
     <span class="doccomment">/// A signed integer value.
@@ -896,16 +897,16 @@
     <span class="doccomment">/// A floating point value.
     </span>F64(f64),
     <span class="doccomment">/// A string value.
-    </span>String(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str),
+    </span>String(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str),
     <span class="doccomment">/// A UUID.
     </span>Uuid(Uuid),
     <span class="doccomment">/// An array of annotated values.
-    </span>Array(Arr&lt;<span class="lifetime">&#39;a</span>&gt;),
+    </span>Array(Arr&lt;<span class="lifetime">'a</span>&gt;),
     <span class="doccomment">/// A mapping of strings to annotated values.
-    </span>Object(Obj&lt;<span class="lifetime">&#39;a</span>&gt;),
+    </span>Object(Obj&lt;<span class="lifetime">'a</span>&gt;),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Val&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Val&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Returns the value if it is a boolean, otherwise `None`.
     </span><span class="kw">pub fn </span>as_bool(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
         <span class="kw">match </span><span class="self">self </span>{
@@ -943,7 +944,7 @@
     }
 
     <span class="doccomment">/// Returns the string if this value is a string, otherwise `None`.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::String(value) =&gt; <span class="prelude-val">Some</span>(value),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -959,54 +960,54 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Bool(value)
     }
 }
 
-<span class="kw">impl </span>From&lt;i64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>From&lt;i64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>from(value: i64) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::I64(value)
     }
 }
 
-<span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>from(value: u64) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::U64(value)
     }
 }
 
-<span class="kw">impl </span>From&lt;f64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>From&lt;f64&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>from(value: f64) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::F64(value)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::String(value)
     }
 }
 
-<span class="kw">impl </span>From&lt;Uuid&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>From&lt;Uuid&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>from(value: Uuid) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Uuid(value)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;a</span>&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'a</span>&gt;
 <span class="kw">where
-    </span>Val&lt;<span class="lifetime">&#39;a</span>&gt;: From&lt;T&gt;,
+    </span>Val&lt;<span class="lifetime">'a</span>&gt;: From&lt;T&gt;,
     T: Copy,
 {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T) -&gt; <span class="self">Self </span>{
         (<span class="kw-2">*</span>value).into()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Value&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Value) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Value&gt; <span class="kw">for </span>Val&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Value) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>value {
             Value::Bool(value) =&gt; <span class="self">Self</span>::Bool(<span class="kw-2">*</span>value),
             Value::I64(value) =&gt; <span class="self">Self</span>::I64(<span class="kw-2">*</span>value),
@@ -1023,7 +1024,7 @@
     }
 }
 
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Val&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Val&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="kw">match </span>(<span class="self">self</span>, other) {
             (<span class="self">Self</span>::Bool(l0), <span class="self">Self</span>::Bool(r0)) =&gt; l0 == r0,

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1596,13 +1597,13 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 
 <span class="doccomment">/// A processor that performs PII stripping.
-</span><span class="kw">pub struct </span>PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CompiledPiiConfig,
+</span><span class="kw">pub struct </span>PiiProcessor&lt;<span class="lifetime">'a</span>&gt; {
+    compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CompiledPiiConfig,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PiiProcessor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new processor based on a config.
-    </span><span class="kw">pub fn </span>new(compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CompiledPiiConfig) -&gt; PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>new(compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CompiledPiiConfig) -&gt; PiiProcessor&lt;<span class="lifetime">'a</span>&gt; {
         <span class="comment">// this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
         </span>PiiProcessor { compiled_config }
@@ -1611,7 +1612,7 @@
     <span class="kw">fn </span>apply_all_rules(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
         <span class="kw-2">mut </span>value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>String&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">let </span>pii = state.attrs().pii;
@@ -1633,12 +1634,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Processor <span class="kw">for </span>PiiProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Processor <span class="kw">for </span>PiiProcessor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>before_process&lt;T: ProcessValue&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(Value::String(original_value)) = meta.original_value_as_mut() {
             <span class="comment">// Also apply pii scrubbing to the original value (set by normalization or other processors),
@@ -1647,7 +1648,7 @@
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = state.iter().next() {
                 <span class="kw">let </span>path = state.path();
                 <span class="kw">let </span>new_state = parent.enter_borrowed(
-                    path.key().unwrap_or(<span class="string">&quot;&quot;</span>),
+                    path.key().unwrap_or(<span class="string">""</span>),
                     <span class="prelude-val">Some</span>(Cow::Borrowed(state.attrs())),
                     <span class="macro">enum_set!</span>(ValueType::String),
                 );
@@ -1681,14 +1682,14 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         value: <span class="kw-2">&amp;mut </span>String,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
-        <span class="kw">if let </span><span class="string">&quot;&quot; </span>| <span class="string">&quot;true&quot; </span>| <span class="string">&quot;false&quot; </span>| <span class="string">&quot;null&quot; </span>| <span class="string">&quot;undefined&quot; </span>= value.as_str() {
+        <span class="kw">if let </span><span class="string">"" </span>| <span class="string">"true" </span>| <span class="string">"false" </span>| <span class="string">"null" </span>| <span class="string">"undefined" </span>= value.as_str() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="comment">// same as before_process. duplicated here because we can only check for &quot;true&quot;,
-        // &quot;false&quot; etc in process_string.
+        <span class="comment">// same as before_process. duplicated here because we can only check for "true",
+        // "false" etc in process_string.
         </span><span class="self">self</span>.apply_all_rules(meta, state, <span class="prelude-val">Some</span>(value))
     }
 
@@ -1696,9 +1697,9 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         NativeImagePath(<span class="kw-2">ref mut </span>value): <span class="kw-2">&amp;mut </span>NativeImagePath,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
-        <span class="comment">// In NativeImagePath we must not strip the file&#39;s basename because that would break
+        <span class="comment">// In NativeImagePath we must not strip the file's basename because that would break
         // processing.
         //
         // We pop the basename from the end of the string, call process_string and push the
@@ -1708,7 +1709,7 @@
         // string. If we decide that we need to preserve anything other than suffixes all PII
         // tooltips/annotations are potentially wrong.
 
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(index) = value.rfind(|c| c == <span class="string">&#39;/&#39; </span>|| c == <span class="string">&#39;\\&#39;</span>) {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(index) = value.rfind(|c| c == <span class="string">'/' </span>|| c == <span class="string">'\\'</span>) {
             <span class="kw">let </span>basename = value.split_off(index);
             <span class="kw">match </span><span class="self">self</span>.process_string(value, meta, state) {
                 <span class="prelude-val">Ok</span>(()) =&gt; value.push_str(<span class="kw-2">&amp;</span>basename),
@@ -1737,7 +1738,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         user: <span class="kw-2">&amp;mut </span>User,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">let </span>ip_was_valid = user.ip_address.value().map_or(<span class="bool-val">true</span>, IpAddr::is_valid);
 
@@ -1771,7 +1772,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         replay: <span class="kw-2">&amp;mut </span>Replay,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         replay.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
@@ -1788,18 +1789,18 @@
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(request) = event.request.value_mut() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(Value::Object(data)) = request.data.value_mut() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(api_target) = request.api_target.value() {
-                <span class="kw">if </span>api_target.eq_ignore_ascii_case(<span class="string">&quot;graphql&quot;</span>) {
+                <span class="kw">if </span>api_target.eq_ignore_ascii_case(<span class="string">"graphql"</span>) {
                     is_graphql = <span class="bool-val">true</span>;
                 }
             }
 
             <span class="kw">if </span>is_graphql {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(Annotated(<span class="prelude-val">Some</span>(Value::Object(variables)), <span class="kw">_</span>)) =
-                    data.get_mut(<span class="string">&quot;variables&quot;</span>)
+                    data.get_mut(<span class="string">"variables"</span>)
                 {
                     <span class="kw">for </span>(key, value) <span class="kw">in </span>variables.iter_mut() {
                         keys.insert(key);
-                        value.set_value(<span class="prelude-val">Some</span>(Value::String(<span class="string">&quot;[Filtered]&quot;</span>.to_string())));
+                        value.set_value(<span class="prelude-val">Some</span>(Value::String(<span class="string">"[Filtered]"</span>.to_string())));
                     }
                 }
             }
@@ -1814,14 +1815,14 @@
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value_mut() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(response) = contexts.get_mut::&lt;ResponseContext&gt;() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(Value::Object(data)) = response.data.value_mut() {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(Annotated(<span class="prelude-val">Some</span>(Value::Object(graphql_data)), <span class="kw">_</span>)) = data.get_mut(<span class="string">&quot;data&quot;</span>)
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(Annotated(<span class="prelude-val">Some</span>(Value::Object(graphql_data)), <span class="kw">_</span>)) = data.get_mut(<span class="string">"data"</span>)
                 {
                     <span class="kw">if </span>!keys.is_empty() {
                         scrub_graphql_data(<span class="kw-2">&amp;</span>keys, graphql_data);
                     } <span class="kw">else </span>{
-                        <span class="comment">// If we don&#39;t have the variable keys, we scrub the whole data object
-                        // because the query or mutation weren&#39;t parameterized.
-                        </span>data.remove(<span class="string">&quot;data&quot;</span>);
+                        <span class="comment">// If we don't have the variable keys, we scrub the whole data object
+                        // because the query or mutation weren't parameterized.
+                        </span>data.remove(<span class="string">"data"</span>);
                     }
                 }
             }
@@ -1838,7 +1839,7 @@
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">if </span>keys.contains(key.as_str()) {
-                    value.set_value(<span class="prelude-val">Some</span>(Value::String(<span class="string">&quot;[Filtered]&quot;</span>.to_string())));
+                    value.set_value(<span class="prelude-val">Some</span>(Value::String(<span class="string">"[Filtered]"</span>.to_string())));
                 }
             }
         }
@@ -1876,9 +1877,9 @@
     <span class="kw">for </span>(pattern_type, regex, replace_behavior) <span class="kw">in </span>regexes::get_regex_for_rule_type(<span class="kw-2">&amp;</span>rule.ty) {
         <span class="kw">match </span>pattern_type {
             PatternType::KeyValue =&gt; {
-                <span class="kw">if </span>regex.is_match(key.unwrap_or(<span class="string">&quot;&quot;</span>)) {
+                <span class="kw">if </span>regex.is_match(key.unwrap_or(<span class="string">""</span>)) {
                     <span class="kw">if </span>value.is_some() &amp;&amp; should_redact_chunks {
-                        <span class="comment">// If we&#39;re given a string value here, redact the value like we would with
+                        <span class="comment">// If we're given a string value here, redact the value like we would with
                         // @anything.
                         </span><span class="macro">apply_regex!</span>(<span class="kw-2">&amp;</span>ANYTHING_REGEX, replace_behavior);
                     } <span class="kw">else </span>{
@@ -1900,12 +1901,12 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>apply_regex_to_chunks&lt;<span class="lifetime">&#39;a</span>&gt;(
-    chunks: Vec&lt;Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+<span class="kw">fn </span>apply_regex_to_chunks&lt;<span class="lifetime">'a</span>&gt;(
+    chunks: Vec&lt;Chunk&lt;<span class="lifetime">'a</span>&gt;&gt;,
     rule: <span class="kw-2">&amp;</span>RuleRef,
     regex: <span class="kw-2">&amp;</span>Regex,
     replace_behavior: ReplaceBehavior,
-) -&gt; Vec&lt;Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+) -&gt; Vec&lt;Chunk&lt;<span class="lifetime">'a</span>&gt;&gt; {
     <span class="comment">// NB: This function allocates the entire string and all chunks a second time. This means it
     // cannot reuse chunks and reallocates them. Ideally, we would be able to run the regex directly
     // on the chunks, but the `regex` crate does not support that.
@@ -1916,9 +1917,9 @@
         <span class="kw">match </span>chunk {
             Chunk::Text { text } =&gt; {
                 has_text = <span class="bool-val">true</span>;
-                search_string.push_str(<span class="kw-2">&amp;</span>text.replace(<span class="string">&#39;\x00&#39;</span>, <span class="string">&quot;&quot;</span>));
+                search_string.push_str(<span class="kw-2">&amp;</span>text.replace(<span class="string">'\x00'</span>, <span class="string">""</span>));
             }
-            Chunk::Redaction { .. } =&gt; search_string.push(<span class="string">&#39;\x00&#39;</span>),
+            Chunk::Redaction { .. } =&gt; search_string.push(<span class="string">'\x00'</span>),
         }
     }
 
@@ -1941,10 +1942,10 @@
     }
     replacement_chunks.reverse();
 
-    <span class="kw">fn </span>process_text&lt;<span class="lifetime">&#39;a</span>&gt;(
+    <span class="kw">fn </span>process_text&lt;<span class="lifetime">'a</span>&gt;(
         text: <span class="kw-2">&amp;</span>str,
-        rv: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
-        replacement_chunks: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+        rv: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">'a</span>&gt;&gt;,
+        replacement_chunks: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">'a</span>&gt;&gt;,
     ) {
         <span class="kw">if </span>text.is_empty() {
             <span class="kw">return</span>;
@@ -1953,7 +1954,7 @@
         <span class="kw">static </span>NULL_SPLIT_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
         <span class="kw">let </span>regex = NULL_SPLIT_RE.get_or_init(|| {
             <span class="attr">#[allow(clippy::trivial_regex)]
-            </span>Regex::new(<span class="string">&quot;\x00&quot;</span>).unwrap()
+            </span>Regex::new(<span class="string">"\x00"</span>).unwrap()
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>pos = <span class="number">0</span>;
@@ -2004,17 +2005,17 @@
     rv
 }
 
-<span class="kw">fn </span>insert_replacement_chunks(rule: <span class="kw-2">&amp;</span>RuleRef, text: <span class="kw-2">&amp;</span>str, output: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">&#39;_</span>&gt;&gt;) {
+<span class="kw">fn </span>insert_replacement_chunks(rule: <span class="kw-2">&amp;</span>RuleRef, text: <span class="kw-2">&amp;</span>str, output: <span class="kw-2">&amp;mut </span>Vec&lt;Chunk&lt;<span class="lifetime">'_</span>&gt;&gt;) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>rule.redaction {
         Redaction::Default | Redaction::Remove =&gt; {
             output.push(Chunk::Redaction {
-                text: Cow::Borrowed(<span class="string">&quot;&quot;</span>),
+                text: Cow::Borrowed(<span class="string">""</span>),
                 rule_id: Cow::Owned(rule.origin.to_string()),
                 ty: RemarkType::Removed,
             });
         }
         Redaction::Mask =&gt; {
-            <span class="kw">let </span>buf = <span class="macro">vec!</span>[<span class="string">&#39;*&#39;</span>; text.chars().count()];
+            <span class="kw">let </span>buf = <span class="macro">vec!</span>[<span class="string">'*'</span>; text.chars().count()];
 
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
@@ -2036,7 +2037,7 @@
                 text: Cow::Owned(replace.text.clone()),
             });
         }
-        Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">&quot;Incoming redaction is not supported&quot;</span>),
+        Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">"Incoming redaction is not supported"</span>),
     }
 }
 
@@ -2070,11 +2071,11 @@
     </span><span class="kw">fn </span>test_scrub_original_value() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;user&quot;</span>: {
-                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;hey  man 73.133.27.120&quot;</span>, <span class="comment">// should be stripped despite not being &quot;known ip field&quot;
-                    </span><span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;is this an ip address? 73.133.27.120&quot;</span>, <span class="comment">//  &lt;--------
+                <span class="string">"user"</span>: {
+                    <span class="string">"username"</span>: <span class="string">"hey  man 73.133.27.120"</span>, <span class="comment">// should be stripped despite not being "known ip field"
+                    </span><span class="string">"ip_address"</span>: <span class="string">"is this an ip address? 73.133.27.120"</span>, <span class="comment">//  &lt;--------
                 </span>},
-                <span class="string">&quot;hpkp&quot;</span>:<span class="string">&quot;invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 &quot;</span>,
+                <span class="string">"hpkp"</span>:<span class="string">"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 "</span>,
             })
             .into(),
         );
@@ -2097,46 +2098,46 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_basic_stripping() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;rules&quot;: {
-                    &quot;remove_bad_headers&quot;: {
-                        &quot;type&quot;: &quot;redact_pair&quot;,
-                        &quot;keyPattern&quot;: &quot;(?i)cookie|secret[-_]?key&quot;
+                "rules": {
+                    "remove_bad_headers": {
+                        "type": "redact_pair",
+                        "keyPattern": "(?i)cookie|secret[-_]?key"
                     }
                 },
-                &quot;applications&quot;: {
-                    &quot;$string&quot;: [&quot;@ip&quot;],
-                    &quot;$object.**&quot;: [&quot;remove_bad_headers&quot;]
+                "applications": {
+                    "$string": ["@ip"],
+                    "$object.**": ["remove_bad_headers"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new(<span class="string">&quot;Hello world!&quot;</span>.to_string().into()),
+                formatted: Annotated::new(<span class="string">"Hello world!"</span>.to_string().into()),
                 ..Default::default()
             }),
             request: Annotated::new(Request {
                 env: {
                     <span class="kw">let </span><span class="kw-2">mut </span>rv = Object::new();
                     rv.insert(
-                        <span class="string">&quot;SECRET_KEY&quot;</span>.to_string(),
-                        Annotated::new(Value::String(<span class="string">&quot;134141231231231231231312&quot;</span>.into())),
+                        <span class="string">"SECRET_KEY"</span>.to_string(),
+                        Annotated::new(Value::String(<span class="string">"134141231231231231231312"</span>.into())),
                     );
                     Annotated::new(rv)
                 },
                 headers: {
                     <span class="kw">let </span>rv = <span class="macro">vec!</span>[
                         Annotated::new((
-                            Annotated::new(<span class="string">&quot;Cookie&quot;</span>.to_string().into()),
-                            Annotated::new(<span class="string">&quot;super secret&quot;</span>.to_string().into()),
+                            Annotated::new(<span class="string">"Cookie"</span>.to_string().into()),
+                            Annotated::new(<span class="string">"super secret"</span>.to_string().into()),
                         )),
                         Annotated::new((
-                            Annotated::new(<span class="string">&quot;X-Forwarded-For&quot;</span>.to_string().into()),
-                            Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.to_string().into()),
+                            Annotated::new(<span class="string">"X-Forwarded-For"</span>.to_string().into()),
+                            Annotated::new(<span class="string">"127.0.0.1"</span>.to_string().into()),
                         )),
                     ];
                     Annotated::new(Headers(PairList(rv)))
@@ -2145,8 +2146,8 @@
             }),
             tags: Annotated::new(Tags(
                 <span class="macro">vec!</span>[Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;forwarded_for&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"forwarded_for"</span>.to_string()),
+                    Annotated::new(<span class="string">"127.0.0.1"</span>.to_string()),
                 ))]
                 .into(),
             )),
@@ -2161,13 +2162,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redact_containers() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$object&quot;: [&quot;@anything&quot;]
+                "applications": {
+                    "$object": ["@anything"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2175,8 +2176,8 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;foo&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;bar&quot;</span>.to_string()))),
+                    <span class="string">"foo"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"bar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2191,23 +2192,23 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redact_custom_pattern() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$string&quot;: [&quot;myrule&quot;]
+                "applications": {
+                    "$string": ["myrule"]
                 },
-                &quot;rules&quot;: {
-                    &quot;myrule&quot;: {
-                        &quot;type&quot;: &quot;pattern&quot;,
-                        &quot;pattern&quot;: &quot;foo&quot;,
-                        &quot;redaction&quot;: {
-                            &quot;method&quot;: &quot;replace&quot;,
-                            &quot;text&quot;: &quot;asd&quot;
+                "rules": {
+                    "myrule": {
+                        "type": "pattern",
+                        "pattern": "foo",
+                        "redaction": {
+                            "method": "replace",
+                            "text": "asd"
                         }
                     }
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2215,8 +2216,8 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;myvalue&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;foobar&quot;</span>.to_string()))),
+                    <span class="string">"myvalue"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"foobar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2231,13 +2232,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_field_upsert() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;**&quot;: [&quot;@anything:remove&quot;]
+                "applications": {
+                    "**": ["@anything:remove"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2245,8 +2246,8 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;myvalue&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;foobar&quot;</span>.to_string()))),
+                    <span class="string">"myvalue"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"foobar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2261,13 +2262,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_anything_hash_on_string() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$string&quot;: [&quot;@anything:hash&quot;]
+                "applications": {
+                    "$string": ["@anything:hash"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2275,8 +2276,8 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;myvalue&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;foobar&quot;</span>.to_string()))),
+                    <span class="string">"myvalue"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"foobar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2291,13 +2292,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_anything_hash_on_container() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$object&quot;: [&quot;@anything:hash&quot;]
+                "applications": {
+                    "$object": ["@anything:hash"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2305,8 +2306,8 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;myvalue&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;foobar&quot;</span>.to_string()))),
+                    <span class="string">"myvalue"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"foobar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2322,10 +2323,10 @@
     </span><span class="kw">fn </span>test_ignore_user_agent_ip_scrubbing() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;headers&quot;</span>: [
-                        [<span class="string">&quot;User-Agent&quot;</span>, <span class="string">&quot;127.0.0.1&quot;</span>],
-                        [<span class="string">&quot;X-Client-Ip&quot;</span>, <span class="string">&quot;10.0.0.1&quot;</span>]
+                <span class="string">"request"</span>: {
+                    <span class="string">"headers"</span>: [
+                        [<span class="string">"User-Agent"</span>, <span class="string">"127.0.0.1"</span>],
+                        [<span class="string">"X-Client-Ip"</span>, <span class="string">"10.0.0.1"</span>]
                     ]
                 },
             })
@@ -2350,14 +2351,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_debugmeta_path() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:remove&quot;],
-                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:remove&quot;]
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:remove"],
+                    "debug_meta.images.*.debug_file": ["@anything:remove"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2365,22 +2366,22 @@
             debug_meta: Annotated::new(DebugMeta {
                 images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(DebugImage::Symbolic(Box::new(
                     NativeDebugImage {
-                        code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
-                        code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+                        code_id: Annotated::new(<span class="string">"59b0d8f3183000"</span>.parse().unwrap()),
+                        code_file: Annotated::new(<span class="string">"C:\\Windows\\System32\\ntdll.dll"</span>.into()),
                         debug_id: Annotated::new(
-                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap(),
+                            <span class="string">"971f98e5-ce60-41ff-b2d7-235bbeb34578-1"</span>.parse().unwrap(),
                         ),
-                        debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+                        debug_file: Annotated::new(<span class="string">"wntdll.pdb"</span>.into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+                        arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
                         image_addr: Annotated::new(Addr(<span class="number">0</span>)),
                         image_size: Annotated::new(<span class="number">4096</span>),
                         image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
                         other: {
                             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                             map.insert(
-                                <span class="string">&quot;other&quot;</span>.to_string(),
-                                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                                <span class="string">"other"</span>.to_string(),
+                                Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                             );
                             map
                         },
@@ -2399,14 +2400,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_replace_debugmeta_path() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:replace&quot;],
-                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:replace&quot;]
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:replace"],
+                    "debug_meta.images.*.debug_file": ["@anything:replace"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2414,22 +2415,22 @@
             debug_meta: Annotated::new(DebugMeta {
                 images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(DebugImage::Symbolic(Box::new(
                     NativeDebugImage {
-                        code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
-                        code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+                        code_id: Annotated::new(<span class="string">"59b0d8f3183000"</span>.parse().unwrap()),
+                        code_file: Annotated::new(<span class="string">"C:\\Windows\\System32\\ntdll.dll"</span>.into()),
                         debug_id: Annotated::new(
-                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap(),
+                            <span class="string">"971f98e5-ce60-41ff-b2d7-235bbeb34578-1"</span>.parse().unwrap(),
                         ),
-                        debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+                        debug_file: Annotated::new(<span class="string">"wntdll.pdb"</span>.into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+                        arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
                         image_addr: Annotated::new(Addr(<span class="number">0</span>)),
                         image_size: Annotated::new(<span class="number">4096</span>),
                         image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
                         other: {
                             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                             map.insert(
-                                <span class="string">&quot;other&quot;</span>.to_string(),
-                                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                                <span class="string">"other"</span>.to_string(),
+                                Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                             );
                             map
                         },
@@ -2448,14 +2449,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hash_debugmeta_path() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:hash&quot;],
-                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:hash&quot;]
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:hash"],
+                    "debug_meta.images.*.debug_file": ["@anything:hash"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2463,22 +2464,22 @@
             debug_meta: Annotated::new(DebugMeta {
                 images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(DebugImage::Symbolic(Box::new(
                     NativeDebugImage {
-                        code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
-                        code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+                        code_id: Annotated::new(<span class="string">"59b0d8f3183000"</span>.parse().unwrap()),
+                        code_file: Annotated::new(<span class="string">"C:\\Windows\\System32\\ntdll.dll"</span>.into()),
                         debug_id: Annotated::new(
-                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap(),
+                            <span class="string">"971f98e5-ce60-41ff-b2d7-235bbeb34578-1"</span>.parse().unwrap(),
                         ),
-                        debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+                        debug_file: Annotated::new(<span class="string">"wntdll.pdb"</span>.into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+                        arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
                         image_addr: Annotated::new(Addr(<span class="number">0</span>)),
                         image_size: Annotated::new(<span class="number">4096</span>),
                         image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
                         other: {
                             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                             map.insert(
-                                <span class="string">&quot;other&quot;</span>.to_string(),
-                                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                                <span class="string">"other"</span>.to_string(),
+                                Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                             );
                             map
                         },
@@ -2497,16 +2498,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_debugmeta_path_not_addressible_with_wildcard_selector() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$string&quot;: [&quot;@anything:remove&quot;],
-                    &quot;**&quot;: [&quot;@anything:remove&quot;],
-                    &quot;debug_meta.**&quot;: [&quot;@anything:remove&quot;],
-                    &quot;(debug_meta.images.**.code_file &amp; $string)&quot;: [&quot;@anything:remove&quot;]
+                "applications": {
+                    "$string": ["@anything:remove"],
+                    "**": ["@anything:remove"],
+                    "debug_meta.**": ["@anything:remove"],
+                    "(debug_meta.images.**.code_file &amp; $string)": ["@anything:remove"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2514,22 +2515,22 @@
             debug_meta: Annotated::new(DebugMeta {
                 images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(DebugImage::Symbolic(Box::new(
                     NativeDebugImage {
-                        code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
-                        code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+                        code_id: Annotated::new(<span class="string">"59b0d8f3183000"</span>.parse().unwrap()),
+                        code_file: Annotated::new(<span class="string">"C:\\Windows\\System32\\ntdll.dll"</span>.into()),
                         debug_id: Annotated::new(
-                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap(),
+                            <span class="string">"971f98e5-ce60-41ff-b2d7-235bbeb34578-1"</span>.parse().unwrap(),
                         ),
-                        debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+                        debug_file: Annotated::new(<span class="string">"wntdll.pdb"</span>.into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+                        arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
                         image_addr: Annotated::new(Addr(<span class="number">0</span>)),
                         image_size: Annotated::new(<span class="number">4096</span>),
                         image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
                         other: {
                             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                             map.insert(
-                                <span class="string">&quot;other&quot;</span>.to_string(),
-                                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                                <span class="string">"other"</span>.to_string(),
+                                Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                             );
                             map
                         },
@@ -2548,13 +2549,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_quoted_keys() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;extra.&#39;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;&#39;gärbage&#39;&#39;&#39;&quot;: [&quot;@anything:remove&quot;]
+                "applications": {
+                    "extra.'special ,./&lt;&gt;?!@#$%^&amp;*())''gärbage'''": ["@anything:remove"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2562,12 +2563,12 @@
             extra: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;foo&quot;</span>.to_string()))),
+                    <span class="string">"do not ,./&lt;&gt;?!@#$%^&amp;*())'ßtrip'"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"foo"</span>.to_string()))),
                 );
                 map.insert(
-                    <span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.to_string(),
-                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;bar&quot;</span>.to_string()))),
+                    <span class="string">"special ,./&lt;&gt;?!@#$%^&amp;*())'gärbage'"</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">"bar"</span>.to_string()))),
                 );
                 Annotated::new(map)
             },
@@ -2583,25 +2584,25 @@
     </span><span class="kw">fn </span>test_logentry_value_types() {
         <span class="comment">// Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
         </span><span class="kw">for </span>formatted_selector <span class="kw">in </span><span class="kw-2">&amp;</span>[
-            <span class="string">&quot;$logentry.formatted&quot;</span>,
-            <span class="string">&quot;$message&quot;</span>,
-            <span class="string">&quot;$logentry.formatted &amp;&amp; $message&quot;</span>,
-            <span class="string">&quot;$string&quot;</span>,
+            <span class="string">"$logentry.formatted"</span>,
+            <span class="string">"$message"</span>,
+            <span class="string">"$logentry.formatted &amp;&amp; $message"</span>,
+            <span class="string">"$string"</span>,
         ] {
             <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                <span class="string">r##&quot;
+                <span class="string">r##"
                 {{
-                    &quot;applications&quot;: {{
-                        &quot;{formatted_selector}&quot;: [&quot;@anything:remove&quot;]
+                    "applications": {{
+                        "{formatted_selector}": ["@anything:remove"]
                     }}
                 }}
-                &quot;##
+                "##
             </span>))
             .unwrap();
 
             <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
                 logentry: Annotated::new(LogEntry {
-                    formatted: Annotated::new(<span class="string">&quot;Hello world!&quot;</span>.to_string().into()),
+                    formatted: Annotated::new(<span class="string">"Hello world!"</span>.to_string().into()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -2625,19 +2626,19 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_address_hashing() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.to_string())),
+                ip_address: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_string())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -2652,27 +2653,27 @@
 
         <span class="macro">assert_eq!</span>(
             user.id.value().unwrap().as_str(),
-            <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;
+            <span class="string">"AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_address_hashing_does_not_overwrite_id() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;applications&quot;: {
-                    &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             user: Annotated::new(User {
-                id: Annotated::new(<span class="string">&quot;123&quot;</span>.to_string().into()),
-                ip_address: Annotated::new(IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.to_string())),
+                id: Annotated::new(<span class="string">"123"</span>.to_string().into()),
+                ip_address: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_string())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -2686,31 +2687,31 @@
         <span class="comment">// This will get wiped out in renormalization though
         </span><span class="macro">assert_eq!</span>(
             user.ip_address.value().unwrap().as_str(),
-            <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;
+            <span class="string">"AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
         </span>);
 
-        <span class="macro">assert_eq!</span>(user.id.value().unwrap().as_str(), <span class="string">&quot;123&quot;</span>);
+        <span class="macro">assert_eq!</span>(user.id.value().unwrap().as_str(), <span class="string">"123"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_replace_replaced_text() {
         <span class="kw">let </span>chunks = <span class="macro">vec!</span>[Chunk::Redaction {
-            text: <span class="string">&quot;[ip]&quot;</span>.into(),
-            rule_id: <span class="string">&quot;@ip&quot;</span>.into(),
+            text: <span class="string">"[ip]"</span>.into(),
+            rule_id: <span class="string">"@ip"</span>.into(),
             ty: RemarkType::Substituted,
         }];
         <span class="kw">let </span>rule = RuleRef {
-            id: <span class="string">&quot;@ip:replace&quot;</span>.into(),
-            origin: <span class="string">&quot;@ip&quot;</span>.into(),
+            id: <span class="string">"@ip:replace"</span>.into(),
+            origin: <span class="string">"@ip"</span>.into(),
             ty: RuleType::Ip,
             redaction: Redaction::Replace(ReplaceRedaction {
-                text: <span class="string">&quot;[ip]&quot;</span>.into(),
+                text: <span class="string">"[ip]"</span>.into(),
             }),
         };
         <span class="kw">let </span>res = apply_regex_to_chunks(
             chunks.clone(),
             <span class="kw-2">&amp;</span>rule,
-            <span class="kw-2">&amp;</span>Regex::new(<span class="string">r#&quot;.*&quot;#</span>).unwrap(),
+            <span class="kw-2">&amp;</span>Regex::new(<span class="string">r#".*"#</span>).unwrap(),
             ReplaceBehavior::Value,
         );
         <span class="macro">assert_eq!</span>(chunks, res);
@@ -2719,22 +2720,22 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_replace_replaced_text_anything() {
         <span class="kw">let </span>chunks = <span class="macro">vec!</span>[Chunk::Redaction {
-            text: <span class="string">&quot;[Filtered]&quot;</span>.into(),
-            rule_id: <span class="string">&quot;@password:filter&quot;</span>.into(),
+            text: <span class="string">"[Filtered]"</span>.into(),
+            rule_id: <span class="string">"@password:filter"</span>.into(),
             ty: RemarkType::Substituted,
         }];
         <span class="kw">let </span>rule = RuleRef {
-            id: <span class="string">&quot;@anything:filter&quot;</span>.into(),
-            origin: <span class="string">&quot;@anything:filter&quot;</span>.into(),
+            id: <span class="string">"@anything:filter"</span>.into(),
+            origin: <span class="string">"@anything:filter"</span>.into(),
             ty: RuleType::Anything,
             redaction: Redaction::Replace(ReplaceRedaction {
-                text: <span class="string">&quot;[Filtered]&quot;</span>.into(),
+                text: <span class="string">"[Filtered]"</span>.into(),
             }),
         };
         <span class="kw">let </span>res = apply_regex_to_chunks(
             chunks.clone(),
             <span class="kw-2">&amp;</span>rule,
-            <span class="kw-2">&amp;</span>Regex::new(<span class="string">r#&quot;.*&quot;#</span>).unwrap(),
+            <span class="kw-2">&amp;</span>Regex::new(<span class="string">r#".*"#</span>).unwrap(),
             ReplaceBehavior::Groups(<span class="macro">smallvec::smallvec!</span>[<span class="number">0</span>]),
         );
         <span class="macro">assert_eq!</span>(chunks, res);
@@ -2743,20 +2744,20 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_trace_route_params_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>trace_context: Annotated&lt;TraceContext&gt; = Annotated::from_json(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;type&quot;: &quot;trace&quot;,
-                &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
-                &quot;data&quot;: {
-                    &quot;previousRoute&quot;: {
-                        &quot;params&quot;: {
-                            &quot;password&quot;: &quot;test&quot;
+                "type": "trace",
+                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                "span_id": "fa90fdead5f74052",
+                "data": {
+                    "previousRoute": {
+                        "params": {
+                            "password": "test"
                         }
                     }
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -2780,13 +2781,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_span_data_http_not_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>span: Annotated&lt;Span&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: &quot;dance=true&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": "dance=true"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2805,14 +2806,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_span_data_http_strings_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>span: Annotated&lt;Span&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: &quot;ccnumber=5105105105105100&amp;process_id=123&quot;,
-                        &quot;fragment&quot;: &quot;ccnumber=5105105105105100,process_id=123&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": "ccnumber=5105105105105100&amp;process_id=123",
+                        "fragment": "ccnumber=5105105105105100,process_id=123"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2831,20 +2832,20 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_span_data_http_objects_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>span: Annotated&lt;Span&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: {
-                            &quot;ccnumber&quot;: &quot;5105105105105100&quot;,
-                            &quot;process_id&quot;: &quot;123&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
                         },
-                        &quot;fragment&quot;: {
-                            &quot;ccnumber&quot;: &quot;5105105105105100&quot;,
-                            &quot;process_id&quot;: &quot;123&quot;
+                        "fragment": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
                         }
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2863,16 +2864,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_span_data_untyped_props_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>span: Annotated&lt;Span&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;untyped&quot;: &quot;ccnumber=5105105105105100&quot;,
-                    &quot;more_untyped&quot;: {
-                        &quot;typed&quot;: &quot;no&quot;,
-                        &quot;scrubbed&quot;: &quot;yes&quot;,
-                        &quot;ccnumber&quot;: &quot;5105105105105100&quot;
+            <span class="string">r#"{
+                "data": {
+                    "untyped": "ccnumber=5105105105105100",
+                    "more_untyped": {
+                        "typed": "no",
+                        "scrubbed": "yes",
+                        "ccnumber": "5105105105105100"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2891,13 +2892,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_not_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: &quot;dance=true&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": "dance=true"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2915,14 +2916,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_strings_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: &quot;ccnumber=5105105105105100&amp;process_id=123&quot;,
-                        &quot;fragment&quot;: &quot;ccnumber=5105105105105100,process_id=123&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": "ccnumber=5105105105105100&amp;process_id=123",
+                        "fragment": "ccnumber=5105105105105100,process_id=123"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2940,20 +2941,20 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_objects_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;http&quot;: {
-                        &quot;query&quot;: {
-                            &quot;ccnumber&quot;: &quot;5105105105105100&quot;,
-                            &quot;process_id&quot;: &quot;123&quot;
+            <span class="string">r#"{
+                "data": {
+                    "http": {
+                        "query": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
                         },
-                        &quot;fragment&quot;: {
-                            &quot;ccnumber&quot;: &quot;5105105105105100&quot;,
-                            &quot;process_id&quot;: &quot;123&quot;
+                        "fragment": {
+                            "ccnumber": "5105105105105100",
+                            "process_id": "123"
                         }
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2972,16 +2973,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_breadcrumb_data_untyped_props_are_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;untyped&quot;: &quot;ccnumber=5105105105105100&quot;,
-                    &quot;more_untyped&quot;: {
-                        &quot;typed&quot;: &quot;no&quot;,
-                        &quot;scrubbed&quot;: &quot;yes&quot;,
-                        &quot;ccnumber&quot;: &quot;5105105105105100&quot;
+            <span class="string">r#"{
+                "data": {
+                    "untyped": "ccnumber=5105105105105100",
+                    "more_untyped": {
+                        "typed": "no",
+                        "scrubbed": "yes",
+                        "ccnumber": "5105105105105100"
                     }
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -3000,22 +3001,22 @@
     </span><span class="kw">fn </span>test_scrub_graphql_response_data_with_variables() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-              <span class="string">&quot;request&quot;</span>: {
-                <span class="string">&quot;data&quot;</span>: {
-                  <span class="string">&quot;query&quot;</span>: <span class="string">&quot;{\n  viewer {\n    login\n  }\n}&quot;</span>,
-                  <span class="string">&quot;variables&quot;</span>: {
-                    <span class="string">&quot;login&quot;</span>: <span class="string">&quot;foo&quot;
+              <span class="string">"request"</span>: {
+                <span class="string">"data"</span>: {
+                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
+                  <span class="string">"variables"</span>: {
+                    <span class="string">"login"</span>: <span class="string">"foo"
                   </span>}
                 },
-                <span class="string">&quot;api_target&quot;</span>: <span class="string">&quot;graphql&quot;
+                <span class="string">"api_target"</span>: <span class="string">"graphql"
               </span>},
-              <span class="string">&quot;contexts&quot;</span>: {
-                <span class="string">&quot;response&quot;</span>: {
-                  <span class="string">&quot;type&quot;</span>: <span class="string">&quot;response&quot;</span>,
-                  <span class="string">&quot;data&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: {
-                      <span class="string">&quot;viewer&quot;</span>: {
-                        <span class="string">&quot;login&quot;</span>: <span class="string">&quot;foo&quot;
+              <span class="string">"contexts"</span>: {
+                <span class="string">"response"</span>: {
+                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+                  <span class="string">"data"</span>: {
+                    <span class="string">"data"</span>: {
+                      <span class="string">"viewer"</span>: {
+                        <span class="string">"login"</span>: <span class="string">"foo"
                       </span>}
                     }
                   }
@@ -3034,19 +3035,19 @@
     </span><span class="kw">fn </span>test_scrub_graphql_response_data_without_variables() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-              <span class="string">&quot;request&quot;</span>: {
-                <span class="string">&quot;data&quot;</span>: {
-                  <span class="string">&quot;query&quot;</span>: <span class="string">&quot;{\n  viewer {\n    login\n  }\n}&quot;
+              <span class="string">"request"</span>: {
+                <span class="string">"data"</span>: {
+                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"
                 </span>},
-                <span class="string">&quot;api_target&quot;</span>: <span class="string">&quot;graphql&quot;
+                <span class="string">"api_target"</span>: <span class="string">"graphql"
               </span>},
-              <span class="string">&quot;contexts&quot;</span>: {
-                <span class="string">&quot;response&quot;</span>: {
-                  <span class="string">&quot;type&quot;</span>: <span class="string">&quot;response&quot;</span>,
-                  <span class="string">&quot;data&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: {
-                      <span class="string">&quot;viewer&quot;</span>: {
-                        <span class="string">&quot;login&quot;</span>: <span class="string">&quot;foo&quot;
+              <span class="string">"contexts"</span>: {
+                <span class="string">"response"</span>: {
+                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+                  <span class="string">"data"</span>: {
+                    <span class="string">"data"</span>: {
+                      <span class="string">"viewer"</span>: {
+                        <span class="string">"login"</span>: <span class="string">"foo"
                       </span>}
                     }
                   }
@@ -3064,21 +3065,21 @@
     </span><span class="kw">fn </span>test_does_not_scrub_if_no_graphql() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-              <span class="string">&quot;request&quot;</span>: {
-                <span class="string">&quot;data&quot;</span>: {
-                  <span class="string">&quot;query&quot;</span>: <span class="string">&quot;{\n  viewer {\n    login\n  }\n}&quot;</span>,
-                  <span class="string">&quot;variables&quot;</span>: {
-                    <span class="string">&quot;login&quot;</span>: <span class="string">&quot;foo&quot;
+              <span class="string">"request"</span>: {
+                <span class="string">"data"</span>: {
+                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
+                  <span class="string">"variables"</span>: {
+                    <span class="string">"login"</span>: <span class="string">"foo"
                   </span>}
                 },
               },
-              <span class="string">&quot;contexts&quot;</span>: {
-                <span class="string">&quot;response&quot;</span>: {
-                  <span class="string">&quot;type&quot;</span>: <span class="string">&quot;response&quot;</span>,
-                  <span class="string">&quot;data&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: {
-                      <span class="string">&quot;viewer&quot;</span>: {
-                        <span class="string">&quot;login&quot;</span>: <span class="string">&quot;foo&quot;
+              <span class="string">"contexts"</span>: {
+                <span class="string">"response"</span>: {
+                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+                  <span class="string">"data"</span>: {
+                    <span class="string">"data"</span>: {
+                      <span class="string">"viewer"</span>: {
+                        <span class="string">"login"</span>: <span class="string">"foo"
                       </span>}
                     }
                   }
@@ -3106,22 +3107,22 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_logentry_params_scrubbed() {
         <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-            <span class="string">r##&quot;
+            <span class="string">r##"
                 {
-                    &quot;applications&quot;: {
-                        &quot;$string&quot;: [&quot;@anything:remove&quot;]
+                    "applications": {
+                        "$string": ["@anything:remove"]
                     }
                 }
-                &quot;##</span>,
+                "##</span>,
         )
         .unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
-                message: Annotated::new(Message::from(<span class="string">&quot;failed to parse report id=%s&quot;</span>.to_owned())),
-                formatted: Annotated::new(<span class="string">&quot;failed to parse report id=1&quot;</span>.to_string().into()),
+                message: Annotated::new(Message::from(<span class="string">"failed to parse report id=%s"</span>.to_owned())),
+                formatted: Annotated::new(<span class="string">"failed to parse report id=1"</span>.to_string().into()),
                 params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
-                    <span class="string">&quot;12345&quot;</span>.to_owned(),
+                    <span class="string">"12345"</span>.to_owned(),
                 ))])),
                 ..Default::default()
             }),
@@ -3132,13 +3133,13 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>params = <span class="macro">get_value!</span>(event.logentry.<span class="macro">params!</span>);
-        <span class="macro">assert_debug_snapshot!</span>(params, @<span class="string">r#&quot;Array(
+        <span class="macro">assert_debug_snapshot!</span>(params, @<span class="string">r#"Array(
     [
         Meta {
             remarks: [
                 Remark {
                     ty: Removed,
-                    rule_id: &quot;@anything:remove&quot;,
+                    rule_id: "@anything:remove",
                     range: None,
                 },
             ],
@@ -3147,7 +3148,7 @@
             original_value: None,
         },
     ],
-)&quot;#</span>);
+)"#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

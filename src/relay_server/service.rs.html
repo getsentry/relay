@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/service.rs`."><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/service.rs`."><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -333,7 +334,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 <span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
@@ -343,16 +344,16 @@
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 </span><span class="kw">pub enum </span>ServiceError {
     <span class="doccomment">/// GeoIp construction failed.
-    </span><span class="attr">#[error(<span class="string">&quot;could not load the Geoip Db&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"could not load the Geoip Db"</span>)]
     </span>GeoIp,
 
     <span class="doccomment">/// Initializing the Kafka producer failed.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[error(<span class="string">&quot;could not initialize kafka producer&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    #[error(<span class="string">"could not initialize kafka producer"</span>)]
     </span>Kafka,
 
     <span class="doccomment">/// Initializing the Redis cluster client failed.
-    </span><span class="attr">#[error(<span class="string">&quot;could not initialize redis cluster client&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"could not initialize redis cluster client"</span>)]
     </span>Redis,
 }
 
@@ -371,13 +372,13 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Registry {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Registry&quot;</span>)
-            .field(<span class="string">&quot;aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aggregator)
-            .field(<span class="string">&quot;health_check&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.health_check)
-            .field(<span class="string">&quot;outcome_producer&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_producer)
-            .field(<span class="string">&quot;outcome_aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator)
-            .field(<span class="string">&quot;processor&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Addr&lt;Processor&gt;&quot;</span>))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Registry"</span>)
+            .field(<span class="string">"aggregator"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aggregator)
+            .field(<span class="string">"health_check"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.health_check)
+            .field(<span class="string">"outcome_producer"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_producer)
+            .field(<span class="string">"outcome_aggregator"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator)
+            .field(<span class="string">"processor"</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"Addr&lt;Processor&gt;"</span>))
             .finish()
     }
 }
@@ -448,7 +449,7 @@
         )
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>store = <span class="kw">match </span>runtimes.store {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) =&gt; {
                 <span class="prelude-val">Some</span>(StoreService::create(config.clone(), outcome_aggregator.clone())<span class="question-mark">?</span>.start_in(rt))
@@ -459,15 +460,15 @@
         EnvelopeProcessorService::new(
             config.clone(),
             global_config_handle,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pool.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
             test_store.clone(),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>aggregator.clone(),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store.clone(),
         )
         .spawn_handler(processor_rx);
@@ -597,7 +598,7 @@
     project: Runtime,
     aggregator: Runtime,
     outcome: Runtime,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>store: <span class="prelude-ty">Option</span>&lt;Runtime&gt;,
 }
 
@@ -606,14 +607,14 @@
     </span><span class="attr">#[allow(unused_variables)]
     </span><span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            upstream: create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>),
-            project: create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>),
-            aggregator: create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>),
-            outcome: create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            upstream: create_runtime(<span class="string">"upstream-rt"</span>, <span class="number">1</span>),
+            project: create_runtime(<span class="string">"project-rt"</span>, <span class="number">1</span>),
+            aggregator: create_runtime(<span class="string">"aggregator-rt"</span>, <span class="number">1</span>),
+            outcome: create_runtime(<span class="string">"outcome-rt"</span>, <span class="number">1</span>),
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store: config
                 .processing_enabled()
-                .then(|| create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>)),
+                .then(|| create_runtime(<span class="string">"store-rt"</span>, <span class="number">1</span>)),
         }
     }
 }

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/setup.rs`."><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_log" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_log/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_log"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/setup.rs`."><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_log" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_log/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_log"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -331,18 +332,18 @@
 <span class="kw">use </span>tracing::level_filters::LevelFilter;
 <span class="kw">use </span>tracing_subscriber::{prelude::<span class="kw-2">*</span>, EnvFilter, Layer};
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"dashboard"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::dashboard;
 
 <span class="doccomment">/// The full release name including the Relay version and SHA.
-</span><span class="kw">const </span>RELEASE: <span class="kw-2">&amp;</span>str = <span class="macro">std::env!</span>(<span class="string">&quot;RELAY_RELEASE&quot;</span>);
+</span><span class="kw">const </span>RELEASE: <span class="kw-2">&amp;</span>str = <span class="macro">std::env!</span>(<span class="string">"RELAY_RELEASE"</span>);
 
 <span class="comment">// Import CRATE_NAMES, which lists all crates in the workspace.
-</span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
+</span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">"OUT_DIR"</span>), <span class="string">"/constants.gen.rs"</span>));
 
 <span class="doccomment">/// Controls the log format.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>LogFormat {
     <span class="doccomment">/// Auto detect the best format.
     ///
@@ -366,7 +367,7 @@
     <span class="doccomment">/// Dump out JSON lines.
     ///
     /// ```text
-    /// {&quot;timestamp&quot;:&quot;2020-12-04T12:11:08.729716Z&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;logger&quot;:&quot;relay::setup&quot;,&quot;message&quot;:&quot;  relay mode: managed&quot;,&quot;module_path&quot;:&quot;relay::setup&quot;,&quot;filename&quot;:&quot;relay/src/setup.rs&quot;,&quot;lineno&quot;:31}
+    /// {"timestamp":"2020-12-04T12:11:08.729716Z","level":"INFO","logger":"relay::setup","message":"  relay mode: managed","module_path":"relay::setup","filename":"relay/src/setup.rs","lineno":31}
     /// ```
     </span>Json,
 }
@@ -376,10 +377,10 @@
 </span><span class="kw">pub struct </span>LevelParseError(String);
 
 <span class="kw">impl </span>Display <span class="kw">for </span>LevelParseError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
         <span class="macro">write!</span>(
             f,
-            <span class="string">r#&quot;error parsing &quot;{}&quot; as level: expected one of &quot;error&quot;, &quot;warn&quot;, &quot;info&quot;, &quot;debug&quot;, &quot;trace&quot;, &quot;off&quot;&quot;#</span>,
+            <span class="string">r#"error parsing "{}" as level: expected one of "error", "warn", "info", "debug", "trace", "off""#</span>,
             <span class="self">self</span>.<span class="number">0
         </span>)
     }
@@ -395,7 +396,7 @@
     Off,
 }
 
-<span class="macro">impl_str_serde!</span>(Level, <span class="string">&quot;The logging level.&quot;</span>);
+<span class="macro">impl_str_serde!</span>(Level, <span class="string">"The logging level."</span>);
 
 <span class="kw">impl </span>Level {
     <span class="doccomment">/// Returns the tracing [`LevelFilter`].
@@ -412,8 +413,8 @@
 }
 
 <span class="kw">impl </span>Display <span class="kw">for </span>Level {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>).to_lowercase())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="macro">format!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>).to_lowercase())
     }
 }
 
@@ -422,13 +423,13 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">let </span>result = <span class="kw">match </span>s {
-            <span class="string">&quot;&quot; </span>=&gt; Level::Error,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;error&quot;</span>) =&gt; Level::Error,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;warn&quot;</span>) =&gt; Level::Warn,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;info&quot;</span>) =&gt; Level::Info,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;debug&quot;</span>) =&gt; Level::Debug,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;trace&quot;</span>) =&gt; Level::Trace,
-            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;off&quot;</span>) =&gt; Level::Off,
+            <span class="string">"" </span>=&gt; Level::Error,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"error"</span>) =&gt; Level::Error,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"warn"</span>) =&gt; Level::Warn,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"info"</span>) =&gt; Level::Info,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"debug"</span>) =&gt; Level::Debug,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"trace"</span>) =&gt; Level::Trace,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"off"</span>) =&gt; Level::Off,
             s =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(LevelParseError(s.into())),
         };
 
@@ -493,10 +494,10 @@
     </span><span class="kw">pub </span>enabled: bool,
 
     <span class="doccomment">/// Sets the environment for this service.
-    </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;&gt;,
+    </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'static</span>, str&gt;&gt;,
 
     <span class="doccomment">/// Internal. Enables crash handling and sets the absolute path to where minidumps should be
-    /// cached on disk. The path is created if it doesn&#39;t exist. Path must be UTF-8.
+    /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     </span><span class="kw">pub </span>_crash_db: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
@@ -510,7 +511,7 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>SentryConfig {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            dsn: <span class="string">&quot;https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704&quot;
+            dsn: <span class="string">"https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704"
                 </span>.parse()
                 .ok(),
             enabled: <span class="bool-val">false</span>,
@@ -521,35 +522,35 @@
 }
 
 <span class="doccomment">/// Captures an envelope from the native crash reporter using the main Sentry SDK.
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;crash-handler&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">"crash-handler"</span>)]
 </span><span class="kw">fn </span>capture_native_envelope(data: <span class="kw-2">&amp;</span>[u8]) {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = sentry::Hub::main().client() {
         <span class="kw">match </span>sentry::Envelope::from_bytes_raw(data.to_owned()) {
             <span class="prelude-val">Ok</span>(envelope) =&gt; client.send_envelope(envelope),
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
-                <span class="macro">crate::error!</span>(error, <span class="string">&quot;failed to capture crash&quot;</span>)
+                <span class="macro">crate::error!</span>(error, <span class="string">"failed to capture crash"</span>)
             }
         }
     } <span class="kw">else </span>{
-        <span class="macro">crate::error!</span>(<span class="string">&quot;failed to capture crash: no sentry client registered&quot;</span>);
+        <span class="macro">crate::error!</span>(<span class="string">"failed to capture crash: no sentry client registered"</span>);
     }
 }
 
-<span class="doccomment">/// Configures the given log level for all of Relay&#39;s crates.
+<span class="doccomment">/// Configures the given log level for all of Relay's crates.
 </span><span class="kw">fn </span>get_default_filters() -&gt; EnvFilter {
     <span class="comment">// Configure INFO as default, except for crates that are very spammy on INFO level.
     </span><span class="kw">let </span><span class="kw-2">mut </span>env_filter = EnvFilter::new(
-        <span class="string">&quot;INFO,\
+        <span class="string">"INFO,\
         sqlx=WARN,\
         tower_http=TRACE,\
         trust_dns_proto=WARN,\
-        &quot;</span>,
+        "</span>,
     );
 
     <span class="comment">// Add all internal modules with maximum log-level.
     </span><span class="kw">for </span>name <span class="kw">in </span>CRATE_NAMES {
-        env_filter = env_filter.add_directive(<span class="macro">format!</span>(<span class="string">&quot;{name}=TRACE&quot;</span>).parse().unwrap());
+        env_filter = env_filter.add_directive(<span class="macro">format!</span>(<span class="string">"{name}=TRACE"</span>).parse().unwrap());
     }
 
     env_filter
@@ -571,7 +572,7 @@
 /// ```
 </span><span class="kw">pub fn </span>init(config: <span class="kw-2">&amp;</span>LogConfig, sentry: <span class="kw-2">&amp;</span>SentryConfig) {
     <span class="kw">if </span>config.enable_backtraces {
-        env::set_var(<span class="string">&quot;RUST_BACKTRACE&quot;</span>, <span class="string">&quot;full&quot;</span>);
+        env::set_var(<span class="string">"RUST_BACKTRACE"</span>, <span class="string">"full"</span>);
     }
 
     <span class="kw">let </span>subscriber = tracing_subscriber::fmt::layer()
@@ -604,7 +605,7 @@
         });
 
     <span class="comment">// Also add dashboard subscriber if the feature is enabled.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"dashboard"</span>)]
     </span><span class="kw">let </span>logs_subscriber = logs_subscriber.with(dashboard::dashboard_subscriber());
 
     logs_subscriber.init();
@@ -612,7 +613,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn() {
         <span class="kw">let </span>guard = sentry::init(sentry::ClientOptions {
             dsn: <span class="prelude-val">Some</span>(dsn).cloned(),
-            in_app_include: <span class="macro">vec!</span>[<span class="string">&quot;relay&quot;</span>],
+            in_app_include: <span class="macro">vec!</span>[<span class="string">"relay"</span>],
             release: <span class="prelude-val">Some</span>(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
@@ -626,11 +627,11 @@
 
     <span class="comment">// Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
     // access to an initialized Hub to capture crashes from the previous run.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;crash-handler&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"crash-handler"</span>)]
     </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(db) = sentry._crash_db.as_deref() {
-                <span class="macro">crate::info!</span>(<span class="string">&quot;initializing crash handler in {}&quot;</span>, db.display());
+                <span class="macro">crate::info!</span>(<span class="string">"initializing crash handler in {}"</span>, db.display());
                 relay_crash::CrashHandler::new(dsn.as_str(), db)
                     .transport(capture_native_envelope)
                     .release(<span class="prelude-val">Some</span>(RELEASE))

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/common.rs`."><title>common.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/common.rs`."><title>common.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -105,8 +106,8 @@
 
 <span class="doccomment">/// Identifies which filter dropped an event for which reason.
 ///
-/// Ported from Sentry&#39;s same-named &quot;enum&quot;. The enum variants are fed into outcomes in kebap-case
-/// (e.g.  &quot;browser-extensions&quot;)
+/// Ported from Sentry's same-named "enum". The enum variants are fed into outcomes in kebap-case
+/// (e.g.  "browser-extensions")
 </span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Serialize, Hash)]
 </span><span class="kw">pub enum </span>FilterStatKey {
     <span class="doccomment">/// Filtered by ip address.
@@ -147,24 +148,24 @@
 
 // Invalid CORS header.
 //
-// NOTE: Although cors is in the Sentry&#39;s FilterStatKey enum it is used for
+// NOTE: Although cors is in the Sentry's FilterStatKey enum it is used for
 // Invalid outcomes and therefore should logically belong to OutcomeInvalidReason
 // that is why it was commented here and moved to OutcomeInvalidReason enum
 // Cors,
 
 </span><span class="kw">impl </span>FilterStatKey {
     <span class="doccomment">/// Returns the string identifier of the filter stat key.
-    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
+    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'static</span>, str&gt; {
         Cow::Borrowed(<span class="kw">match </span><span class="self">self </span>{
-            FilterStatKey::IpAddress =&gt; <span class="string">&quot;ip-address&quot;</span>,
-            FilterStatKey::ReleaseVersion =&gt; <span class="string">&quot;release-version&quot;</span>,
-            FilterStatKey::ErrorMessage =&gt; <span class="string">&quot;error-message&quot;</span>,
-            FilterStatKey::BrowserExtensions =&gt; <span class="string">&quot;browser-extensions&quot;</span>,
-            FilterStatKey::LegacyBrowsers =&gt; <span class="string">&quot;legacy-browsers&quot;</span>,
-            FilterStatKey::Localhost =&gt; <span class="string">&quot;localhost&quot;</span>,
-            FilterStatKey::WebCrawlers =&gt; <span class="string">&quot;web-crawlers&quot;</span>,
-            FilterStatKey::InvalidCsp =&gt; <span class="string">&quot;invalid-csp&quot;</span>,
-            FilterStatKey::FilteredTransactions =&gt; <span class="string">&quot;filtered-transaction&quot;</span>,
+            FilterStatKey::IpAddress =&gt; <span class="string">"ip-address"</span>,
+            FilterStatKey::ReleaseVersion =&gt; <span class="string">"release-version"</span>,
+            FilterStatKey::ErrorMessage =&gt; <span class="string">"error-message"</span>,
+            FilterStatKey::BrowserExtensions =&gt; <span class="string">"browser-extensions"</span>,
+            FilterStatKey::LegacyBrowsers =&gt; <span class="string">"legacy-browsers"</span>,
+            FilterStatKey::Localhost =&gt; <span class="string">"localhost"</span>,
+            FilterStatKey::WebCrawlers =&gt; <span class="string">"web-crawlers"</span>,
+            FilterStatKey::InvalidCsp =&gt; <span class="string">"invalid-csp"</span>,
+            FilterStatKey::FilteredTransactions =&gt; <span class="string">"filtered-transaction"</span>,
             FilterStatKey::GenericFilter(filter_identifier) =&gt; {
                 <span class="kw">return </span>Cow::Owned(filter_identifier);
             }
@@ -173,25 +174,25 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>FilterStatKey {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.clone().name())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.clone().name())
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>FilterStatKey {
-    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>FilterStatKey {
+    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str;
 
-    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>value {
-            <span class="string">&quot;ip-address&quot; </span>=&gt; FilterStatKey::IpAddress,
-            <span class="string">&quot;release-version&quot; </span>=&gt; FilterStatKey::ReleaseVersion,
-            <span class="string">&quot;error-message&quot; </span>=&gt; FilterStatKey::ErrorMessage,
-            <span class="string">&quot;browser-extensions&quot; </span>=&gt; FilterStatKey::BrowserExtensions,
-            <span class="string">&quot;legacy-browsers&quot; </span>=&gt; FilterStatKey::LegacyBrowsers,
-            <span class="string">&quot;localhost&quot; </span>=&gt; FilterStatKey::Localhost,
-            <span class="string">&quot;web-crawlers&quot; </span>=&gt; FilterStatKey::WebCrawlers,
-            <span class="string">&quot;invalid-csp&quot; </span>=&gt; FilterStatKey::InvalidCsp,
-            <span class="string">&quot;filtered-transaction&quot; </span>=&gt; FilterStatKey::FilteredTransactions,
+            <span class="string">"ip-address" </span>=&gt; FilterStatKey::IpAddress,
+            <span class="string">"release-version" </span>=&gt; FilterStatKey::ReleaseVersion,
+            <span class="string">"error-message" </span>=&gt; FilterStatKey::ErrorMessage,
+            <span class="string">"browser-extensions" </span>=&gt; FilterStatKey::BrowserExtensions,
+            <span class="string">"legacy-browsers" </span>=&gt; FilterStatKey::LegacyBrowsers,
+            <span class="string">"localhost" </span>=&gt; FilterStatKey::Localhost,
+            <span class="string">"web-crawlers" </span>=&gt; FilterStatKey::WebCrawlers,
+            <span class="string">"invalid-csp" </span>=&gt; FilterStatKey::InvalidCsp,
+            <span class="string">"filtered-transaction" </span>=&gt; FilterStatKey::FilteredTransactions,
             other =&gt; FilterStatKey::GenericFilter(other.to_string()),
         })
     }

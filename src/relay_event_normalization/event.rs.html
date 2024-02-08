@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2573,19 +2574,19 @@
 
 <span class="doccomment">/// Configuration for [`normalize_event`].
 </span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>NormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
     /// `request` context, this IP address gets added to the `user` context.
-    </span><span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
+    </span><span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>IpAddr&gt;,
 
     <span class="doccomment">/// The user-agent and client hints obtained from the submission request headers.
     ///
     /// Client hints are the preferred way to infer device, operating system, and browser
     /// information should the event payload contain no such data. If no client hints are present,
     /// normalization falls back to the user agent.
-    </span><span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    </span><span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
 
     <span class="doccomment">/// The maximum length for names of custom measurements.
     ///
@@ -2598,16 +2599,16 @@
     /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
 
     <span class="doccomment">/// Emit breakdowns based on given configuration.
-    </span><span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BreakdownsConfig&gt;,
+    </span><span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BreakdownsConfig&gt;,
 
     <span class="doccomment">/// When `Some(true)`, context information is extracted from the user agent.
     </span><span class="kw">pub </span>normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;,
 
     <span class="doccomment">/// Configuration to apply to transaction names, especially around sanitizing.
-    </span><span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span><span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">'a</span>&gt;,
 
     <span class="doccomment">/// When `Some(true)`, it is assumed that the event has been normalized before.
     ///
@@ -2631,13 +2632,13 @@
     </span><span class="doccomment">/// Configuration for replacing identifiers in the span description with placeholders.
     ///
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
-    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
 
     <span class="doccomment">/// Configuration for generating performance score measurements for web vitals
-    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PerformanceScoreConfig&gt;,
+    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>PerformanceScoreConfig&gt;,
 
     <span class="doccomment">/// An initialized GeoIP lookup.
-    </span><span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;,
+    </span><span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>GeoIpLookup&gt;,
 
     <span class="doccomment">/// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
     ///
@@ -2645,7 +2646,7 @@
     </span><span class="kw">pub </span>enable_trimming: bool,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             client_ip: Default::default(),
@@ -2811,7 +2812,7 @@
         </span><span class="kw">return</span>;
     }
 
-    event.logger.get_or_insert_with(|| <span class="string">&quot;csp&quot;</span>.to_string());
+    event.logger.get_or_insert_with(|| <span class="string">"csp"</span>.to_string());
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(client_ip) = client_ip {
         <span class="kw">let </span>user = event.user.value_mut().get_or_insert_with(User::default);
@@ -2858,10 +2859,10 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>request) = request.value_mut() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>env) = request.env.value_mut() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>Value::String(<span class="kw-2">ref mut </span>http_ip)) = env
-                    .get_mut(<span class="string">&quot;REMOTE_ADDR&quot;</span>)
+                    .get_mut(<span class="string">"REMOTE_ADDR"</span>)
                     .and_then(|annotated| annotated.value_mut().as_mut())
                 {
-                    <span class="kw">if </span>http_ip == <span class="string">&quot;{{auto}}&quot; </span>{
+                    <span class="kw">if </span>http_ip == <span class="string">"{{auto}}" </span>{
                         <span class="kw-2">*</span>http_ip = client_ip.to_string();
                     }
                 }
@@ -2881,7 +2882,7 @@
     </span><span class="kw">let </span>http_ip = request
         .value()
         .and_then(|request| request.env.value())
-        .and_then(|env| env.get(<span class="string">&quot;REMOTE_ADDR&quot;</span>))
+        .and_then(|env| env.get(<span class="string">"REMOTE_ADDR"</span>))
         .and_then(Annotated::&lt;Value&gt;::as_str)
         .and_then(|ip| IpAddr::parse(ip).ok());
 
@@ -2893,14 +2894,14 @@
         <span class="comment">// auto is already handled above
         </span><span class="kw">if </span>user.ip_address.value().is_none() {
             <span class="comment">// In an ideal world all SDKs would set {{auto}} explicitly.
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">&quot;javascript&quot;</span>) | <span class="prelude-val">Some</span>(<span class="string">&quot;cocoa&quot;</span>) | <span class="prelude-val">Some</span>(<span class="string">&quot;objc&quot;</span>) = platform {
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">"javascript"</span>) | <span class="prelude-val">Some</span>(<span class="string">"cocoa"</span>) | <span class="prelude-val">Some</span>(<span class="string">"objc"</span>) = platform {
                 user.ip_address = Annotated::new(client_ip.to_owned());
             }
         }
     }
 }
 
-<span class="doccomment">/// Sets the user&#39;s GeoIp info based on user&#39;s IP address.
+<span class="doccomment">/// Sets the user's GeoIp info based on user's IP address.
 </span><span class="kw">pub fn </span>normalize_user_geoinfo(geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup, user: <span class="kw-2">&amp;mut </span>User) {
     <span class="comment">// Infer user.geo from user.ip_address
     </span><span class="kw">if </span>user.geo.value().is_none() {
@@ -2950,10 +2951,10 @@
 
 <span class="doccomment">/// Defaults the `platform` and `level` required attributes.
 </span><span class="kw">fn </span>normalize_platform_and_level(event: <span class="kw-2">&amp;mut </span>Event) {
-    <span class="comment">// The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it&#39;s put here since only light
+    <span class="comment">// The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it's put here since only light
     // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
     // on some normalized data.
-    </span>event.platform.get_or_insert_with(|| <span class="string">&quot;other&quot;</span>.to_string());
+    </span>event.platform.get_or_insert_with(|| <span class="string">"other"</span>.to_string());
     event.level.get_or_insert_with(|| <span class="kw">match </span>event.ty.value() {
         <span class="prelude-val">Some</span>(EventType::Transaction) =&gt; Level::Info,
         <span class="kw">_ </span>=&gt; Level::Error,
@@ -2990,7 +2991,7 @@
     }
 
     <span class="comment">// Fix case where legacy apps pass environment as a tag instead of a top level key
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(tag) = tags.remove(<span class="string">&quot;environment&quot;</span>).and_then(Annotated::into_value) {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(tag) = tags.remove(<span class="string">"environment"</span>).and_then(Annotated::into_value) {
         environment.get_or_insert_with(|| tag);
     }
 
@@ -3000,8 +3001,8 @@
     tags.retain(|entry| {
         <span class="kw">match </span>entry.value() {
             <span class="prelude-val">Some</span>(tag) =&gt; <span class="kw">match </span>tag.key() {
-                <span class="prelude-val">Some</span>(<span class="string">&quot;release&quot;</span>) | <span class="prelude-val">Some</span>(<span class="string">&quot;dist&quot;</span>) | <span class="prelude-val">Some</span>(<span class="string">&quot;user&quot;</span>) | <span class="prelude-val">Some</span>(<span class="string">&quot;filename&quot;</span>)
-                | <span class="prelude-val">Some</span>(<span class="string">&quot;function&quot;</span>) =&gt; <span class="bool-val">false</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"release"</span>) | <span class="prelude-val">Some</span>(<span class="string">"dist"</span>) | <span class="prelude-val">Some</span>(<span class="string">"user"</span>) | <span class="prelude-val">Some</span>(<span class="string">"filename"</span>)
+                | <span class="prelude-val">Some</span>(<span class="string">"function"</span>) =&gt; <span class="bool-val">false</span>,
                 name =&gt; tag_cache.probe(name),
             },
             <span class="comment">// ToValue will decide if we should skip serializing Annotated::empty()
@@ -3033,13 +3034,13 @@
 
     <span class="kw">let </span>server_name = std::mem::take(<span class="kw-2">&amp;mut </span>event.server_name);
     <span class="kw">if </span>server_name.value().is_some() {
-        <span class="kw">let </span>tag_name = <span class="string">&quot;server_name&quot;</span>.to_string();
+        <span class="kw">let </span>tag_name = <span class="string">"server_name"</span>.to_string();
         tags.insert(tag_name, server_name);
     }
 
     <span class="kw">let </span>site = std::mem::take(<span class="kw-2">&amp;mut </span>event.site);
     <span class="kw">if </span>site.value().is_some() {
-        <span class="kw">let </span>tag_name = <span class="string">&quot;site&quot;</span>.to_string();
+        <span class="kw">let </span>tag_name = <span class="string">"site"</span>.to_string();
         tags.insert(tag_name, site);
     }
 }
@@ -3048,9 +3049,9 @@
 // medium, or low.
 </span><span class="kw">fn </span>normalize_device_class(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">let </span>tags = <span class="kw-2">&amp;mut </span>event.tags.value_mut().get_or_insert_with(Tags::default).<span class="number">0</span>;
-    <span class="kw">let </span>tag_name = <span class="string">&quot;device.class&quot;</span>.to_owned();
+    <span class="kw">let </span>tag_name = <span class="string">"device.class"</span>.to_owned();
     <span class="comment">// Remove any existing device.class tag set by the client, since this should only be set by relay.
-    </span>tags.remove(<span class="string">&quot;device.class&quot;</span>);
+    </span>tags.remove(<span class="string">"device.class"</span>);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = DeviceClass::from_contexts(contexts) {
             tags.insert(tag_name, Annotated::new(device_class.to_string()));
@@ -3068,7 +3069,7 @@
     normalize_thread_stacktraces(event);
 }
 
-<span class="doccomment">/// Normalizes an event&#39;s stack trace, in `event.stacktrace`.
+<span class="doccomment">/// Normalizes an event's stack trace, in `event.stacktrace`.
 </span><span class="kw">fn </span>normalize_event_stacktrace(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>event.stacktrace <span class="kw">else </span>{
         <span class="kw">return</span>;
@@ -3076,7 +3077,7 @@
     stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
 }
 
-<span class="doccomment">/// Normalizes the stack traces in an event&#39;s exceptions, in `event.exceptions.stacktraces`.
+<span class="doccomment">/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
 ///
 /// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
 </span><span class="kw">fn </span>normalize_exception_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
@@ -3096,7 +3097,7 @@
     }
 }
 
-<span class="doccomment">/// Normalizes the stack traces in an event&#39;s threads, in `event.threads.stacktraces`.
+<span class="doccomment">/// Normalizes the stack traces in an event's threads, in `event.threads.stacktraces`.
 ///
 /// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
 </span><span class="kw">fn </span>normalize_thread_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
@@ -3131,7 +3132,7 @@
             }
 
             <span class="comment">// Exception mechanism needs SDK information to resolve proper names in
-            // exception meta (such as signal names). &quot;SDK Information&quot; really means
+            // exception meta (such as signal names). "SDK Information" really means
             // the operating system version the event was generated on. Some
             // normalization still works without sdk_info, such as mach_exception
             // names (they can only occur on macOS).
@@ -3248,7 +3249,7 @@
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(component.measurement.as_str()) {
                         normalized_component_weight = component.weight / weight_total;
                         <span class="kw">let </span>cdf = utils::calculate_cdf_score(
-                            value.max(<span class="number">0.0</span>), <span class="comment">// Webvitals can&#39;t be negative, but we need to clamp in case of bad data.
+                            value.max(<span class="number">0.0</span>), <span class="comment">// Webvitals can't be negative, but we need to clamp in case of bad data.
                             </span>component.p10,
                             component.p50,
                         );
@@ -3257,7 +3258,7 @@
                         should_add_total = <span class="bool-val">true</span>;
 
                         measurements.insert(
-                            <span class="macro">format!</span>(<span class="string">&quot;score.{}&quot;</span>, component.measurement),
+                            <span class="macro">format!</span>(<span class="string">"score.{}"</span>, component.measurement),
                             Measurement {
                                 value: component_score.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -3266,7 +3267,7 @@
                         );
                     }
                     measurements.insert(
-                        <span class="macro">format!</span>(<span class="string">&quot;score.weight.{}&quot;</span>, component.measurement),
+                        <span class="macro">format!</span>(<span class="string">"score.weight.{}"</span>, component.measurement),
                         Measurement {
                             value: normalized_component_weight.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -3277,7 +3278,7 @@
 
                 <span class="kw">if </span>should_add_total {
                     measurements.insert(
-                        <span class="string">&quot;score.total&quot;</span>.to_owned(),
+                        <span class="string">"score.total"</span>.to_owned(),
                         Measurement {
                             value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -3301,21 +3302,21 @@
 /// stall_percentage := measurements.stall_total_time / transaction.duration
 /// ```
 </span><span class="kw">fn </span>compute_measurements(transaction_duration_ms: f64, measurements: <span class="kw-2">&amp;mut </span>Measurements) {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_total) = measurements.get_value(<span class="string">&quot;frames_total&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_total) = measurements.get_value(<span class="string">"frames_total"</span>) {
         <span class="kw">if </span>frames_total &gt; <span class="number">0.0 </span>{
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_frozen) = measurements.get_value(<span class="string">&quot;frames_frozen&quot;</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_frozen) = measurements.get_value(<span class="string">"frames_frozen"</span>) {
                 <span class="kw">let </span>frames_frozen_rate = Measurement {
                     value: (frames_frozen / frames_total).into(),
                     unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                 };
-                measurements.insert(<span class="string">&quot;frames_frozen_rate&quot;</span>.to_owned(), frames_frozen_rate.into());
+                measurements.insert(<span class="string">"frames_frozen_rate"</span>.to_owned(), frames_frozen_rate.into());
             }
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_slow) = measurements.get_value(<span class="string">&quot;frames_slow&quot;</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(frames_slow) = measurements.get_value(<span class="string">"frames_slow"</span>) {
                 <span class="kw">let </span>frames_slow_rate = Measurement {
                     value: (frames_slow / frames_total).into(),
                     unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
                 };
-                measurements.insert(<span class="string">&quot;frames_slow_rate&quot;</span>.to_owned(), frames_slow_rate.into());
+                measurements.insert(<span class="string">"frames_slow_rate"</span>.to_owned(), frames_slow_rate.into());
             }
         }
     }
@@ -3323,7 +3324,7 @@
     <span class="comment">// Get stall_percentage
     </span><span class="kw">if </span>transaction_duration_ms &gt; <span class="number">0.0 </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(stall_total_time) = measurements
-            .get(<span class="string">&quot;stall_total_time&quot;</span>)
+            .get(<span class="string">"stall_total_time"</span>)
             .and_then(Annotated::value)
         {
             <span class="kw">if </span><span class="macro">matches!</span>(
@@ -3336,7 +3337,7 @@
                         value: (stall_total_time / transaction_duration_ms).into(),
                         unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                     };
-                    measurements.insert(<span class="string">&quot;stall_percentage&quot;</span>.to_owned(), stall_percentage.into());
+                    measurements.insert(<span class="string">"stall_percentage"</span>.to_owned(), stall_percentage.into());
                 }
             }
         }
@@ -3357,7 +3358,7 @@
         <span class="comment">// Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
         // construct.
         // [`normalize`] does not run on renormalization anyway.
-        </span>contexts.<span class="number">0</span>.remove(<span class="string">&quot;reprocessing&quot;</span>);
+        </span>contexts.<span class="number">0</span>.remove(<span class="string">"reprocessing"</span>);
 
         <span class="kw">for </span>annotated <span class="kw">in </span><span class="kw-2">&amp;mut </span>contexts.<span class="number">0</span>.values_mut() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(context))) = annotated.value_mut() {
@@ -3377,10 +3378,10 @@
 /// Drop those outlier measurements for older SDKs.
 </span><span class="kw">fn </span>filter_mobile_outliers(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
     <span class="kw">for </span>key <span class="kw">in </span>[
-        <span class="string">&quot;app_start_cold&quot;</span>,
-        <span class="string">&quot;app_start_warm&quot;</span>,
-        <span class="string">&quot;time_to_initial_display&quot;</span>,
-        <span class="string">&quot;time_to_full_display&quot;</span>,
+        <span class="string">"app_start_cold"</span>,
+        <span class="string">"app_start_warm"</span>,
+        <span class="string">"time_to_initial_display"</span>,
+        <span class="string">"time_to_full_display"</span>,
     ] {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(key) {
             <span class="kw">if </span>value &gt; MAX_DURATION_MOBILE_MS {
@@ -3437,7 +3438,7 @@
 
         <span class="kw">if </span>!can_be_valid_metric_name(name) {
             meta.add_error(Error::invalid(<span class="macro">format!</span>(
-                <span class="string">&quot;Metric name contains invalid characters: \&quot;{name}\&quot;&quot;
+                <span class="string">"Metric name contains invalid characters: \"{name}\""
             </span>)));
             removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
             <span class="kw">return </span><span class="bool-val">false</span>;
@@ -3451,7 +3452,7 @@
 
             <span class="kw">if </span>name.len() &gt; max_name_len {
                 meta.add_error(Error::invalid(<span class="macro">format!</span>(
-                    <span class="string">&quot;Metric name too long {}/{max_name_len}: \&quot;{name}\&quot;&quot;</span>,
+                    <span class="string">"Metric name too long {}/{max_name_len}: \"{name}\""</span>,
                     name.len(),
                 )));
                 removed_measurements
@@ -3467,7 +3468,7 @@
                 <span class="comment">// Drop negative values if the builtin measurement does not allow them.
                 </span><span class="kw">if </span>!builtin_measurement.allow_negative() &amp;&amp; <span class="kw-2">*</span>value &lt; <span class="number">0.0 </span>{
                     meta.add_error(Error::invalid(<span class="macro">format!</span>(
-                        <span class="string">&quot;Negative value for measurement {name} not allowed: {value}&quot;</span>,
+                        <span class="string">"Negative value for measurement {name} not allowed: {value}"</span>,
                     )));
                     removed_measurements
                         .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
@@ -3486,7 +3487,7 @@
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
 
-        meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;Too many measurements: {name}&quot;</span>)));
+        meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">"Too many measurements: {name}"</span>)));
         removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         <span class="bool-val">false
@@ -3504,31 +3505,31 @@
 </span><span class="kw">fn </span>get_metric_measurement_unit(measurement_name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;MetricUnit&gt; {
     <span class="kw">match </span>measurement_name {
         <span class="comment">// Web
-        </span><span class="string">&quot;fcp&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;lcp&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;fid&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;fp&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;inp&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;ttfb&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;ttfb.requesttime&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;cls&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
+        </span><span class="string">"fcp" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"lcp" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"fid" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"fp" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"inp" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"ttfb" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"ttfb.requesttime" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"cls" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
 
         <span class="comment">// Mobile
-        </span><span class="string">&quot;app_start_cold&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;app_start_warm&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;frames_total&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
-        <span class="string">&quot;frames_slow&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
-        <span class="string">&quot;frames_slow_rate&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
-        <span class="string">&quot;frames_frozen&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
-        <span class="string">&quot;frames_frozen_rate&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
-        <span class="string">&quot;time_to_initial_display&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;time_to_full_display&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        </span><span class="string">"app_start_cold" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"app_start_warm" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"frames_total" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
+        <span class="string">"frames_slow" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
+        <span class="string">"frames_slow_rate" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
+        <span class="string">"frames_frozen" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
+        <span class="string">"frames_frozen_rate" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
+        <span class="string">"time_to_initial_display" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"time_to_full_display" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         <span class="comment">// React-Native
-        </span><span class="string">&quot;stall_count&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
-        <span class="string">&quot;stall_total_time&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;stall_longest_time&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        <span class="string">&quot;stall_percentage&quot; </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
+        </span><span class="string">"stall_count" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::None),
+        <span class="string">"stall_total_time" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"stall_longest_time" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        <span class="string">"stall_percentage" </span>=&gt; <span class="prelude-val">Some</span>(MetricUnit::Fraction(FractionUnit::Ratio)),
 
         <span class="comment">// Default
         </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -3540,11 +3541,11 @@
 /// The dot.case app start measurements keys are treated as custom measurements.
 /// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 </span><span class="kw">fn </span>normalize_app_start_measurements(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_cold_value) = measurements.remove(<span class="string">&quot;app.start.cold&quot;</span>) {
-        measurements.insert(<span class="string">&quot;app_start_cold&quot;</span>.to_string(), app_start_cold_value);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_cold_value) = measurements.remove(<span class="string">"app.start.cold"</span>) {
+        measurements.insert(<span class="string">"app_start_cold"</span>.to_string(), app_start_cold_value);
     }
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_warm_value) = measurements.remove(<span class="string">&quot;app.start.warm&quot;</span>) {
-        measurements.insert(<span class="string">&quot;app_start_warm&quot;</span>.to_string(), app_start_warm_value);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_warm_value) = measurements.remove(<span class="string">"app.start.warm"</span>) {
+        measurements.insert(<span class="string">"app_start_warm"</span>.to_string(), app_start_warm_value);
     }
 }
 
@@ -3575,151 +3576,151 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_empty() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot;&quot;</span>.to_string());
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">""</span>.to_string());
         normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_trim() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; foo  &quot;</span>.to_string());
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">" foo  "</span>.to_string());
         normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;foo&quot;</span>.to_string()));
+        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"foo"</span>.to_string()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_whitespace() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; &quot;</span>.to_owned());
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">" "</span>.to_owned());
         normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_platform_and_level_with_transaction_event() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;
+            "type": "transaction"
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         normalize_platform_and_level(<span class="kw-2">&amp;mut </span>event);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;level&quot;: &quot;info&quot;,
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;platform&quot;: &quot;other&quot;,
+          "level": "info",
+          "type": "transaction",
+          "platform": "other",
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_platform_and_level_with_error_event() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;error&quot;
+            "type": "error"
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         normalize_platform_and_level(<span class="kw-2">&amp;mut </span>event);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;level&quot;: &quot;error&quot;,
-          &quot;type&quot;: &quot;error&quot;,
-          &quot;platform&quot;: &quot;other&quot;,
+          "level": "error",
+          "type": "error",
+          "platform": "other",
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_measurements() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;frames_slow&quot;: {&quot;value&quot;: 1},
-                &quot;frames_frozen&quot;: {&quot;value&quot;: 2},
-                &quot;frames_total&quot;: {&quot;value&quot;: 4},
-                &quot;stall_total_time&quot;: {&quot;value&quot;: 4000, &quot;unit&quot;: &quot;millisecond&quot;}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "frames_slow": {"value": 1},
+                "frames_frozen": {"value": 2},
+                "frames_total": {"value": 4},
+                "stall_total_time": {"value": 4000, "unit": "millisecond"}
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;measurements&quot;: {
-            &quot;frames_frozen&quot;: {
-              &quot;value&quot;: 2.0,
-              &quot;unit&quot;: &quot;none&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_frozen": {
+              "value": 2.0,
+              "unit": "none",
             },
-            &quot;frames_frozen_rate&quot;: {
-              &quot;value&quot;: 0.5,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "frames_frozen_rate": {
+              "value": 0.5,
+              "unit": "ratio",
             },
-            &quot;frames_slow&quot;: {
-              &quot;value&quot;: 1.0,
-              &quot;unit&quot;: &quot;none&quot;,
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
             },
-            &quot;frames_slow_rate&quot;: {
-              &quot;value&quot;: 0.25,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "frames_slow_rate": {
+              "value": 0.25,
+              "unit": "ratio",
             },
-            &quot;frames_total&quot;: {
-              &quot;value&quot;: 4.0,
-              &quot;unit&quot;: &quot;none&quot;,
+            "frames_total": {
+              "value": 4.0,
+              "unit": "none",
             },
-            &quot;stall_percentage&quot;: {
-              &quot;value&quot;: 0.8,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "stall_percentage": {
+              "value": 0.8,
+              "unit": "ratio",
             },
-            &quot;stall_total_time&quot;: {
-              &quot;value&quot;: 4000.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "stall_total_time": {
+              "value": 4000.0,
+              "unit": "millisecond",
             },
           },
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filter_custom_measurements() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;my_custom_measurement_1&quot;: {&quot;value&quot;: 123},
-                &quot;frames_frozen&quot;: {&quot;value&quot;: 666, &quot;unit&quot;: &quot;invalid_unit&quot;},
-                &quot;frames_slow&quot;: {&quot;value&quot;: 1},
-                &quot;my_custom_measurement_3&quot;: {&quot;value&quot;: 456},
-                &quot;my_custom_measurement_2&quot;: {&quot;value&quot;: 789}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "my_custom_measurement_1": {"value": 123},
+                "frames_frozen": {"value": 666, "unit": "invalid_unit"},
+                "frames_slow": {"value": 1},
+                "my_custom_measurement_3": {"value": 456},
+                "my_custom_measurement_2": {"value": 789}
             }
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>project_measurement_config: MeasurementsConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;builtinMeasurements&quot;</span>: [
-                {<span class="string">&quot;name&quot;</span>: <span class="string">&quot;frames_frozen&quot;</span>, <span class="string">&quot;unit&quot;</span>: <span class="string">&quot;none&quot;</span>},
-                {<span class="string">&quot;name&quot;</span>: <span class="string">&quot;frames_slow&quot;</span>, <span class="string">&quot;unit&quot;</span>: <span class="string">&quot;none&quot;</span>}
+            <span class="string">"builtinMeasurements"</span>: [
+                {<span class="string">"name"</span>: <span class="string">"frames_frozen"</span>, <span class="string">"unit"</span>: <span class="string">"none"</span>},
+                {<span class="string">"name"</span>: <span class="string">"frames_slow"</span>, <span class="string">"unit"</span>: <span class="string">"none"</span>}
             ],
-            <span class="string">&quot;maxCustomMeasurements&quot;</span>: <span class="number">2</span>,
-            <span class="string">&quot;stray_key&quot;</span>: <span class="string">&quot;zzz&quot;
+            <span class="string">"maxCustomMeasurements"</span>: <span class="number">2</span>,
+            <span class="string">"stray_key"</span>: <span class="string">"zzz"
         </span>}))
         .unwrap();
 
@@ -3729,100 +3730,100 @@
         normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 
         <span class="comment">// Only two custom measurements are retained, in alphabetic order (1 and 2)
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;measurements&quot;: {
-            &quot;frames_slow&quot;: {
-              &quot;value&quot;: 1.0,
-              &quot;unit&quot;: &quot;none&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
             },
-            &quot;my_custom_measurement_1&quot;: {
-              &quot;value&quot;: 123.0,
-              &quot;unit&quot;: &quot;none&quot;,
+            "my_custom_measurement_1": {
+              "value": 123.0,
+              "unit": "none",
             },
-            &quot;my_custom_measurement_2&quot;: {
-              &quot;value&quot;: 789.0,
-              &quot;unit&quot;: &quot;none&quot;,
+            "my_custom_measurement_2": {
+              "value": 789.0,
+              "unit": "none",
             },
           },
-          &quot;_meta&quot;: {
-            &quot;measurements&quot;: {
-              &quot;&quot;: Meta(Some(MetaInner(
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
                 err: [
                   [
-                    &quot;invalid_data&quot;,
+                    "invalid_data",
                     {
-                      &quot;reason&quot;: &quot;Too many measurements: my_custom_measurement_3&quot;,
+                      "reason": "Too many measurements: my_custom_measurement_3",
                     },
                   ],
                 ],
                 val: Some({
-                  &quot;my_custom_measurement_3&quot;: {
-                    &quot;unit&quot;: &quot;none&quot;,
-                    &quot;value&quot;: 456.0,
+                  "my_custom_measurement_3": {
+                    "unit": "none",
+                    "value": 456.0,
                   },
                 }),
               ))),
             },
           },
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_units() {
         <span class="kw">let </span><span class="kw-2">mut </span>measurements = Annotated::&lt;Measurements&gt;::from_json(
-            <span class="string">r#&quot;{
-                &quot;fcp&quot;: {&quot;value&quot;: 1.1},
-                &quot;stall_count&quot;: {&quot;value&quot;: 3.3},
-                &quot;foo&quot;: {&quot;value&quot;: 8.8}
-            }&quot;#</span>,
+            <span class="string">r#"{
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }"#</span>,
         )
         .unwrap()
         .into_value()
         .unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#"
         Measurements(
             {
-                &quot;fcp&quot;: Measurement {
+                "fcp": Measurement {
                     value: 1.1,
                     unit: ~,
                 },
-                &quot;foo&quot;: Measurement {
+                "foo": Measurement {
                     value: 8.8,
                     unit: ~,
                 },
-                &quot;stall_count&quot;: Measurement {
+                "stall_count": Measurement {
                     value: 3.3,
                     unit: ~,
                 },
             },
         )
-        &quot;#</span>);
+        "#</span>);
         normalize_units(<span class="kw-2">&amp;mut </span>measurements);
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#"
         Measurements(
             {
-                &quot;fcp&quot;: Measurement {
+                "fcp": Measurement {
                     value: 1.1,
                     unit: Duration(
                         MilliSecond,
                     ),
                 },
-                &quot;foo&quot;: Measurement {
+                "foo": Measurement {
                     value: 8.8,
                     unit: None,
                 },
-                &quot;stall_count&quot;: Measurement {
+                "stall_count": Measurement {
                     value: 3.3,
                     unit: None,
                 },
             },
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -3831,7 +3832,7 @@
             csp: Annotated::from(Csp::default()),
             ..Default::default()
         };
-        <span class="kw">let </span>ipaddr = IpAddr(<span class="string">&quot;213.164.1.114&quot;</span>.to_string());
+        <span class="kw">let </span>ipaddr = IpAddr(<span class="string">"213.164.1.114"</span>.to_string());
 
         <span class="kw">let </span>client_ip = <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ipaddr);
         <span class="kw">let </span>user_agent = RawUserAgentInfo::new_test_dummy();
@@ -3875,7 +3876,7 @@
 
         <span class="macro">assert!</span>(
             std::mem::size_of_val(<span class="kw-2">&amp;</span>ClientHints::&lt;<span class="kw-2">&amp;</span>str&gt;::default()) == <span class="number">64</span>,
-            <span class="string">&quot;If you add new fields, update the test accordingly&quot;
+            <span class="string">"If you add new fields, update the test accordingly"
         </span>);
     }
 
@@ -3886,7 +3887,7 @@
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
         <span class="kw">let </span>tags = <span class="kw-2">&amp;</span>event.tags.value_mut().get_or_insert_with(Tags::default).<span class="number">0</span>;
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, tags.get(<span class="string">&quot;device_class&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, tags.get(<span class="string">"device_class"</span>));
     }
 
     <span class="attr">#[test]
@@ -3895,8 +3896,8 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;iPhone&quot;</span>.to_string().into(),
-                    model: <span class="string">&quot;iPhone8,4&quot;</span>.to_string().into(),
+                    family: <span class="string">"iPhone"</span>.to_string().into(),
+                    model: <span class="string">"iPhone8,4"</span>.to_string().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -3904,18 +3905,18 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;1&quot;,
+                        "device.class",
+                        "1",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -3924,8 +3925,8 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;iPhone&quot;</span>.to_string().into(),
-                    model: <span class="string">&quot;iPhone12,8&quot;</span>.to_string().into(),
+                    family: <span class="string">"iPhone"</span>.to_string().into(),
+                    model: <span class="string">"iPhone12,8"</span>.to_string().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -3933,18 +3934,18 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;2&quot;,
+                        "device.class",
+                        "2",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -3953,7 +3954,7 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;android&quot;</span>.to_string().into(),
+                    family: <span class="string">"android"</span>.to_string().into(),
                     processor_frequency: <span class="number">1000</span>.into(),
                     processor_count: <span class="number">6</span>.into(),
                     memory_size: (<span class="number">2 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -3964,18 +3965,18 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;1&quot;,
+                        "device.class",
+                        "1",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -3984,7 +3985,7 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;android&quot;</span>.to_string().into(),
+                    family: <span class="string">"android"</span>.to_string().into(),
                     processor_frequency: <span class="number">2000</span>.into(),
                     processor_count: <span class="number">8</span>.into(),
                     memory_size: (<span class="number">6 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -3995,18 +3996,18 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;2&quot;,
+                        "device.class",
+                        "2",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -4015,7 +4016,7 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;android&quot;</span>.to_string().into(),
+                    family: <span class="string">"android"</span>.to_string().into(),
                     processor_frequency: <span class="number">2500</span>.into(),
                     processor_count: <span class="number">8</span>.into(),
                     memory_size: (<span class="number">6 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -4026,23 +4027,23 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;3&quot;,
+                        "device.class",
+                        "3",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_keeps_valid_measurement() {
-        <span class="kw">let </span>name = <span class="string">&quot;lcp&quot;</span>;
+        <span class="kw">let </span>name = <span class="string">"lcp"</span>;
         <span class="kw">let </span>measurement = Measurement {
             value: Annotated::new(<span class="number">420.69</span>),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -4053,7 +4054,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_drops_too_long_measurement_names() {
-        <span class="kw">let </span>name = <span class="string">&quot;lcpppppppppppppppppppppppppppp&quot;</span>;
+        <span class="kw">let </span>name = <span class="string">"lcpppppppppppppppppppppppppppp"</span>;
         <span class="kw">let </span>measurement = Measurement {
             value: Annotated::new(<span class="number">420.69</span>),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -4064,7 +4065,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_drops_measurements_with_invalid_characters() {
-        <span class="kw">let </span>name = <span class="string">&quot;i æm frøm nørwåy&quot;</span>;
+        <span class="kw">let </span>name = <span class="string">"i æm frøm nørwåy"</span>;
         <span class="kw">let </span>measurement = Measurement {
             value: Annotated::new(<span class="number">420.69</span>),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -4105,81 +4106,81 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_measurements_does_not_add_measurements() {
-        <span class="kw">let </span><span class="kw-2">mut </span>measurements = Annotated::&lt;Measurements&gt;::from_json(<span class="string">r###&quot;{}&quot;###</span>)
+        <span class="kw">let </span><span class="kw-2">mut </span>measurements = Annotated::&lt;Measurements&gt;::from_json(<span class="string">r###"{}"###</span>)
             .unwrap()
             .into_value()
             .unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {},
         )
-        &quot;###</span>);
+        "###</span>);
         normalize_app_start_measurements(<span class="kw-2">&amp;mut </span>measurements);
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {},
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_cold_measurements() {
         <span class="kw">let </span><span class="kw-2">mut </span>measurements =
-            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#&quot;{&quot;app.start.cold&quot;: {&quot;value&quot;: 1.1}}&quot;#</span>)
+            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#"{"app.start.cold": {"value": 1.1}}"#</span>)
                 .unwrap()
                 .into_value()
                 .unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {
-                &quot;app.start.cold&quot;: Measurement {
+                "app.start.cold": Measurement {
                     value: 1.1,
                     unit: ~,
                 },
             },
         )
-        &quot;###</span>);
+        "###</span>);
         normalize_app_start_measurements(<span class="kw-2">&amp;mut </span>measurements);
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {
-                &quot;app_start_cold&quot;: Measurement {
+                "app_start_cold": Measurement {
                     value: 1.1,
                     unit: ~,
                 },
             },
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_warm_measurements() {
         <span class="kw">let </span><span class="kw-2">mut </span>measurements =
-            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#&quot;{&quot;app.start.warm&quot;: {&quot;value&quot;: 1.1}}&quot;#</span>)
+            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#"{"app.start.warm": {"value": 1.1}}"#</span>)
                 .unwrap()
                 .into_value()
                 .unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {
-                &quot;app.start.warm&quot;: Measurement {
+                "app.start.warm": Measurement {
                     value: 1.1,
                     unit: ~,
                 },
             },
         )
-        &quot;###</span>);
+        "###</span>);
         normalize_app_start_measurements(<span class="kw-2">&amp;mut </span>measurements);
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {
-                &quot;app_start_warm&quot;: Measurement {
+                "app_start_warm": Measurement {
                     value: 1.1,
                     unit: ~,
                 },
             },
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -4188,8 +4189,8 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: <span class="string">&quot;iPhone&quot;</span>.to_string().into(),
-                    model: <span class="string">&quot;iPhone15,3&quot;</span>.to_string().into(),
+                    family: <span class="string">"iPhone"</span>.to_string().into(),
+                    model: <span class="string">"iPhone15,3"</span>.to_string().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -4197,24 +4198,24 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;device.class&quot;,
-                        &quot;3&quot;,
+                        "device.class",
+                        "3",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filter_mobile_outliers() {
         <span class="kw">let </span><span class="kw-2">mut </span>measurements =
-            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#&quot;{&quot;app_start_warm&quot;: {&quot;value&quot;: 180001}}&quot;#</span>)
+            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#"{"app_start_warm": {"value": 180001}}"#</span>)
                 .unwrap()
                 .into_value()
                 .unwrap();
@@ -4225,69 +4226,69 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;fid&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;fcp&quot;: {&quot;value&quot;: 1237, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;lcp&quot;: {&quot;value&quot;: 6596, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;cls&quot;: {&quot;value&quot;: 0.11}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
             },
-            &quot;contexts&quot;: {
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;,
-                    &quot;version&quot;: &quot;120.1.1&quot;,
-                    &quot;type&quot;: &quot;browser&quot;
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.15</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">900</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">1600
+                            <span class="string">"measurement"</span>: <span class="string">"fcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.15</span>,
+                            <span class="string">"p10"</span>: <span class="number">900</span>,
+                            <span class="string">"p50"</span>: <span class="number">1600
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;lcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.30</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400
+                            <span class="string">"measurement"</span>: <span class="string">"lcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.30</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fid&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.30</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">100</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">300
+                            <span class="string">"measurement"</span>: <span class="string">"fid"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.30</span>,
+                            <span class="string">"p10"</span>: <span class="number">100</span>,
+                            <span class="string">"p50"</span>: <span class="number">300
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;cls&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.25</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.1</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.25
+                            <span class="string">"measurement"</span>: <span class="string">"cls"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.25</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;ttfb&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.0</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.2</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.4
+                            <span class="string">"measurement"</span>: <span class="string">"ttfb"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.2</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.4
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;eq&quot;</span>,
-                        <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.contexts.browser.name&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;Chrome&quot;
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"eq"</span>,
+                        <span class="string">"name"</span>: <span class="string">"event.contexts.browser.name"</span>,
+                        <span class="string">"value"</span>: <span class="string">"Chrome"
                     </span>}
                 }
             ]
@@ -4296,146 +4297,146 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;contexts&quot;: {
-            &quot;browser&quot;: {
-              &quot;name&quot;: &quot;Chrome&quot;,
-              &quot;version&quot;: &quot;120.1.1&quot;,
-              &quot;type&quot;: &quot;browser&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
             },
           },
-          &quot;measurements&quot;: {
-            &quot;cls&quot;: {
-              &quot;value&quot;: 0.11,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
             },
-            &quot;fcp&quot;: {
-              &quot;value&quot;: 1237.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
             },
-            &quot;fid&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
-            &quot;lcp&quot;: {
-              &quot;value&quot;: 6596.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
             },
-            &quot;score.cls&quot;: {
-              &quot;value&quot;: 0.21864170607444863,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
             },
-            &quot;score.fcp&quot;: {
-              &quot;value&quot;: 0.10750855443790831,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
             },
-            &quot;score.fid&quot;: {
-              &quot;value&quot;: 0.19657361348282545,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
             },
-            &quot;score.lcp&quot;: {
-              &quot;value&quot;: 0.009238896571386584,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
             },
-            &quot;score.total&quot;: {
-              &quot;value&quot;: 0.531962770566569,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
             },
-            &quot;score.weight.cls&quot;: {
-              &quot;value&quot;: 0.25,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
             },
-            &quot;score.weight.fcp&quot;: {
-              &quot;value&quot;: 0.15,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
             },
-            &quot;score.weight.fid&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.lcp&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.ttfb&quot;: {
-              &quot;value&quot;: 0.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="comment">// Test performance score is calculated correctly when the sum of weights is under 1.
     // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_with_under_normalized_weights() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;fid&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;fcp&quot;: {&quot;value&quot;: 1237, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;lcp&quot;: {&quot;value&quot;: 6596, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;cls&quot;: {&quot;value&quot;: 0.11}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
             },
-            &quot;contexts&quot;: {
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;,
-                    &quot;version&quot;: &quot;120.1.1&quot;,
-                    &quot;type&quot;: &quot;browser&quot;
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.03</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">900</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">1600
+                            <span class="string">"measurement"</span>: <span class="string">"fcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.03</span>,
+                            <span class="string">"p10"</span>: <span class="number">900</span>,
+                            <span class="string">"p50"</span>: <span class="number">1600
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;lcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.06</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400
+                            <span class="string">"measurement"</span>: <span class="string">"lcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.06</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fid&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.06</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">100</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">300
+                            <span class="string">"measurement"</span>: <span class="string">"fid"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.06</span>,
+                            <span class="string">"p10"</span>: <span class="number">100</span>,
+                            <span class="string">"p50"</span>: <span class="number">300
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;cls&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.05</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.1</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.25
+                            <span class="string">"measurement"</span>: <span class="string">"cls"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.05</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;ttfb&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.0</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.2</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.4
+                            <span class="string">"measurement"</span>: <span class="string">"ttfb"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.2</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.4
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;eq&quot;</span>,
-                        <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.contexts.browser.name&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;Chrome&quot;
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"eq"</span>,
+                        <span class="string">"name"</span>: <span class="string">"event.contexts.browser.name"</span>,
+                        <span class="string">"value"</span>: <span class="string">"Chrome"
                     </span>}
                 }
             ]
@@ -4444,146 +4445,146 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;contexts&quot;: {
-            &quot;browser&quot;: {
-              &quot;name&quot;: &quot;Chrome&quot;,
-              &quot;version&quot;: &quot;120.1.1&quot;,
-              &quot;type&quot;: &quot;browser&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
             },
           },
-          &quot;measurements&quot;: {
-            &quot;cls&quot;: {
-              &quot;value&quot;: 0.11,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
             },
-            &quot;fcp&quot;: {
-              &quot;value&quot;: 1237.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
             },
-            &quot;fid&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
-            &quot;lcp&quot;: {
-              &quot;value&quot;: 6596.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
             },
-            &quot;score.cls&quot;: {
-              &quot;value&quot;: 0.21864170607444863,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
             },
-            &quot;score.fcp&quot;: {
-              &quot;value&quot;: 0.10750855443790831,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
             },
-            &quot;score.fid&quot;: {
-              &quot;value&quot;: 0.19657361348282545,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
             },
-            &quot;score.lcp&quot;: {
-              &quot;value&quot;: 0.009238896571386584,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
             },
-            &quot;score.total&quot;: {
-              &quot;value&quot;: 0.531962770566569,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
             },
-            &quot;score.weight.cls&quot;: {
-              &quot;value&quot;: 0.25,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
             },
-            &quot;score.weight.fcp&quot;: {
-              &quot;value&quot;: 0.15,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
             },
-            &quot;score.weight.fid&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.lcp&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.ttfb&quot;: {
-              &quot;value&quot;: 0.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="comment">// Test performance score is calculated correctly when the sum of weights is over 1.
     // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_with_over_normalized_weights() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;fid&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;fcp&quot;: {&quot;value&quot;: 1237, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;lcp&quot;: {&quot;value&quot;: 6596, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;cls&quot;: {&quot;value&quot;: 0.11}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
             },
-            &quot;contexts&quot;: {
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;,
-                    &quot;version&quot;: &quot;120.1.1&quot;,
-                    &quot;type&quot;: &quot;browser&quot;
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.30</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">900</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">1600
+                            <span class="string">"measurement"</span>: <span class="string">"fcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.30</span>,
+                            <span class="string">"p10"</span>: <span class="number">900</span>,
+                            <span class="string">"p50"</span>: <span class="number">1600
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;lcp&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.60</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400
+                            <span class="string">"measurement"</span>: <span class="string">"lcp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.60</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;fid&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.60</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">100</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">300
+                            <span class="string">"measurement"</span>: <span class="string">"fid"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.60</span>,
+                            <span class="string">"p10"</span>: <span class="number">100</span>,
+                            <span class="string">"p50"</span>: <span class="number">300
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;cls&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.50</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.1</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.25
+                            <span class="string">"measurement"</span>: <span class="string">"cls"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.50</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;ttfb&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.0</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.2</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.4
+                            <span class="string">"measurement"</span>: <span class="string">"ttfb"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.2</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.4
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;eq&quot;</span>,
-                        <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.contexts.browser.name&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;Chrome&quot;
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"eq"</span>,
+                        <span class="string">"name"</span>: <span class="string">"event.contexts.browser.name"</span>,
+                        <span class="string">"value"</span>: <span class="string">"Chrome"
                     </span>}
                 }
             ]
@@ -4592,123 +4593,123 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;contexts&quot;: {
-            &quot;browser&quot;: {
-              &quot;name&quot;: &quot;Chrome&quot;,
-              &quot;version&quot;: &quot;120.1.1&quot;,
-              &quot;type&quot;: &quot;browser&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
             },
           },
-          &quot;measurements&quot;: {
-            &quot;cls&quot;: {
-              &quot;value&quot;: 0.11,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
             },
-            &quot;fcp&quot;: {
-              &quot;value&quot;: 1237.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
             },
-            &quot;fid&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
-            &quot;lcp&quot;: {
-              &quot;value&quot;: 6596.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
             },
-            &quot;score.cls&quot;: {
-              &quot;value&quot;: 0.21864170607444863,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
             },
-            &quot;score.fcp&quot;: {
-              &quot;value&quot;: 0.10750855443790831,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
             },
-            &quot;score.fid&quot;: {
-              &quot;value&quot;: 0.19657361348282545,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
             },
-            &quot;score.lcp&quot;: {
-              &quot;value&quot;: 0.009238896571386584,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
             },
-            &quot;score.total&quot;: {
-              &quot;value&quot;: 0.531962770566569,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
             },
-            &quot;score.weight.cls&quot;: {
-              &quot;value&quot;: 0.25,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
             },
-            &quot;score.weight.fcp&quot;: {
-              &quot;value&quot;: 0.15,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
             },
-            &quot;score.weight.fid&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.lcp&quot;: {
-              &quot;value&quot;: 0.3,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
             },
-            &quot;score.weight.ttfb&quot;: {
-              &quot;value&quot;: 0.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_missing_measurement() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;a&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
             },
-            &quot;contexts&quot;: {
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;,
-                    &quot;version&quot;: &quot;120.1.1&quot;,
-                    &quot;type&quot;: &quot;browser&quot;
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;a&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.15</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">900</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">1600
+                            <span class="string">"measurement"</span>: <span class="string">"a"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.15</span>,
+                            <span class="string">"p10"</span>: <span class="number">900</span>,
+                            <span class="string">"p50"</span>: <span class="number">1600
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;b&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.30</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400
+                            <span class="string">"measurement"</span>: <span class="string">"b"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.30</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;eq&quot;</span>,
-                        <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.contexts.browser.name&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;Chrome&quot;
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"eq"</span>,
+                        <span class="string">"name"</span>: <span class="string">"event.contexts.browser.name"</span>,
+                        <span class="string">"value"</span>: <span class="string">"Chrome"
                     </span>}
                 }
             ]
@@ -4717,81 +4718,81 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;contexts&quot;: {
-            &quot;browser&quot;: {
-              &quot;name&quot;: &quot;Chrome&quot;,
-              &quot;version&quot;: &quot;120.1.1&quot;,
-              &quot;type&quot;: &quot;browser&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
             },
           },
-          &quot;measurements&quot;: {
-            &quot;a&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_optional_measurement() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;a&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;b&quot;: {&quot;value&quot;: 213, &quot;unit&quot;: &quot;millisecond&quot;}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"},
+                "b": {"value": 213, "unit": "millisecond"}
             },
-            &quot;contexts&quot;: {
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;,
-                    &quot;version&quot;: &quot;120.1.1&quot;,
-                    &quot;type&quot;: &quot;browser&quot;
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;a&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.15</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">900</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">1600</span>,
+                            <span class="string">"measurement"</span>: <span class="string">"a"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.15</span>,
+                            <span class="string">"p10"</span>: <span class="number">900</span>,
+                            <span class="string">"p50"</span>: <span class="number">1600</span>,
                         },
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;b&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.30</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400</span>,
-                            <span class="string">&quot;optional&quot;</span>: <span class="bool-val">true
+                            <span class="string">"measurement"</span>: <span class="string">"b"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.30</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400</span>,
+                            <span class="string">"optional"</span>: <span class="bool-val">true
                         </span>},
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;c&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0.55</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">1200</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">2400</span>,
-                            <span class="string">&quot;optional&quot;</span>: <span class="bool-val">true
+                            <span class="string">"measurement"</span>: <span class="string">"c"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0.55</span>,
+                            <span class="string">"p10"</span>: <span class="number">1200</span>,
+                            <span class="string">"p50"</span>: <span class="number">2400</span>,
+                            <span class="string">"optional"</span>: <span class="bool-val">true
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;eq&quot;</span>,
-                        <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.contexts.browser.name&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;Chrome&quot;
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"eq"</span>,
+                        <span class="string">"name"</span>: <span class="string">"event.contexts.browser.name"</span>,
+                        <span class="string">"value"</span>: <span class="string">"Chrome"
                     </span>}
                 }
             ]
@@ -4800,86 +4801,86 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;contexts&quot;: {
-            &quot;browser&quot;: {
-              &quot;name&quot;: &quot;Chrome&quot;,
-              &quot;version&quot;: &quot;120.1.1&quot;,
-              &quot;type&quot;: &quot;browser&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
             },
           },
-          &quot;measurements&quot;: {
-            &quot;a&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
-            &quot;b&quot;: {
-              &quot;value&quot;: 213.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "b": {
+              "value": 213.0,
+              "unit": "millisecond",
             },
-            &quot;score.a&quot;: {
-              &quot;value&quot;: 0.33333215313291975,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.a": {
+              "value": 0.33333215313291975,
+              "unit": "ratio",
             },
-            &quot;score.b&quot;: {
-              &quot;value&quot;: 0.66666415149198,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.b": {
+              "value": 0.66666415149198,
+              "unit": "ratio",
             },
-            &quot;score.total&quot;: {
-              &quot;value&quot;: 0.9999963046248997,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.total": {
+              "value": 0.9999963046248997,
+              "unit": "ratio",
             },
-            &quot;score.weight.a&quot;: {
-              &quot;value&quot;: 0.33333333333333337,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.a": {
+              "value": 0.33333333333333337,
+              "unit": "ratio",
             },
-            &quot;score.weight.b&quot;: {
-              &quot;value&quot;: 0.6666666666666667,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.b": {
+              "value": 0.6666666666666667,
+              "unit": "ratio",
             },
-            &quot;score.weight.c&quot;: {
-              &quot;value&quot;: 0.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.c": {
+              "value": 0.0,
+              "unit": "ratio",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_weight_0() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;cls&quot;: {&quot;value&quot;: 0.11}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11}
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;cls&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">0</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">0.1</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">0.25
+                            <span class="string">"measurement"</span>: <span class="string">"cls"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;and&quot;</span>,
-                        <span class="string">&quot;inner&quot;</span>: []
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"and"</span>,
+                        <span class="string">"inner"</span>: []
                     }
                 }
             ]
@@ -4888,50 +4889,50 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;measurements&quot;: {
-            &quot;cls&quot;: {
-              &quot;value&quot;: 0.11,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_performance_score_negative_value() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;ttfb&quot;: {&quot;value&quot;: -100, &quot;unit&quot;: &quot;millisecond&quot;}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;profiles&quot;</span>: [
+            <span class="string">"profiles"</span>: [
                 {
-                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
-                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
                         {
-                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;ttfb&quot;</span>,
-                            <span class="string">&quot;weight&quot;</span>: <span class="number">1.0</span>,
-                            <span class="string">&quot;p10&quot;</span>: <span class="number">100.0</span>,
-                            <span class="string">&quot;p50&quot;</span>: <span class="number">250.0
+                            <span class="string">"measurement"</span>: <span class="string">"ttfb"</span>,
+                            <span class="string">"weight"</span>: <span class="number">1.0</span>,
+                            <span class="string">"p10"</span>: <span class="number">100.0</span>,
+                            <span class="string">"p50"</span>: <span class="number">250.0
                         </span>},
                     ],
-                    <span class="string">&quot;condition&quot;</span>: {
-                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;and&quot;</span>,
-                        <span class="string">&quot;inner&quot;</span>: []
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"and"</span>,
+                        <span class="string">"inner"</span>: []
                     }
                 }
             ]
@@ -4940,51 +4941,51 @@
 
         normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;measurements&quot;: {
-            &quot;score.total&quot;: {
-              &quot;value&quot;: 1.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "score.total": {
+              "value": 1.0,
+              "unit": "ratio",
             },
-            &quot;score.ttfb&quot;: {
-              &quot;value&quot;: 1.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
             },
-            &quot;score.weight.ttfb&quot;: {
-              &quot;value&quot;: 1.0,
-              &quot;unit&quot;: &quot;ratio&quot;,
+            "score.weight.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
             },
-            &quot;ttfb&quot;: {
-              &quot;value&quot;: -100.0,
-              &quot;unit&quot;: &quot;millisecond&quot;,
+            "ttfb": {
+              "value": -100.0,
+              "unit": "millisecond",
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filter_negative_web_vital_measurements() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;ttfb&quot;: {&quot;value&quot;: -100, &quot;unit&quot;: &quot;millisecond&quot;}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
             }
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
         <span class="comment">// Allow ttfb as a builtinMeasurement with allow_negative defaulted to false.
         </span><span class="kw">let </span>project_measurement_config: MeasurementsConfig = serde_json::from_value(<span class="macro">json!</span>({
-            <span class="string">&quot;builtinMeasurements&quot;</span>: [
-                {<span class="string">&quot;name&quot;</span>: <span class="string">&quot;ttfb&quot;</span>, <span class="string">&quot;unit&quot;</span>: <span class="string">&quot;millisecond&quot;</span>},
+            <span class="string">"builtinMeasurements"</span>: [
+                {<span class="string">"name"</span>: <span class="string">"ttfb"</span>, <span class="string">"unit"</span>: <span class="string">"millisecond"</span>},
             ],
         }))
         .unwrap();
@@ -4994,58 +4995,58 @@
 
         normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
         {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;timestamp&quot;: 1619420405.0,
-          &quot;start_timestamp&quot;: 1619420400.0,
-          &quot;measurements&quot;: {},
-          &quot;_meta&quot;: {
-            &quot;measurements&quot;: {
-              &quot;&quot;: Meta(Some(MetaInner(
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {},
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
                 err: [
                   [
-                    &quot;invalid_data&quot;,
+                    "invalid_data",
                     {
-                      &quot;reason&quot;: &quot;Negative value for measurement ttfb not allowed: -100&quot;,
+                      "reason": "Negative value for measurement ttfb not allowed: -100",
                     },
                   ],
                 ],
                 val: Some({
-                  &quot;ttfb&quot;: {
-                    &quot;unit&quot;: &quot;millisecond&quot;,
-                    &quot;value&quot;: -100.0,
+                  "ttfb": {
+                    "unit": "millisecond",
+                    "value": -100.0,
                   },
                 }),
               ))),
             },
           },
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalization_removes_reprocessing_context() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;contexts&quot;: {
-                &quot;reprocessing&quot;: {}
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "contexts": {
+                "reprocessing": {}
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">&quot;reprocessing&quot;</span>));
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">"reprocessing"</span>));
         normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
-        <span class="macro">assert!</span>(!<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">&quot;reprocessing&quot;</span>));
+        <span class="macro">assert!</span>(!<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">"reprocessing"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_renormalization_does_not_remove_reprocessing_context() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;contexts&quot;: {
-                &quot;reprocessing&quot;: {}
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "contexts": {
+                "reprocessing": {}
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">&quot;reprocessing&quot;</span>));
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">"reprocessing"</span>));
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
@@ -5053,7 +5054,7 @@
                 ..Default::default()
             },
         );
-        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">&quot;reprocessing&quot;</span>));
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">"reprocessing"</span>));
     }
 
     <span class="attr">#[test]
@@ -5062,8 +5063,8 @@
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_owned())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
                 );
                 map
             },
@@ -5077,8 +5078,8 @@
         <span class="macro">assert_eq!</span>(user.data, {
             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
             map.insert(
-                <span class="string">&quot;other&quot;</span>.to_string(),
-                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_owned())),
+                <span class="string">"other"</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
             );
             Annotated::new(map)
         });

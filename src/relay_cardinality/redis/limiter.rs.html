@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cardinality/src/redis/limiter.rs`."><title>limiter.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_cardinality" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_cardinality/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cardinality"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cardinality/src/redis/limiter.rs`."><title>limiter.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_cardinality" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_cardinality/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cardinality"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -921,7 +922,7 @@
     </span><span class="kw">fn </span>check_limits(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         con: <span class="kw-2">&amp;mut </span>Connection,
-        state: <span class="kw-2">&amp;mut </span>LimitState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;mut </span>LimitState&lt;<span class="lifetime">'_</span>&gt;,
         timestamp: UnixTimestamp,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedLimits&gt; {
         <span class="kw">let </span>scope = state.scope;
@@ -957,16 +958,16 @@
 }
 
 <span class="kw">impl </span>Limiter <span class="kw">for </span>RedisSetLimiter {
-    <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">&#39;a</span>, E, R&gt;(
+    <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        limits: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[CardinalityLimit],
+        limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
         entries: E,
         rejections: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
         </span>E: IntoIterator&lt;Item = Entry&gt;,
-        R: Rejections&lt;<span class="lifetime">&#39;a</span>&gt;,
+        R: Rejections&lt;<span class="lifetime">'a</span>&gt;,
     {
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="comment">// Allows to fast forward time in tests.
@@ -1018,7 +1019,7 @@
             })<span class="question-mark">?</span>;
 
             <span class="comment">// This always acquires a write lock, but we only hit this
-            // if we previously didn&#39;t satisfy the request from the cache,
+            // if we previously didn't satisfy the request from the cache,
             // -&gt; there is a very high chance we actually need the lock.
             </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(state.scope, timestamp); <span class="comment">// Acquire a write lock.
             </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
@@ -1038,9 +1039,9 @@
 }
 
 <span class="doccomment">/// Internal state combining relevant entries for the respective quota.
-</span><span class="kw">struct </span>LimitState&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>LimitState&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Id of the original limit.
-    </span><span class="kw">pub </span>id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    </span><span class="kw">pub </span>id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="doccomment">/// Entries which are relevant for the quota.
     </span><span class="kw">pub </span>entries: Vec&lt;RedisEntry&gt;,
     <span class="doccomment">/// Scoping of the quota.
@@ -1060,8 +1061,8 @@
     </span>rejections: i64,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; LimitState&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub fn </span>new(scoping: Scoping, limit: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CardinalityLimit) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; LimitState&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub fn </span>new(scoping: Scoping, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
             id: <span class="kw-2">&amp;</span>limit.id,
             entries: Vec::new(),
@@ -1075,7 +1076,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>from_limits(scoping: Scoping, limits: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[CardinalityLimit]) -&gt; Vec&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">pub fn </span>from_limits(scoping: Scoping, limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit]) -&gt; Vec&lt;<span class="self">Self</span>&gt; {
         limits
             .iter()
             .filter_map(|limit| LimitState::new(scoping, limit))
@@ -1103,7 +1104,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Drop <span class="kw">for </span>LimitState&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Drop <span class="kw">for </span>LimitState&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="macro">metric!</span>(
             counter(CardinalityLimiterCounters::RedisCacheHit) += <span class="self">self</span>.cache_hits,
@@ -1123,7 +1124,7 @@
         );
 
         <span class="kw">let </span>organization_id = <span class="self">self</span>.scoping.organization_id <span class="kw">as </span>i64;
-        <span class="kw">let </span>status = <span class="kw">if </span><span class="self">self</span>.rejections &gt; <span class="number">0 </span>{ <span class="string">&quot;limited&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;ok&quot; </span>};
+        <span class="kw">let </span>status = <span class="kw">if </span><span class="self">self</span>.rejections &gt; <span class="number">0 </span>{ <span class="string">"limited" </span>} <span class="kw">else </span>{ <span class="string">"ok" </span>};
         <span class="macro">metric!</span>(
             set(CardinalityLimiterSets::Organizations) = organization_id,
             id = <span class="self">self</span>.id,
@@ -1161,7 +1162,7 @@
         <span class="macro">debug_assert_eq!</span>(
             <span class="self">self</span>.entries.len(),
             <span class="self">self</span>.statuses.len(),
-            <span class="string">&quot;expected same amount of entries as statuses&quot;
+            <span class="string">"expected same amount of entries as statuses"
         </span>);
         std::iter::zip(<span class="self">self</span>.entries, <span class="self">self</span>.statuses)
     }
@@ -1184,8 +1185,8 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>build_limiter() -&gt; RedisSetLimiter {
-        <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
-            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
+        <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
+            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
         <span class="kw">let </span>opts = RedisConfigOptions {
             max_connections: <span class="number">1</span>,
@@ -1217,8 +1218,8 @@
     <span class="attr">#[derive(Debug, Default, PartialEq, Eq)]
     </span><span class="kw">struct </span>Rejections(HashSet&lt;EntryId&gt;);
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">super</span>::Rejections&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">for </span>Rejections {
-        <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _limit_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, entry_id: EntryId) {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; <span class="kw">super</span>::Rejections&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>Rejections {
+        <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _limit_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, entry_id: EntryId) {
             <span class="self">self</span>.<span class="number">0</span>.insert(entry_id);
         }
     }
@@ -1235,20 +1236,20 @@
         <span class="doccomment">/// Remove all redis state for an organization.
         </span><span class="kw">fn </span>flush(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) {
             <span class="kw">let </span>pattern = <span class="macro">format!</span>(
-                <span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*&quot;</span>,
+                <span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*"</span>,
                 o = scoping.organization_id
             );
 
             <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client().unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
 
-            <span class="kw">let </span>keys = redis::cmd(<span class="string">&quot;KEYS&quot;</span>)
+            <span class="kw">let </span>keys = redis::cmd(<span class="string">"KEYS"</span>)
                 .arg(pattern)
                 .query::&lt;Vec&lt;String&gt;&gt;(<span class="kw-2">&amp;mut </span>connection)
                 .unwrap();
 
             <span class="kw">if </span>!keys.is_empty() {
-                <span class="kw">let </span><span class="kw-2">mut </span>del = redis::cmd(<span class="string">&quot;DEL&quot;</span>);
+                <span class="kw">let </span><span class="kw-2">mut </span>del = redis::cmd(<span class="string">"DEL"</span>);
                 <span class="kw">for </span>key <span class="kw">in </span>keys {
                     del.arg(key);
                 }
@@ -1258,20 +1259,20 @@
 
         <span class="kw">fn </span>redis_sets(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) -&gt; Vec&lt;(String, usize)&gt; {
             <span class="kw">let </span>pattern = <span class="macro">format!</span>(
-                <span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*&quot;</span>,
+                <span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*"</span>,
                 o = scoping.organization_id
             );
 
             <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client().unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
 
-            redis::cmd(<span class="string">&quot;KEYS&quot;</span>)
+            redis::cmd(<span class="string">"KEYS"</span>)
                 .arg(pattern)
                 .query::&lt;Vec&lt;String&gt;&gt;(<span class="kw-2">&amp;mut </span>connection)
                 .unwrap()
                 .into_iter()
                 .map(<span class="kw">move </span>|key| {
-                    <span class="kw">let </span>size = redis::cmd(<span class="string">&quot;SCARD&quot;</span>)
+                    <span class="kw">let </span>size = redis::cmd(<span class="string">"SCARD"</span>)
                         .arg(<span class="kw-2">&amp;</span>key)
                         .query::&lt;usize&gt;(<span class="kw-2">&amp;mut </span>connection)
                         .unwrap();
@@ -1312,7 +1313,7 @@
 
         <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
         <span class="kw">let </span><span class="kw-2">mut </span>limit = CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: <span class="number">3600</span>,
                 granularity_seconds: <span class="number">360</span>,
@@ -1326,7 +1327,7 @@
         </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries);
         <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
 
-        <span class="comment">// We&#39;re at the limit but it should still accept already accepted elements, even with a
+        <span class="comment">// We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
         </span>limit.limit = <span class="number">3</span>;
         <span class="kw">let </span>rejected2 = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries);
@@ -1355,7 +1356,7 @@
         };
 
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: granularity_seconds * <span class="number">3</span>,
                 granularity_seconds,
@@ -1415,7 +1416,7 @@
         <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
 
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: <span class="number">3600</span>,
                 granularity_seconds: <span class="number">360</span>,
@@ -1444,7 +1445,7 @@
 
         <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: <span class="number">3600</span>,
                 granularity_seconds: <span class="number">360</span>,
@@ -1472,7 +1473,7 @@
             granularity_seconds: <span class="number">360</span>,
         };
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window,
             limit: <span class="number">1</span>,
             scope: CardinalityScope::Organization,
@@ -1498,7 +1499,7 @@
             <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
         }
 
-        <span class="comment">// Fast forward time to where we&#39;re in the next window.
+        <span class="comment">// Fast forward time to where we're in the next window.
         </span>limiter.time_offset = Duration::from_secs(window.window_seconds + <span class="number">1</span>);
         <span class="comment">// Accept the new element.
         </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries2);
@@ -1514,7 +1515,7 @@
         <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
 
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: <span class="number">3600</span>,
                 granularity_seconds: <span class="number">360</span>,
@@ -1545,7 +1546,7 @@
 
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[
             CardinalityLimit {
-                id: <span class="string">&quot;limit1&quot;</span>.to_owned(),
+                id: <span class="string">"limit1"</span>.to_owned(),
                 window: SlidingWindow {
                     window_seconds: <span class="number">3600</span>,
                     granularity_seconds: <span class="number">360</span>,
@@ -1555,7 +1556,7 @@
                 namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
             },
             CardinalityLimit {
-                id: <span class="string">&quot;limit2&quot;</span>.to_owned(),
+                id: <span class="string">"limit2"</span>.to_owned(),
                 window: SlidingWindow {
                     window_seconds: <span class="number">3600</span>,
                     granularity_seconds: <span class="number">360</span>,
@@ -1565,7 +1566,7 @@
                 namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
             },
             CardinalityLimit {
-                id: <span class="string">&quot;limit3&quot;</span>.to_owned(),
+                id: <span class="string">"limit3"</span>.to_owned(),
                 window: SlidingWindow {
                     window_seconds: <span class="number">3600</span>,
                     granularity_seconds: <span class="number">360</span>,
@@ -1575,7 +1576,7 @@
                 namespace: <span class="prelude-val">Some</span>(MetricNamespace::Spans),
             },
             CardinalityLimit {
-                id: <span class="string">&quot;unknown_skipped&quot;</span>.to_owned(),
+                id: <span class="string">"unknown_skipped"</span>.to_owned(),
                 window: SlidingWindow {
                     window_seconds: <span class="number">3600</span>,
                     granularity_seconds: <span class="number">360</span>,
@@ -1622,7 +1623,7 @@
         };
 
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window: SlidingWindow {
                 window_seconds: <span class="number">3600</span>,
                 granularity_seconds: <span class="number">360</span>,
@@ -1658,7 +1659,7 @@
             granularity_seconds: <span class="number">100</span>,
         };
         <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
-            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            id: <span class="string">"limit"</span>.to_owned(),
             window,
             limit: <span class="number">100</span>,
             scope: CardinalityScope::Organization,

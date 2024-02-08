@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/condition.rs`."><title>condition.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol/src/condition.rs`."><title>condition.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1106,7 +1107,7 @@
 
 <span class="doccomment">/// Options for [`EqCondition`].
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>EqCondOptions {
     <span class="doccomment">/// If `true`, string values are compared in case-insensitive mode.
     ///
@@ -1122,7 +1123,7 @@
 ///  - strings, optionally ignoring ASCII-case
 ///  - UUIDs
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>EqCondition {
     <span class="doccomment">/// Path of the field that should match the value.
     </span><span class="kw">pub </span>name: String,
@@ -1134,7 +1135,7 @@
     </span><span class="kw">pub </span>value: Value,
 
     <span class="doccomment">/// Configuration options for the condition.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_default"</span>)]
     </span><span class="kw">pub </span>options: EqCondOptions,
 }
 
@@ -1242,10 +1243,10 @@
     }
 }
 
-<span class="macro">impl_cmp_condition!</span>(GteCondition, &gt;=, <span class="string">&quot;A condition that applies `&gt;=`.&quot;</span>);
-<span class="macro">impl_cmp_condition!</span>(LteCondition, &lt;=, <span class="string">&quot;A condition that applies `&lt;=`.&quot;</span>);
-<span class="macro">impl_cmp_condition!</span>(GtCondition, &gt;, <span class="string">&quot;A condition that applies `&gt;`.&quot;</span>);
-<span class="macro">impl_cmp_condition!</span>(LtCondition, &lt;, <span class="string">&quot;A condition that applies `&lt;`.&quot;</span>);
+<span class="macro">impl_cmp_condition!</span>(GteCondition, &gt;=, <span class="string">"A condition that applies `&gt;=`."</span>);
+<span class="macro">impl_cmp_condition!</span>(LteCondition, &lt;=, <span class="string">"A condition that applies `&lt;=`."</span>);
+<span class="macro">impl_cmp_condition!</span>(GtCondition, &gt;, <span class="string">"A condition that applies `&gt;`."</span>);
+<span class="macro">impl_cmp_condition!</span>(LtCondition, &lt;, <span class="string">"A condition that applies `&lt;`."</span>);
 
 <span class="doccomment">/// A condition that uses glob matching.
 ///
@@ -1288,7 +1289,7 @@
     </span><span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt;;
 }
 
-<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str {
+<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str {
     <span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt; {
         <span class="macro">vec!</span>[<span class="self">self</span>.to_owned()]
     }
@@ -1300,25 +1301,25 @@
     }
 }
 
-<span class="kw">impl </span>IntoStrings <span class="kw">for </span>std::borrow::Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
+<span class="kw">impl </span>IntoStrings <span class="kw">for </span>std::borrow::Cow&lt;<span class="lifetime">'_</span>, str&gt; {
     <span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt; {
         <span class="macro">vec!</span>[<span class="self">self</span>.into_owned()]
     }
 }
 
-<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>[<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str] {
+<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>[<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str] {
     <span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt; {
         <span class="self">self</span>.iter().copied().map(str::to_owned).collect()
     }
 }
 
-<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>[String] {
+<span class="kw">impl </span>IntoStrings <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>[String] {
     <span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt; {
         <span class="self">self</span>.to_vec()
     }
 }
 
-<span class="kw">impl </span>IntoStrings <span class="kw">for </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str&gt; {
+<span class="kw">impl </span>IntoStrings <span class="kw">for </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str&gt; {
     <span class="kw">fn </span>into_strings(<span class="self">self</span>) -&gt; Vec&lt;String&gt; {
         <span class="self">self</span>.into_iter().map(str::to_owned).collect()
     }
@@ -1407,7 +1408,7 @@
 ///
 /// The basic conditions are [`eq`](Self::eq), [`glob`](Self::glob), and the comparison operators.
 /// These conditions compare a data field specified through a path with a value or a set of values.
-/// If the field&#39;s value [matches](Self::matches) the values declared in the rule, the condition
+/// If the field's value [matches](Self::matches) the values declared in the rule, the condition
 /// returns `true`.
 ///
 /// Conditions can be combined with the logical operators [`and`](Self::and), [`or`](Self::or), and
@@ -1416,7 +1417,7 @@
 /// # Data Access
 ///
 /// Rule conditions access data fields through the [`Getter`] trait. Note that getters always have a
-/// root namespace which must be part of the field&#39;s path. If path&#39;s root component does not match
+/// root namespace which must be part of the field's path. If path's root component does not match
 /// the one of the passed getter instance, the rule condition will not be able to retrieve data and
 /// likely not match.
 ///
@@ -1430,10 +1431,10 @@
 /// ```
 /// use relay_protocol::RuleCondition;
 ///
-/// let condition = !RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;);
+/// let condition = !RuleCondition::eq("obj.status", "invalid");
 /// ```
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>, tag = <span class="string">&quot;op&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>, tag = <span class="string">"op"</span>)]
 </span><span class="kw">pub enum </span>RuleCondition {
     <span class="doccomment">/// A condition that compares values for equality.
     ///
@@ -1447,7 +1448,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;);
+    /// let condition = RuleCondition::eq("obj.status", "invalid");
     /// ```
     </span>Eq(EqCondition),
 
@@ -1458,7 +1459,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::gte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::gte("obj.length", 10);
     /// ```
     </span>Gte(GteCondition),
 
@@ -1469,7 +1470,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::lte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::lte("obj.length", 10);
     /// ```
     </span>Lte(LteCondition),
 
@@ -1480,7 +1481,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::gt(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::gt("obj.length", 10);
     /// ```
     </span>Gt(GtCondition),
 
@@ -1491,7 +1492,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::lt(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::lt("obj.length", 10);
     /// ```
     </span>Lt(LtCondition),
 
@@ -1502,7 +1503,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::glob(&quot;obj.name&quot;, &quot;error: *&quot;);
+    /// let condition = RuleCondition::glob("obj.name", "error: *");
     /// ```
     </span>Glob(GlobCondition),
 
@@ -1513,8 +1514,8 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;)
-    ///     | RuleCondition::eq(&quot;obj.status&quot;, &quot;unknown&quot;);
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     | RuleCondition::eq("obj.status", "unknown");
     /// ```
     </span>Or(OrCondition),
 
@@ -1525,8 +1526,8 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;)
-    ///     &amp; RuleCondition::gte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     &amp; RuleCondition::gte("obj.length", 10);
     /// ```
     </span>And(AndCondition),
 
@@ -1537,7 +1538,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = !RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;);
+    /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
     </span>Not(NotCondition),
 
@@ -1570,13 +1571,13 @@
     /// use relay_protocol::RuleCondition;
     ///
     /// // Matches if the value is identical to the given string:
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;);
+    /// let condition = RuleCondition::eq("obj.status", "invalid");
     ///
     /// // Matches if the value is identical to any of the given strings:
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &amp;[&quot;invalid&quot;, &quot;unknown&quot;][..]);
+    /// let condition = RuleCondition::eq("obj.status", &amp;["invalid", "unknown"][..]);
     ///
     /// // Matches a boolean flag:
-    /// let condition = RuleCondition::eq(&quot;obj.valid&quot;, false);
+    /// let condition = RuleCondition::eq("obj.valid", false);
     /// ```
     </span><span class="kw">pub fn </span>eq(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Eq(EqCondition::new(field, value))
@@ -1590,10 +1591,10 @@
     /// use relay_protocol::RuleCondition;
     ///
     /// // Matches if the value is identical to the given string:
-    /// let condition = RuleCondition::eq_ignore_case(&quot;obj.status&quot;, &quot;invalid&quot;);
+    /// let condition = RuleCondition::eq_ignore_case("obj.status", "invalid");
     ///
     /// // Matches if the value is identical to any of the given strings:
-    /// let condition = RuleCondition::eq_ignore_case(&quot;obj.status&quot;, &amp;[&quot;invalid&quot;, &quot;unknown&quot;][..]);
+    /// let condition = RuleCondition::eq_ignore_case("obj.status", &amp;["invalid", "unknown"][..]);
     /// ```
     </span><span class="kw">pub fn </span>eq_ignore_case(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Eq(EqCondition::new(field, value).ignore_case())
@@ -1607,10 +1608,10 @@
     /// use relay_protocol::RuleCondition;
     ///
     /// // Match a single pattern:
-    /// let condition = RuleCondition::glob(&quot;obj.name&quot;, &quot;error: *&quot;);
+    /// let condition = RuleCondition::glob("obj.name", "error: *");
     ///
     /// // Match any of a list of patterns:
-    /// let condition = RuleCondition::glob(&quot;obj.name&quot;, &amp;[&quot;error: *&quot;, &quot;*failure*&quot;][..]);
+    /// let condition = RuleCondition::glob("obj.name", &amp;["error: *", "*failure*"][..]);
     /// ```
     </span><span class="kw">pub fn </span>glob(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>IntoStrings) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Glob(GlobCondition::new(field, value))
@@ -1623,7 +1624,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::gt(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::gt("obj.length", 10);
     /// ```
     </span><span class="kw">pub fn </span>gt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Gt(GtCondition::new(field, value))
@@ -1636,7 +1637,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::gte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::gte("obj.length", 10);
     /// ```
     </span><span class="kw">pub fn </span>gte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Gte(GteCondition::new(field, value))
@@ -1649,7 +1650,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::lt(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::lt("obj.length", 10);
     /// ```
     </span><span class="kw">pub fn </span>lt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Lt(LtCondition::new(field, value))
@@ -1662,7 +1663,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::lte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::lte("obj.length", 10);
     /// ```
     </span><span class="kw">pub fn </span>lte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Lte(LteCondition::new(field, value))
@@ -1677,8 +1678,8 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;)
-    ///     &amp; RuleCondition::gte(&quot;obj.length&quot;, 10);
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     &amp; RuleCondition::gte("obj.length", 10);
     /// ```
     </span><span class="kw">pub fn </span>and(<span class="kw-2">mut </span><span class="self">self</span>, other: RuleCondition) -&gt; <span class="self">Self </span>{
         <span class="kw">if let </span><span class="self">Self</span>::And(<span class="kw-2">ref mut </span>condition) = <span class="self">self </span>{
@@ -1700,8 +1701,8 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;)
-    ///     | RuleCondition::eq(&quot;obj.status&quot;, &quot;unknown&quot;);
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     | RuleCondition::eq("obj.status", "unknown");
     /// ```
     </span><span class="kw">pub fn </span>or(<span class="kw-2">mut </span><span class="self">self</span>, other: RuleCondition) -&gt; <span class="self">Self </span>{
         <span class="kw">if let </span><span class="self">Self</span>::Or(<span class="kw-2">ref mut </span>condition) = <span class="self">self </span>{
@@ -1723,7 +1724,7 @@
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = !RuleCondition::eq(&quot;obj.status&quot;, &quot;invalid&quot;);
+    /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
     </span><span class="kw">pub fn </span>negate(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><span class="self">self </span>{
@@ -1735,7 +1736,7 @@
     }
 
     <span class="doccomment">/// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
-    /// which was serialized as &quot;Unsupported&quot; (because the configuration is either faulty or was created for a
+    /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
     </span><span class="kw">pub fn </span>supported(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
@@ -1810,12 +1811,12 @@
     }
 
     <span class="kw">impl </span>Getter <span class="kw">for </span>MockDSC {
-        <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
-            <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">&quot;trace.&quot;</span>)<span class="question-mark">? </span>{
-                <span class="string">&quot;transaction&quot; </span>=&gt; <span class="self">self</span>.transaction.as_str().into(),
-                <span class="string">&quot;release&quot; </span>=&gt; <span class="self">self</span>.release.as_str().into(),
-                <span class="string">&quot;environment&quot; </span>=&gt; <span class="self">self</span>.environment.as_str().into(),
-                <span class="string">&quot;user.segment&quot; </span>=&gt; <span class="self">self</span>.user_segment.as_str().into(),
+        <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
+            <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">"trace."</span>)<span class="question-mark">? </span>{
+                <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.transaction.as_str().into(),
+                <span class="string">"release" </span>=&gt; <span class="self">self</span>.release.as_str().into(),
+                <span class="string">"environment" </span>=&gt; <span class="self">self</span>.environment.as_str().into(),
+                <span class="string">"user.segment" </span>=&gt; <span class="self">self</span>.user_segment.as_str().into(),
                 <span class="kw">_ </span>=&gt; {
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
@@ -1825,136 +1826,136 @@
 
     <span class="kw">fn </span>mock_dsc() -&gt; MockDSC {
         MockDSC {
-            transaction: <span class="string">&quot;transaction1&quot;</span>.to_string(),
-            release: <span class="string">&quot;1.1.1&quot;</span>.to_string(),
-            environment: <span class="string">&quot;debug&quot;</span>.to_string(),
-            user_segment: <span class="string">&quot;vip&quot;</span>.to_string(),
+            transaction: <span class="string">"transaction1"</span>.to_string(),
+            release: <span class="string">"1.1.1"</span>.to_string(),
+            environment: <span class="string">"debug"</span>.to_string(),
+            user_segment: <span class="string">"vip"</span>.to_string(),
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>deserialize() {
-        <span class="kw">let </span>serialized_rules = <span class="string">r#&quot;[
+        <span class="kw">let </span>serialized_rules = <span class="string">r#"[
             {
-                &quot;op&quot;:&quot;eq&quot;,
-                &quot;name&quot;: &quot;field_1&quot;,
-                &quot;value&quot;: [&quot;UPPER&quot;,&quot;lower&quot;],
-                &quot;options&quot;:{
-                    &quot;ignoreCase&quot;: true
+                "op":"eq",
+                "name": "field_1",
+                "value": ["UPPER","lower"],
+                "options":{
+                    "ignoreCase": true
                 }
             },
             {
-                &quot;op&quot;:&quot;eq&quot;,
-                &quot;name&quot;: &quot;field_2&quot;,
-                &quot;value&quot;: [&quot;UPPER&quot;,&quot;lower&quot;]
+                "op":"eq",
+                "name": "field_2",
+                "value": ["UPPER","lower"]
             },
             {
-                &quot;op&quot;:&quot;glob&quot;,
-                &quot;name&quot;: &quot;field_3&quot;,
-                &quot;value&quot;: [&quot;1.2.*&quot;,&quot;2.*&quot;]
+                "op":"glob",
+                "name": "field_3",
+                "value": ["1.2.*","2.*"]
             },
             {
-                &quot;op&quot;:&quot;not&quot;,
-                &quot;inner&quot;: {
-                    &quot;op&quot;:&quot;glob&quot;,
-                    &quot;name&quot;: &quot;field_4&quot;,
-                    &quot;value&quot;: [&quot;1.*&quot;]
+                "op":"not",
+                "inner": {
+                    "op":"glob",
+                    "name": "field_4",
+                    "value": ["1.*"]
                 }
             },
             {
-                &quot;op&quot;:&quot;and&quot;,
-                &quot;inner&quot;: [{
-                    &quot;op&quot;:&quot;glob&quot;,
-                    &quot;name&quot;: &quot;field_5&quot;,
-                    &quot;value&quot;: [&quot;2.*&quot;]
+                "op":"and",
+                "inner": [{
+                    "op":"glob",
+                    "name": "field_5",
+                    "value": ["2.*"]
                 }]
             },
             {
-                &quot;op&quot;:&quot;or&quot;,
-                &quot;inner&quot;: [{
-                    &quot;op&quot;:&quot;glob&quot;,
-                    &quot;name&quot;: &quot;field_6&quot;,
-                    &quot;value&quot;: [&quot;3.*&quot;]
+                "op":"or",
+                "inner": [{
+                    "op":"glob",
+                    "name": "field_6",
+                    "value": ["3.*"]
                 }]
             }
-        ]&quot;#</span>;
+        ]"#</span>;
 
         <span class="kw">let </span>rules: <span class="prelude-ty">Result</span>&lt;Vec&lt;RuleCondition&gt;, <span class="kw">_</span>&gt; = serde_json::from_str(serialized_rules);
         <span class="macro">assert!</span>(rules.is_ok());
         <span class="kw">let </span>rules = rules.unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(rules, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rules, @<span class="string">r#"
             [
               EqCondition(
-                op: &quot;eq&quot;,
-                name: &quot;field_1&quot;,
+                op: "eq",
+                name: "field_1",
                 value: [
-                  &quot;UPPER&quot;,
-                  &quot;lower&quot;,
+                  "UPPER",
+                  "lower",
                 ],
                 options: EqCondOptions(
                   ignoreCase: true,
                 ),
               ),
               EqCondition(
-                op: &quot;eq&quot;,
-                name: &quot;field_2&quot;,
+                op: "eq",
+                name: "field_2",
                 value: [
-                  &quot;UPPER&quot;,
-                  &quot;lower&quot;,
+                  "UPPER",
+                  "lower",
                 ],
               ),
               GlobCondition(
-                op: &quot;glob&quot;,
-                name: &quot;field_3&quot;,
+                op: "glob",
+                name: "field_3",
                 value: [
-                  &quot;1.2.*&quot;,
-                  &quot;2.*&quot;,
+                  "1.2.*",
+                  "2.*",
                 ],
               ),
               NotCondition(
-                op: &quot;not&quot;,
+                op: "not",
                 inner: GlobCondition(
-                  op: &quot;glob&quot;,
-                  name: &quot;field_4&quot;,
+                  op: "glob",
+                  name: "field_4",
                   value: [
-                    &quot;1.*&quot;,
+                    "1.*",
                   ],
                 ),
               ),
               AndCondition(
-                op: &quot;and&quot;,
+                op: "and",
                 inner: [
                   GlobCondition(
-                    op: &quot;glob&quot;,
-                    name: &quot;field_5&quot;,
+                    op: "glob",
+                    name: "field_5",
                     value: [
-                      &quot;2.*&quot;,
+                      "2.*",
                     ],
                   ),
                 ],
               ),
               OrCondition(
-                op: &quot;or&quot;,
+                op: "or",
                 inner: [
                   GlobCondition(
-                    op: &quot;glob&quot;,
-                    name: &quot;field_6&quot;,
+                    op: "glob",
+                    name: "field_6",
                     value: [
-                      &quot;3.*&quot;,
+                      "3.*",
                     ],
                   ),
                 ],
               ),
-            ]&quot;#</span>);
+            ]"#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>unsupported_rule_deserialize() {
-        <span class="kw">let </span>bad_json = <span class="string">r#&quot;{
-            &quot;op&quot;: &quot;BadOperator&quot;,
-            &quot;name&quot;: &quot;foo&quot;,
-            &quot;value&quot;: &quot;bar&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>bad_json = <span class="string">r#"{
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar"
+        }"#</span>;
 
         <span class="kw">let </span>rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(rule, RuleCondition::Unsupported));
@@ -1965,81 +1966,81 @@
     </span><span class="kw">fn </span>test_matches() {
         <span class="kw">let </span>conditions = [
             (
-                <span class="string">&quot;simple&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;transaction1&quot;</span>),
+                <span class="string">"simple"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.transaction"</span>, <span class="string">"transaction1"</span>),
             ),
             (
-                <span class="string">&quot;glob releases&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.*&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"glob releases"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.*"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;glob transaction&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;trans*&quot;</span>),
+                <span class="string">"glob transaction"</span>,
+                RuleCondition::glob(<span class="string">"trace.transaction"</span>, <span class="string">"trans*"</span>),
             ),
             (
-                <span class="string">&quot;multiple releases&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;2.1.1&quot;</span>, <span class="string">&quot;1.1.*&quot;</span>])
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"multiple releases"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="macro">vec!</span>[<span class="string">"2.1.1"</span>, <span class="string">"1.1.*"</span>])
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;multiple user segments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
+                <span class="string">"multiple user segments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
                     &amp; RuleCondition::eq_ignore_case(
-                        <span class="string">&quot;trace.user.segment&quot;</span>,
-                        <span class="macro">vec!</span>[<span class="string">&quot;paid&quot;</span>, <span class="string">&quot;vip&quot;</span>, <span class="string">&quot;free&quot;</span>],
+                        <span class="string">"trace.user.segment"</span>,
+                        <span class="macro">vec!</span>[<span class="string">"paid"</span>, <span class="string">"vip"</span>, <span class="string">"free"</span>],
                     ),
             ),
             (
-                <span class="string">&quot;multiple transactions&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;t22&quot;</span>, <span class="string">&quot;trans*&quot;</span>, <span class="string">&quot;t33&quot;</span>][..]),
+                <span class="string">"multiple transactions"</span>,
+                RuleCondition::glob(<span class="string">"trace.transaction"</span>, <span class="kw-2">&amp;</span>[<span class="string">"t22"</span>, <span class="string">"trans*"</span>, <span class="string">"t33"</span>][..]),
             ),
             (
-                <span class="string">&quot;case insensitive user segments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;ViP&quot;</span>, <span class="string">&quot;FrEe&quot;</span>][..]),
+                <span class="string">"case insensitive user segments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="kw-2">&amp;</span>[<span class="string">"ViP"</span>, <span class="string">"FrEe"</span>][..]),
             ),
             (
-                <span class="string">&quot;multiple user environments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
+                <span class="string">"multiple user environments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
                     &amp; RuleCondition::eq_ignore_case(
-                        <span class="string">&quot;trace.environment&quot;</span>,
-                        <span class="kw-2">&amp;</span>[<span class="string">&quot;integration&quot;</span>, <span class="string">&quot;debug&quot;</span>, <span class="string">&quot;production&quot;</span>][..],
+                        <span class="string">"trace.environment"</span>,
+                        <span class="kw-2">&amp;</span>[<span class="string">"integration"</span>, <span class="string">"debug"</span>, <span class="string">"production"</span>][..],
                     )
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;case insensitive environments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;DeBuG&quot;</span>, <span class="string">&quot;PrOd&quot;</span>][..])
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"case insensitive environments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="kw-2">&amp;</span>[<span class="string">"DeBuG"</span>, <span class="string">"PrOd"</span>][..])
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;all environments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"all environments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;undefined environments&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"undefined environments"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
-            (<span class="string">&quot;match no conditions&quot;</span>, RuleCondition::all()),
-            (<span class="string">&quot;string cmp&quot;</span>, RuleCondition::gt(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;t&quot;</span>)),
+            (<span class="string">"match no conditions"</span>, RuleCondition::all()),
+            (<span class="string">"string cmp"</span>, RuleCondition::gt(<span class="string">"trace.transaction"</span>, <span class="string">"t"</span>)),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc), <span class="string">&quot;{failure_name}&quot;</span>);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">"Failed on test: '{rule_test_name}'!!!"</span>);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc), <span class="string">"{failure_name}"</span>);
         }
     }
 
@@ -2047,42 +2048,42 @@
     </span><span class="kw">fn </span>test_or_combinator() {
         <span class="kw">let </span>conditions = [
             (
-                <span class="string">&quot;both&quot;</span>,
+                <span class="string">"both"</span>,
                 <span class="bool-val">true</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    | RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    | RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;first&quot;</span>,
+                <span class="string">"first"</span>,
                 <span class="bool-val">true</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    | RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;all&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    | RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"all"</span>),
             ),
             (
-                <span class="string">&quot;second&quot;</span>,
+                <span class="string">"second"</span>,
                 <span class="bool-val">true</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>)
-                    | RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>)
+                    | RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;none&quot;</span>,
+                <span class="string">"none"</span>,
                 <span class="bool-val">false</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>)
-                    | RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;all&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>)
+                    | RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"all"</span>),
             ),
             (
-                <span class="string">&quot;empty&quot;</span>,
+                <span class="string">"empty"</span>,
                 <span class="bool-val">false</span>,
                 RuleCondition::Or(OrCondition { inner: <span class="macro">vec!</span>[] }),
             ),
-            (<span class="string">&quot;never&quot;</span>, <span class="bool-val">false</span>, RuleCondition::never()),
+            (<span class="string">"never"</span>, <span class="bool-val">false</span>, RuleCondition::never()),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">"Failed on test: '{rule_test_name}'!!!"</span>);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">"{failure_name}"</span>);
         }
     }
 
@@ -2090,42 +2091,42 @@
     </span><span class="kw">fn </span>test_and_combinator() {
         <span class="kw">let </span>conditions = [
             (
-                <span class="string">&quot;both&quot;</span>,
+                <span class="string">"both"</span>,
                 <span class="bool-val">true</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;first&quot;</span>,
+                <span class="string">"first"</span>,
                 <span class="bool-val">false</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;all&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"all"</span>),
             ),
             (
-                <span class="string">&quot;second&quot;</span>,
+                <span class="string">"second"</span>,
                 <span class="bool-val">false</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;none&quot;</span>,
+                <span class="string">"none"</span>,
                 <span class="bool-val">false</span>,
-                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;all&quot;</span>),
+                RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user.segment"</span>, <span class="string">"all"</span>),
             ),
             (
-                <span class="string">&quot;empty&quot;</span>,
+                <span class="string">"empty"</span>,
                 <span class="bool-val">true</span>,
                 RuleCondition::And(AndCondition { inner: <span class="macro">vec!</span>[] }),
             ),
-            (<span class="string">&quot;all&quot;</span>, <span class="bool-val">true</span>, RuleCondition::all()),
+            (<span class="string">"all"</span>, <span class="bool-val">true</span>, RuleCondition::all()),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">"Failed on test: '{rule_test_name}'!!!"</span>);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">"{failure_name}"</span>);
         }
     }
 
@@ -2133,22 +2134,22 @@
     </span><span class="kw">fn </span>test_not_combinator() {
         <span class="kw">let </span>conditions = [
             (
-                <span class="string">&quot;not true&quot;</span>,
+                <span class="string">"not true"</span>,
                 <span class="bool-val">false</span>,
-                !RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>),
+                !RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>),
             ),
             (
-                <span class="string">&quot;not false&quot;</span>,
+                <span class="string">"not false"</span>,
                 <span class="bool-val">true</span>,
-                !RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>),
+                !RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>),
             ),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">&quot;{failure_name}&quot;</span>);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">"Failed on test: '{rule_test_name}'!!!"</span>);
+            <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc) == <span class="kw-2">*</span>expected, <span class="string">"{failure_name}"</span>);
         }
     }
 
@@ -2157,36 +2158,36 @@
     </span><span class="kw">fn </span>test_does_not_match() {
         <span class="kw">let </span>conditions = [
             (
-                <span class="string">&quot;release&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.2&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"release"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.2"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;user segment&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;debug&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user&quot;</span>, <span class="string">&quot;all&quot;</span>),
+                <span class="string">"user segment"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"debug"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user"</span>, <span class="string">"all"</span>),
             ),
             (
-                <span class="string">&quot;environment&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"environment"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user"</span>, <span class="string">"vip"</span>),
             ),
             (
-                <span class="string">&quot;transaction&quot;</span>,
-                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
-                    &amp; RuleCondition::glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;t22&quot;</span>)
-                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+                <span class="string">"transaction"</span>,
+                RuleCondition::glob(<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>)
+                    &amp; RuleCondition::glob(<span class="string">"trace.transaction"</span>, <span class="string">"t22"</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">"trace.user"</span>, <span class="string">"vip"</span>),
             ),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
-            <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc), <span class="string">&quot;{failure_name}&quot;</span>);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">"Failed on test: '{rule_test_name}'!!!"</span>);
+            <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc), <span class="string">"{failure_name}"</span>);
         }
     }
 }

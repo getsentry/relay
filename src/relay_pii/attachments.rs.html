@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/attachments.rs`."><title>attachments.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/attachments.rs`."><title>attachments.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1076,11 +1077,11 @@
 }
 
 <span class="doccomment">/// Extract the matching encoded slice from the encoded string.
-</span><span class="kw">fn </span>get_wstr_match&lt;<span class="lifetime">&#39;a</span>&gt;(
+</span><span class="kw">fn </span>get_wstr_match&lt;<span class="lifetime">'a</span>&gt;(
     all_text: <span class="kw-2">&amp;</span>str,
     re_match: Match,
-    all_encoded: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt;,
-) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt; {
+    all_encoded: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt;,
+) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>encoded_start = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>encoded_end = all_encoded.len();
 
@@ -1099,7 +1100,7 @@
 
 <span class="doccomment">/// Traits to modify the strings in ways we need.
 </span><span class="kw">trait </span>StringMods: AsRef&lt;[u8]&gt; {
-    <span class="doccomment">/// Replace this string&#39;s contents by repeating the given character into it.
+    <span class="doccomment">/// Replace this string's contents by repeating the given character into it.
     ///
     /// # Panics
     ///
@@ -1107,7 +1108,7 @@
     /// panic.  Using an ASCII replacement character is usually safe in most encodings.
     </span><span class="kw">fn </span>fill_content(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fill_char: char);
 
-    <span class="doccomment">/// Replace this string&#39;s contents with the given replacement string.
+    <span class="doccomment">/// Replace this string's contents with the given replacement string.
     ///
     /// If the replacement string encodes to a shorter byte-slice than the current string
     /// any remaining space will be filled with the padding character.
@@ -1125,8 +1126,8 @@
 
     <span class="doccomment">/// Apply a PII scrubbing redaction to this string slice.
     </span><span class="kw">fn </span>apply_redaction(<span class="kw-2">&amp;mut </span><span class="self">self</span>, redaction: <span class="kw-2">&amp;</span>Redaction) {
-        <span class="kw">const </span>PADDING: char = <span class="string">&#39;*&#39;</span>;
-        <span class="kw">const </span>MASK: char = <span class="string">&#39;*&#39;</span>;
+        <span class="kw">const </span>PADDING: char = <span class="string">'*'</span>;
+        <span class="kw">const </span>MASK: char = <span class="string">'*'</span>;
 
         <span class="kw">match </span>redaction {
             Redaction::Default | Redaction::Remove =&gt; {
@@ -1142,7 +1143,7 @@
             Redaction::Replace(<span class="kw-2">ref </span>replace) =&gt; {
                 <span class="self">self</span>.swap_content(replace.text.as_str(), PADDING);
             }
-            Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">&quot;Incoming redaction is not supported&quot;</span>),
+            Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">"Incoming redaction is not supported"</span>),
         }
     }
 }
@@ -1150,7 +1151,7 @@
 <span class="kw">impl </span>StringMods <span class="kw">for </span>WStr&lt;LittleEndian&gt; {
     <span class="kw">fn </span>fill_content(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fill_char: char) {
         <span class="comment">// If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
-        // trait&#39;s contract that we must panic if fill_char is too wide.
+        // trait's contract that we must panic if fill_char is too wide.
         </span><span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0u16</span>; <span class="number">1</span>];
         <span class="kw">let </span>fill_u16 = fill_char.encode_utf16(<span class="kw-2">&amp;mut </span>buf[..]);
         <span class="kw">let </span>fill_buf = fill_u16[<span class="number">0</span>].to_le_bytes();
@@ -1167,7 +1168,7 @@
 
     <span class="kw">fn </span>swap_content(<span class="kw-2">&amp;mut </span><span class="self">self</span>, replacement: <span class="kw-2">&amp;</span>str, padding: char) {
         <span class="comment">// If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
-        // the trait&#39;s contract that we must panic in this case.
+        // the trait's contract that we must panic in this case.
         </span><span class="kw">let </span>len = <span class="self">self</span>.len();
 
         <span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0u16</span>; <span class="number">1</span>];
@@ -1204,7 +1205,7 @@
 <span class="kw">impl </span>StringMods <span class="kw">for </span>[u8] {
     <span class="kw">fn </span>fill_content(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fill_char: char) {
         <span class="comment">// If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
-        // trait&#39;s contract that we must panic if fill_char is too wide.
+        // trait's contract that we must panic if fill_char is too wide.
         </span><span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0u8</span>; <span class="number">1</span>];
         fill_char.encode_utf8(<span class="kw-2">&amp;mut </span>buf[..]);
         <span class="kw">for </span>byte <span class="kw">in </span><span class="self">self </span>{
@@ -1214,7 +1215,7 @@
 
     <span class="kw">fn </span>swap_content(<span class="kw-2">&amp;mut </span><span class="self">self</span>, replacement: <span class="kw-2">&amp;</span>str, padding: char) {
         <span class="comment">// If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
-        // the trait&#39;s contract that we must panic in this case.
+        // the trait's contract that we must panic in this case.
         </span><span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0u8</span>; <span class="number">1</span>];
         padding.encode_utf8(<span class="kw-2">&amp;mut </span>buf[..]);
 
@@ -1233,19 +1234,19 @@
 /// This iterator will look for blocks of UTF-16 encoded text with little-endian byte order
 /// in a block of binary data and yield those slices as segments with both the decoded and
 /// encoded text.
-</span><span class="kw">struct </span>WStrSegmentIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>[u8],
+</span><span class="kw">struct </span>WStrSegmentIter&lt;<span class="lifetime">'a</span>&gt; {
+    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>[u8],
     offset: usize,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; WStrSegmentIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>[u8]) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; WStrSegmentIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>[u8]) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ data, offset: <span class="number">0 </span>}
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>WStrSegmentIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = WStrSegment&lt;<span class="lifetime">&#39;a</span>&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>WStrSegmentIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = WStrSegment&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
         <span class="kw">loop </span>{
@@ -1271,7 +1272,7 @@
 
             <span class="comment">// We are handing out multiple mutable slices from the same mutable slice.  This
             // is safe because we know they are not overlapping.  However the compiler
-            // doesn&#39;t know this so we need to transmute the lifetimes of the slices we
+            // doesn't know this so we need to transmute the lifetimes of the slices we
             // return with std::slice::from_raw_parts_mut().
             </span><span class="kw">let </span>ptr = slice.as_mut_ptr();
             <span class="kw">let </span>len = slice.len();
@@ -1288,7 +1289,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; FusedIterator <span class="kw">for </span>WStrSegmentIter&lt;<span class="lifetime">&#39;a</span>&gt; {}
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; FusedIterator <span class="kw">for </span>WStrSegmentIter&lt;<span class="lifetime">'a</span>&gt; {}
 
 <span class="doccomment">/// An encoded string segment in a larger data block.
 ///
@@ -1298,17 +1299,17 @@
 ///
 /// While the `data` field is mutable, after mutating this the string in `decoded` will no
 /// longer match.
-</span><span class="kw">struct </span>WStrSegment&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>WStrSegment&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The raw bytes of this segment.
-    </span>encoded: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt;,
+    </span>encoded: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>WStr&lt;LittleEndian&gt;,
     <span class="doccomment">/// The decoded string of this segment.
     </span>decoded: String,
 }
 
 <span class="doccomment">/// A PII processor for attachment files.
-</span><span class="kw">pub struct </span>PiiAttachmentsProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CompiledPiiConfig,
-    root_state: ProcessingState&lt;<span class="lifetime">&#39;static</span>&gt;,
+</span><span class="kw">pub struct </span>PiiAttachmentsProcessor&lt;<span class="lifetime">'a</span>&gt; {
+    compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CompiledPiiConfig,
+    root_state: ProcessingState&lt;<span class="lifetime">'static</span>&gt;,
 }
 
 <span class="doccomment">/// Which encodings to scrub for `scrub_bytes`.
@@ -1323,14 +1324,14 @@
     </span>All,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PiiAttachmentsProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PiiAttachmentsProcessor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new `PiiAttachmentsProcessor` from the given PII config.
-    </span><span class="kw">pub fn </span>new(compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CompiledPiiConfig) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(compiled_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CompiledPiiConfig) -&gt; <span class="self">Self </span>{
         <span class="comment">// this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
 
         </span><span class="kw">let </span>root_state =
-            ProcessingState::root().enter_static(<span class="string">&quot;&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Attachments));
+            ProcessingState::root().enter_static(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Attachments));
 
         PiiAttachmentsProcessor {
             compiled_config,
@@ -1339,11 +1340,11 @@
     }
 
     <span class="doccomment">/// Returns the processing state for the file with the given name.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>state&lt;<span class="lifetime">&#39;s</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;s </span><span class="self">self</span>,
-        filename: <span class="kw-2">&amp;</span><span class="lifetime">&#39;s </span>str,
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>state&lt;<span class="lifetime">'s</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'s </span><span class="self">self</span>,
+        filename: <span class="kw-2">&amp;</span><span class="lifetime">'s </span>str,
         value_type: ValueType,
-    ) -&gt; ProcessingState&lt;<span class="lifetime">&#39;s</span>&gt; {
+    ) -&gt; ProcessingState&lt;<span class="lifetime">'s</span>&gt; {
         <span class="self">self</span>.root_state.enter_borrowed(
             filename,
             <span class="prelude-val">Some</span>(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
@@ -1357,7 +1358,7 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_bytes(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         data: <span class="kw-2">&amp;mut </span>[u8],
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
         encodings: ScrubEncodings,
     ) -&gt; bool {
         <span class="kw">let </span>pii = state.attrs().pii;
@@ -1374,8 +1375,8 @@
                     //
                     // - We ignore pattern_type and just treat every regex like a value regex (i.e.
                     //   redactPair becomes pattern rule). Very unlikely anybody would want that
-                    //   behavior (e.g.  &quot;Remove passwords on **&quot; would remove a file called
-                    //   &quot;passwords.txt&quot;, but also &quot;author.txt&quot;).  Just use selectors!
+                    //   behavior (e.g.  "Remove passwords on **" would remove a file called
+                    //   "passwords.txt", but also "author.txt").  Just use selectors!
                     //
                     // - We impose severe restrictions on how redaction methods work, as we must
                     //   not change the lengths of attachments.
@@ -1401,7 +1402,7 @@
                                     apply_regex_to_utf8_bytes(data, rule, regex, <span class="kw-2">&amp;</span>replace_behavior);
                                 changed |= !(matches.is_empty());
 
-                                <span class="comment">// Only scrub regions with the UTF-16 scrubber if they haven&#39;t been
+                                <span class="comment">// Only scrub regions with the UTF-16 scrubber if they haven't been
                                 // scrubbed yet.
                                 </span><span class="kw">let </span>unscrubbed_ranges = matches
                                     .into_iter()
@@ -1444,8 +1445,8 @@
     }
 
     <span class="doccomment">/// Scrub a filepath, preserving the basename.
-    </span><span class="kw">pub fn </span>scrub_utf8_filepath(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;mut </span>str, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = path.rfind(|c| c == <span class="string">&#39;/&#39; </span>|| c == <span class="string">&#39;\\&#39;</span>) {
+    </span><span class="kw">pub fn </span>scrub_utf8_filepath(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;mut </span>str, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = path.rfind(|c| c == <span class="string">'/' </span>|| c == <span class="string">'\\'</span>) {
             <span class="kw">let </span>data = <span class="kw">unsafe </span>{ <span class="kw-2">&amp;mut </span>path.as_bytes_mut()[..index] };
             <span class="self">self</span>.scrub_bytes(data, state, ScrubEncodings::Utf8)
         } <span class="kw">else </span>{
@@ -1457,12 +1458,12 @@
     </span><span class="kw">pub fn </span>scrub_utf16_filepath(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         path: <span class="kw-2">&amp;mut </span>WStr&lt;LittleEndian&gt;,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; bool {
         <span class="kw">let </span>index =
             path.char_indices().rev().find_map(
                 |(i, c)| {
-                    <span class="kw">if </span>c == <span class="string">&#39;/&#39; </span>|| c == <span class="string">&#39;\\&#39; </span>{
+                    <span class="kw">if </span>c == <span class="string">'/' </span>|| c == <span class="string">'\\' </span>{
                         <span class="prelude-val">Some</span>(i)
                     } <span class="kw">else </span>{
                         <span class="prelude-val">None
@@ -1486,28 +1487,28 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::PiiConfig;
 
-    <span class="kw">enum </span>AttachmentBytesTestCase&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">enum </span>AttachmentBytesTestCase&lt;<span class="lifetime">'a</span>&gt; {
         Builtin {
-            selector: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
-            rule: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
-            filename: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+            selector: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+            rule: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+            filename: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
             value_type: ValueType,
-            input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
-            output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+            input: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
+            output: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
             changed: bool,
         },
         Regex {
-            selector: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
-            regex: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
-            filename: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+            selector: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+            regex: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+            filename: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
             value_type: ValueType,
-            input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
-            output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+            input: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
+            output: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
             changed: bool,
         },
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; AttachmentBytesTestCase&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; AttachmentBytesTestCase&lt;<span class="lifetime">'a</span>&gt; {
         <span class="kw">fn </span>run(<span class="self">self</span>) {
             <span class="kw">let </span>(config, filename, value_type, input, expected, changed) = <span class="kw">match </span><span class="self">self </span>{
                 AttachmentBytesTestCase::Builtin {
@@ -1521,7 +1522,7 @@
                 } =&gt; {
                     <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(<span class="macro">serde_json::json!</span>(
                         {
-                            <span class="string">&quot;applications&quot;</span>: {
+                            <span class="string">"applications"</span>: {
                                 selector: [rule]
                             }
                         }
@@ -1540,17 +1541,17 @@
                 } =&gt; {
                     <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(<span class="macro">serde_json::json!</span>(
                         {
-                            <span class="string">&quot;rules&quot;</span>: {
-                                <span class="string">&quot;custom&quot;</span>: {
-                                    <span class="string">&quot;type&quot;</span>: <span class="string">&quot;pattern&quot;</span>,
-                                    <span class="string">&quot;pattern&quot;</span>: regex,
-                                    <span class="string">&quot;redaction&quot;</span>: {
-                                      <span class="string">&quot;method&quot;</span>: <span class="string">&quot;remove&quot;
+                            <span class="string">"rules"</span>: {
+                                <span class="string">"custom"</span>: {
+                                    <span class="string">"type"</span>: <span class="string">"pattern"</span>,
+                                    <span class="string">"pattern"</span>: regex,
+                                    <span class="string">"redaction"</span>: {
+                                      <span class="string">"method"</span>: <span class="string">"remove"
                                     </span>}
                                 }
                             },
-                            <span class="string">&quot;applications&quot;</span>: {
-                                selector: [<span class="string">&quot;custom&quot;</span>]
+                            <span class="string">"applications"</span>: {
+                                selector: [<span class="string">"custom"</span>]
                             }
                         }
                     ))
@@ -1566,7 +1567,7 @@
 
             <span class="macro">assert!</span>(
                 actual == expected,
-                <span class="string">&quot;`actual == expected` in line {}:\n{}\n{}&quot;</span>,
+                <span class="string">"`actual == expected` in line {}:\n{}\n{}"</span>,
                 <span class="macro">line!</span>(),
                 pretty_hex::pretty_hex(<span class="kw-2">&amp;</span>actual),
                 pretty_hex::pretty_hex(<span class="kw-2">&amp;</span>expected),
@@ -1589,12 +1590,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_replace_padding() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
-            output: <span class="string">b&quot;before [ip]***** after&quot;</span>,
+            input: <span class="string">b"before 127.0.0.1 after"</span>,
+            output: <span class="string">b"before [ip]***** after"</span>,
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1603,12 +1604,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_replace_padding_utf16() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: utf16le(<span class="string">&quot;before 127.0.0.1 after&quot;</span>).as_slice(),
-            output: utf16le(<span class="string">&quot;before [ip]***** after&quot;</span>).as_slice(),
+            input: utf16le(<span class="string">"before 127.0.0.1 after"</span>).as_slice(),
+            output: utf16le(<span class="string">"before [ip]***** after"</span>).as_slice(),
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1617,12 +1618,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_hash_trunchating() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:hash&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:hash"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
-            output: <span class="string">b&quot;before AE12FE3B5 after&quot;</span>,
+            input: <span class="string">b"before 127.0.0.1 after"</span>,
+            output: <span class="string">b"before AE12FE3B5 after"</span>,
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1631,12 +1632,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_hash_trunchating_utf16() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:hash&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:hash"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: utf16le(<span class="string">&quot;before 127.0.0.1 after&quot;</span>).as_slice(),
-            output: utf16le(<span class="string">&quot;before 3FA8F5A46 after&quot;</span>).as_slice(),
+            input: utf16le(<span class="string">"before 127.0.0.1 after"</span>).as_slice(),
+            output: utf16le(<span class="string">"before 3FA8F5A46 after"</span>).as_slice(),
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1645,12 +1646,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_masking() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:mask&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:mask"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
-            output: <span class="string">b&quot;before ********* after&quot;</span>,
+            input: <span class="string">b"before 127.0.0.1 after"</span>,
+            output: <span class="string">b"before ********* after"</span>,
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1659,12 +1660,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_masking_utf16() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:mask&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:mask"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: utf16le(<span class="string">&quot;before 127.0.0.1 after&quot;</span>).as_slice(),
-            output: utf16le(<span class="string">&quot;before ********* after&quot;</span>).as_slice(),
+            input: utf16le(<span class="string">"before 127.0.0.1 after"</span>).as_slice(),
+            output: utf16le(<span class="string">"before ********* after"</span>).as_slice(),
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1673,12 +1674,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_removing() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:remove&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:remove"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
-            output: <span class="string">b&quot;before ********* after&quot;</span>,
+            input: <span class="string">b"before 127.0.0.1 after"</span>,
+            output: <span class="string">b"before ********* after"</span>,
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1687,12 +1688,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_removing_utf16() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@ip:remove&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@ip:remove"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
-            input: utf16le(<span class="string">&quot;before 127.0.0.1 after&quot;</span>).as_slice(),
-            output: utf16le(<span class="string">&quot;before ********* after&quot;</span>).as_slice(),
+            input: utf16le(<span class="string">"before 127.0.0.1 after"</span>).as_slice(),
+            output: utf16le(<span class="string">"before ********* after"</span>).as_slice(),
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1701,19 +1702,19 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_selectors() {
         <span class="kw">for </span>wrong_selector <span class="kw">in </span><span class="kw-2">&amp;</span>[
-            <span class="string">&quot;$string&quot;</span>,
-            <span class="string">&quot;$number&quot;</span>,
-            <span class="string">&quot;$attachments.* &amp;&amp; $string&quot;</span>,
-            <span class="string">&quot;$attachments&quot;</span>,
-            <span class="string">&quot;** &amp;&amp; !$binary&quot;</span>,
+            <span class="string">"$string"</span>,
+            <span class="string">"$number"</span>,
+            <span class="string">"$attachments.* &amp;&amp; $string"</span>,
+            <span class="string">"$attachments"</span>,
+            <span class="string">"** &amp;&amp; !$binary"</span>,
         ] {
             AttachmentBytesTestCase::Builtin {
                 selector: wrong_selector,
-                rule: <span class="string">&quot;@ip:mask&quot;</span>,
-                filename: <span class="string">&quot;foo.txt&quot;</span>,
+                rule: <span class="string">"@ip:mask"</span>,
+                filename: <span class="string">"foo.txt"</span>,
                 value_type: ValueType::Binary,
-                input: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
-                output: <span class="string">b&quot;before 127.0.0.1 after&quot;</span>,
+                input: <span class="string">b"before 127.0.0.1 after"</span>,
+                output: <span class="string">b"before 127.0.0.1 after"</span>,
                 changed: <span class="bool-val">false</span>,
             }
             .run();
@@ -1723,12 +1724,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_all_the_bytes() {
         AttachmentBytesTestCase::Builtin {
-            selector: <span class="string">&quot;$binary&quot;</span>,
-            rule: <span class="string">&quot;@anything:remove&quot;</span>,
-            filename: <span class="string">&quot;foo.txt&quot;</span>,
+            selector: <span class="string">"$binary"</span>,
+            rule: <span class="string">"@anything:remove"</span>,
+            filename: <span class="string">"foo.txt"</span>,
             value_type: ValueType::Binary,
             input: (<span class="number">0</span>..<span class="number">255u8</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().as_slice(),
-            output: <span class="kw-2">&amp;</span>[<span class="string">b&#39;*&#39;</span>; <span class="number">255</span>],
+            output: <span class="kw-2">&amp;</span>[<span class="string">b'*'</span>; <span class="number">255</span>],
             changed: <span class="bool-val">true</span>,
         }
         .run();
@@ -1740,27 +1741,27 @@
         //
         // From https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php#54805
         </span><span class="kw">let </span>samples: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
-            <span class="string">b&quot;\xc3\x28&quot;</span>,                 <span class="comment">// Invalid 2 Octet Sequence
-            </span><span class="string">b&quot;\xa0\xa1&quot;</span>,                 <span class="comment">// Invalid Sequence Identifier
-            </span><span class="string">b&quot;\xe2\x28\xa1&quot;</span>,             <span class="comment">// Invalid 3 Octet Sequence (in 2nd Octet)
-            </span><span class="string">b&quot;\xe2\x82\x28&quot;</span>,             <span class="comment">// Invalid 3 Octet Sequence (in 3rd Octet)
-            </span><span class="string">b&quot;\xf0\x28\x8c\xbc&quot;</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 2nd Octet)
-            </span><span class="string">b&quot;\xf0\x90\x28\xbc&quot;</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 3rd Octet)
-            </span><span class="string">b&quot;\xf0\x28\x8c\x28&quot;</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 4th Octet)
-            </span><span class="string">b&quot;\xf8\xa1\xa1\xa1\xa1&quot;</span>,     <span class="comment">// Valid 5 Octet Sequence (but not Unicode!)
-            </span><span class="string">b&quot;\xfc\xa1\xa1\xa1\xa1\xa1&quot;</span>, <span class="comment">// Valid 6 Octet Sequence (but not Unicode!)
+            <span class="string">b"\xc3\x28"</span>,                 <span class="comment">// Invalid 2 Octet Sequence
+            </span><span class="string">b"\xa0\xa1"</span>,                 <span class="comment">// Invalid Sequence Identifier
+            </span><span class="string">b"\xe2\x28\xa1"</span>,             <span class="comment">// Invalid 3 Octet Sequence (in 2nd Octet)
+            </span><span class="string">b"\xe2\x82\x28"</span>,             <span class="comment">// Invalid 3 Octet Sequence (in 3rd Octet)
+            </span><span class="string">b"\xf0\x28\x8c\xbc"</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 2nd Octet)
+            </span><span class="string">b"\xf0\x90\x28\xbc"</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 3rd Octet)
+            </span><span class="string">b"\xf0\x28\x8c\x28"</span>,         <span class="comment">// Invalid 4 Octet Sequence (in 4th Octet)
+            </span><span class="string">b"\xf8\xa1\xa1\xa1\xa1"</span>,     <span class="comment">// Valid 5 Octet Sequence (but not Unicode!)
+            </span><span class="string">b"\xfc\xa1\xa1\xa1\xa1\xa1"</span>, <span class="comment">// Valid 6 Octet Sequence (but not Unicode!)
         </span>];
 
         <span class="kw">for </span>bytes <span class="kw">in </span>samples {
             <span class="macro">assert!</span>(String::from_utf8(bytes.to_vec()).is_err());
 
             AttachmentBytesTestCase::Regex {
-                selector: <span class="string">&quot;$binary&quot;</span>,
-                regex: <span class="kw-2">&amp;</span>bytes.iter().map(|x| <span class="macro">format!</span>(<span class="string">&quot;\\x{x:02x}&quot;</span>)).join(<span class="string">&quot;&quot;</span>),
-                filename: <span class="string">&quot;foo.txt&quot;</span>,
+                selector: <span class="string">"$binary"</span>,
+                regex: <span class="kw-2">&amp;</span>bytes.iter().map(|x| <span class="macro">format!</span>(<span class="string">"\\x{x:02x}"</span>)).join(<span class="string">""</span>),
+                filename: <span class="string">"foo.txt"</span>,
                 value_type: ValueType::Binary,
                 input: bytes,
-                output: <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">b&#39;*&#39;</span>; bytes.len()],
+                output: <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">b'*'</span>; bytes.len()],
                 changed: <span class="bool-val">true</span>,
             }
             .run()
@@ -1769,31 +1770,31 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_all_data() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data[..]);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;hello&quot;</span>);
-        <span class="macro">assert_eq!</span>(segment.encoded.as_bytes(), <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"hello"</span>);
+        <span class="macro">assert_eq!</span>(segment.encoded.as_bytes(), <span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_middle_2_byte_aligned() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data[..]);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;hello&quot;</span>);
-        <span class="macro">assert_eq!</span>(segment.encoded.as_bytes(), <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"hello"</span>);
+        <span class="macro">assert_eq!</span>(segment.encoded.as_bytes(), <span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_middle_2_byte_aligned_mutation() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data[..]);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
@@ -1801,40 +1802,40 @@
             segment
                 .encoded
                 .as_bytes_mut()
-                .copy_from_slice(<span class="kw-2">&amp;</span><span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>[..]);
+                .copy_from_slice(<span class="kw-2">&amp;</span><span class="string">b"w\x00o\x00r\x00l\x00d\x00"</span>[..]);
         }
 
         <span class="macro">assert!</span>(iter.next().is_none());
 
-        <span class="macro">assert_eq!</span>(data, <span class="string">b&quot;\xd8\xd8\xd8\xd8w\x00o\x00r\x00l\x00d\x00\xd8\xd8&quot;</span>);
+        <span class="macro">assert_eq!</span>(data, <span class="string">b"\xd8\xd8\xd8\xd8w\x00o\x00r\x00l\x00d\x00\xd8\xd8"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_middle_unaligned() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data);
 
         <span class="comment">// Off-by-one is devastating, nearly everything is valid unicode.
         </span><span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;棘攀氀氀漀&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"棘攀氀氀漀"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_end_aligned() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;hello&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"hello"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_garbage() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data);
 
         <span class="macro">assert!</span>(iter.next().is_none());
@@ -1842,11 +1843,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_too_short() {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;hello&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"hello"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
@@ -1854,91 +1855,91 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_segments_multiple() {
         <span class="kw">let </span><span class="kw-2">mut </span>data =
-            Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8w\x00o\x00r\x00l\x00d\x00&quot;</span>[..]);
+            Vec::from(<span class="kw-2">&amp;</span><span class="string">b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8w\x00o\x00r\x00l\x00d\x00"</span>[..]);
 
         <span class="kw">let </span><span class="kw-2">mut </span>iter = WStrSegmentIter::new(<span class="kw-2">&amp;mut </span>data);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;hello&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"hello"</span>);
 
         <span class="kw">let </span>segment = iter.next().unwrap();
-        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">&quot;world&quot;</span>);
+        <span class="macro">assert_eq!</span>(segment.decoded, <span class="string">"world"</span>);
 
         <span class="macro">assert!</span>(iter.next().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_fill_content_wstr() {
-        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.fill_content(<span class="string">&#39;x&#39;</span>);
-        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b&quot;x\x00x\x00x\x00x\x00x\x00&quot;</span>);
+        s.fill_content(<span class="string">'x'</span>);
+        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b"x\x00x\x00x\x00x\x00x\x00"</span>);
     }
 
     <span class="attr">#[test]
     #[should_panic]
     </span><span class="kw">fn </span>test_fill_content_wstr_panic() {
-        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00y\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00y\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.fill_content(<span class="string">&#39;\u{10000}&#39;</span>);
+        s.fill_content(<span class="string">'\u{10000}'</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_swap_content_wstr() {
         <span class="comment">// Exact same size
-        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.swap_content(<span class="string">&quot;world&quot;</span>, <span class="string">&#39;x&#39;</span>);
-        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>);
+        s.swap_content(<span class="string">"world"</span>, <span class="string">'x'</span>);
+        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b"w\x00o\x00r\x00l\x00d\x00"</span>);
 
         <span class="comment">// Shorter, padding fits
-        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.swap_content(<span class="string">&quot;hey&quot;</span>, <span class="string">&#39;x&#39;</span>);
-        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b&quot;h\x00e\x00y\x00x\x00x\x00&quot;</span>);
+        s.swap_content(<span class="string">"hey"</span>, <span class="string">'x'</span>);
+        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b"h\x00e\x00y\x00x\x00x\x00"</span>);
 
         <span class="comment">// Longer, truncated fits
-        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00y\x00&quot;</span>[..]);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00y\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.swap_content(<span class="string">&quot;world&quot;</span>, <span class="string">&#39;x&#39;</span>);
-        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b&quot;w\x00o\x00r\x00&quot;</span>);
+        s.swap_content(<span class="string">"world"</span>, <span class="string">'x'</span>);
+        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b"w\x00o\x00r\x00"</span>);
 
         <span class="comment">// Longer, truncated + padding
-        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00y\x00&quot;</span>[..]);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00y\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.swap_content(<span class="string">&quot;yo\u{10000}&quot;</span>, <span class="string">&#39;x&#39;</span>);
-        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b&quot;y\x00o\x00x\x00&quot;</span>);
+        s.swap_content(<span class="string">"yo\u{10000}"</span>, <span class="string">'x'</span>);
+        <span class="macro">assert_eq!</span>(b.as_slice(), <span class="string">b"y\x00o\x00x\x00"</span>);
     }
 
     <span class="attr">#[test]
     #[should_panic]
     </span><span class="kw">fn </span>test_swap_content_wstr_panic() {
-        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00y\x00&quot;</span>[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00y\x00"</span>[..]);
         <span class="kw">let </span>s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        s.swap_content(<span class="string">&quot;yo&quot;</span>, <span class="string">&#39;\u{10000}&#39;</span>);
+        s.swap_content(<span class="string">"yo"</span>, <span class="string">'\u{10000}'</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_get_wstr_match() {
         <span class="attr">#![allow(clippy::trivial_regex)]
 
-        </span><span class="kw">let </span>s = <span class="string">&quot;hello there&quot;</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00&quot;</span>[..]);
+        </span><span class="kw">let </span>s = <span class="string">"hello there"</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"</span>[..]);
         <span class="kw">let </span>w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
 
         <span class="comment">// Partial match
-        </span><span class="kw">let </span>re = Regex::new(<span class="string">&quot;hello&quot;</span>).unwrap();
+        </span><span class="kw">let </span>re = Regex::new(<span class="string">"hello"</span>).unwrap();
         <span class="kw">let </span>re_match = re.find(s).unwrap();
         <span class="kw">let </span>m = get_wstr_match(s, re_match, w);
-        <span class="macro">assert_eq!</span>(m.as_bytes(), <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>);
+        <span class="macro">assert_eq!</span>(m.as_bytes(), <span class="string">b"h\x00e\x00l\x00l\x00o\x00"</span>);
 
         <span class="comment">// Full match
-        </span><span class="kw">let </span>re = Regex::new(<span class="string">&quot;.*&quot;</span>).unwrap();
+        </span><span class="kw">let </span>re = Regex::new(<span class="string">".*"</span>).unwrap();
         <span class="kw">let </span>re_match = re.find(s).unwrap();
         <span class="kw">let </span>m = get_wstr_match(s, re_match, w);
         <span class="macro">assert_eq!</span>(
             m.as_bytes(),
-            <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00&quot;
+            <span class="string">b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"
         </span>);
     }
 }

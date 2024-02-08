@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/aggregator.rs`."><title>aggregator.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/aggregator.rs`."><title>aggregator.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1463,7 +1464,7 @@
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
-#[error(<span class="string">&quot;failed to aggregate metrics: {kind}&quot;</span>)]
+#[error(<span class="string">"failed to aggregate metrics: {kind}"</span>)]
 </span><span class="kw">pub struct </span>AggregateMetricsError {
     kind: AggregateMetricsErrorKind,
 }
@@ -1478,25 +1479,25 @@
 #[allow(clippy::enum_variant_names)]
 </span><span class="kw">enum </span>AggregateMetricsErrorKind {
     <span class="doccomment">/// A metric bucket had invalid characters in the metric name.
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid characters: {0}&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"found invalid characters: {0}"</span>)]
     </span>InvalidCharacters(String),
     <span class="doccomment">/// A metric bucket had an unknown namespace in the metric name.
-    </span><span class="attr">#[error(<span class="string">&quot;found unsupported namespace: {0}&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"found unsupported namespace: {0}"</span>)]
     </span>UnsupportedNamespace(MetricNamespace),
-    <span class="doccomment">/// A metric bucket&#39;s timestamp was out of the configured acceptable range.
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid timestamp: {0}&quot;</span>)]
+    <span class="doccomment">/// A metric bucket's timestamp was out of the configured acceptable range.
+    </span><span class="attr">#[error(<span class="string">"found invalid timestamp: {0}"</span>)]
     </span>InvalidTimestamp(UnixTimestamp),
     <span class="doccomment">/// Internal error: Attempted to merge two metric buckets of different types.
-    </span><span class="attr">#[error(<span class="string">&quot;found incompatible metric types&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"found incompatible metric types"</span>)]
     </span>InvalidTypes,
     <span class="doccomment">/// A metric bucket had a too long string (metric name or a tag key/value).
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid string: {0}&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"found invalid string: {0}"</span>)]
     </span>InvalidStringLength(String),
     <span class="doccomment">/// A metric bucket is too large for the global bytes limit.
-    </span><span class="attr">#[error(<span class="string">&quot;total metrics limit exceeded&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"total metrics limit exceeded"</span>)]
     </span>TotalLimitExceeded,
     <span class="doccomment">/// A metric bucket is too large for the per-project bytes limit.
-    </span><span class="attr">#[error(<span class="string">&quot;project metrics limit exceeded&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"project metrics limit exceeded"</span>)]
     </span>ProjectLimitExceeded,
 }
 
@@ -1545,7 +1546,7 @@
 
 <span class="doccomment">/// Configuration value for [`AggregatorConfig::shift_key`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>ShiftKey {
     <span class="doccomment">/// Shifts the flush time by an offset based on the [`ProjectKey`].
     ///
@@ -1647,7 +1648,7 @@
         <span class="kw">let </span>delay = now.as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
         <span class="macro">relay_statsd::metric!</span>(
             histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
-            backdated = <span class="kw">if </span>backdated { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
+            backdated = <span class="kw">if </span>backdated { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
         );
 
         <span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
@@ -1680,7 +1681,7 @@
         Duration::from_secs(<span class="self">self</span>.bucket_interval)
     }
 
-    <span class="doccomment">/// Returns the initial flush delay after the end of a bucket&#39;s original time window.
+    <span class="doccomment">/// Returns the initial flush delay after the end of a bucket's original time window.
     </span><span class="kw">fn </span>initial_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.initial_delay)
     }
@@ -1814,7 +1815,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
         <span class="kw">if </span><span class="self">self</span>.totals_cost_exceeded(max_total_cost) {
             relay_log::configure_scope(|scope| {
-                scope.set_extra(<span class="string">&quot;bucket.project_key&quot;</span>, project_key.as_str().to_owned().into());
+                scope.set_extra(<span class="string">"bucket.project_key"</span>, project_key.as_str().to_owned().into());
             });
             <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::TotalLimitExceeded.into());
         }
@@ -1827,7 +1828,7 @@
                 .unwrap_or(<span class="number">0</span>);
             <span class="kw">if </span>project_cost &gt;= max_project_cost {
                 relay_log::configure_scope(|scope| {
-                    scope.set_extra(<span class="string">&quot;bucket.project_key&quot;</span>, project_key.as_str().to_owned().into());
+                    scope.set_extra(<span class="string">"bucket.project_key"</span>, project_key.as_str().to_owned().into());
                 });
                 <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
             }
@@ -1845,13 +1846,13 @@
     <span class="kw">fn </span>subtract_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, cost: usize) {
         <span class="kw">match </span><span class="self">self</span>.cost_per_project_key.entry(project_key) {
             Entry::Vacant(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;cost subtracted for an untracked project key&quot;</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">"cost subtracted for an untracked project key"</span>);
             }
             Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
                 <span class="comment">// Handle per-project cost:
                 </span><span class="kw">let </span>project_cost = entry.get_mut();
                 <span class="kw">if </span>cost &gt; <span class="kw-2">*</span>project_cost {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;underflow while subtracing project cost&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">"underflow while subtracing project cost"</span>);
                     <span class="self">self</span>.total_cost = <span class="self">self</span>.total_cost.saturating_sub(<span class="kw-2">*</span>project_cost);
                     <span class="kw-2">*</span>project_cost = <span class="number">0</span>;
                 } <span class="kw">else </span>{
@@ -1868,11 +1869,11 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CostTracker {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;CostTracker&quot;</span>)
-            .field(<span class="string">&quot;total_cost&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.total_cost)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"CostTracker"</span>)
+            .field(<span class="string">"total_cost"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.total_cost)
             .field(
-                <span class="string">&quot;cost_per_project_key&quot;</span>,
+                <span class="string">"cost_per_project_key"</span>,
                 <span class="kw-2">&amp;</span>BTreeMap::from_iter(<span class="self">self</span>.cost_per_project_key.iter()),
             )
             .finish()
@@ -1970,7 +1971,7 @@
                 <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
                 <span class="self">self</span>.buckets.retain(|key, entry| {
                     <span class="kw">if </span>force || entry.elapsed() {
-                        <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.
+                        <span class="comment">// Take the value and leave a placeholder behind. It'll be removed right after.
                         </span><span class="kw">let </span>value = mem::replace(<span class="kw-2">&amp;mut </span>entry.value, BucketValue::counter(<span class="number">0</span>.into()));
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
@@ -2037,15 +2038,15 @@
         <span class="kw">if </span>metric_name_length &gt; aggregator_config.max_name_length {
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
-                    <span class="string">&quot;bucket.project_key&quot;</span>,
+                    <span class="string">"bucket.project_key"</span>,
                     key.project_key.as_str().to_owned().into(),
                 );
                 scope.set_extra(
-                    <span class="string">&quot;bucket.metric_name.length&quot;</span>,
+                    <span class="string">"bucket.metric_name.length"</span>,
                     metric_name_length.to_string().into(),
                 );
                 scope.set_extra(
-                    <span class="string">&quot;aggregator_config.max_name_length&quot;</span>,
+                    <span class="string">"aggregator_config.max_name_length"</span>,
                     aggregator_config.max_name_length.to_string().into(),
                 );
             });
@@ -2055,10 +2056,10 @@
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">Self</span>::normalize_metric_name(<span class="kw-2">&amp;mut </span>key) {
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
-                    <span class="string">&quot;bucket.project_key&quot;</span>,
+                    <span class="string">"bucket.project_key"</span>,
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra(<span class="string">&quot;bucket.metric_name&quot;</span>, key.metric_name.into());
+                scope.set_extra(<span class="string">"bucket.metric_name"</span>, key.metric_name.into());
             });
             <span class="kw">return </span><span class="prelude-val">Err</span>(err);
         }
@@ -2070,7 +2071,7 @@
         key.metric_name = <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>key.metric_name) {
             <span class="prelude-val">Ok</span>(mri) =&gt; {
                 <span class="kw">if </span><span class="macro">matches!</span>(mri.namespace, MetricNamespace::Unsupported) {
-                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric namespace {:?}&quot;</span>, <span class="kw-2">&amp;</span>key.metric_name);
+                    <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric namespace {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
                     <span class="kw">return </span><span class="prelude-val">Err</span>(
                         AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
                     );
@@ -2082,7 +2083,7 @@
                 metric_name
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric name {:?}&quot;</span>, <span class="kw-2">&amp;</span>key.metric_name);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric name {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
                 <span class="kw">return </span><span class="prelude-val">Err</span>(
                     AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
                 );
@@ -2100,33 +2101,33 @@
         key.tags.retain(|tag_key, tag_value| {
             <span class="kw">if </span>tag_key.len() &gt; aggregator_config.max_tag_key_length {
                 relay_log::configure_scope(|scope| {
-                    scope.set_extra(<span class="string">&quot;bucket.project_key&quot;</span>, proj_key.to_owned().into());
-                    scope.set_extra(<span class="string">&quot;bucket.metric.tag_key&quot;</span>, tag_key.to_owned().into());
+                    scope.set_extra(<span class="string">"bucket.project_key"</span>, proj_key.to_owned().into());
+                    scope.set_extra(<span class="string">"bucket.metric.tag_key"</span>, tag_key.to_owned().into());
                     scope.set_extra(
-                        <span class="string">&quot;aggregator_config.max_tag_key_length&quot;</span>,
+                        <span class="string">"aggregator_config.max_tag_key_length"</span>,
                         aggregator_config.max_tag_key_length.to_string().into(),
                     );
                 });
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Invalid metric tag key&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Invalid metric tag key"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
             <span class="kw">if </span>bytecount::num_chars(tag_value.as_bytes()) &gt; aggregator_config.max_tag_value_length {
                 relay_log::configure_scope(|scope| {
-                    scope.set_extra(<span class="string">&quot;bucket.project_key&quot;</span>, proj_key.to_owned().into());
-                    scope.set_extra(<span class="string">&quot;bucket.metric.tag_value&quot;</span>, tag_value.to_owned().into());
+                    scope.set_extra(<span class="string">"bucket.project_key"</span>, proj_key.to_owned().into());
+                    scope.set_extra(<span class="string">"bucket.metric.tag_value"</span>, tag_value.to_owned().into());
                     scope.set_extra(
-                        <span class="string">&quot;aggregator_config.max_tag_value_length&quot;</span>,
+                        <span class="string">"aggregator_config.max_tag_value_length"</span>,
                         aggregator_config.max_tag_value_length.to_string().into(),
                     );
                 });
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Invalid metric tag value&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Invalid metric tag value"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
 
             <span class="kw">if </span>protocol::is_valid_tag_key(tag_key) {
                 <span class="bool-val">true
             </span>} <span class="kw">else </span>{
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric tag key {tag_key:?}&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric tag key {tag_key:?}"</span>);
                 <span class="bool-val">false
             </span>}
         });
@@ -2185,20 +2186,20 @@
         // * the limits are not actually enforced consistently
         //
         //   A bucket can be merged that exceeds the cost limit, and only the next bucket will be
-        //   limited because the limit is now reached. This implementation was chosen because it&#39;s
+        //   limited because the limit is now reached. This implementation was chosen because it's
         //   currently not possible to determine cost accurately upfront: The bucket values have to
         //   be merged together to figure out how costly the merge was. Changing that would force
         //   us to unravel a lot of abstractions that we have already built.
         //
         //   As a result of that, it is possible to exceed the bucket cost limit significantly
         //   until we have guaranteed upper bounds on the cost of a single bucket (which we
-        //   currently don&#39;t, because a metric can have arbitrary amount of tag values).
+        //   currently don't, because a metric can have arbitrary amount of tag values).
         //
         //   Another consequence is that a MergeValue that adds zero cost (such as an existing
-        //   counter bucket being incremented) is currently rejected even though it doesn&#39;t have to
+        //   counter bucket being incremented) is currently rejected even though it doesn't have to
         //   be.
         //
-        // The flipside of this approach is however that there&#39;s more optimization potential: If
+        // The flipside of this approach is however that there's more optimization potential: If
         // the limit is already exceeded, we could implement an optimization that drops envelope
         // items before they are parsed, as we can be sure that the new metric bucket will be
         // rejected in the aggregator regardless of whether it is merged into existing buckets,
@@ -2278,7 +2279,7 @@
 
     <span class="doccomment">/// Create a new aggregator.
     </span><span class="kw">pub fn </span>new(config: AggregatorConfig) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::named(<span class="string">&quot;default&quot;</span>.to_owned(), config)
+        <span class="self">Self</span>::named(<span class="string">"default"</span>.to_owned(), config)
     }
 
     <span class="doccomment">/// Like [`Self::new`], but with a provided name.
@@ -2293,11 +2294,11 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Aggregator {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.debug_struct(std::any::type_name::&lt;<span class="self">Self</span>&gt;())
-            .field(<span class="string">&quot;config&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.config)
-            .field(<span class="string">&quot;buckets&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.buckets)
-            .field(<span class="string">&quot;receiver&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Recipient&lt;FlushBuckets&gt;&quot;</span>))
+            .field(<span class="string">"config"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.config)
+            .field(<span class="string">"buckets"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.buckets)
+            .field(<span class="string">"receiver"</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"Recipient&lt;FlushBuckets&gt;"</span>))
             .finish()
     }
 }
@@ -2328,7 +2329,7 @@
         Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         }
@@ -2337,7 +2338,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_aggregator_merge_counters() {
         relay_test::setup();
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
 
         <span class="kw">let </span>bucket1 = some_bucket();
@@ -2353,13 +2354,13 @@
             .map(|(k, e)| (k, <span class="kw-2">&amp;</span>e.value)) <span class="comment">// skip flush times, they are different every time
             </span>.collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#"
         [
             (
                 BucketKey {
-                    project_key: ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;),
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: &quot;c:transactions/foo@none&quot;,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2367,7 +2368,7 @@
                 ),
             ),
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -2400,15 +2401,15 @@
     </span><span class="kw">fn </span>test_bucket_key_cost() {
         <span class="comment">// When this test fails, it means that the cost model has changed.
         // Check dimensionality limits.
-        </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
-        <span class="kw">let </span>name = <span class="string">&quot;12345&quot;</span>.to_owned();
+        </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+        <span class="kw">let </span>name = <span class="string">"12345"</span>.to_owned();
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: name,
             tags: BTreeMap::from([
-                (<span class="string">&quot;hello&quot;</span>.to_owned(), <span class="string">&quot;world&quot;</span>.to_owned()),
-                (<span class="string">&quot;answer&quot;</span>.to_owned(), <span class="string">&quot;42&quot;</span>.to_owned()),
+                (<span class="string">"hello"</span>.to_owned(), <span class="string">"world"</span>.to_owned()),
+                (<span class="string">"answer"</span>.to_owned(), <span class="string">"42"</span>.to_owned()),
             ]),
         };
         <span class="macro">assert_eq!</span>(
@@ -2425,7 +2426,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>config = test_config();
         config.bucket_interval = <span class="number">10</span>;
 
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
 
         <span class="kw">let </span>bucket1 = some_bucket();
@@ -2446,13 +2447,13 @@
             </span>.collect();
 
         buckets.sort_by(|a, b| a.<span class="number">0</span>.timestamp.cmp(<span class="kw-2">&amp;</span>b.<span class="number">0</span>.timestamp));
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#"
         [
             (
                 BucketKey {
-                    project_key: ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;),
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: &quot;c:transactions/foo@none&quot;,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2461,9 +2462,9 @@
             ),
             (
                 BucketKey {
-                    project_key: ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;),
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: &quot;c:transactions/foo@none&quot;,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2471,7 +2472,7 @@
                 ),
             ),
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -2481,12 +2482,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>config = test_config();
         config.bucket_interval = <span class="number">10</span>;
 
-        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).unwrap();
-        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
+        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
 
-        <span class="comment">// It&#39;s OK to have same metric with different projects:
+        <span class="comment">// It's OK to have same metric with different projects:
         </span>aggregator.merge(project_key1, some_bucket(), <span class="prelude-val">None</span>).unwrap();
         aggregator.merge(project_key2, some_bucket(), <span class="prelude-val">None</span>).unwrap();
 
@@ -2495,133 +2496,133 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cost_tracker() {
-        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).unwrap();
-        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
-        <span class="kw">let </span>project_key3 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fef&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
+        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+        <span class="kw">let </span>project_key3 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>cost_tracker = CostTracker::default();
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        &quot;#</span>);
+        "#</span>);
         cost_tracker.add_cost(project_key1, <span class="number">100</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
             },
         }
-        &quot;#</span>);
+        "#</span>);
         cost_tracker.add_cost(project_key2, <span class="number">200</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;): 100,
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        &quot;#</span>);
+        "#</span>);
         <span class="comment">// Unknown project: Will log error, but not crash
         </span>cost_tracker.subtract_cost(project_key3, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;): 100,
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        &quot;#</span>);
+        "#</span>);
         <span class="comment">// Subtract too much: Will log error, but not crash
         </span>cost_tracker.subtract_cost(project_key1, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 200,
             cost_per_project_key: {
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        &quot;#</span>);
+        "#</span>);
         cost_tracker.subtract_cost(project_key2, <span class="number">20</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 180,
             cost_per_project_key: {
-                ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 180,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
         }
-        &quot;#</span>);
+        "#</span>);
         cost_tracker.subtract_cost(project_key2, <span class="number">180</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_aggregator_cost_tracking() {
         <span class="comment">// Make sure that the right cost is added / subtracted
         </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">&quot;c:transactions/foo@none&quot;</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo@none"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/foo@none&quot;</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/foo@none"</span>.to_owned(),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>fixed_cost = bucket_key.cost() + mem::size_of::&lt;BucketValue&gt;();
         <span class="kw">for </span>(metric_name, metric_value, expected_added_cost) <span class="kw">in </span>[
             (
-                <span class="string">&quot;c:transactions/foo@none&quot;</span>,
+                <span class="string">"c:transactions/foo@none"</span>,
                 BucketValue::counter(<span class="number">42</span>.into()),
                 fixed_cost,
             ),
             (
-                <span class="string">&quot;c:transactions/foo@none&quot;</span>,
+                <span class="string">"c:transactions/foo@none"</span>,
                 BucketValue::counter(<span class="number">42</span>.into()),
                 <span class="number">0</span>,
             ), <span class="comment">// counters have constant size
             </span>(
-                <span class="string">&quot;s:transactions/foo@none&quot;</span>,
+                <span class="string">"s:transactions/foo@none"</span>,
                 BucketValue::set(<span class="number">123</span>),
                 fixed_cost + <span class="number">4</span>,
             ), <span class="comment">// Added a new bucket + 1 element
-            </span>(<span class="string">&quot;s:transactions/foo@none&quot;</span>, BucketValue::set(<span class="number">123</span>), <span class="number">0</span>), <span class="comment">// Same element in set, no change
-            </span>(<span class="string">&quot;s:transactions/foo@none&quot;</span>, BucketValue::set(<span class="number">456</span>), <span class="number">4</span>), <span class="comment">// Different element in set -&gt; +4
+            </span>(<span class="string">"s:transactions/foo@none"</span>, BucketValue::set(<span class="number">123</span>), <span class="number">0</span>), <span class="comment">// Same element in set, no change
+            </span>(<span class="string">"s:transactions/foo@none"</span>, BucketValue::set(<span class="number">456</span>), <span class="number">4</span>), <span class="comment">// Different element in set -&gt; +4
             </span>(
-                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
+                <span class="string">"d:transactions/foo@none"</span>,
                 BucketValue::distribution(<span class="number">1</span>.into()),
                 fixed_cost + <span class="number">8</span>,
             ), <span class="comment">// New bucket + 1 element
             </span>(
-                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
+                <span class="string">"d:transactions/foo@none"</span>,
                 BucketValue::distribution(<span class="number">1</span>.into()),
                 <span class="number">8</span>,
             ), <span class="comment">// duplicate element
             </span>(
-                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
+                <span class="string">"d:transactions/foo@none"</span>,
                 BucketValue::distribution(<span class="number">2</span>.into()),
                 <span class="number">8</span>,
             ), <span class="comment">// 1 new element
             </span>(
-                <span class="string">&quot;g:transactions/foo@none&quot;</span>,
+                <span class="string">"g:transactions/foo@none"</span>,
                 BucketValue::gauge(<span class="number">3</span>.into()),
                 fixed_cost,
             ), <span class="comment">// New bucket
-            </span>(<span class="string">&quot;g:transactions/foo@none&quot;</span>, BucketValue::gauge(<span class="number">2</span>.into()), <span class="number">0</span>), <span class="comment">// gauge has constant size
+            </span>(<span class="string">"g:transactions/foo@none"</span>, BucketValue::gauge(<span class="number">2</span>.into()), <span class="number">0</span>), <span class="comment">// gauge has constant size
         </span>] {
             <span class="kw">let </span><span class="kw-2">mut </span>bucket = bucket.clone();
             bucket.value = metric_value;
@@ -2714,12 +2715,12 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_validate_bucket_key_chars() {
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/hergus.bergus&quot;</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/hergus.bergus"</span>.to_owned(),
             tags: {
                 <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
                 <span class="comment">// There are some SDKs which mess up content encodings, and interpret the raw bytes
@@ -2727,18 +2728,18 @@
                 // strings getting null-bytes interleaved.
                 //
                 // Somehow those values end up as release tag in sessions, while in error events we
-                // haven&#39;t observed this malformed encoding. We believe it&#39;s slightly better to
+                // haven't observed this malformed encoding. We believe it's slightly better to
                 // strip out NUL-bytes instead of dropping the tag such that those values line up
-                // again across sessions and events. Should that cause too high cardinality we&#39;ll
+                // again across sessions and events. Should that cause too high cardinality we'll
                 // have to drop tags.
                 //
                 // Note that releases are validated separately against much stricter character set,
                 // but the above idea should still apply to other tags.
                 </span>tags.insert(
-                    <span class="string">&quot;is_it_garbage&quot;</span>.to_owned(),
-                    <span class="string">&quot;a\0b\0s\0o\0l\0u\0t\0e\0l\0y&quot;</span>.to_owned(),
+                    <span class="string">"is_it_garbage"</span>.to_owned(),
+                    <span class="string">"a\0b\0s\0o\0l\0u\0t\0e\0l\0y"</span>.to_owned(),
                 );
-                tags.insert(<span class="string">&quot;another\0garbage&quot;</span>.to_owned(), <span class="string">&quot;bye&quot;</span>.to_owned());
+                tags.insert(<span class="string">"another\0garbage"</span>.to_owned(), <span class="string">"bye"</span>.to_owned());
                 tags
             },
         };
@@ -2747,24 +2748,24 @@
 
         <span class="macro">assert_eq!</span>(bucket_key.tags.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(
-            bucket_key.tags.get(<span class="string">&quot;is_it_garbage&quot;</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;absolutely&quot;</span>.to_owned())
+            bucket_key.tags.get(<span class="string">"is_it_garbage"</span>),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"absolutely"</span>.to_owned())
         );
-        <span class="macro">assert_eq!</span>(bucket_key.tags.get(<span class="string">&quot;another\0garbage&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(bucket_key.tags.get(<span class="string">"another\0garbage"</span>), <span class="prelude-val">None</span>);
 
-        bucket_key.metric_name = <span class="string">&quot;hergus\0bergus&quot;</span>.to_owned();
+        bucket_key.metric_name = <span class="string">"hergus\0bergus"</span>.to_owned();
         Aggregator::validate_bucket_key(bucket_key, <span class="kw-2">&amp;</span>test_config()).unwrap_err();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_validate_bucket_key_str_lens() {
         relay_test::setup();
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 
         <span class="kw">let </span>short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/a_short_metric&quot;</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.to_owned(),
             tags: BTreeMap::new(),
         };
         <span class="macro">assert!</span>(Aggregator::validate_bucket_key(short_metric, <span class="kw-2">&amp;</span>test_config()).is_ok());
@@ -2772,7 +2773,7 @@
         <span class="kw">let </span>long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is&quot;</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is"</span>.to_owned(),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>validation = Aggregator::validate_bucket_key(long_metric, <span class="kw-2">&amp;</span>test_config());
@@ -2787,8 +2788,8 @@
         <span class="kw">let </span>short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/a_short_metric_with_long_tag_key&quot;</span>.to_owned(),
-            tags: BTreeMap::from([(<span class="string">&quot;i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book&quot;</span>.into(), <span class="string">&quot;tag_value&quot;</span>.into())]),
+            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_key"</span>.to_owned(),
+            tags: BTreeMap::from([(<span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into(), <span class="string">"tag_value"</span>.into())]),
         };
         <span class="kw">let </span>validation =
             Aggregator::validate_bucket_key(short_metric_long_tag_key, <span class="kw-2">&amp;</span>test_config()).unwrap();
@@ -2797,8 +2798,8 @@
         <span class="kw">let </span>short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/a_short_metric_with_long_tag_value&quot;</span>.to_owned(),
-            tags: BTreeMap::from([(<span class="string">&quot;tag_key&quot;</span>.into(), <span class="string">&quot;i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book&quot;</span>.into())]),
+            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_value"</span>.to_owned(),
+            tags: BTreeMap::from([(<span class="string">"tag_key"</span>.into(), <span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into())]),
         };
         <span class="kw">let </span>validation =
             Aggregator::validate_bucket_key(short_metric_long_tag_value, <span class="kw-2">&amp;</span>test_config()).unwrap();
@@ -2808,18 +2809,18 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_validate_tag_values_special_chars() {
         relay_test::setup();
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 
-        <span class="kw">let </span>tag_value = <span class="string">&quot;x&quot;</span>.repeat(<span class="number">199</span>) + <span class="string">&quot;ø&quot;</span>;
+        <span class="kw">let </span>tag_value = <span class="string">"x"</span>.repeat(<span class="number">199</span>) + <span class="string">"ø"</span>;
         <span class="macro">assert_eq!</span>(tag_value.chars().count(), <span class="number">200</span>); <span class="comment">// Should be allowed
         </span><span class="kw">let </span>short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">&quot;c:transactions/a_short_metric&quot;</span>.to_owned(),
-            tags: BTreeMap::from([(<span class="string">&quot;foo&quot;</span>.into(), tag_value.clone())]),
+            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.to_owned(),
+            tags: BTreeMap::from([(<span class="string">"foo"</span>.into(), tag_value.clone())]),
         };
         <span class="kw">let </span>validated_bucket = Aggregator::validate_metric_tags(short_metric, <span class="kw-2">&amp;</span>test_config());
-        <span class="macro">assert_eq!</span>(validated_bucket.tags[<span class="string">&quot;foo&quot;</span>], tag_value);
+        <span class="macro">assert_eq!</span>(validated_bucket.tags[<span class="string">"foo"</span>], tag_value);
     }
 
     <span class="attr">#[test]
@@ -2827,13 +2828,13 @@
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         aggregator
             .merge(project_key, bucket.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>))
@@ -2857,13 +2858,13 @@
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         aggregator.merge(project_key, bucket.clone(), <span class="prelude-val">None</span>).unwrap();
         <span class="macro">assert_eq!</span>(
@@ -2877,7 +2878,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_shift_key() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;shift_key&quot;: &quot;bucket&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"shift_key": "bucket"}"#</span>;
         <span class="kw">let </span>parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(parsed.shift_key, ShiftKey::Bucket));
     }

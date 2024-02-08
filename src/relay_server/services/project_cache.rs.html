@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project_cache.rs`."><title>project_cache.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project_cache.rs`."><title>project_cache.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1414,7 +1415,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::services::project::{Project, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_local::{LocalProjectSource, LocalProjectSourceService};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::project_redis::RedisProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::services::spooler::{
@@ -1745,7 +1746,7 @@
     config: Arc&lt;Config&gt;,
     local_source: Addr&lt;LocalProjectSource&gt;,
     upstream_source: Addr&lt;UpstreamProjectSource&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
 }
 
@@ -1760,14 +1761,14 @@
         <span class="kw">let </span>upstream_source =
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         <span class="self">Self </span>{
             config,
             local_source,
             upstream_source,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_source,
         }
     }
@@ -1790,7 +1791,7 @@
             RelayMode::Managed =&gt; (), <span class="comment">// Proceed with loading the config from redis or upstream
         </span>}
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
             <span class="kw">let </span>state_fetch_result =
                 tokio::task::spawn_blocking(<span class="kw">move </span>|| redis_source.get_config(project_key))
@@ -1802,7 +1803,7 @@
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;failed to fetch project from Redis&quot;</span>,
+                        <span class="string">"failed to fetch project from Redis"</span>,
                     );
                     <span class="prelude-val">None
                 </span>}
@@ -1896,7 +1897,7 @@
 
 <span class="doccomment">/// Describes the current status of the [`GlobalConfig`]
 ///
-/// Either it&#39;s ready to be used, or it contains the list of in-flight project keys,
+/// Either it's ready to be used, or it contains the list of in-flight project keys,
 /// to be processed once the config arrives.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>GlobalConfigStatus {
@@ -1929,7 +1930,7 @@
     /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
     </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partial_key: ProjectKey) {
-        <span class="comment">// If we don&#39;t yet have the global config, we will defer dequeuing until we do.
+        <span class="comment">// If we don't yet have the global config, we will defer dequeuing until we do.
         </span><span class="kw">if let </span>GlobalConfigStatus::Pending = <span class="self">self</span>.global_config {
             <span class="kw">return</span>;
         }
@@ -2122,11 +2123,11 @@
     <span class="doccomment">/// Handles the processing of the provided envelope.
     ///
     /// The following pre-conditions must be met before calling this function:
-    /// - Envelope&#39;s project state must be cached and valid.
+    /// - Envelope's project state must be cached and valid.
     /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
     /// - [`GlobalConfig`] from the [`GlobalConfigManager`] must be available.
     ///
-    /// Calling this function without envelope&#39;s project state available will cause the envelope to
+    /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
     </span><span class="kw">fn </span>handle_processing(<span class="kw-2">&amp;mut </span><span class="self">self</span>, managed_envelope: ManagedEnvelope) {
         <span class="kw">let </span>project_key = managed_envelope.envelope().meta().public_key();
@@ -2134,7 +2135,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(project) = <span class="self">self</span>.projects.get_mut(<span class="kw-2">&amp;</span>project_key) <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
                 tags.project_key = %project_key,
-                <span class="string">&quot;project could not be found in the cache&quot;</span>,
+                <span class="string">"project could not be found in the cache"</span>,
             );
             <span class="kw">return</span>;
         };
@@ -2142,7 +2143,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(own_project_state) = project.valid_state().filter(|s| !s.invalid()) <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
                 tags.project_key = %project_key,
-                <span class="string">&quot;project has no valid cached state&quot;</span>,
+                <span class="string">"project has no valid cached state"</span>,
             );
             <span class="kw">return</span>;
         };
@@ -2190,14 +2191,14 @@
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="kw">let </span>envelope = context.envelope();
 
-        <span class="comment">// Fetch the project state for our key and make sure it&#39;s not invalid.
+        <span class="comment">// Fetch the project state for our key and make sure it's not invalid.
         </span><span class="kw">let </span>own_key = envelope.meta().public_key();
         <span class="kw">let </span>project_state = <span class="self">self
             </span>.get_or_create_project(own_key)
             .get_cached_state(project_cache.clone(), envelope.meta().no_cache())
             .filter(|st| !st.invalid());
 
-        <span class="comment">// Also, fetch the project state for sampling key and make sure it&#39;s not invalid.
+        <span class="comment">// Also, fetch the project state for sampling key and make sure it's not invalid.
         </span><span class="kw">let </span>sampling_key = utils::get_sampling_key(envelope);
         <span class="kw">let </span>sampling_state = sampling_key.and_then(|key| {
             <span class="self">self</span>.get_or_create_project(key)
@@ -2403,7 +2404,7 @@
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(config.cache_eviction_interval());
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache started&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
 
             <span class="comment">// Channel for async project state responses back into the project cache.
             </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::unbounded_channel();
@@ -2423,7 +2424,7 @@
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to start buffer service&quot;</span>,
+                            <span class="string">"failed to start buffer service"</span>,
                         );
                         <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
                         // opened or the migrations could not be run.
@@ -2435,17 +2436,17 @@
                 <span class="comment">// TODO(iker): we accept this sub-optimal error handling. TBD
                 // the approach to deal with failures on the subscription
                 // mechanism.
-                </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to subscribe to GlobalConfigService&quot;</span>);
+                </span><span class="macro">relay_log::error!</span>(<span class="string">"failed to subscribe to GlobalConfigService"</span>);
                 <span class="kw">return</span>;
             };
 
             <span class="kw">let </span>global_config = <span class="kw">match </span>subscription.borrow().clone() {
                 global_config::Status::Ready(global_config) =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">&quot;global config received&quot;</span>);
+                    <span class="macro">relay_log::info!</span>(<span class="string">"global config received"</span>);
                     GlobalConfigStatus::Ready(global_config)
                 }
                 global_config::Status::Pending =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">&quot;waiting for global config&quot;</span>);
+                    <span class="macro">relay_log::info!</span>(<span class="string">"waiting for global config"</span>);
                     GlobalConfigStatus::Pending
                 }
             };
@@ -2484,7 +2485,7 @@
                             global_config::Status::Ready(global_config) =&gt; broker.set_global_config(global_config),
                             <span class="comment">// The watch should only be updated if it gets a new value.
                             // This would imply a logical bug.
-                            </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;still waiting for the global config&quot;</span>),
+                            </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
                         }
                     },
                     <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
@@ -2498,7 +2499,7 @@
                 }
             }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"project cache stopped"</span>);
         });
     }
 }
@@ -2537,13 +2538,13 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>mocked_services() -&gt; Services {
-        <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">&quot;test_store&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream_relay&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">&quot;global_config&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">"project_cache"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">"test_store"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">"upstream_relay"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">"global_config"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
 
         Services {
             aggregator,
@@ -2563,10 +2564,10 @@
         buffer_tx: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
     ) -&gt; (ProjectCacheBroker, Addr&lt;Buffer&gt;) {
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
                 </span>}
             }
         }))
@@ -2586,7 +2587,7 @@
         </span>{
             <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to start buffer service&quot;</span>);
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to start buffer service"</span>);
                 <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
                 // opened or the migrations could not be run.
                 </span>std::process::exit(<span class="number">1</span>);
@@ -2648,7 +2649,7 @@
         <span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
 
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap();
         <span class="kw">let </span>key = QueueKey {
             own_key: project_key,
             sampling_key: project_key,
@@ -2720,8 +2721,8 @@
         <span class="kw">let </span>(tx_update, <span class="kw-2">mut </span>rx_update) = mpsc::unbounded_channel();
         <span class="kw">let </span>(tx_assert, <span class="kw-2">mut </span>rx_assert) = mpsc::unbounded_channel();
 
-        <span class="kw">let </span>dsn1 = <span class="string">&quot;111d836b15bb49d7bbf99e64295d995b&quot;</span>;
-        <span class="kw">let </span>dsn2 = <span class="string">&quot;eeed836b15bb49d7bbf99e64295d995b&quot;</span>;
+        <span class="kw">let </span>dsn1 = <span class="string">"111d836b15bb49d7bbf99e64295d995b"</span>;
+        <span class="kw">let </span>dsn2 = <span class="string">"eeed836b15bb49d7bbf99e64295d995b"</span>;
 
         <span class="comment">// Send and spool some envelopes.
         </span><span class="kw">for </span>dsn <span class="kw">in </span>[dsn1, dsn2] {

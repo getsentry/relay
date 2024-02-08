@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/nel.rs`."><title>nel.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/nel.rs`."><title>nel.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -238,7 +239,7 @@
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -249,8 +250,8 @@
 
 <span class="doccomment">/// Describes which phase the error occurred in.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>NetworkReportPhases {
     <span class="doccomment">/// The error occurred during DNS resolution.
     </span>DNS,
@@ -266,16 +267,16 @@
     <span class="doccomment">/// Creates the string representation of the current enum value.
     </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            NetworkReportPhases::DNS =&gt; <span class="string">&quot;dns&quot;</span>,
-            NetworkReportPhases::Connections =&gt; <span class="string">&quot;connection&quot;</span>,
-            NetworkReportPhases::Application =&gt; <span class="string">&quot;application&quot;</span>,
+            NetworkReportPhases::DNS =&gt; <span class="string">"dns"</span>,
+            NetworkReportPhases::Connections =&gt; <span class="string">"connection"</span>,
+            NetworkReportPhases::Application =&gt; <span class="string">"application"</span>,
             NetworkReportPhases::Other(<span class="kw-2">ref </span>unknown) =&gt; unknown,
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>NetworkReportPhases {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -298,8 +299,8 @@
 </span><span class="kw">pub struct </span>ParseNetworkReportPhaseError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseNetworkReportPhaseError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid network report phase&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid network report phase"</span>)
     }
 }
 
@@ -308,9 +309,9 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s.to_lowercase().as_str() {
-            <span class="string">&quot;dns&quot; </span>=&gt; NetworkReportPhases::DNS,
-            <span class="string">&quot;connection&quot; </span>=&gt; NetworkReportPhases::Connections,
-            <span class="string">&quot;application&quot; </span>=&gt; NetworkReportPhases::Application,
+            <span class="string">"dns" </span>=&gt; NetworkReportPhases::DNS,
+            <span class="string">"connection" </span>=&gt; NetworkReportPhases::Connections,
+            <span class="string">"application" </span>=&gt; NetworkReportPhases::Application,
             unknown =&gt; NetworkReportPhases::Other(unknown.to_string()),
         })
     }
@@ -322,14 +323,14 @@
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
                 <span class="prelude-val">Ok</span>(phase) =&gt; Annotated(<span class="prelude-val">Some</span>(phase), meta),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    meta.add_error(relay_protocol::Error::expected(<span class="string">&quot;a string&quot;</span>));
+                    meta.add_error(relay_protocol::Error::expected(<span class="string">"a string"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 }
             },
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(relay_protocol::Error::expected(<span class="string">&quot;a string&quot;</span>));
+                meta.add_error(relay_protocol::Error::expected(<span class="string">"a string"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -359,23 +360,23 @@
 </span><span class="attr">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>NetworkReportError {
     <span class="doccomment">/// Incoming Json is unparsable.
-    </span><span class="attr">#[error(<span class="string">&quot;incoming json is unparsable&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"incoming json is unparsable"</span>)]
     </span>InvalidJson(<span class="attr">#[from] </span>serde_json::Error),
 }
 
 <span class="doccomment">/// Generated network error report (NEL).
 </span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>BodyRaw {
     <span class="doccomment">/// The time between the start of the resource fetch and when it was completed or aborted.
     </span><span class="kw">pub </span>elapsed_time: Annotated&lt;u64&gt;,
     <span class="doccomment">/// HTTP method.
     </span><span class="kw">pub </span>method: Annotated&lt;String&gt;,
-    <span class="doccomment">/// If request failed, the phase of its network error. If request succeeded, &quot;application&quot;.
+    <span class="doccomment">/// If request failed, the phase of its network error. If request succeeded, "application".
     </span><span class="kw">pub </span>phase: Annotated&lt;NetworkReportPhases&gt;,
     <span class="doccomment">/// The HTTP protocol and version.
     </span><span class="kw">pub </span>protocol: Annotated&lt;String&gt;,
-    <span class="doccomment">/// Request&#39;s referrer, as determined by the referrer policy associated with its client.
+    <span class="doccomment">/// Request's referrer, as determined by the referrer policy associated with its client.
     </span><span class="kw">pub </span>referrer: Annotated&lt;String&gt;,
     <span class="doccomment">/// The sampling rate.
     </span><span class="kw">pub </span>sampling_fraction: Annotated&lt;f64&gt;,
@@ -383,11 +384,11 @@
     </span><span class="kw">pub </span>server_ip: Annotated&lt;IpAddr&gt;,
     <span class="doccomment">/// HTTP status code.
     </span><span class="kw">pub </span>status_code: Annotated&lt;i64&gt;,
-    <span class="doccomment">/// If request failed, the type of its network error. If request succeeded, &quot;ok&quot;.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+    <span class="doccomment">/// If request failed, the type of its network error. If request succeeded, "ok".
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
     <span class="doccomment">/// For forward compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -395,22 +396,22 @@
 ///
 /// See &lt;https://w3c.github.io/network-error-logging/&gt;
 </span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>NetworkReportRaw {
     <span class="doccomment">/// The age of the report since it got collected and before it got sent.
     </span><span class="kw">pub </span>age: Annotated&lt;i64&gt;,
     <span class="doccomment">/// The type of the report.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
     <span class="doccomment">/// The URL of the document in which the error occurred.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>url: Annotated&lt;String&gt;,
     <span class="doccomment">/// The User-Agent HTTP header.
     </span><span class="kw">pub </span>user_agent: Annotated&lt;String&gt;,
     <span class="doccomment">/// The body of the NEL report.
     </span><span class="kw">pub </span>body: Annotated&lt;BodyRaw&gt;,
     <span class="doccomment">/// For forward compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -422,46 +423,46 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_nel_raw_basic() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;age&quot;: 31042,
-            &quot;body&quot;: {
-                &quot;elapsed_time&quot;: 0,
-                &quot;method&quot;: &quot;GET&quot;,
-                &quot;phase&quot;: &quot;connection&quot;,
-                &quot;protocol&quot;: &quot;http/1.1&quot;,
-                &quot;referrer&quot;: &quot;&quot;,
-                &quot;sampling_fraction&quot;: 1.0,
-                &quot;server_ip&quot;: &quot;127.0.0.1&quot;,
-                &quot;status_code&quot;: 0,
-                &quot;type&quot;: &quot;tcp.refused&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "age": 31042,
+            "body": {
+                "elapsed_time": 0,
+                "method": "GET",
+                "phase": "connection",
+                "protocol": "http/1.1",
+                "referrer": "",
+                "sampling_fraction": 1.0,
+                "server_ip": "127.0.0.1",
+                "status_code": 0,
+                "type": "tcp.refused"
             },
-            &quot;type&quot;: &quot;network-error&quot;,
-            &quot;url&quot;: &quot;http://example.com/&quot;,
-            &quot;user_agent&quot;: &quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36&quot;
-        }&quot;#</span>;
+            "type": "network-error",
+            "url": "http://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        }"#</span>;
 
         <span class="kw">let </span>report: Annotated&lt;NetworkReportRaw&gt; =
             Annotated::from_json_bytes(json.as_bytes()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(report, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(report, @<span class="string">r###"
         {
-          &quot;age&quot;: 31042,
-          &quot;type&quot;: &quot;network-error&quot;,
-          &quot;url&quot;: &quot;http://example.com/&quot;,
-          &quot;user_agent&quot;: &quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36&quot;,
-          &quot;body&quot;: {
-            &quot;elapsed_time&quot;: 0,
-            &quot;method&quot;: &quot;GET&quot;,
-            &quot;phase&quot;: &quot;connection&quot;,
-            &quot;protocol&quot;: &quot;http/1.1&quot;,
-            &quot;referrer&quot;: &quot;&quot;,
-            &quot;sampling_fraction&quot;: 1.0,
-            &quot;server_ip&quot;: &quot;127.0.0.1&quot;,
-            &quot;status_code&quot;: 0,
-            &quot;type&quot;: &quot;tcp.refused&quot;
+          "age": 31042,
+          "type": "network-error",
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "body": {
+            "elapsed_time": 0,
+            "method": "GET",
+            "phase": "connection",
+            "protocol": "http/1.1",
+            "referrer": "",
+            "sampling_fraction": 1.0,
+            "server_ip": "127.0.0.1",
+            "status_code": 0,
+            "type": "tcp.refused"
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

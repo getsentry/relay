@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/csp.rs`."><title>csp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/csp.rs`."><title>csp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -532,10 +533,10 @@
     <span class="doccomment">/// parse a string into a SchemaDomainPort pattern
     </span><span class="kw">fn </span>from(url: <span class="kw-2">&amp;</span>str) -&gt; SchemeDomainPort {
         <span class="doccomment">/// converts string into patterns for SchemeDomainPort
-        /// the convention is that a &quot;*&quot; matches everything which
+        /// the convention is that a "*" matches everything which
         /// we encode as a None (same as the absence of the pattern)
         </span><span class="kw">fn </span>normalize(pattern: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-            <span class="kw">if </span>pattern == <span class="string">&quot;*&quot; </span>{
+            <span class="kw">if </span>pattern == <span class="string">"*" </span>{
                 <span class="prelude-val">None
             </span>} <span class="kw">else </span>{
                 <span class="prelude-val">Some</span>(pattern.to_lowercase())
@@ -543,15 +544,15 @@
         }
 
         <span class="comment">//split the scheme from the url
-        </span><span class="kw">let </span>scheme_idx = url.find(<span class="string">&quot;://&quot;</span>);
+        </span><span class="kw">let </span>scheme_idx = url.find(<span class="string">"://"</span>);
         <span class="kw">let </span>(scheme, rest) = <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = scheme_idx {
-            (normalize(<span class="kw-2">&amp;</span>url[..idx]), <span class="kw-2">&amp;</span>url[idx + <span class="number">3</span>..]) <span class="comment">// chop after the scheme + the &quot;://&quot; delimiter
+            (normalize(<span class="kw-2">&amp;</span>url[..idx]), <span class="kw-2">&amp;</span>url[idx + <span class="number">3</span>..]) <span class="comment">// chop after the scheme + the "://" delimiter
         </span>} <span class="kw">else </span>{
             (<span class="prelude-val">None</span>, url) <span class="comment">// no scheme, chop nothing form original string
         </span>};
 
         <span class="comment">//extract domain:port from the rest of the url
-        </span><span class="kw">let </span>end_domain_idx = rest.find(<span class="string">&#39;/&#39;</span>);
+        </span><span class="kw">let </span>end_domain_idx = rest.find(<span class="string">'/'</span>);
         <span class="kw">let </span>domain_port = <span class="kw">if let </span><span class="prelude-val">Some</span>(end_domain_idx) = end_domain_idx {
             <span class="kw-2">&amp;</span>rest[..end_domain_idx] <span class="comment">// remove the path from rest
         </span>} <span class="kw">else </span>{
@@ -559,7 +560,7 @@
         </span>};
 
         <span class="comment">//split the domain and the port
-        </span><span class="kw">let </span>port_separator_idx = domain_port.find(<span class="string">&#39;:&#39;</span>);
+        </span><span class="kw">let </span>port_separator_idx = domain_port.find(<span class="string">':'</span>);
         <span class="kw">let </span>(domain, port) = <span class="kw">if let </span><span class="prelude-val">Some</span>(port_separator_idx) = port_separator_idx {
             <span class="comment">//we have a port separator, split the string into domain and port
             </span>(
@@ -588,7 +589,7 @@
 ///  - `*.domain.com`: matches domain.com and any subdomains
 ///  - `*:port`: matches any hostname as long as the port matches
 </span><span class="kw">pub fn </span>matches_any_origin(url: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, origins: <span class="kw-2">&amp;</span>[SchemeDomainPort]) -&gt; bool {
-    <span class="comment">// if we have a &quot;*&quot; (Any) option, anything matches so don&#39;t bother going forward
+    <span class="comment">// if we have a "*" (Any) option, anything matches so don't bother going forward
     </span><span class="kw">if </span>origins
         .iter()
         .any(|o| o.scheme.is_none() &amp;&amp; o.port.is_none() &amp;&amp; o.domain.is_none())
@@ -607,11 +608,11 @@
                 <span class="kw">continue</span>; <span class="comment">// port not matched
             </span>}
             <span class="kw">if </span>origin.domain.is_some() &amp;&amp; url.domain != origin.domain {
-                <span class="comment">// no direct match for domain, look for  partial patterns (e.g. &quot;*.domain.com&quot;)
+                <span class="comment">// no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 </span><span class="kw">if let </span>(<span class="prelude-val">Some</span>(origin_domain), <span class="prelude-val">Some</span>(domain)) = (<span class="kw-2">&amp;</span>origin.domain, <span class="kw-2">&amp;</span>url.domain) {
-                    <span class="kw">if </span>origin_domain.starts_with(<span class="string">&#39;*&#39;</span>)
-                        &amp;&amp; ((<span class="kw-2">*</span>domain).ends_with(origin_domain.get(<span class="number">1</span>..).unwrap_or(<span class="string">&quot;&quot;</span>))
-                            || domain.as_str() == origin_domain.get(<span class="number">2</span>..).unwrap_or(<span class="string">&quot;&quot;</span>))
+                    <span class="kw">if </span>origin_domain.starts_with(<span class="string">'*'</span>)
+                        &amp;&amp; ((<span class="kw-2">*</span>domain).ends_with(origin_domain.get(<span class="number">1</span>..).unwrap_or(<span class="string">""</span>))
+                            || domain.as_str() == origin_domain.get(<span class="number">2</span>..).unwrap_or(<span class="string">""</span>))
                     {
                         <span class="kw">return </span><span class="bool-val">true</span>; <span class="comment">// partial domain pattern match
                     </span>}
@@ -658,36 +659,36 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scheme_domain_port() {
         <span class="kw">let </span>examples = <span class="kw-2">&amp;</span>[
-            (<span class="string">&quot;*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-            (<span class="string">&quot;*://*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-            (<span class="string">&quot;*://*:*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-            (<span class="string">&quot;https://*&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;https&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-            (<span class="string">&quot;https://*.abc.net&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;https&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;*.abc.net&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;https://*:*&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;https&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-            (<span class="string">&quot;x.y.z&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;x.y.z&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;x.y.z:*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;x.y.z&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;*://x.y.z:*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;x.y.z&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;*://*.x.y.z:*&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;*.x.y.z&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;*:8000&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;8000&quot;</span>)),
-            (<span class="string">&quot;*://*:8000&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;8000&quot;</span>)),
-            (<span class="string">&quot;http://x.y.z&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;x.y.z&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="string">&quot;http://*:8000&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;8000&quot;</span>)),
-            (<span class="string">&quot;abc:8000&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;abc&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;8000&quot;</span>)),
-            (<span class="string">&quot;*.abc.com:8000&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;*.abc.com&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;8000&quot;</span>)),
-            (<span class="string">&quot;*.com:86&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;*.com&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;86&quot;</span>)),
+            (<span class="string">"*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="string">"*://*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="string">"*://*:*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="string">"https://*"</span>, <span class="prelude-val">Some</span>(<span class="string">"https"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="string">"https://*.abc.net"</span>, <span class="prelude-val">Some</span>(<span class="string">"https"</span>), <span class="prelude-val">Some</span>(<span class="string">"*.abc.net"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"https://*:*"</span>, <span class="prelude-val">Some</span>(<span class="string">"https"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="string">"x.y.z"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"x.y.z"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"x.y.z:*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"x.y.z"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"*://x.y.z:*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"x.y.z"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"*://*.x.y.z:*"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"*.x.y.z"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"*:8000"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"8000"</span>)),
+            (<span class="string">"*://*:8000"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"8000"</span>)),
+            (<span class="string">"http://x.y.z"</span>, <span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="prelude-val">Some</span>(<span class="string">"x.y.z"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"http://*:8000"</span>, <span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"8000"</span>)),
+            (<span class="string">"abc:8000"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"abc"</span>), <span class="prelude-val">Some</span>(<span class="string">"8000"</span>)),
+            (<span class="string">"*.abc.com:8000"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"*.abc.com"</span>), <span class="prelude-val">Some</span>(<span class="string">"8000"</span>)),
+            (<span class="string">"*.com:86"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"*.com"</span>), <span class="prelude-val">Some</span>(<span class="string">"86"</span>)),
             (
-                <span class="string">&quot;http://abc.com:86&quot;</span>,
-                <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>),
-                <span class="prelude-val">Some</span>(<span class="string">&quot;abc.com&quot;</span>),
-                <span class="prelude-val">Some</span>(<span class="string">&quot;86&quot;</span>),
+                <span class="string">"http://abc.com:86"</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"http"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"abc.com"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"86"</span>),
             ),
             (
-                <span class="string">&quot;http://x.y.z:4000&quot;</span>,
-                <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>),
-                <span class="prelude-val">Some</span>(<span class="string">&quot;x.y.z&quot;</span>),
-                <span class="prelude-val">Some</span>(<span class="string">&quot;4000&quot;</span>),
+                <span class="string">"http://x.y.z:4000"</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"http"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"x.y.z"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"4000"</span>),
             ),
-            (<span class="string">&quot;http://&quot;</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"http://"</span>, <span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="prelude-val">Some</span>(<span class="string">""</span>), <span class="prelude-val">None</span>),
         ];
 
         <span class="kw">for </span>(url, scheme, domain, port) <span class="kw">in </span>examples {
@@ -708,63 +709,63 @@
         <span class="kw">let </span>examples = <span class="kw-2">&amp;</span>[
             <span class="comment">//MATCH
             //generic matches
-            </span>(<span class="string">&quot;http://abc1.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*://*:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc2.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc3.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc4.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
+            </span>(<span class="string">"http://abc1.com"</span>, <span class="macro">vec!</span>[<span class="string">"*://*:*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc2.com"</span>, <span class="macro">vec!</span>[<span class="string">"*:*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc3.com"</span>, <span class="macro">vec!</span>[<span class="string">"*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc4.com"</span>, <span class="macro">vec!</span>[<span class="string">"http://*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
             (
-                <span class="string">&quot;http://abc5.com&quot;</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;http://abc5.com:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>],
+                <span class="string">"http://abc5.com"</span>,
+                <span class="macro">vec!</span>[<span class="string">"http://abc5.com:*"</span>, <span class="string">"bbc.com"</span>],
                 <span class="bool-val">true</span>,
             ),
-            (<span class="string">&quot;http://abc.com:80&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*://*:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:81&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:82&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*:82&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:83&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://*:83&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:84&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;abc.com:*&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:80"</span>, <span class="macro">vec!</span>[<span class="string">"*://*:*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:81"</span>, <span class="macro">vec!</span>[<span class="string">"*:*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:82"</span>, <span class="macro">vec!</span>[<span class="string">"*:82"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:83"</span>, <span class="macro">vec!</span>[<span class="string">"http://*:83"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:84"</span>, <span class="macro">vec!</span>[<span class="string">"abc.com:*"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
             <span class="comment">//partial domain matches
-            </span>(<span class="string">&quot;http://abc.com:85&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.abc.com:85&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:86&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.com:86&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:86&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.com:86&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.def.ghc.com:87&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.com:87&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.def.ghc.com:88&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.ghc.com:88&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.def.ghc.com:89&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.def.ghc.com:89&quot;</span>], <span class="bool-val">true</span>),
+            </span>(<span class="string">"http://abc.com:85"</span>, <span class="macro">vec!</span>[<span class="string">"*.abc.com:85"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:86"</span>, <span class="macro">vec!</span>[<span class="string">"*.com:86"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:86"</span>, <span class="macro">vec!</span>[<span class="string">"*.com:86"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.def.ghc.com:87"</span>, <span class="macro">vec!</span>[<span class="string">"*.com:87"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.def.ghc.com:88"</span>, <span class="macro">vec!</span>[<span class="string">"*.ghc.com:88"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.def.ghc.com:89"</span>, <span class="macro">vec!</span>[<span class="string">"*.def.ghc.com:89"</span>], <span class="bool-val">true</span>),
             <span class="comment">//exact matches
-            </span>(<span class="string">&quot;http://abc.com:90&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;abc.com&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:91&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;abc.com:91&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:92&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://abc.com:92&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc.com:93&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://abc.com&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
+            </span>(<span class="string">"http://abc.com:90"</span>, <span class="macro">vec!</span>[<span class="string">"abc.com"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:91"</span>, <span class="macro">vec!</span>[<span class="string">"abc.com:91"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:92"</span>, <span class="macro">vec!</span>[<span class="string">"http://abc.com:92"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc.com:93"</span>, <span class="macro">vec!</span>[<span class="string">"http://abc.com"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
             <span class="comment">//matches in various positions
-            </span>(<span class="string">&quot;http://abc6.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;abc6.com&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc7.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;bbc.com&quot;</span>, <span class="string">&quot;abc7.com&quot;</span>], <span class="bool-val">true</span>),
-            (<span class="string">&quot;http://abc8.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;bbc.com&quot;</span>, <span class="string">&quot;abc8.com&quot;</span>, <span class="string">&quot;def&quot;</span>], <span class="bool-val">true</span>),
+            </span>(<span class="string">"http://abc6.com"</span>, <span class="macro">vec!</span>[<span class="string">"abc6.com"</span>, <span class="string">"bbc.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc7.com"</span>, <span class="macro">vec!</span>[<span class="string">"bbc.com"</span>, <span class="string">"abc7.com"</span>], <span class="bool-val">true</span>),
+            (<span class="string">"http://abc8.com"</span>, <span class="macro">vec!</span>[<span class="string">"bbc.com"</span>, <span class="string">"abc8.com"</span>, <span class="string">"def"</span>], <span class="bool-val">true</span>),
             <span class="comment">//NON MATCH
             //different domain
             </span>(
-                <span class="string">&quot;http://abc9.com&quot;</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;http://other.com&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>],
+                <span class="string">"http://abc9.com"</span>,
+                <span class="macro">vec!</span>[<span class="string">"http://other.com"</span>, <span class="string">"bbc.com"</span>],
                 <span class="bool-val">false</span>,
             ),
-            (<span class="string">&quot;http://abc10.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://*.other.com&quot;</span>, <span class="string">&quot;bbc&quot;</span>], <span class="bool-val">false</span>),
-            (<span class="string">&quot;abc11.com&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;*.other.com&quot;</span>, <span class="string">&quot;bbc&quot;</span>], <span class="bool-val">false</span>),
+            (<span class="string">"http://abc10.com"</span>, <span class="macro">vec!</span>[<span class="string">"http://*.other.com"</span>, <span class="string">"bbc"</span>], <span class="bool-val">false</span>),
+            (<span class="string">"abc11.com"</span>, <span class="macro">vec!</span>[<span class="string">"*.other.com"</span>, <span class="string">"bbc"</span>], <span class="bool-val">false</span>),
             <span class="comment">//different scheme
             </span>(
-                <span class="string">&quot;https://abc12.com&quot;</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;http://abc12.com&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>],
+                <span class="string">"https://abc12.com"</span>,
+                <span class="macro">vec!</span>[<span class="string">"http://abc12.com"</span>, <span class="string">"bbc.com"</span>],
                 <span class="bool-val">false</span>,
             ),
             <span class="comment">//different port
             </span>(
-                <span class="string">&quot;http://abc13.com:80&quot;</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;http://abc13.com:8080&quot;</span>, <span class="string">&quot;bbc.com&quot;</span>],
+                <span class="string">"http://abc13.com:80"</span>,
+                <span class="macro">vec!</span>[<span class="string">"http://abc13.com:8080"</span>, <span class="string">"bbc.com"</span>],
                 <span class="bool-val">false</span>,
             ),
             <span class="comment">// this used to crash
-            </span>(<span class="string">&quot;http://y:80&quot;</span>, <span class="macro">vec!</span>[<span class="string">&quot;http://x&quot;</span>], <span class="bool-val">false</span>),
+            </span>(<span class="string">"http://y:80"</span>, <span class="macro">vec!</span>[<span class="string">"http://x"</span>], <span class="bool-val">false</span>),
             <span class="comment">// starts on both ends
             </span>(
-                <span class="string">&quot;https://abc.software.example.com&quot;</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;*abc.software.example.com*&quot;</span>],
+                <span class="string">"https://abc.software.example.com"</span>,
+                <span class="macro">vec!</span>[<span class="string">"*abc.software.example.com*"</span>],
                 <span class="bool-val">false</span>,
             ),
         ];
@@ -775,111 +776,111 @@
                 .map(|url| SchemeDomainPort::from(<span class="kw-2">*</span>url))
                 .collect();
             <span class="kw">let </span>actual = matches_any_origin(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>url), <span class="kw-2">&amp;</span>origins[..]);
-            <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>expected, actual, <span class="string">&quot;Could not match {url}.&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>expected, actual, <span class="string">"Could not match {url}."</span>);
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filters_known_blocked_source_files() {
-        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://known.bad.com&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://known.bad.com"</span>), <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_ne!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have filtered known bad source file&quot;
+            <span class="string">"CSP filter should have filtered known bad source file"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_filter_benign_source_files() {
-        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://good.file.com&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://good.file.com"</span>), <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_eq!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have NOT filtered good source file&quot;
+            <span class="string">"CSP filter should have NOT filtered good source file"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filters_known_document_uris() {
-        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://known.bad.com&quot;</span>));
+        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://known.bad.com"</span>));
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_ne!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have filtered known document uri&quot;
+            <span class="string">"CSP filter should have filtered known document uri"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filters_known_blocked_uris() {
-        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">&quot;http://known.bad.com&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">"http://known.bad.com"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_ne!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have filtered known blocked uri&quot;
+            <span class="string">"CSP filter should have filtered known blocked uri"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_filter_benign_uris() {
-        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">&quot;http://good.file.com&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">"http://good.file.com"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_eq!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have NOT filtered unknown blocked uri&quot;
+            <span class="string">"CSP filter should have NOT filtered unknown blocked uri"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_filter_non_csp_messages() {
-        <span class="kw">let </span><span class="kw-2">mut </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">&quot;http://known.bad.com&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>event = get_csp_event(<span class="prelude-val">Some</span>(<span class="string">"http://known.bad.com"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         event.ty = Annotated::from(EventType::Transaction);
         <span class="kw">let </span>config = CspFilterConfig {
-            disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;http://known.bad.com&quot;</span>.to_string()],
+            disallowed_sources: <span class="macro">vec!</span>[<span class="string">"http://known.bad.com"</span>.to_string()],
         };
 
         <span class="kw">let </span>actual = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert_eq!</span>(
             actual,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;CSP filter should have NOT filtered non CSP event&quot;
+            <span class="string">"CSP filter should have NOT filtered non CSP event"
         </span>);
     }
 
     <span class="kw">fn </span>get_disallowed_sources() -&gt; Vec&lt;String&gt; {
         <span class="macro">vec!</span>[
-            <span class="string">&quot;about&quot;</span>.to_string(),
-            <span class="string">&quot;ms-browser-extension&quot;</span>.to_string(),
-            <span class="string">&quot;*.superfish.com&quot;</span>.to_string(),
-            <span class="string">&quot;chrome://*&quot;</span>.to_string(),
-            <span class="string">&quot;chrome-extension://*&quot;</span>.to_string(),
-            <span class="string">&quot;chromeinvokeimmediate://*&quot;</span>.to_string(),
-            <span class="string">&quot;chromenull://*&quot;</span>.to_string(),
-            <span class="string">&quot;localhost&quot;</span>.to_string(),
+            <span class="string">"about"</span>.to_string(),
+            <span class="string">"ms-browser-extension"</span>.to_string(),
+            <span class="string">"*.superfish.com"</span>.to_string(),
+            <span class="string">"chrome://*"</span>.to_string(),
+            <span class="string">"chrome-extension://*"</span>.to_string(),
+            <span class="string">"chromeinvokeimmediate://*"</span>.to_string(),
+            <span class="string">"chromenull://*"</span>.to_string(),
+            <span class="string">"localhost"</span>.to_string(),
         ]
     }
 
@@ -887,13 +888,13 @@
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_sentry_csp_filter_compatibility_bad_reports() {
         <span class="kw">let </span>examples = <span class="kw-2">&amp;</span>[
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;about&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;ms-browser-extension&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;http://foo.superfish.com&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;chrome-extension://fdsa&quot;</span>)),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://localhost:8000&quot;</span>)),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://localhost&quot;</span>)),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://foo.superfish.com&quot;</span>)),
+            (<span class="prelude-val">Some</span>(<span class="string">"about"</span>), <span class="prelude-val">None</span>),
+            (<span class="prelude-val">Some</span>(<span class="string">"ms-browser-extension"</span>), <span class="prelude-val">None</span>),
+            (<span class="prelude-val">Some</span>(<span class="string">"http://foo.superfish.com"</span>), <span class="prelude-val">None</span>),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"chrome-extension://fdsa"</span>)),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://localhost:8000"</span>)),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://localhost"</span>)),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://foo.superfish.com"</span>)),
         ];
 
         <span class="kw">for </span>(blocked_uri, source_file) <span class="kw">in </span>examples {
@@ -906,7 +907,7 @@
             <span class="macro">assert_ne!</span>(
                 actual,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;CSP filter should have filtered  bad request {blocked_uri:?} {source_file:?}&quot;
+                <span class="string">"CSP filter should have filtered  bad request {blocked_uri:?} {source_file:?}"
             </span>);
         }
     }
@@ -914,8 +915,8 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sentry_csp_filter_compatibility_good_reports() {
         <span class="kw">let </span>examples = <span class="kw-2">&amp;</span>[
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com&quot;</span>), <span class="prelude-val">None</span>),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com&quot;</span>)),
+            (<span class="prelude-val">Some</span>(<span class="string">"http://example.com"</span>), <span class="prelude-val">None</span>),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"http://example.com"</span>)),
             (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
         ];
 
@@ -929,7 +930,7 @@
             <span class="macro">assert_eq!</span>(
                 actual,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;CSP filter should have  NOT filtered  request {blocked_uri:?} {source_file:?}&quot;
+                <span class="string">"CSP filter should have  NOT filtered  request {blocked_uri:?} {source_file:?}"
             </span>);
         }
     }

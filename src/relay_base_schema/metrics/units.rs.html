@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-base-schema/src/metrics/units.rs`."><title>units.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_base_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_base_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_base_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-base-schema/src/metrics/units.rs`."><title>units.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_base_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_base_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_base_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -390,15 +391,15 @@
 /// Units and their precisions are uniquely represented by a string identifier.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 </span><span class="kw">pub enum </span>MetricUnit {
-    <span class="doccomment">/// A time duration, defaulting to `&quot;millisecond&quot;`.
+    <span class="doccomment">/// A time duration, defaulting to `"millisecond"`.
     </span>Duration(DurationUnit),
-    <span class="doccomment">/// Size of information derived from bytes, defaulting to `&quot;byte&quot;`.
+    <span class="doccomment">/// Size of information derived from bytes, defaulting to `"byte"`.
     </span>Information(InformationUnit),
-    <span class="doccomment">/// Fractions such as percentages, defaulting to `&quot;ratio&quot;`.
+    <span class="doccomment">/// Fractions such as percentages, defaulting to `"ratio"`.
     </span>Fraction(FractionUnit),
     <span class="doccomment">/// user-defined units without builtin conversion or default.
     </span>Custom(CustomUnit),
-    <span class="doccomment">/// Untyped value without a unit (`&quot;&quot;`).
+    <span class="doccomment">/// Untyped value without a unit (`""`).
     </span><span class="attr">#[default]
     </span><span class="prelude-val">None</span>,
 }
@@ -416,19 +417,19 @@
             MetricUnit::Information(u) =&gt; u.as_str(),
             MetricUnit::Fraction(u) =&gt; u.as_str(),
             MetricUnit::Custom(u) =&gt; u.as_str(),
-            MetricUnit::None =&gt; <span class="string">&quot;none&quot;</span>,
+            MetricUnit::None =&gt; <span class="string">"none"</span>,
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             MetricUnit::Duration(u) =&gt; u.fmt(f),
             MetricUnit::Information(u) =&gt; u.fmt(f),
             MetricUnit::Fraction(u) =&gt; u.fmt(f),
             MetricUnit::Custom(u) =&gt; u.fmt(f),
-            MetricUnit::None =&gt; f.write_str(<span class="string">&quot;none&quot;</span>),
+            MetricUnit::None =&gt; f.write_str(<span class="string">"none"</span>),
         }
     }
 }
@@ -438,42 +439,42 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;nanosecond&quot; </span>| <span class="string">&quot;ns&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::NanoSecond),
-            <span class="string">&quot;microsecond&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MicroSecond),
-            <span class="string">&quot;millisecond&quot; </span>| <span class="string">&quot;ms&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MilliSecond),
-            <span class="string">&quot;second&quot; </span>| <span class="string">&quot;s&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Second),
-            <span class="string">&quot;minute&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Minute),
-            <span class="string">&quot;hour&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Hour),
-            <span class="string">&quot;day&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Day),
-            <span class="string">&quot;week&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Week),
+            <span class="string">"nanosecond" </span>| <span class="string">"ns" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::NanoSecond),
+            <span class="string">"microsecond" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MicroSecond),
+            <span class="string">"millisecond" </span>| <span class="string">"ms" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MilliSecond),
+            <span class="string">"second" </span>| <span class="string">"s" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Second),
+            <span class="string">"minute" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Minute),
+            <span class="string">"hour" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Hour),
+            <span class="string">"day" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Day),
+            <span class="string">"week" </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Week),
 
-            <span class="string">&quot;bit&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Bit),
-            <span class="string">&quot;byte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Byte),
-            <span class="string">&quot;kilobyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KiloByte),
-            <span class="string">&quot;kibibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KibiByte),
-            <span class="string">&quot;megabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MegaByte),
-            <span class="string">&quot;mebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MebiByte),
-            <span class="string">&quot;gigabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GigaByte),
-            <span class="string">&quot;gibibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GibiByte),
-            <span class="string">&quot;terabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TeraByte),
-            <span class="string">&quot;tebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TebiByte),
-            <span class="string">&quot;petabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PetaByte),
-            <span class="string">&quot;pebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PebiByte),
-            <span class="string">&quot;exabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExaByte),
-            <span class="string">&quot;exbibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExbiByte),
+            <span class="string">"bit" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Bit),
+            <span class="string">"byte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Byte),
+            <span class="string">"kilobyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KiloByte),
+            <span class="string">"kibibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KibiByte),
+            <span class="string">"megabyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MegaByte),
+            <span class="string">"mebibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MebiByte),
+            <span class="string">"gigabyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GigaByte),
+            <span class="string">"gibibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GibiByte),
+            <span class="string">"terabyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TeraByte),
+            <span class="string">"tebibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TebiByte),
+            <span class="string">"petabyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PetaByte),
+            <span class="string">"pebibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PebiByte),
+            <span class="string">"exabyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExaByte),
+            <span class="string">"exbibyte" </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExbiByte),
 
-            <span class="string">&quot;ratio&quot; </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Ratio),
-            <span class="string">&quot;percent&quot; </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Percent),
+            <span class="string">"ratio" </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Ratio),
+            <span class="string">"percent" </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Percent),
 
-            <span class="string">&quot;&quot; </span>| <span class="string">&quot;none&quot; </span>=&gt; <span class="self">Self</span>::None,
+            <span class="string">"" </span>| <span class="string">"none" </span>=&gt; <span class="self">Self</span>::None,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Custom(CustomUnit::parse(s)<span class="question-mark">?</span>),
         })
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(MetricUnit, <span class="string">&quot;a metric unit string&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(MetricUnit, <span class="string">"a metric unit string"</span>);
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>MetricUnit {
     <span class="kw">fn </span>schema_name() -&gt; String {
         std::any::type_name::&lt;<span class="self">Self</span>&gt;().to_owned()
@@ -513,7 +514,7 @@
     <span class="kw">where
         </span><span class="self">Self</span>: Sized,
     {
-        Value::String(<span class="macro">format!</span>(<span class="string">&quot;{self}&quot;</span>))
+        Value::String(<span class="macro">format!</span>(<span class="string">"{self}"</span>))
     }
 
     <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
@@ -530,36 +531,36 @@
 /// Defaults to `millisecond`.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 </span><span class="kw">pub enum </span>DurationUnit {
-    <span class="doccomment">/// Nanosecond (`&quot;nanosecond&quot;`), 10^-9 seconds.
+    <span class="doccomment">/// Nanosecond (`"nanosecond"`), 10^-9 seconds.
     </span>NanoSecond,
-    <span class="doccomment">/// Microsecond (`&quot;microsecond&quot;`), 10^-6 seconds.
+    <span class="doccomment">/// Microsecond (`"microsecond"`), 10^-6 seconds.
     </span>MicroSecond,
-    <span class="doccomment">/// Millisecond (`&quot;millisecond&quot;`), 10^-3 seconds.
+    <span class="doccomment">/// Millisecond (`"millisecond"`), 10^-3 seconds.
     </span>MilliSecond,
-    <span class="doccomment">/// Full second (`&quot;second&quot;`).
+    <span class="doccomment">/// Full second (`"second"`).
     </span>Second,
-    <span class="doccomment">/// Minute (`&quot;minute&quot;`), 60 seconds.
+    <span class="doccomment">/// Minute (`"minute"`), 60 seconds.
     </span>Minute,
-    <span class="doccomment">/// Hour (`&quot;hour&quot;`), 3600 seconds.
+    <span class="doccomment">/// Hour (`"hour"`), 3600 seconds.
     </span>Hour,
-    <span class="doccomment">/// Day (`&quot;day&quot;`), 86,400 seconds.
+    <span class="doccomment">/// Day (`"day"`), 86,400 seconds.
     </span>Day,
-    <span class="doccomment">/// Week (`&quot;week&quot;`), 604,800 seconds.
+    <span class="doccomment">/// Week (`"week"`), 604,800 seconds.
     </span>Week,
 }
 
 <span class="kw">impl </span>DurationUnit {
     <span class="doccomment">/// Returns the string representation for this duration unit.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::NanoSecond =&gt; <span class="string">&quot;nanosecond&quot;</span>,
-            <span class="self">Self</span>::MicroSecond =&gt; <span class="string">&quot;microsecond&quot;</span>,
-            <span class="self">Self</span>::MilliSecond =&gt; <span class="string">&quot;millisecond&quot;</span>,
-            <span class="self">Self</span>::Second =&gt; <span class="string">&quot;second&quot;</span>,
-            <span class="self">Self</span>::Minute =&gt; <span class="string">&quot;minute&quot;</span>,
-            <span class="self">Self</span>::Hour =&gt; <span class="string">&quot;hour&quot;</span>,
-            <span class="self">Self</span>::Day =&gt; <span class="string">&quot;day&quot;</span>,
-            <span class="self">Self</span>::Week =&gt; <span class="string">&quot;week&quot;</span>,
+            <span class="self">Self</span>::NanoSecond =&gt; <span class="string">"nanosecond"</span>,
+            <span class="self">Self</span>::MicroSecond =&gt; <span class="string">"microsecond"</span>,
+            <span class="self">Self</span>::MilliSecond =&gt; <span class="string">"millisecond"</span>,
+            <span class="self">Self</span>::Second =&gt; <span class="string">"second"</span>,
+            <span class="self">Self</span>::Minute =&gt; <span class="string">"minute"</span>,
+            <span class="self">Self</span>::Hour =&gt; <span class="string">"hour"</span>,
+            <span class="self">Self</span>::Day =&gt; <span class="string">"day"</span>,
+            <span class="self">Self</span>::Week =&gt; <span class="string">"week"</span>,
         }
     }
 }
@@ -571,7 +572,7 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>DurationUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -586,56 +587,56 @@
 /// information](https://en.wikipedia.org/wiki/Units_of_information).
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 </span><span class="kw">pub enum </span>InformationUnit {
-    <span class="doccomment">/// Bit (`&quot;bit&quot;`), corresponding to 1/8 of a byte.
+    <span class="doccomment">/// Bit (`"bit"`), corresponding to 1/8 of a byte.
     ///
     /// Note that there are computer systems with a different number of bits per byte.
     </span>Bit,
-    <span class="doccomment">/// Byte (`&quot;byte&quot;`).
+    <span class="doccomment">/// Byte (`"byte"`).
     </span>Byte,
-    <span class="doccomment">/// Kilobyte (`&quot;kilobyte&quot;`), 10^3 bytes.
+    <span class="doccomment">/// Kilobyte (`"kilobyte"`), 10^3 bytes.
     </span>KiloByte,
-    <span class="doccomment">/// Kibibyte (`&quot;kibibyte&quot;`), 2^10 bytes.
+    <span class="doccomment">/// Kibibyte (`"kibibyte"`), 2^10 bytes.
     </span>KibiByte,
-    <span class="doccomment">/// Megabyte (`&quot;megabyte&quot;`), 10^6 bytes.
+    <span class="doccomment">/// Megabyte (`"megabyte"`), 10^6 bytes.
     </span>MegaByte,
-    <span class="doccomment">/// Mebibyte (`&quot;mebibyte&quot;`), 2^20 bytes.
+    <span class="doccomment">/// Mebibyte (`"mebibyte"`), 2^20 bytes.
     </span>MebiByte,
-    <span class="doccomment">/// Gigabyte (`&quot;gigabyte&quot;`), 10^9 bytes.
+    <span class="doccomment">/// Gigabyte (`"gigabyte"`), 10^9 bytes.
     </span>GigaByte,
-    <span class="doccomment">/// Gibibyte (`&quot;gibibyte&quot;`), 2^30 bytes.
+    <span class="doccomment">/// Gibibyte (`"gibibyte"`), 2^30 bytes.
     </span>GibiByte,
-    <span class="doccomment">/// Terabyte (`&quot;terabyte&quot;`), 10^12 bytes.
+    <span class="doccomment">/// Terabyte (`"terabyte"`), 10^12 bytes.
     </span>TeraByte,
-    <span class="doccomment">/// Tebibyte (`&quot;tebibyte&quot;`), 2^40 bytes.
+    <span class="doccomment">/// Tebibyte (`"tebibyte"`), 2^40 bytes.
     </span>TebiByte,
-    <span class="doccomment">/// Petabyte (`&quot;petabyte&quot;`), 10^15 bytes.
+    <span class="doccomment">/// Petabyte (`"petabyte"`), 10^15 bytes.
     </span>PetaByte,
-    <span class="doccomment">/// Pebibyte (`&quot;pebibyte&quot;`), 2^50 bytes.
+    <span class="doccomment">/// Pebibyte (`"pebibyte"`), 2^50 bytes.
     </span>PebiByte,
-    <span class="doccomment">/// Exabyte (`&quot;exabyte&quot;`), 10^18 bytes.
+    <span class="doccomment">/// Exabyte (`"exabyte"`), 10^18 bytes.
     </span>ExaByte,
-    <span class="doccomment">/// Exbibyte (`&quot;exbibyte&quot;`), 2^60 bytes.
+    <span class="doccomment">/// Exbibyte (`"exbibyte"`), 2^60 bytes.
     </span>ExbiByte,
 }
 
 <span class="kw">impl </span>InformationUnit {
     <span class="doccomment">/// Returns the string representation for this information unit.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Bit =&gt; <span class="string">&quot;bit&quot;</span>,
-            <span class="self">Self</span>::Byte =&gt; <span class="string">&quot;byte&quot;</span>,
-            <span class="self">Self</span>::KiloByte =&gt; <span class="string">&quot;kilobyte&quot;</span>,
-            <span class="self">Self</span>::KibiByte =&gt; <span class="string">&quot;kibibyte&quot;</span>,
-            <span class="self">Self</span>::MegaByte =&gt; <span class="string">&quot;megabyte&quot;</span>,
-            <span class="self">Self</span>::MebiByte =&gt; <span class="string">&quot;mebibyte&quot;</span>,
-            <span class="self">Self</span>::GigaByte =&gt; <span class="string">&quot;gigabyte&quot;</span>,
-            <span class="self">Self</span>::GibiByte =&gt; <span class="string">&quot;gibibyte&quot;</span>,
-            <span class="self">Self</span>::TeraByte =&gt; <span class="string">&quot;terabyte&quot;</span>,
-            <span class="self">Self</span>::TebiByte =&gt; <span class="string">&quot;tebibyte&quot;</span>,
-            <span class="self">Self</span>::PetaByte =&gt; <span class="string">&quot;petabyte&quot;</span>,
-            <span class="self">Self</span>::PebiByte =&gt; <span class="string">&quot;pebibyte&quot;</span>,
-            <span class="self">Self</span>::ExaByte =&gt; <span class="string">&quot;exabyte&quot;</span>,
-            <span class="self">Self</span>::ExbiByte =&gt; <span class="string">&quot;exbibyte&quot;</span>,
+            <span class="self">Self</span>::Bit =&gt; <span class="string">"bit"</span>,
+            <span class="self">Self</span>::Byte =&gt; <span class="string">"byte"</span>,
+            <span class="self">Self</span>::KiloByte =&gt; <span class="string">"kilobyte"</span>,
+            <span class="self">Self</span>::KibiByte =&gt; <span class="string">"kibibyte"</span>,
+            <span class="self">Self</span>::MegaByte =&gt; <span class="string">"megabyte"</span>,
+            <span class="self">Self</span>::MebiByte =&gt; <span class="string">"mebibyte"</span>,
+            <span class="self">Self</span>::GigaByte =&gt; <span class="string">"gigabyte"</span>,
+            <span class="self">Self</span>::GibiByte =&gt; <span class="string">"gibibyte"</span>,
+            <span class="self">Self</span>::TeraByte =&gt; <span class="string">"terabyte"</span>,
+            <span class="self">Self</span>::TebiByte =&gt; <span class="string">"tebibyte"</span>,
+            <span class="self">Self</span>::PetaByte =&gt; <span class="string">"petabyte"</span>,
+            <span class="self">Self</span>::PebiByte =&gt; <span class="string">"pebibyte"</span>,
+            <span class="self">Self</span>::ExaByte =&gt; <span class="string">"exabyte"</span>,
+            <span class="self">Self</span>::ExbiByte =&gt; <span class="string">"exbibyte"</span>,
         }
     }
 }
@@ -647,7 +648,7 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>InformationUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -665,10 +666,10 @@
 
 <span class="kw">impl </span>FractionUnit {
     <span class="doccomment">/// Returns the string representation for this fraction unit.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Ratio =&gt; <span class="string">&quot;ratio&quot;</span>,
-            <span class="self">Self</span>::Percent =&gt; <span class="string">&quot;percent&quot;</span>,
+            <span class="self">Self</span>::Ratio =&gt; <span class="string">"ratio"</span>,
+            <span class="self">Self</span>::Percent =&gt; <span class="string">"percent"</span>,
         }
     }
 }
@@ -680,7 +681,7 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>FractionUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -710,18 +711,18 @@
     </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="comment">// Safety: The string is already validated to be valid ASCII when
         // parsing `CustomUnit`.
-        </span><span class="kw">unsafe </span>{ std::str::from_utf8_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).trim_end_matches(<span class="string">&#39;\0&#39;</span>) }
+        </span><span class="kw">unsafe </span>{ std::str::from_utf8_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).trim_end_matches(<span class="string">'\0'</span>) }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CustomUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="self">self</span>.as_str().fmt(f)
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>CustomUnit {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="self">self</span>.as_str().fmt(f)
     }
 }
@@ -748,12 +749,12 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_custom_unit_parse() {
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;foo&quot;</span>, CustomUnit::parse(<span class="string">&quot;Foo&quot;</span>).unwrap().as_str());
+        <span class="macro">assert_eq!</span>(<span class="string">"foo"</span>, CustomUnit::parse(<span class="string">"Foo"</span>).unwrap().as_str());
         <span class="macro">assert_eq!</span>(
-            <span class="string">&quot;0123456789abcde&quot;</span>,
-            CustomUnit::parse(<span class="string">&quot;0123456789abcde&quot;</span>).unwrap().as_str()
+            <span class="string">"0123456789abcde"</span>,
+            CustomUnit::parse(<span class="string">"0123456789abcde"</span>).unwrap().as_str()
         );
-        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">&quot;this_is_a_unit_that_is_too_long&quot;</span>).is_err());
+        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"this_is_a_unit_that_is_too_long"</span>).is_err());
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cardinality/src/redis/script.rs`."><title>script.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_cardinality" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_cardinality/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cardinality"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cardinality/src/redis/script.rs`."><title>script.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_cardinality" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_cardinality/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cardinality"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -230,7 +231,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(seq) = v.as_sequence() <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(redis::RedisError::from((
                 redis::ErrorKind::TypeError,
-                <span class="string">&quot;Expected a sequence from the cardinality script&quot;</span>,
+                <span class="string">"Expected a sequence from the cardinality script"</span>,
             )));
         };
 
@@ -241,7 +242,7 @@
             .ok_or_else(|| {
                 redis::RedisError::from((
                     redis::ErrorKind::TypeError,
-                    <span class="string">&quot;Expected cardinality as the first result from the cardinality script&quot;</span>,
+                    <span class="string">"Expected cardinality as the first result from the cardinality script"</span>,
                 ))
             })
             .and_then(FromRedisValue::from_redis_value)<span class="question-mark">?</span>;
@@ -260,7 +261,7 @@
 
 <span class="kw">impl </span>CardinalityScript {
     <span class="kw">pub fn </span>load() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(Script::new(<span class="macro">include_str!</span>(<span class="string">&quot;cardinality.lua&quot;</span>)))
+        <span class="self">Self</span>(Script::new(<span class="macro">include_str!</span>(<span class="string">"cardinality.lua"</span>)))
     }
 
     <span class="kw">pub fn </span>invoke(
@@ -293,9 +294,9 @@
         <span class="kw">if </span>num_hashes != result.statuses.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(relay_redis::RedisError::Redis(redis::RedisError::from((
                 redis::ErrorKind::ResponseError,
-                <span class="string">&quot;Script returned an invalid number of elements&quot;</span>,
+                <span class="string">"Script returned an invalid number of elements"</span>,
                 <span class="macro">format!</span>(
-                    <span class="string">&quot;Expected {num_hashes} results, got {}&quot;</span>,
+                    <span class="string">"Expected {num_hashes} results, got {}"</span>,
                     result.statuses.len()
                 ),
             )))
@@ -314,8 +315,8 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>build_redis() -&gt; RedisPool {
-        <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
-            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
+        <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
+            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
         <span class="kw">let </span>opts = RedisConfigOptions {
             max_connections: <span class="number">1</span>,
@@ -326,24 +327,24 @@
 
     <span class="kw">fn </span>keys(prefix: Uuid, keys: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; {
         keys.iter()
-            .map(<span class="kw">move </span>|key| <span class="macro">format!</span>(<span class="string">&quot;{prefix}-{key}&quot;</span>))
+            .map(<span class="kw">move </span>|key| <span class="macro">format!</span>(<span class="string">"{prefix}-{key}"</span>))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
             .into_iter()
     }
 
     <span class="kw">fn </span>assert_ttls(connection: <span class="kw-2">&amp;mut </span>Connection, prefix: Uuid) {
-        <span class="kw">let </span>keys = redis::cmd(<span class="string">&quot;KEYS&quot;</span>)
-            .arg(<span class="macro">format!</span>(<span class="string">&quot;{prefix}-*&quot;</span>))
+        <span class="kw">let </span>keys = redis::cmd(<span class="string">"KEYS"</span>)
+            .arg(<span class="macro">format!</span>(<span class="string">"{prefix}-*"</span>))
             .query::&lt;Vec&lt;String&gt;&gt;(connection)
             .unwrap();
 
         <span class="kw">for </span>key <span class="kw">in </span>keys {
-            <span class="kw">let </span>ttl = redis::cmd(<span class="string">&quot;TTL&quot;</span>)
+            <span class="kw">let </span>ttl = redis::cmd(<span class="string">"TTL"</span>)
                 .arg(<span class="kw-2">&amp;</span>key)
                 .query::&lt;i64&gt;(connection)
                 .unwrap();
 
-            <span class="macro">assert!</span>(ttl &gt;= <span class="number">0</span>, <span class="string">&quot;Key {key} has no TTL&quot;</span>);
+            <span class="macro">assert!</span>(ttl &gt;= <span class="number">0</span>, <span class="string">"Key {key} has no TTL"</span>);
         }
     }
 
@@ -356,8 +357,8 @@
         <span class="kw">let </span>script = CardinalityScript::load();
 
         <span class="kw">let </span>prefix = Uuid::new_v4();
-        <span class="kw">let </span>k1 = <span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>];
-        <span class="kw">let </span>k2 = <span class="kw-2">&amp;</span>[<span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>, <span class="string">&quot;d&quot;</span>];
+        <span class="kw">let </span>k1 = <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>];
+        <span class="kw">let </span>k2 = <span class="kw-2">&amp;</span>[<span class="string">"b"</span>, <span class="string">"c"</span>, <span class="string">"d"</span>];
 
         script
             .invoke(<span class="kw-2">&amp;mut </span>connection, <span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, keys(prefix, k1))

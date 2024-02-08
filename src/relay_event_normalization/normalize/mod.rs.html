@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2427,11 +2428,11 @@
 
 <span class="doccomment">/// Defines a builtin measurement.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"is_false"</span>)]
     </span>allow_negative: bool,
 }
 
@@ -2467,10 +2468,10 @@
 
 <span class="doccomment">/// Configuration for measurements normalization.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>MeasurementsConfig {
     <span class="doccomment">/// A list of measurements that are built-in and are not subject to custom measurement limits.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>builtin_measurements: Vec&lt;BuiltinMeasurementKey&gt;,
 
     <span class="doccomment">/// The maximum number of measurements allowed per event that are not known measurements.
@@ -2505,9 +2506,9 @@
     </span><span class="kw">fn </span>get_sdk_info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ClientSdkInfo&gt; {
         <span class="self">self</span>.config.client.as_ref().and_then(|client| {
             client
-                .splitn(<span class="number">2</span>, <span class="string">&#39;/&#39;</span>)
+                .splitn(<span class="number">2</span>, <span class="string">'/'</span>)
                 .collect_tuple()
-                .or_else(|| client.splitn(<span class="number">2</span>, <span class="string">&#39; &#39;</span>).collect_tuple())
+                .or_else(|| client.splitn(<span class="number">2</span>, <span class="string">' '</span>).collect_tuple())
                 .map(|(name, version)| ClientSdkInfo {
                     name: Annotated::new(name.to_owned()),
                     version: Annotated::new(version.to_owned()),
@@ -2539,7 +2540,7 @@
         }
     }
 
-    <span class="doccomment">/// Infers the `EventType` from the event&#39;s interfaces.
+    <span class="doccomment">/// Infers the `EventType` from the event's interfaces.
     </span><span class="kw">fn </span>infer_event_type(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;</span>Event) -&gt; EventType {
         <span class="comment">// The event type may be set explicitly when constructing the event items from specific
         // items. This is DEPRECATED, and each distinct event type may get its own base class. For
@@ -2581,13 +2582,13 @@
 ///
 /// This is done for the affected React Native SDK versions (from 3 to 4.4).
 </span><span class="kw">pub fn </span>normalize_app_start_spans(event: <span class="kw-2">&amp;mut </span>Event) {
-    <span class="kw">if </span>!event.sdk_name().eq(<span class="string">&quot;sentry.javascript.react-native&quot;</span>)
-        || !(event.sdk_version().starts_with(<span class="string">&quot;4.4&quot;</span>)
-            || event.sdk_version().starts_with(<span class="string">&quot;4.3&quot;</span>)
-            || event.sdk_version().starts_with(<span class="string">&quot;4.2&quot;</span>)
-            || event.sdk_version().starts_with(<span class="string">&quot;4.1&quot;</span>)
-            || event.sdk_version().starts_with(<span class="string">&quot;4.0&quot;</span>)
-            || event.sdk_version().starts_with(<span class="string">&#39;3&#39;</span>))
+    <span class="kw">if </span>!event.sdk_name().eq(<span class="string">"sentry.javascript.react-native"</span>)
+        || !(event.sdk_version().starts_with(<span class="string">"4.4"</span>)
+            || event.sdk_version().starts_with(<span class="string">"4.3"</span>)
+            || event.sdk_version().starts_with(<span class="string">"4.2"</span>)
+            || event.sdk_version().starts_with(<span class="string">"4.1"</span>)
+            || event.sdk_version().starts_with(<span class="string">"4.0"</span>)
+            || event.sdk_version().starts_with(<span class="string">'3'</span>))
     {
         <span class="kw">return</span>;
     }
@@ -2596,11 +2597,11 @@
         <span class="kw">for </span>span <span class="kw">in </span>spans {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = span.op.value() {
-                    <span class="kw">if </span>op == <span class="string">&quot;app_start_cold&quot; </span>{
-                        span.op.set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;app.start.cold&quot;</span>.to_string()));
+                    <span class="kw">if </span>op == <span class="string">"app_start_cold" </span>{
+                        span.op.set_value(<span class="prelude-val">Some</span>(<span class="string">"app.start.cold"</span>.to_string()));
                         <span class="kw">break</span>;
-                    } <span class="kw">else if </span>op == <span class="string">&quot;app_start_warm&quot; </span>{
-                        span.op.set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;app.start.warm&quot;</span>.to_string()));
+                    } <span class="kw">else if </span>op == <span class="string">"app_start_warm" </span>{
+                        span.op.set_value(<span class="prelude-val">Some</span>(<span class="string">"app.start.warm"</span>.to_string()));
                         <span class="kw">break</span>;
                     }
                 }
@@ -2651,16 +2652,16 @@
 <span class="doccomment">/// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
 </span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>DynamicMeasurementsConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
-    project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
-    global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
+</span><span class="kw">pub struct </span>DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
+    project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
+    global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; DynamicMeasurementsConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Constructor for [`DynamicMeasurementsConfig`].
     </span><span class="kw">pub fn </span>new(
-        project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
-        global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
+        project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
+        global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
     ) -&gt; <span class="self">Self </span>{
         DynamicMeasurementsConfig { project, global }
     }
@@ -2670,8 +2671,8 @@
     /// Items from the project config are prioritized over global config, and
     /// there are no duplicates.
     </span><span class="kw">pub fn </span>builtin_measurement_keys(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
-    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BuiltinMeasurementKey&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
+    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BuiltinMeasurementKey&gt; + <span class="lifetime">'_ </span>{
         <span class="kw">let </span>project = <span class="self">self
             </span>.project
             .map(|p| p.builtin_measurements.as_slice())
@@ -2689,7 +2690,7 @@
 
     <span class="doccomment">/// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
     /// global level. If both of them are available, it will choose the most restrictive.
-    </span><span class="kw">pub fn </span>max_custom_measurements(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+    </span><span class="kw">pub fn </span>max_custom_measurements(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
         <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.project, <span class="kw-2">&amp;</span><span class="self">self</span>.global) {
             (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">None</span>,
             (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(global)) =&gt; <span class="prelude-val">Some</span>(global.max_custom_measurements),
@@ -2728,12 +2729,12 @@
 /// A profile contains weights for a score of 100% and match against an event using a condition.
 /// eg. Desktop vs. Mobile(web) profiles for better web vital score calculation.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>PerformanceScoreProfile {
     <span class="doccomment">/// Name of the profile, used for debugging and faceting multiple profiles
     </span><span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Score components
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>score_components: Vec&lt;PerformanceScoreWeightedComponent&gt;,
     <span class="doccomment">/// See [`RuleCondition`] for all available options to specify and combine conditions.
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
@@ -2746,7 +2747,7 @@
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>PerformanceScoreConfig {
     <span class="doccomment">/// List of performance profiles, only the first with matching conditions will be applied.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>profiles: Vec&lt;PerformanceScoreProfile&gt;,
 }
 
@@ -2755,7 +2756,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         event: <span class="kw-2">&amp;mut </span>Event,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
@@ -2785,7 +2786,7 @@
         <span class="comment">// Default required attributes, even if they have errors
         </span>event.errors.get_or_insert_with(Vec::new);
         event.id.get_or_insert_with(EventId::new);
-        event.platform.get_or_insert_with(|| <span class="string">&quot;other&quot;</span>.to_string());
+        event.platform.get_or_insert_with(|| <span class="string">"other"</span>.to_string());
         event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);
         event.level.get_or_insert_with(|| <span class="kw">match </span>event_type {
@@ -2796,7 +2797,7 @@
             event.client_sdk.set_value(<span class="self">self</span>.get_sdk_info());
         }
 
-        <span class="kw">if </span>event.platform.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;java&quot;</span>) {
+        <span class="kw">if </span>event.platform.as_str() == <span class="prelude-val">Some</span>(<span class="string">"java"</span>) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(event_logger) = event.logger.value_mut().take() {
                 <span class="kw">let </span>shortened = shorten_logger(event_logger, meta);
                 event.logger.set_value(<span class="prelude-val">Some</span>(shortened));
@@ -2815,12 +2816,12 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         breadcrumb: <span class="kw-2">&amp;mut </span>Breadcrumb,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         breadcrumb.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;default&quot;</span>.to_string()));
+            breadcrumb.ty.set_value(<span class="prelude-val">Some</span>(<span class="string">"default"</span>.to_string()));
         }
 
         <span class="kw">if </span>breadcrumb.level.value().is_none() {
@@ -2834,11 +2835,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         image: <span class="kw-2">&amp;mut </span>DebugImage,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">match </span>image {
             DebugImage::Other(<span class="kw">_</span>) =&gt; {
-                meta.add_error(Error::invalid(<span class="string">&quot;unsupported debug image type&quot;</span>));
+                meta.add_error(Error::invalid(<span class="string">"unsupported debug image type"</span>));
                 <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
@@ -2849,12 +2850,12 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         exception: <span class="kw-2">&amp;mut </span>Exception,
         meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         exception.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
         <span class="kw">static </span>TYPE_VALUE_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
-        <span class="kw">let </span>regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(<span class="string">r&quot;^(\w+):(.*)$&quot;</span>).unwrap());
+        <span class="kw">let </span>regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(<span class="string">r"^(\w+):(.*)$"</span>).unwrap());
 
         <span class="kw">if </span>exception.ty.value().is_empty() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(value_str) = exception.value.value_mut() {
@@ -2871,7 +2872,7 @@
 
         <span class="kw">if </span>exception.ty.value().is_empty() &amp;&amp; exception.value.value().is_empty() {
             meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
-                error.insert(<span class="string">&quot;attribute&quot;</span>, <span class="string">&quot;type or value&quot;</span>);
+                error.insert(<span class="string">"attribute"</span>, <span class="string">"type or value"</span>);
             }));
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
         }
@@ -2883,15 +2884,15 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         frame: <span class="kw-2">&amp;mut </span>Frame,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         frame.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
-        <span class="kw">if </span>frame.function.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;?&quot;</span>) {
+        <span class="kw">if </span>frame.function.as_str() == <span class="prelude-val">Some</span>(<span class="string">"?"</span>) {
             frame.function.set_value(<span class="prelude-val">None</span>);
         }
 
-        <span class="kw">if </span>frame.symbol.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;?&quot;</span>) {
+        <span class="kw">if </span>frame.symbol.as_str() == <span class="prelude-val">Some</span>(<span class="string">"?"</span>) {
             frame.symbol.set_value(<span class="prelude-val">None</span>);
         }
 
@@ -2921,7 +2922,7 @@
 /// a shortened version of the logger. If not, the same logger is returned as a
 /// String. The resulting logger is always trimmed.
 ///
-/// To shorten the logger, all extra chars that don&#39;t fit into the maximum limit
+/// To shorten the logger, all extra chars that don't fit into the maximum limit
 /// are removed, from the beginning of the logger.  Then, if the remaining
 /// substring contains a `.` somewhere but in the end, all chars until `.`
 /// (exclusive) are removed.
@@ -2939,13 +2940,13 @@
             <span class="kw">if </span>trimmed.is_empty() {
                 meta.add_remark(Remark {
                     ty: RemarkType::Removed,
-                    rule_id: <span class="string">&quot;@logger:remove&quot;</span>.to_owned(),
+                    rule_id: <span class="string">"@logger:remove"</span>.to_owned(),
                     range: <span class="prelude-val">Some</span>((<span class="number">0</span>, original_len)),
                 });
             } <span class="kw">else </span>{
                 meta.add_remark(Remark {
                     ty: RemarkType::Substituted,
-                    rule_id: <span class="string">&quot;@logger:trim&quot;</span>.to_owned(),
+                    rule_id: <span class="string">"@logger:trim"</span>.to_owned(),
                     range: <span class="prelude-val">None</span>,
                 });
             }
@@ -2954,7 +2955,7 @@
         };
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>tokens = trimmed.split(<span class="string">&quot;&quot;</span>).collect_vec();
+    <span class="kw">let </span><span class="kw-2">mut </span>tokens = trimmed.split(<span class="string">""</span>).collect_vec();
     <span class="comment">// Remove empty str tokens from the beginning and end.
     </span>tokens.pop();
     tokens.reverse(); <span class="comment">// Prioritize chars from the end of the string.
@@ -2968,28 +2969,28 @@
     tokens.reverse();
     meta.add_remark(Remark {
         ty: RemarkType::Substituted,
-        rule_id: <span class="string">&quot;@logger:replace&quot;</span>.to_owned(),
+        rule_id: <span class="string">"@logger:replace"</span>.to_owned(),
         range: <span class="prelude-val">Some</span>((<span class="number">0</span>, logger_len - tokens.len())),
     });
     meta.set_original_length(<span class="prelude-val">Some</span>(original_len));
 
-    <span class="macro">format!</span>(<span class="string">&quot;*{}&quot;</span>, tokens.join(<span class="string">&quot;&quot;</span>))
+    <span class="macro">format!</span>(<span class="string">"*{}"</span>, tokens.join(<span class="string">""</span>))
 }
 
 <span class="doccomment">/// Remove as many tokens as needed to match the maximum char limit defined in
 /// [`MaxChars::Logger`], and an extra token for the logger prefix. Returns
 /// whether a word has been cut.
 ///
-/// A word is considered any non-empty substring that doesn&#39;t contain a `.`.
+/// A word is considered any non-empty substring that doesn't contain a `.`.
 </span><span class="kw">fn </span>remove_logger_extra_chars(tokens: <span class="kw-2">&amp;mut </span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
     <span class="comment">// Leave one slot of space for the prefix
     </span><span class="kw">let </span><span class="kw-2">mut </span>remove_chars = tokens.len() - MaxChars::Logger.limit() + <span class="number">1</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>word_cut = <span class="bool-val">false</span>;
     <span class="kw">while </span>remove_chars &gt; <span class="number">0 </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(c) = tokens.pop() {
-            <span class="kw">if </span>!word_cut &amp;&amp; c != <span class="string">&quot;.&quot; </span>{
+            <span class="kw">if </span>!word_cut &amp;&amp; c != <span class="string">"." </span>{
                 word_cut = <span class="bool-val">true</span>;
-            } <span class="kw">else if </span>word_cut &amp;&amp; c == <span class="string">&quot;.&quot; </span>{
+            } <span class="kw">else if </span>word_cut &amp;&amp; c == <span class="string">"." </span>{
                 word_cut = <span class="bool-val">false</span>;
             }
         }
@@ -2999,11 +3000,11 @@
 }
 
 <span class="doccomment">/// If the `.` token is present, removes all tokens from the end of the vector
-/// until `.`. If it isn&#39;t present, nothing is removed.
+/// until `.`. If it isn't present, nothing is removed.
 </span><span class="kw">fn </span>remove_logger_word(tokens: <span class="kw-2">&amp;mut </span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;) {
     <span class="kw">let </span><span class="kw-2">mut </span>delimiter_found = <span class="bool-val">false</span>;
     <span class="kw">for </span>token <span class="kw">in </span>tokens.iter() {
-        <span class="kw">if </span><span class="kw-2">*</span>token == <span class="string">&quot;.&quot; </span>{
+        <span class="kw">if </span><span class="kw-2">*</span>token == <span class="string">"." </span>{
             delimiter_found = <span class="bool-val">true</span>;
             <span class="kw">break</span>;
         }
@@ -3012,7 +3013,7 @@
         <span class="kw">return</span>;
     }
     <span class="kw">while let </span><span class="prelude-val">Some</span>(i) = tokens.last() {
-        <span class="kw">if </span><span class="kw-2">*</span>i == <span class="string">&quot;.&quot; </span>{
+        <span class="kw">if </span><span class="kw-2">*</span>i == <span class="string">"." </span>{
             <span class="kw">break</span>;
         }
         tokens.pop();
@@ -3053,9 +3054,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_merge_builtin_measurement_keys() {
-        <span class="kw">let </span>foo = BuiltinMeasurementKey::new(<span class="string">&quot;foo&quot;</span>, MetricUnit::Duration(DurationUnit::Hour));
-        <span class="kw">let </span>bar = BuiltinMeasurementKey::new(<span class="string">&quot;bar&quot;</span>, MetricUnit::Duration(DurationUnit::Day));
-        <span class="kw">let </span>baz = BuiltinMeasurementKey::new(<span class="string">&quot;baz&quot;</span>, MetricUnit::Duration(DurationUnit::Week));
+        <span class="kw">let </span>foo = BuiltinMeasurementKey::new(<span class="string">"foo"</span>, MetricUnit::Duration(DurationUnit::Hour));
+        <span class="kw">let </span>bar = BuiltinMeasurementKey::new(<span class="string">"bar"</span>, MetricUnit::Duration(DurationUnit::Day));
+        <span class="kw">let </span>baz = BuiltinMeasurementKey::new(<span class="string">"baz"</span>, MetricUnit::Duration(DurationUnit::Week));
 
         <span class="kw">let </span>proj = MeasurementsConfig {
             builtin_measurements: <span class="macro">vec!</span>[foo.clone(), bar.clone()],
@@ -3063,7 +3064,7 @@
         };
 
         <span class="kw">let </span>glob = MeasurementsConfig {
-            <span class="comment">// The &#39;bar&#39; here will be ignored since it&#39;s a duplicate from the project level.
+            <span class="comment">// The 'bar' here will be ignored since it's a duplicate from the project level.
             </span>builtin_measurements: <span class="macro">vec!</span>[baz.clone(), bar.clone()],
             max_custom_measurements: <span class="number">4</span>,
         };
@@ -3108,24 +3109,24 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
 
         <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-            value: Annotated::new(<span class="string">&quot;ValueError: unauthorized&quot;</span>.to_string().into()),
+            value: Annotated::new(<span class="string">"ValueError: unauthorized"</span>.to_string().into()),
             ..Exception::default()
         });
 
         process_value(<span class="kw-2">&amp;mut </span>exception, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
         <span class="kw">let </span>exception = exception.value().unwrap();
-        <span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;unauthorized&quot;</span>));
-        <span class="macro">assert_eq!</span>(exception.ty.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;ValueError&quot;</span>));
+        <span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">"unauthorized"</span>));
+        <span class="macro">assert_eq!</span>(exception.ty.as_str(), <span class="prelude-val">Some</span>(<span class="string">"ValueError"</span>));
 
         <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-            value: Annotated::new(<span class="string">&quot;ValueError:unauthorized&quot;</span>.to_string().into()),
+            value: Annotated::new(<span class="string">"ValueError:unauthorized"</span>.to_string().into()),
             ..Exception::default()
         });
 
         process_value(<span class="kw-2">&amp;mut </span>exception, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
         <span class="kw">let </span>exception = exception.value().unwrap();
-        <span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;unauthorized&quot;</span>));
-        <span class="macro">assert_eq!</span>(exception.ty.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;ValueError&quot;</span>));
+        <span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">"unauthorized"</span>));
+        <span class="macro">assert_eq!</span>(exception.ty.as_str(), <span class="prelude-val">Some</span>(<span class="string">"ValueError"</span>));
     }
 
     <span class="attr">#[test]
@@ -3133,8 +3134,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()));
 
         <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-            value: Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
-            ty: Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+            value: Annotated::new(<span class="string">""</span>.to_string().into()),
+            ty: Annotated::new(<span class="string">""</span>.to_string()),
             ..Default::default()
         });
 
@@ -3148,14 +3149,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
 
         <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-            value: Annotated::new(<span class="string">r#&quot;{&quot;unauthorized&quot;:true}&quot;#</span>.to_string().into()),
+            value: Annotated::new(<span class="string">r#"{"unauthorized":true}"#</span>.to_string().into()),
             ..Exception::default()
         });
         process_value(<span class="kw-2">&amp;mut </span>exception, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
         <span class="kw">let </span>exception = exception.value().unwrap();
 
-        <span class="comment">// Don&#39;t split a json-serialized value on the colon
-        </span><span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">r#&quot;{&quot;unauthorized&quot;:true}&quot;#</span>));
+        <span class="comment">// Don't split a json-serialized value on the colon
+        </span><span class="macro">assert_eq!</span>(exception.value.as_str(), <span class="prelude-val">Some</span>(<span class="string">r#"{"unauthorized":true}"#</span>));
         <span class="macro">assert_eq!</span>(exception.ty.value(), <span class="prelude-val">None</span>);
     }
 
@@ -3167,7 +3168,7 @@
         process_value(<span class="kw-2">&amp;mut </span>exception, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>expected = Error::with(ErrorKind::MissingAttribute, |error| {
-            error.insert(<span class="string">&quot;attribute&quot;</span>, <span class="string">&quot;type or value&quot;</span>);
+            error.insert(<span class="string">"attribute"</span>, <span class="string">"type or value"</span>);
         });
 
         <span class="macro">assert_eq!</span>(
@@ -3178,13 +3179,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_geo_from_ip_address() {
-        <span class="kw">let </span>lookup = GeoIpLookup::open(<span class="string">&quot;tests/fixtures/GeoIP2-Enterprise-Test.mmdb&quot;</span>).unwrap();
+        <span class="kw">let </span>lookup = GeoIpLookup::open(<span class="string">"tests/fixtures/GeoIP2-Enterprise-Test.mmdb"</span>).unwrap();
 
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;user&quot;: {
-                &quot;ip_address&quot;: &quot;2.125.160.216&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "user": {
+                "ip_address": "2.125.160.216"
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         normalize_event(
@@ -3196,10 +3197,10 @@
         );
 
         <span class="kw">let </span>expected = Annotated::new(Geo {
-            country_code: Annotated::new(<span class="string">&quot;GB&quot;</span>.to_string()),
-            city: Annotated::new(<span class="string">&quot;Boxford&quot;</span>.to_string()),
-            subdivision: Annotated::new(<span class="string">&quot;England&quot;</span>.to_string()),
-            region: Annotated::new(<span class="string">&quot;United Kingdom&quot;</span>.to_string()),
+            country_code: Annotated::new(<span class="string">"GB"</span>.to_string()),
+            city: Annotated::new(<span class="string">"Boxford"</span>.to_string()),
+            subdivision: Annotated::new(<span class="string">"England"</span>.to_string()),
+            region: Annotated::new(<span class="string">"United Kingdom"</span>.to_string()),
             ..Geo::default()
         });
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">user!</span>).geo, expected);
@@ -3212,14 +3213,14 @@
                 env: Annotated::new({
                     <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                     map.insert(
-                        <span class="string">&quot;REMOTE_ADDR&quot;</span>.to_string(),
-                        Annotated::new(Value::String(<span class="string">&quot;2.125.160.216&quot;</span>.to_string())),
+                        <span class="string">"REMOTE_ADDR"</span>.to_string(),
+                        Annotated::new(Value::String(<span class="string">"2.125.160.216"</span>.to_string())),
                     );
                     map
                 }),
                 ..Request::default()
             }),
-            platform: Annotated::new(<span class="string">&quot;javascript&quot;</span>.to_owned()),
+            platform: Annotated::new(<span class="string">"javascript"</span>.to_owned()),
             ..Event::default()
         });
 
@@ -3230,7 +3231,7 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
-        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">&quot;2.125.160.216&quot;</span>.to_string()));
+        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_string()));
     }
 
     <span class="attr">#[test]
@@ -3240,14 +3241,14 @@
                 env: Annotated::new({
                     <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                     map.insert(
-                        <span class="string">&quot;REMOTE_ADDR&quot;</span>.to_string(),
-                        Annotated::new(Value::String(<span class="string">&quot;whoops&quot;</span>.to_string())),
+                        <span class="string">"REMOTE_ADDR"</span>.to_string(),
+                        Annotated::new(Value::String(<span class="string">"whoops"</span>.to_string())),
                     );
                     map
                 }),
                 ..Request::default()
             }),
-            platform: Annotated::new(<span class="string">&quot;javascript&quot;</span>.to_owned()),
+            platform: Annotated::new(<span class="string">"javascript"</span>.to_owned()),
             ..Event::default()
         });
 
@@ -3262,11 +3263,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_user_ip_from_client_ip_without_auto() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            platform: Annotated::new(<span class="string">&quot;javascript&quot;</span>.to_owned()),
+            platform: Annotated::new(<span class="string">"javascript"</span>.to_owned()),
             ..Default::default()
         });
 
-        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">&quot;2.125.160.216&quot;</span>).unwrap();
+        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">"2.125.160.216"</span>).unwrap();
         <span class="kw">let </span>config = StoreConfig {
             client_ip: <span class="prelude-val">Some</span>(ip_address.clone()),
             ..StoreConfig::default()
@@ -3283,7 +3284,7 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
-        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">&quot;2.125.160.216&quot;</span>.to_string()));
+        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_string()));
     }
 
     <span class="attr">#[test]
@@ -3296,9 +3297,9 @@
             ..Default::default()
         });
 
-        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">&quot;2.125.160.216&quot;</span>).unwrap();
+        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">"2.125.160.216"</span>).unwrap();
 
-        <span class="kw">let </span>geo = GeoIpLookup::open(<span class="string">&quot;tests/fixtures/GeoIP2-Enterprise-Test.mmdb&quot;</span>).unwrap();
+        <span class="kw">let </span>geo = GeoIpLookup::open(<span class="string">"tests/fixtures/GeoIP2-Enterprise-Test.mmdb"</span>).unwrap();
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
@@ -3309,9 +3310,9 @@
         );
 
         <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
-        <span class="kw">let </span>ip_addr = user.ip_address.value().expect(<span class="string">&quot;ip address missing&quot;</span>);
+        <span class="kw">let </span>ip_addr = user.ip_address.value().expect(<span class="string">"ip address missing"</span>);
 
-        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">&quot;2.125.160.216&quot;</span>.to_string()));
+        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_string()));
         <span class="macro">assert!</span>(user.geo.value().is_some());
     }
 
@@ -3319,8 +3320,8 @@
     </span><span class="kw">fn </span>test_user_ip_from_client_ip_without_appropriate_platform() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
 
-        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">&quot;2.125.160.216&quot;</span>).unwrap();
-        <span class="kw">let </span>geo = GeoIpLookup::open(<span class="string">&quot;tests/fixtures/GeoIP2-Enterprise-Test.mmdb&quot;</span>).unwrap();
+        <span class="kw">let </span>ip_address = IpAddr::parse(<span class="string">"2.125.160.216"</span>).unwrap();
+        <span class="kw">let </span>geo = GeoIpLookup::open(<span class="string">"tests/fixtures/GeoIP2-Enterprise-Test.mmdb"</span>).unwrap();
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
@@ -3356,9 +3357,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -3374,8 +3375,8 @@
     </span><span class="kw">fn </span>test_environment_tag_is_moved() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;environment&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;despacito&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"environment"</span>.to_string()),
+                Annotated::new(<span class="string">"despacito"</span>.to_string()),
             ))]))),
             ..Event::default()
         });
@@ -3386,7 +3387,7 @@
 
         <span class="kw">let </span>event = event.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(event.environment.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;despacito&quot;</span>));
+        <span class="macro">assert_eq!</span>(event.environment.as_str(), <span class="prelude-val">Some</span>(<span class="string">"despacito"</span>));
         <span class="macro">assert_eq!</span>(event.tags.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Tags(<span class="macro">vec!</span>[].into())));
     }
 
@@ -3394,10 +3395,10 @@
     </span><span class="kw">fn </span>test_empty_environment_is_removed_and_overwritten_with_tag() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;environment&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;despacito&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"environment"</span>.to_string()),
+                Annotated::new(<span class="string">"despacito"</span>.to_string()),
             ))]))),
-            environment: Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+            environment: Annotated::new(<span class="string">""</span>.to_string()),
             ..Event::default()
         });
 
@@ -3407,14 +3408,14 @@
 
         <span class="kw">let </span>event = event.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(event.environment.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;despacito&quot;</span>));
+        <span class="macro">assert_eq!</span>(event.environment.as_str(), <span class="prelude-val">Some</span>(<span class="string">"despacito"</span>));
         <span class="macro">assert_eq!</span>(event.tags.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Tags(<span class="macro">vec!</span>[].into())));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_environment_is_removed() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            environment: Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+            environment: Annotated::new(<span class="string">""</span>.to_string()),
             ..Event::default()
         });
 
@@ -3453,7 +3454,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_none_environment_errors() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            environment: Annotated::new(<span class="string">&quot;none&quot;</span>.to_string()),
+            environment: Annotated::new(<span class="string">"none"</span>.to_string()),
             ..Event::default()
         });
 
@@ -3462,7 +3463,7 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>environment = <span class="macro">get_path!</span>(event.<span class="macro">environment!</span>);
-        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">&quot;none&quot;</span>.to_string());
+        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">"none"</span>.to_string());
 
         <span class="macro">assert_eq!</span>(
             environment.meta().iter_errors().collect::&lt;Vec&lt;<span class="kw-2">&amp;</span>Error&gt;&gt;(),
@@ -3478,7 +3479,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_invalid_release_removed() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            release: Annotated::new(LenientString(<span class="string">&quot;Latest&quot;</span>.to_string())),
+            release: Annotated::new(LenientString(<span class="string">"Latest"</span>.to_string())),
             ..Event::default()
         });
 
@@ -3487,7 +3488,7 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>release = <span class="macro">get_path!</span>(event.<span class="macro">release!</span>);
-        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">&quot;Latest&quot;</span>.to_string());
+        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">"Latest"</span>.to_string());
 
         <span class="macro">assert_eq!</span>(
             release.meta().iter_errors().collect::&lt;Vec&lt;<span class="kw-2">&amp;</span>Error&gt;&gt;(),
@@ -3500,16 +3501,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_top_level_keys_moved_into_tags() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            server_name: Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-            site: Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+            server_name: Annotated::new(<span class="string">"foo"</span>.to_string()),
+            site: Annotated::new(<span class="string">"foo"</span>.to_string()),
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;site&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;old&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"site"</span>.to_string()),
+                    Annotated::new(<span class="string">"old"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;server_name&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;old&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"server_name"</span>.to_string()),
+                    Annotated::new(<span class="string">"old"</span>.to_string()),
                 )),
             ]))),
             ..Event::default()
@@ -3526,12 +3527,12 @@
             <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
             <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;site&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"site"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;server_name&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"server_name"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
             ]))
         );
@@ -3542,28 +3543,28 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;release&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"release"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;dist&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"dist"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;user&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"user"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;filename&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"filename"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;function&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"function"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;something&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"something"</span>.to_string()),
+                    Annotated::new(<span class="string">"else"</span>.to_string()),
                 )),
             ]))),
             ..Event::default()
@@ -3581,16 +3582,16 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">""</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">""</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;something&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"something"</span>.to_string()),
+                    Annotated::new(<span class="string">"else"</span>.to_string()),
                 )),
             ]))),
             ..Event::default()
@@ -3605,15 +3606,15 @@
             <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
                     Annotated::from_error(Error::nonempty(), <span class="prelude-val">None</span>),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
                     Annotated::from_error(Error::nonempty(), <span class="prelude-val">None</span>),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;something&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"something"</span>.to_string()),
+                    Annotated::new(<span class="string">"else"</span>.to_string()),
                 )),
             ]))
         );
@@ -3624,24 +3625,24 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"1"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string()),
+                    Annotated::new(<span class="string">"1"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;2&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"2"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;2&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string()),
+                    Annotated::new(<span class="string">"2"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;3&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"3"</span>.to_string()),
                 )),
             ]))),
             ..Event::default()
@@ -3656,12 +3657,12 @@
             <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
             <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"1"</span>.to_string()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string()),
+                    Annotated::new(<span class="string">"1"</span>.to_string()),
                 )),
             ]))
         );
@@ -3676,7 +3677,7 @@
             ..TraceContext::default()
         };
         object.insert(
-            <span class="string">&quot;trace&quot;</span>.to_string(),
+            <span class="string">"trace"</span>.to_string(),
             Annotated::new(ContextInner(Context::Trace(Box::new(trace_context)))),
         );
 
@@ -3718,7 +3719,7 @@
             <span class="macro">get_path!</span>(event.<span class="macro">debug_meta!</span>),
             <span class="kw-2">&amp;</span>Annotated::new(DebugMeta {
                 images: Annotated::new(<span class="macro">vec!</span>[Annotated::from_error(
-                    Error::invalid(<span class="string">&quot;unsupported debug image type&quot;</span>),
+                    Error::invalid(<span class="string">"unsupported debug image type"</span>),
                     <span class="prelude-val">Some</span>(Value::Object(Object::default())),
                 )]),
                 ..DebugMeta::default()
@@ -3729,9 +3730,9 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_context_line_default() {
         <span class="kw">let </span><span class="kw-2">mut </span>frame = Annotated::new(Frame {
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">&quot;&quot;</span>.to_string())]),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">""</span>.to_string())]),
             post_context: Annotated::new(<span class="macro">vec!</span>[
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+                Annotated::new(<span class="string">""</span>.to_string()),
                 Annotated::default(),
             ]),
             ..Frame::default()
@@ -3741,18 +3742,18 @@
         process_value(<span class="kw-2">&amp;mut </span>frame, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>frame = frame.value().unwrap();
-        <span class="macro">assert_eq!</span>(frame.context_line.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>));
+        <span class="macro">assert_eq!</span>(frame.context_line.as_str(), <span class="prelude-val">Some</span>(<span class="string">""</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_context_line_retain() {
         <span class="kw">let </span><span class="kw-2">mut </span>frame = Annotated::new(Frame {
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">&quot;&quot;</span>.to_string())]),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">""</span>.to_string())]),
             post_context: Annotated::new(<span class="macro">vec!</span>[
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+                Annotated::new(<span class="string">""</span>.to_string()),
                 Annotated::default(),
             ]),
-            context_line: Annotated::new(<span class="string">&quot;some line&quot;</span>.to_string()),
+            context_line: Annotated::new(<span class="string">"some line"</span>.to_string()),
             ..Frame::default()
         });
 
@@ -3760,15 +3761,15 @@
         process_value(<span class="kw-2">&amp;mut </span>frame, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>frame = frame.value().unwrap();
-        <span class="macro">assert_eq!</span>(frame.context_line.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;some line&quot;</span>));
+        <span class="macro">assert_eq!</span>(frame.context_line.as_str(), <span class="prelude-val">Some</span>(<span class="string">"some line"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_null_context_lines() {
         <span class="kw">let </span><span class="kw-2">mut </span>frame = Annotated::new(Frame {
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">&quot;&quot;</span>.to_string())]),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::default(), Annotated::new(<span class="string">""</span>.to_string())]),
             post_context: Annotated::new(<span class="macro">vec!</span>[
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+                Annotated::new(<span class="string">""</span>.to_string()),
                 Annotated::default(),
             ]),
             ..Frame::default()
@@ -3780,15 +3781,15 @@
         <span class="macro">assert_eq!</span>(
             <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.<span class="macro">pre_context!</span>),
             <span class="macro">vec!</span>[
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string())
+                Annotated::new(<span class="string">""</span>.to_string()),
+                Annotated::new(<span class="string">""</span>.to_string())
             ],
         );
         <span class="macro">assert_eq!</span>(
             <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.<span class="macro">post_context!</span>),
             <span class="macro">vec!</span>[
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;&quot;</span>.to_string())
+                Annotated::new(<span class="string">""</span>.to_string()),
+                Annotated::new(<span class="string">""</span>.to_string())
             ],
         );
     }
@@ -3798,11 +3799,11 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(
             <span class="macro">vec!</span>[Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;foobar&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;...........................................................................................................................................................................................................&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"foobar"</span>.to_string()),
+                Annotated::new(<span class="string">"..........................................................................................................................................................................................................."</span>.to_string()),
             )), Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"</span>.to_string()),
+                Annotated::new(<span class="string">"bar"</span>.to_string()),
             ))]),
         )),
         ..Event::default()
@@ -3816,12 +3817,12 @@
             <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
             <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
                 Annotated::new(TagEntry(
-                    Annotated::new(<span class="string">&quot;foobar&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"foobar"</span>.to_string()),
                     Annotated::from_error(Error::new(ErrorKind::ValueTooLong), <span class="prelude-val">None</span>),
                 )),
                 Annotated::new(TagEntry(
                     Annotated::from_error(Error::new(ErrorKind::ValueTooLong), <span class="prelude-val">None</span>),
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string()),
                 )),
             ]))
         );
@@ -3829,14 +3830,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_too_long_distribution() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;fingerprint&quot;: [
-    &quot;{{ default }}&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "fingerprint": [
+    "{{ default }}"
   ],
-  &quot;platform&quot;: &quot;other&quot;,
-  &quot;dist&quot;: &quot;52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059&quot;
-}&quot;#</span>;
+  "platform": "other",
+  "dist": "52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059"
+}"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
@@ -3847,7 +3848,7 @@
         <span class="kw">let </span>dist = <span class="kw-2">&amp;</span>event.value().unwrap().dist;
         <span class="kw">let </span>result = <span class="kw-2">&amp;</span>Annotated::&lt;String&gt;::from_error(
             Error::new(ErrorKind::ValueTooLong),
-            <span class="prelude-val">Some</span>(Value::String(<span class="string">&quot;52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059&quot;</span>.to_string()))
+            <span class="prelude-val">Some</span>(Value::String(<span class="string">"52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059"</span>.to_string()))
         );
         <span class="macro">assert_eq!</span>(dist, result);
     }
@@ -3856,16 +3857,16 @@
     </span><span class="kw">fn </span>test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-                ty: Annotated::new(<span class="string">&quot;FooDivisionError&quot;</span>.to_string()),
-                value: Annotated::new(<span class="string">&quot;hi&quot;</span>.to_string().into()),
+                ty: Annotated::new(<span class="string">"FooDivisionError"</span>.to_string()),
+                value: Annotated::new(<span class="string">"hi"</span>.to_string().into()),
                 ..Exception::default()
             })])),
             stacktrace: Annotated::new(
                 RawStacktrace {
                     frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
-                        module: Annotated::new(<span class="string">&quot;MyModule&quot;</span>.to_string()),
-                        filename: Annotated::new(<span class="string">&quot;MyFilename&quot;</span>.into()),
-                        function: Annotated::new(<span class="string">&quot;Void FooBar()&quot;</span>.to_string()),
+                        module: Annotated::new(<span class="string">"MyModule"</span>.to_string()),
+                        filename: Annotated::new(<span class="string">"MyFilename"</span>.into()),
+                        function: Annotated::new(<span class="string">"Void FooBar()"</span>.to_string()),
                         ..Frame::default()
                     })]),
                     ..RawStacktrace::default()
@@ -3883,10 +3884,10 @@
             <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].<span class="macro">stacktrace!</span>),
             <span class="kw-2">&amp;</span>Stacktrace(RawStacktrace {
                 frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
-                    module: Annotated::new(<span class="string">&quot;MyModule&quot;</span>.to_string()),
-                    filename: Annotated::new(<span class="string">&quot;MyFilename&quot;</span>.into()),
-                    abs_path: Annotated::new(<span class="string">&quot;MyFilename&quot;</span>.into()),
-                    function: Annotated::new(<span class="string">&quot;Void FooBar()&quot;</span>.to_string()),
+                    module: Annotated::new(<span class="string">"MyModule"</span>.to_string()),
+                    filename: Annotated::new(<span class="string">"MyFilename"</span>.into()),
+                    abs_path: Annotated::new(<span class="string">"MyFilename"</span>.into()),
+                    function: Annotated::new(<span class="string">"Void FooBar()"</span>.to_string()),
                     ..Frame::default()
                 })]),
                 ..RawStacktrace::default()
@@ -3898,7 +3899,7 @@
     </span><span class="kw">fn </span>test_parses_sdk_info_from_header() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
-            client: <span class="prelude-val">Some</span>(<span class="string">&quot;_fooBar/0.0.0&quot;</span>.to_string()),
+            client: <span class="prelude-val">Some</span>(<span class="string">"_fooBar/0.0.0"</span>.to_string()),
             ..StoreConfig::default()
         }));
 
@@ -3908,8 +3909,8 @@
         <span class="macro">assert_eq!</span>(
             <span class="macro">get_path!</span>(event.<span class="macro">client_sdk!</span>),
             <span class="kw-2">&amp;</span>Annotated::new(ClientSdkInfo {
-                name: Annotated::new(<span class="string">&quot;_fooBar&quot;</span>.to_string()),
-                version: Annotated::new(<span class="string">&quot;0.0.0&quot;</span>.to_string()),
+                name: Annotated::new(<span class="string">"_fooBar"</span>.to_string()),
+                version: Annotated::new(<span class="string">"0.0.0"</span>.to_string()),
                 ..ClientSdkInfo::default()
             })
         );
@@ -3935,7 +3936,7 @@
     </span><span class="kw">fn </span>test_grouping_config() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             logentry: Annotated::from(LogEntry {
-                message: Annotated::new(<span class="string">&quot;Hello World!&quot;</span>.to_string().into()),
+                message: Annotated::new(<span class="string">"Hello World!"</span>.to_string().into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -3943,7 +3944,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
             grouping_config: <span class="prelude-val">Some</span>(<span class="macro">json!</span>({
-                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;legacy:1234-12-12&quot;</span>.to_string(),
+                <span class="string">"id"</span>: <span class="string">"legacy:1234-12-12"</span>.to_string(),
             })),
             ..Default::default()
         }));
@@ -3953,83 +3954,83 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
-            <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
-            <span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>,
-            <span class="string">&quot;.timestamp&quot; </span>=&gt; <span class="string">&quot;[timestamp]&quot;
-        </span>}, @<span class="string">r#&quot;
+            <span class="string">".event_id" </span>=&gt; <span class="string">"[event-id]"</span>,
+            <span class="string">".received" </span>=&gt; <span class="string">"[received]"</span>,
+            <span class="string">".timestamp" </span>=&gt; <span class="string">"[timestamp]"
+        </span>}, @<span class="string">r#"
         {
-          &quot;event_id&quot;: &quot;[event-id]&quot;,
-          &quot;level&quot;: &quot;error&quot;,
-          &quot;type&quot;: &quot;default&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Hello World!&quot;,
+          "event_id": "[event-id]",
+          "level": "error",
+          "type": "default",
+          "logentry": {
+            "formatted": "Hello World!",
           },
-          &quot;logger&quot;: &quot;&quot;,
-          &quot;platform&quot;: &quot;other&quot;,
-          &quot;timestamp&quot;: &quot;[timestamp]&quot;,
-          &quot;received&quot;: &quot;[received]&quot;,
-          &quot;grouping_config&quot;: {
-            &quot;id&quot;: &quot;legacy:1234-12-12&quot;,
+          "logger": "",
+          "platform": "other",
+          "timestamp": "[timestamp]",
+          "received": "[received]",
+          "grouping_config": {
+            "id": "legacy:1234-12-12",
           },
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_logentry_error() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
 {
-    &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
-    &quot;timestamp&quot;: 1668148328.308933,
-    &quot;received&quot;: 1668148328.308933,
-    &quot;level&quot;: &quot;error&quot;,
-    &quot;platform&quot;: &quot;python&quot;,
-    &quot;logentry&quot;: {
-        &quot;params&quot;: [
-            &quot;bogus&quot;
+    "event_id": "74ad1301f4df489ead37d757295442b1",
+    "timestamp": 1668148328.308933,
+    "received": 1668148328.308933,
+    "level": "error",
+    "platform": "python",
+    "logentry": {
+        "params": [
+            "bogus"
         ],
-        &quot;formatted&quot;: 42
+        "formatted": 42
     }
 }
-&quot;#</span>;
+"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
         normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r#&quot;
+        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">".received" </span>=&gt; <span class="string">"[received]"</span>}, @<span class="string">r#"
         {
-          &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
-          &quot;level&quot;: &quot;error&quot;,
-          &quot;type&quot;: &quot;default&quot;,
-          &quot;logentry&quot;: null,
-          &quot;logger&quot;: &quot;&quot;,
-          &quot;platform&quot;: &quot;python&quot;,
-          &quot;timestamp&quot;: 1668148328.308933,
-          &quot;received&quot;: &quot;[received]&quot;,
-          &quot;_meta&quot;: {
-            &quot;logentry&quot;: {
-              &quot;&quot;: {
-                &quot;err&quot;: [
+          "event_id": "74ad1301f4df489ead37d757295442b1",
+          "level": "error",
+          "type": "default",
+          "logentry": null,
+          "logger": "",
+          "platform": "python",
+          "timestamp": 1668148328.308933,
+          "received": "[received]",
+          "_meta": {
+            "logentry": {
+              "": {
+                "err": [
                   [
-                    &quot;invalid_data&quot;,
+                    "invalid_data",
                     {
-                      &quot;reason&quot;: &quot;no message present&quot;
+                      "reason": "no message present"
                     }
                   ]
                 ],
-                &quot;val&quot;: {
-                  &quot;formatted&quot;: null,
-                  &quot;message&quot;: null,
-                  &quot;params&quot;: [
-                    &quot;bogus&quot;
+                "val": {
+                  "formatted": null,
+                  "message": null,
+                  "params": [
+                    "bogus"
                   ]
                 }
               }
             }
           }
-        }&quot;#</span>)
+        }"#</span>)
     }
 
     <span class="attr">#[test]
@@ -4063,25 +4064,25 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
-        <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
-    }, @<span class="string">r#&quot;
+        <span class="string">".event_id" </span>=&gt; <span class="string">"[event-id]"</span>,
+    }, @<span class="string">r#"
     {
-      &quot;event_id&quot;: &quot;[event-id]&quot;,
-      &quot;level&quot;: &quot;error&quot;,
-      &quot;type&quot;: &quot;default&quot;,
-      &quot;logger&quot;: &quot;&quot;,
-      &quot;platform&quot;: &quot;other&quot;,
-      &quot;timestamp&quot;: 946857600.0,
-      &quot;received&quot;: 946857600.0,
-      &quot;_meta&quot;: {
-        &quot;timestamp&quot;: {
-          &quot;&quot;: Meta(Some(MetaInner(
+      "event_id": "[event-id]",
+      "level": "error",
+      "type": "default",
+      "logger": "",
+      "platform": "other",
+      "timestamp": 946857600.0,
+      "received": 946857600.0,
+      "_meta": {
+        "timestamp": {
+          "": Meta(Some(MetaInner(
             err: [
               [
-                &quot;future_timestamp&quot;,
+                "future_timestamp",
                 {
-                  &quot;sdk_time&quot;: &quot;2000-01-03T00:02:00+00:00&quot;,
-                  &quot;server_time&quot;: &quot;2000-01-03T00:00:00+00:00&quot;,
+                  "sdk_time": "2000-01-03T00:02:00+00:00",
+                  "server_time": "2000-01-03T00:00:00+00:00",
                 },
               ],
             ],
@@ -4089,7 +4090,7 @@
         },
       },
     }
-    &quot;#</span>);
+    "#</span>);
     }
 
     <span class="attr">#[test]
@@ -4122,25 +4123,25 @@
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
-        <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
-    }, @<span class="string">r#&quot;
+        <span class="string">".event_id" </span>=&gt; <span class="string">"[event-id]"</span>,
+    }, @<span class="string">r#"
     {
-      &quot;event_id&quot;: &quot;[event-id]&quot;,
-      &quot;level&quot;: &quot;error&quot;,
-      &quot;type&quot;: &quot;default&quot;,
-      &quot;logger&quot;: &quot;&quot;,
-      &quot;platform&quot;: &quot;other&quot;,
-      &quot;timestamp&quot;: 952041600.0,
-      &quot;received&quot;: 952041600.0,
-      &quot;_meta&quot;: {
-        &quot;timestamp&quot;: {
-          &quot;&quot;: Meta(Some(MetaInner(
+      "event_id": "[event-id]",
+      "level": "error",
+      "type": "default",
+      "logger": "",
+      "platform": "other",
+      "timestamp": 952041600.0,
+      "received": 952041600.0,
+      "_meta": {
+        "timestamp": {
+          "": Meta(Some(MetaInner(
             err: [
               [
-                &quot;past_timestamp&quot;,
+                "past_timestamp",
                 {
-                  &quot;sdk_time&quot;: &quot;2000-01-03T00:00:00+00:00&quot;,
-                  &quot;server_time&quot;: &quot;2000-03-03T00:00:00+00:00&quot;,
+                  "sdk_time": "2000-01-03T00:00:00+00:00",
+                  "server_time": "2000-03-03T00:00:00+00:00",
                 },
               ],
             ],
@@ -4148,16 +4149,16 @@
         },
       },
     }
-    &quot;#</span>);
+    "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_logger_empty() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">""</span>,
             })
             .into(),
         );
@@ -4171,9 +4172,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_trimmed() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot; \t  \t   &quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">" \t  \t   "</span>,
             })
             .into(),
         );
@@ -4187,9 +4188,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_short_no_trimming() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;my.short-logger.isnt_trimmed&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"my.short-logger.isnt_trimmed"</span>,
             })
             .into(),
         );
@@ -4203,9 +4204,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_exact_length() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;this_is-exactly-the_max_len.012345678901234567890123456789012345&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"this_is-exactly-the_max_len.012345678901234567890123456789012345"</span>,
             })
             .into(),
         );
@@ -4219,9 +4220,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_too_long_single_word() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;this_is-way_too_long-and_we_only_have_one_word-so_we_cant_smart_trim&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"this_is-way_too_long-and_we_only_have_one_word-so_we_cant_smart_trim"</span>,
             })
             .into(),
         );
@@ -4235,9 +4236,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_word_trimmed_at_max() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;already_out.out.in.this_part-is-kept.this_right_here-is_an-extremely_long_word&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"already_out.out.in.this_part-is-kept.this_right_here-is_an-extremely_long_word"</span>,
             })
             .into(),
         );
@@ -4249,13 +4250,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_logger_word_trimmed_before_max() {
-        <span class="comment">// This test verifies the &quot;smart&quot; trimming on words -- the logger name
+        <span class="comment">// This test verifies the "smart" trimming on words -- the logger name
         // should be cut before the max limit, removing entire words.
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;super_out.this_is_already_out_too.this_part-is-kept.this_right_here-is_a-very_long_word&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"super_out.this_is_already_out_too.this_part-is-kept.this_right_here-is_a-very_long_word"</span>,
             })
             .into(),
         );
@@ -4269,9 +4270,9 @@
     </span><span class="kw">fn </span>test_normalize_logger_word_leading_dots() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;event_id&quot;</span>: <span class="string">&quot;7637af36578e4e4592692e28a1d6e2ca&quot;</span>,
-                <span class="string">&quot;platform&quot;</span>: <span class="string">&quot;java&quot;</span>,
-                <span class="string">&quot;logger&quot;</span>: <span class="string">&quot;io.this-tests-the-smart-trimming-and-word-removal-around-dot.words&quot;</span>,
+                <span class="string">"event_id"</span>: <span class="string">"7637af36578e4e4592692e28a1d6e2ca"</span>,
+                <span class="string">"platform"</span>: <span class="string">"java"</span>,
+                <span class="string">"logger"</span>: <span class="string">"io.this-tests-the-smart-trimming-and-word-removal-around-dot.words"</span>,
             })
             .into(),
         );
@@ -4288,15 +4289,15 @@
         <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
+            transaction: Annotated::new(<span class="string">"/"</span>.to_owned()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -4308,8 +4309,8 @@
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
                 ),
-                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 
                 ..Default::default()
             })]),
@@ -4335,62 +4336,62 @@
         <span class="kw">let </span>second = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
-        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>first, <span class="kw-2">&amp;</span>second, <span class="string">&quot;idempotency check failed&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>first, <span class="kw-2">&amp;</span>second, <span class="string">"idempotency check failed"</span>);
 
         normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         <span class="kw">let </span>third = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
-        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>second, <span class="kw-2">&amp;</span>third, <span class="string">&quot;idempotency check failed&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>second, <span class="kw-2">&amp;</span>third, <span class="string">"idempotency check failed"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_light_normalize_validates_spans() {
         <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;transaction&quot;: &quot;/&quot;,
-                &quot;timestamp&quot;: 946684810.0,
-                &quot;start_timestamp&quot;: 946684800.0,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-                    &quot;op&quot;: &quot;http.server&quot;,
-                    &quot;type&quot;: &quot;trace&quot;
+                "type": "transaction",
+                "transaction": "/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
                     }
                 },
-                &quot;spans&quot;: []
+                "spans": []
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
         <span class="comment">// All incomplete spans should be caught by light normalization:
         </span><span class="kw">for </span>span <span class="kw">in </span>[
-            <span class="string">r#&quot;null&quot;#</span>,
-            <span class="string">r#&quot;{
-              &quot;timestamp&quot;: 946684810.0,
-              &quot;start_timestamp&quot;: 946684900.0,
-              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-              &quot;timestamp&quot;: 946684810.0,
-              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-              &quot;timestamp&quot;: 946684810.0,
-              &quot;start_timestamp&quot;: 946684800.0,
-              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-              &quot;timestamp&quot;: 946684810.0,
-              &quot;start_timestamp&quot;: 946684800.0,
-              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
-            }&quot;#</span>,
+            <span class="string">r#"null"#</span>,
+            <span class="string">r#"{
+              "timestamp": 946684810.0,
+              "start_timestamp": 946684900.0,
+              "span_id": "fa90fdead5f74053",
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+            }"#</span>,
+            <span class="string">r#"{
+              "timestamp": 946684810.0,
+              "span_id": "fa90fdead5f74053",
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+            }"#</span>,
+            <span class="string">r#"{
+              "timestamp": 946684810.0,
+              "start_timestamp": 946684800.0,
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+            }"#</span>,
+            <span class="string">r#"{
+              "timestamp": 946684810.0,
+              "start_timestamp": 946684800.0,
+              "span_id": "fa90fdead5f74053"
+            }"#</span>,
         ] {
             <span class="kw">let </span><span class="kw-2">mut </span>modified_event = event.clone();
             <span class="kw">let </span>event_ref = modified_event.value_mut().as_mut().unwrap();
@@ -4401,19 +4402,19 @@
             <span class="kw">let </span>res =
                 validate_transaction(<span class="kw-2">&amp;</span>modified_event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default());
 
-            <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{span:?}&quot;</span>);
+            <span class="macro">assert!</span>(res.is_err(), <span class="string">"{span:?}"</span>);
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_light_normalization_respects_is_renormalize() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;type&quot;: &quot;default&quot;,
-                &quot;tags&quot;: [[&quot;environment&quot;, &quot;some_environment&quot;]]
+                "type": "default",
+                "tags": [["environment", "some_environment"]]
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
@@ -4425,51 +4426,51 @@
             },
         );
 
-        <span class="macro">assert_debug_snapshot!</span>(event.value().unwrap().tags, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.value().unwrap().tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;environment&quot;,
-                        &quot;some_environment&quot;,
+                        "environment",
+                        "some_environment",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_geo_in_light_normalize() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;transaction&quot;: &quot;/foo/&quot;,
-                &quot;timestamp&quot;: 946684810.0,
-                &quot;start_timestamp&quot;: 946684800.0,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                        &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-                        &quot;op&quot;: &quot;http.server&quot;,
-                        &quot;type&quot;: &quot;trace&quot;
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
                     }
                 },
-                &quot;transaction_info&quot;: {
-                    &quot;source&quot;: &quot;url&quot;
+                "transaction_info": {
+                    "source": "url"
                 },
-                &quot;user&quot;: {
-                    &quot;ip_address&quot;: &quot;2.125.160.216&quot;
+                "user": {
+                    "ip_address": "2.125.160.216"
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
 
-        <span class="kw">let </span>lookup = GeoIpLookup::open(<span class="string">&quot;tests/fixtures/GeoIP2-Enterprise-Test.mmdb&quot;</span>).unwrap();
+        <span class="kw">let </span>lookup = GeoIpLookup::open(<span class="string">"tests/fixtures/GeoIP2-Enterprise-Test.mmdb"</span>).unwrap();
 
-        <span class="comment">// Extract user&#39;s geo information before normalization.
+        <span class="comment">// Extract user's geo information before normalization.
         </span><span class="kw">let </span>user_geo = event.value().unwrap().user.value().unwrap().geo.value();
         <span class="macro">assert!</span>(user_geo.is_none());
 
@@ -4481,7 +4482,7 @@
             },
         );
 
-        <span class="comment">// Extract user&#39;s geo information after normalization.
+        <span class="comment">// Extract user's geo information after normalization.
         </span><span class="kw">let </span>user_geo = event
             .value()
             .unwrap()
@@ -4492,33 +4493,33 @@
             .value()
             .unwrap();
 
-        <span class="macro">assert_eq!</span>(user_geo.country_code.value().unwrap(), <span class="string">&quot;GB&quot;</span>);
-        <span class="macro">assert_eq!</span>(user_geo.city.value().unwrap(), <span class="string">&quot;Boxford&quot;</span>);
+        <span class="macro">assert_eq!</span>(user_geo.country_code.value().unwrap(), <span class="string">"GB"</span>);
+        <span class="macro">assert_eq!</span>(user_geo.city.value().unwrap(), <span class="string">"Boxford"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_spans_only_for_react_native_3_to_4_4() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                op: Annotated::new(<span class="string">&quot;app_start_cold&quot;</span>.to_owned()),
+                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
                 ..Default::default()
             })]),
             client_sdk: Annotated::new(ClientSdkInfo {
-                name: Annotated::new(<span class="string">&quot;sentry.javascript.react-native&quot;</span>.to_owned()),
-                version: Annotated::new(<span class="string">&quot;4.5.0&quot;</span>.to_owned()),
+                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+                version: Annotated::new(<span class="string">"4.5.0"</span>.to_owned()),
                 ..Default::default()
             }),
             ..Default::default()
         };
         normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
         [
             Span {
                 timestamp: ~,
                 start_timestamp: ~,
                 exclusive_time: ~,
                 description: ~,
-                op: &quot;app_start_cold&quot;,
+                op: "app_start_cold",
                 span_id: ~,
                 parent_span_id: ~,
                 trace_id: ~,
@@ -4536,32 +4537,32 @@
                 other: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_cold_spans_for_react_native() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                op: Annotated::new(<span class="string">&quot;app_start_cold&quot;</span>.to_owned()),
+                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
                 ..Default::default()
             })]),
             client_sdk: Annotated::new(ClientSdkInfo {
-                name: Annotated::new(<span class="string">&quot;sentry.javascript.react-native&quot;</span>.to_owned()),
-                version: Annotated::new(<span class="string">&quot;4.4.0&quot;</span>.to_owned()),
+                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
                 ..Default::default()
             }),
             ..Default::default()
         };
         normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
         [
             Span {
                 timestamp: ~,
                 start_timestamp: ~,
                 exclusive_time: ~,
                 description: ~,
-                op: &quot;app.start.cold&quot;,
+                op: "app.start.cold",
                 span_id: ~,
                 parent_span_id: ~,
                 trace_id: ~,
@@ -4579,32 +4580,32 @@
                 other: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_app_start_warm_spans_for_react_native() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                op: Annotated::new(<span class="string">&quot;app_start_warm&quot;</span>.to_owned()),
+                op: Annotated::new(<span class="string">"app_start_warm"</span>.to_owned()),
                 ..Default::default()
             })]),
             client_sdk: Annotated::new(ClientSdkInfo {
-                name: Annotated::new(<span class="string">&quot;sentry.javascript.react-native&quot;</span>.to_owned()),
-                version: Annotated::new(<span class="string">&quot;4.4.0&quot;</span>.to_owned()),
+                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
                 ..Default::default()
             }),
             ..Default::default()
         };
         normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
         [
             Span {
                 timestamp: ~,
                 start_timestamp: ~,
                 exclusive_time: ~,
                 description: ~,
-                op: &quot;app.start.warm&quot;,
+                op: "app.start.warm",
                 span_id: ~,
                 parent_span_id: ~,
                 trace_id: ~,
@@ -4622,15 +4623,15 @@
                 other: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_metrics_summary_metric_identifiers() {
         <span class="kw">let </span><span class="kw-2">mut </span>metric_tags = BTreeMap::new();
         metric_tags.insert(
-            <span class="string">&quot;transaction&quot;</span>.to_string(),
-            Annotated::new(<span class="string">&quot;/hello&quot;</span>.to_string()),
+            <span class="string">"transaction"</span>.to_string(),
+            Annotated::new(<span class="string">"/hello"</span>.to_string()),
         );
 
         <span class="kw">let </span>metric_summary = <span class="macro">vec!</span>[Annotated::new(MetricSummary {
@@ -4643,27 +4644,27 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics_summary = BTreeMap::new();
         metrics_summary.insert(
-            <span class="string">&quot;d:page_duration@millisecond&quot;</span>.to_string(),
+            <span class="string">"d:page_duration@millisecond"</span>.to_string(),
             Annotated::new(metric_summary.clone()),
         );
         metrics_summary.insert(
-            <span class="string">&quot;c:custom/page_click@none&quot;</span>.to_string(),
+            <span class="string">"c:custom/page_click@none"</span>.to_string(),
             Annotated::new(Default::default()),
         );
         metrics_summary.insert(
-            <span class="string">&quot;s:user@none&quot;</span>.to_string(),
+            <span class="string">"s:user@none"</span>.to_string(),
             Annotated::new(metric_summary.clone()),
         );
-        metrics_summary.insert(<span class="string">&quot;invalid&quot;</span>.to_string(), Annotated::new(metric_summary));
+        metrics_summary.insert(<span class="string">"invalid"</span>.to_string(), Annotated::new(metric_summary));
         metrics_summary.insert(
-            <span class="string">&quot;g:page_load@second&quot;</span>.to_string(),
+            <span class="string">"g:page_load@second"</span>.to_string(),
             Annotated::new(Default::default()),
         );
         <span class="kw">let </span>metrics_summary = MetricsSummary(metrics_summary);
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-                op: Annotated::new(<span class="string">&quot;my_span&quot;</span>.to_owned()),
+                op: Annotated::new(<span class="string">"my_span"</span>.to_owned()),
                 _metrics_summary: Annotated::new(metrics_summary.clone()),
                 ..Default::default()
             })]),
@@ -4671,114 +4672,114 @@
             ..Default::default()
         });
         normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
-        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), @<span class="string">r###&quot;
+        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), @<span class="string">r###"
         {
-          &quot;spans&quot;: [
+          "spans": [
             {
-              &quot;op&quot;: &quot;my_span&quot;,
-              &quot;_metrics_summary&quot;: {
-                &quot;c:custom/page_click@none&quot;: [],
-                &quot;d:custom/page_duration@millisecond&quot;: [
+              "op": "my_span",
+              "_metrics_summary": {
+                "c:custom/page_click@none": [],
+                "d:custom/page_duration@millisecond": [
                   {
-                    &quot;min&quot;: 1.0,
-                    &quot;max&quot;: 20.0,
-                    &quot;sum&quot;: 21.0,
-                    &quot;count&quot;: 2,
-                    &quot;tags&quot;: {
-                      &quot;transaction&quot;: &quot;/hello&quot;
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
                     }
                   }
                 ],
-                &quot;g:custom/page_load@second&quot;: [],
-                &quot;invalid&quot;: null,
-                &quot;s:custom/user@none&quot;: [
+                "g:custom/page_load@second": [],
+                "invalid": null,
+                "s:custom/user@none": [
                   {
-                    &quot;min&quot;: 1.0,
-                    &quot;max&quot;: 20.0,
-                    &quot;sum&quot;: 21.0,
-                    &quot;count&quot;: 2,
-                    &quot;tags&quot;: {
-                      &quot;transaction&quot;: &quot;/hello&quot;
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
                     }
                   }
                 ]
               }
             }
           ],
-          &quot;_metrics_summary&quot;: {
-            &quot;c:custom/page_click@none&quot;: [],
-            &quot;d:custom/page_duration@millisecond&quot;: [
+          "_metrics_summary": {
+            "c:custom/page_click@none": [],
+            "d:custom/page_duration@millisecond": [
               {
-                &quot;min&quot;: 1.0,
-                &quot;max&quot;: 20.0,
-                &quot;sum&quot;: 21.0,
-                &quot;count&quot;: 2,
-                &quot;tags&quot;: {
-                  &quot;transaction&quot;: &quot;/hello&quot;
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
                 }
               }
             ],
-            &quot;g:custom/page_load@second&quot;: [],
-            &quot;invalid&quot;: null,
-            &quot;s:custom/user@none&quot;: [
+            "g:custom/page_load@second": [],
+            "invalid": null,
+            "s:custom/user@none": [
               {
-                &quot;min&quot;: 1.0,
-                &quot;max&quot;: 20.0,
-                &quot;sum&quot;: 21.0,
-                &quot;count&quot;: 2,
-                &quot;tags&quot;: {
-                  &quot;transaction&quot;: &quot;/hello&quot;
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
                 }
               }
             ]
           },
-          &quot;_meta&quot;: {
-            &quot;_metrics_summary&quot;: {
-              &quot;invalid&quot;: {
-                &quot;&quot;: {
-                  &quot;err&quot;: [
+          "_meta": {
+            "_metrics_summary": {
+              "invalid": {
+                "": {
+                  "err": [
                     [
-                      &quot;invalid_data&quot;,
+                      "invalid_data",
                       {
-                        &quot;reason&quot;: &quot;failed to parse metric&quot;
+                        "reason": "failed to parse metric"
                       }
                     ]
                   ],
-                  &quot;val&quot;: [
+                  "val": [
                     {
-                      &quot;count&quot;: 2,
-                      &quot;max&quot;: 20.0,
-                      &quot;min&quot;: 1.0,
-                      &quot;sum&quot;: 21.0,
-                      &quot;tags&quot;: {
-                        &quot;transaction&quot;: &quot;/hello&quot;
+                      "count": 2,
+                      "max": 20.0,
+                      "min": 1.0,
+                      "sum": 21.0,
+                      "tags": {
+                        "transaction": "/hello"
                       }
                     }
                   ]
                 }
               }
             },
-            &quot;spans&quot;: {
-              &quot;0&quot;: {
-                &quot;_metrics_summary&quot;: {
-                  &quot;invalid&quot;: {
-                    &quot;&quot;: {
-                      &quot;err&quot;: [
+            "spans": {
+              "0": {
+                "_metrics_summary": {
+                  "invalid": {
+                    "": {
+                      "err": [
                         [
-                          &quot;invalid_data&quot;,
+                          "invalid_data",
                           {
-                            &quot;reason&quot;: &quot;failed to parse metric&quot;
+                            "reason": "failed to parse metric"
                           }
                         ]
                       ],
-                      &quot;val&quot;: [
+                      "val": [
                         {
-                          &quot;count&quot;: 2,
-                          &quot;max&quot;: 20.0,
-                          &quot;min&quot;: 1.0,
-                          &quot;sum&quot;: 21.0,
-                          &quot;tags&quot;: {
-                            &quot;transaction&quot;: &quot;/hello&quot;
+                          "count": 2,
+                          "max": 20.0,
+                          "min": 1.0,
+                          "sum": 21.0,
+                          "tags": {
+                            "transaction": "/hello"
                           }
                         }
                       ]
@@ -4789,7 +4790,7 @@
             }
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

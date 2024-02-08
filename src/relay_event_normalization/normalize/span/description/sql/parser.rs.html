@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/sql/parser.rs`."><title>parser.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/sql/parser.rs`."><title>parser.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -665,7 +666,7 @@
 </span><span class="kw">const </span>MAX_EXPRESSION_DEPTH: usize = <span class="number">64</span>;
 
 <span class="doccomment">/// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(?i)[0-9a-f]{8,}|\d\d+&quot;</span>).unwrap());
+</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(?i)[0-9a-f]{8,}|\d\d+"</span>).unwrap());
 
 <span class="doccomment">/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -679,10 +680,10 @@
             <span class="macro">relay_log::error!</span>(
                 tags.db_system = db_system,
                 query = query,
-                <span class="string">&quot;parse_query panicked&quot;</span>,
+                <span class="string">"parse_query panicked"</span>,
             );
             <span class="prelude-val">Err</span>(sqlparser::parser::ParserError::ParserError(
-                <span class="string">&quot;panicked&quot;</span>.to_string(),
+                <span class="string">"panicked"</span>.to_string(),
             ))
         }
     }
@@ -711,10 +712,10 @@
     <span class="kw">let </span>concatenated = parsed
         .iter()
         .map(|statement| statement.to_string())
-        .join(<span class="string">&quot;; &quot;</span>);
+        .join(<span class="string">"; "</span>);
 
     <span class="comment">// Insert placeholders that the SQL serializer cannot provide.
-    </span><span class="kw">let </span>replaced = concatenated.replace(<span class="string">&quot;___UPDATE_LHS___ = NULL&quot;</span>, <span class="string">&quot;..&quot;</span>);
+    </span><span class="kw">let </span>replaced = concatenated.replace(<span class="string">"___UPDATE_LHS___ = NULL"</span>, <span class="string">".."</span>);
 
     <span class="prelude-val">Ok</span>(replaced)
 }
@@ -727,12 +728,12 @@
 <span class="kw">impl </span>NormalizeVisitor {
     <span class="doccomment">/// Placeholder for string and numerical literals.
     </span><span class="kw">fn </span>placeholder() -&gt; Value {
-        Value::Number(<span class="string">&quot;%s&quot;</span>.into(), <span class="bool-val">false</span>)
+        Value::Number(<span class="string">"%s"</span>.into(), <span class="bool-val">false</span>)
     }
 
     <span class="doccomment">/// Placeholder for a list of items that has been scrubbed.
     </span><span class="kw">fn </span>ellipsis() -&gt; Ident {
-        Ident::new(<span class="string">&quot;..&quot;</span>)
+        Ident::new(<span class="string">".."</span>)
     }
 
     <span class="doccomment">/// Check if a selected item can be erased into `..`.
@@ -779,7 +780,7 @@
             </span><span class="kw">let </span>item = <span class="kw">match </span>item {
                 <span class="comment">// Remove alias.
                 </span>SelectItem::ExprWithAlias { expr, .. } =&gt; SelectItem::UnnamedExpr(expr),
-                <span class="comment">// Strip prefix, e.g. `&quot;mytable&quot;.*`.
+                <span class="comment">// Strip prefix, e.g. `"mytable".*`.
                 </span>SelectItem::QualifiedWildcard(<span class="kw">_</span>, options) =&gt; SelectItem::Wildcard(options),
                 <span class="kw">_ </span>=&gt; item,
             };
@@ -812,14 +813,14 @@
 
     <span class="kw">fn </span>scrub_name(name: <span class="kw-2">&amp;mut </span>Ident) {
         name.quote_style = <span class="prelude-val">None</span>;
-        <span class="kw">if let </span>Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(<span class="kw-2">&amp;</span>name.value, <span class="string">&quot;{%s}&quot;</span>) {
+        <span class="kw">if let </span>Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(<span class="kw-2">&amp;</span>name.value, <span class="string">"{%s}"</span>) {
             name.value = s
         };
     }
 
     <span class="kw">fn </span>erase_name(name: <span class="kw-2">&amp;mut </span>Ident) {
         name.quote_style = <span class="prelude-val">None</span>;
-        name.value = <span class="string">&quot;%s&quot;</span>.into()
+        name.value = <span class="string">"%s"</span>.into()
     }
 }
 
@@ -908,11 +909,11 @@
             </span>Expr::Value(x) =&gt; <span class="kw-2">*</span>x = <span class="self">Self</span>::placeholder(),
             <span class="comment">// `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             </span>Expr::InList { list, .. } =&gt; <span class="kw-2">*</span>list = <span class="macro">vec!</span>[Expr::Value(<span class="self">Self</span>::placeholder())],
-            <span class="comment">// `&quot;table&quot;.&quot;col&quot;` is replaced by `col`.
+            <span class="comment">// `"table"."col"` is replaced by `col`.
             </span>Expr::CompoundIdentifier(parts) =&gt; {
                 <span class="self">Self</span>::simplify_compound_identifier(parts);
             }
-            <span class="comment">// `&quot;col&quot;` is replaced by `col`.
+            <span class="comment">// `"col"` is replaced by `col`.
             </span>Expr::Identifier(ident) =&gt; {
                 <span class="self">Self</span>::scrub_name(ident);
             }
@@ -1018,7 +1019,7 @@
                         .all(|a| <span class="macro">matches!</span>(a.value, Expr::Value(<span class="kw">_</span>)))
                 {
                     <span class="kw-2">*</span>assignments = <span class="macro">vec!</span>[Assignment {
-                        id: <span class="macro">vec!</span>[Ident::new(<span class="string">&quot;___UPDATE_LHS___&quot;</span>)],
+                        id: <span class="macro">vec!</span>[Ident::new(<span class="string">"___UPDATE_LHS___"</span>)],
                         value: Expr::Value(Value::Null),
                     }]
                 } <span class="kw">else </span>{
@@ -1037,7 +1038,7 @@
                 <span class="self">Self</span>::erase_name(name);
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(into) = into {
                     into.<span class="number">0 </span>= <span class="macro">vec!</span>[Ident {
-                        value: <span class="string">&quot;%s&quot;</span>.into(),
+                        value: <span class="string">"%s"</span>.into(),
                         quote_style: <span class="prelude-val">None</span>,
                     }];
                 }
@@ -1186,7 +1187,7 @@
 
     <span class="kw">fn </span>pre_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
         <span class="kw">if </span><span class="self">self</span>.current_expr_depth &gt; MAX_EXPRESSION_DEPTH {
-            <span class="kw-2">*</span>expr = Expr::Value(Value::Placeholder(<span class="string">&quot;..&quot;</span>.to_owned()));
+            <span class="kw-2">*</span>expr = Expr::Value(Value::Placeholder(<span class="string">".."</span>.to_owned()));
             <span class="kw">return </span>ControlFlow::Continue(());
         }
         <span class="self">self</span>.current_expr_depth += <span class="number">1</span>;
@@ -1204,7 +1205,7 @@
 </span><span class="kw">struct </span>DialectWithParameters(Box&lt;<span class="kw">dyn </span>Dialect&gt;);
 
 <span class="kw">impl </span>DialectWithParameters {
-    <span class="kw">const </span>PARAMETERS: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;?%:&quot;</span>;
+    <span class="kw">const </span>PARAMETERS: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = <span class="string">"?%:"</span>;
 }
 
 <span class="kw">impl </span>Dialect <span class="kw">for </span>DialectWithParameters {
@@ -1226,7 +1227,7 @@
 
     <span class="kw">fn </span>is_proper_identifier_inside_quotes(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        chars: std::iter::Peekable&lt;std::str::Chars&lt;<span class="lifetime">&#39;_</span>&gt;&gt;,
+        chars: std::iter::Peekable&lt;std::str::Chars&lt;<span class="lifetime">'_</span>&gt;&gt;,
     ) -&gt; bool {
         <span class="self">self</span>.<span class="number">0</span>.is_proper_identifier_inside_quotes(chars)
     }
@@ -1284,8 +1285,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_deep_expression() {
-        <span class="kw">let </span>query = <span class="string">&quot;SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1&quot;</span>;
-        <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).as_deref(), <span class="prelude-val">Ok</span>(<span class="string">&quot;SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s&quot;</span>));
+        <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
+        <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).as_deref(), <span class="prelude-val">Ok</span>(<span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"</span>));
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/security_report.rs`."><title>security_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/security_report.rs`."><title>security_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1998,8 +1999,8 @@
 </span><span class="kw">pub struct </span>InvalidSecurityError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>InvalidSecurityError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid security report&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid security report"</span>)
     }
 }
 
@@ -2039,102 +2040,102 @@
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(CspDirective, InvalidSecurityError, {
-    CspDirective::BaseUri =&gt; <span class="string">&quot;base-uri&quot;</span>,
-    CspDirective::ChildSrc =&gt; <span class="string">&quot;child-src&quot;</span>,
-    CspDirective::ConnectSrc =&gt; <span class="string">&quot;connect-src&quot;</span>,
-    CspDirective::DefaultSrc =&gt; <span class="string">&quot;default-src&quot;</span>,
-    CspDirective::FontSrc =&gt; <span class="string">&quot;font-src&quot;</span>,
-    CspDirective::FormAction =&gt; <span class="string">&quot;form-action&quot;</span>,
-    CspDirective::FrameAncestors =&gt; <span class="string">&quot;frame-ancestors&quot;</span>,
-    CspDirective::FrameSrc =&gt; <span class="string">&quot;frame-src&quot;</span>,
-    CspDirective::ImgSrc =&gt; <span class="string">&quot;img-src&quot;</span>,
-    CspDirective::ManifestSrc =&gt; <span class="string">&quot;manifest-src&quot;</span>,
-    CspDirective::MediaSrc =&gt; <span class="string">&quot;media-src&quot;</span>,
-    CspDirective::ObjectSrc =&gt; <span class="string">&quot;object-src&quot;</span>,
-    CspDirective::PluginTypes =&gt; <span class="string">&quot;plugin-types&quot;</span>,
-    CspDirective::PrefetchSrc =&gt; <span class="string">&quot;prefetch-src&quot;</span>,
-    CspDirective::Referrer =&gt; <span class="string">&quot;referrer&quot;</span>,
-    CspDirective::ScriptSrc =&gt; <span class="string">&quot;script-src&quot;</span>,
-    CspDirective::ScriptSrcAttr =&gt; <span class="string">&quot;script-src-attr&quot;</span>,
-    CspDirective::ScriptSrcElem =&gt; <span class="string">&quot;script-src-elem&quot;</span>,
-    CspDirective::StyleSrc =&gt; <span class="string">&quot;style-src&quot;</span>,
-    CspDirective::StyleSrcElem =&gt; <span class="string">&quot;style-src-elem&quot;</span>,
-    CspDirective::StyleSrcAttr =&gt; <span class="string">&quot;style-src-attr&quot;</span>,
-    CspDirective::UpgradeInsecureRequests =&gt; <span class="string">&quot;upgrade-insecure-requests&quot;</span>,
-    CspDirective::WorkerSrc =&gt; <span class="string">&quot;worker-src&quot;</span>,
-    CspDirective::Sandbox =&gt; <span class="string">&quot;sandbox&quot;</span>,
-    CspDirective::NavigateTo =&gt; <span class="string">&quot;navigate-to&quot;</span>,
-    CspDirective::ReportUri =&gt; <span class="string">&quot;report-uri&quot;</span>,
-    CspDirective::ReportTo =&gt; <span class="string">&quot;report-to&quot;</span>,
-    CspDirective::BlockAllMixedContent =&gt; <span class="string">&quot;block-all-mixed-content&quot;</span>,
-    CspDirective::RequireSriFor =&gt; <span class="string">&quot;require-sri-for&quot;</span>,
-    CspDirective::RequireTrustedTypesFor =&gt; <span class="string">&quot;require-trusted-types-for&quot;</span>,
-    CspDirective::TrustedTypes =&gt; <span class="string">&quot;trusted-types&quot;</span>,
+    CspDirective::BaseUri =&gt; <span class="string">"base-uri"</span>,
+    CspDirective::ChildSrc =&gt; <span class="string">"child-src"</span>,
+    CspDirective::ConnectSrc =&gt; <span class="string">"connect-src"</span>,
+    CspDirective::DefaultSrc =&gt; <span class="string">"default-src"</span>,
+    CspDirective::FontSrc =&gt; <span class="string">"font-src"</span>,
+    CspDirective::FormAction =&gt; <span class="string">"form-action"</span>,
+    CspDirective::FrameAncestors =&gt; <span class="string">"frame-ancestors"</span>,
+    CspDirective::FrameSrc =&gt; <span class="string">"frame-src"</span>,
+    CspDirective::ImgSrc =&gt; <span class="string">"img-src"</span>,
+    CspDirective::ManifestSrc =&gt; <span class="string">"manifest-src"</span>,
+    CspDirective::MediaSrc =&gt; <span class="string">"media-src"</span>,
+    CspDirective::ObjectSrc =&gt; <span class="string">"object-src"</span>,
+    CspDirective::PluginTypes =&gt; <span class="string">"plugin-types"</span>,
+    CspDirective::PrefetchSrc =&gt; <span class="string">"prefetch-src"</span>,
+    CspDirective::Referrer =&gt; <span class="string">"referrer"</span>,
+    CspDirective::ScriptSrc =&gt; <span class="string">"script-src"</span>,
+    CspDirective::ScriptSrcAttr =&gt; <span class="string">"script-src-attr"</span>,
+    CspDirective::ScriptSrcElem =&gt; <span class="string">"script-src-elem"</span>,
+    CspDirective::StyleSrc =&gt; <span class="string">"style-src"</span>,
+    CspDirective::StyleSrcElem =&gt; <span class="string">"style-src-elem"</span>,
+    CspDirective::StyleSrcAttr =&gt; <span class="string">"style-src-attr"</span>,
+    CspDirective::UpgradeInsecureRequests =&gt; <span class="string">"upgrade-insecure-requests"</span>,
+    CspDirective::WorkerSrc =&gt; <span class="string">"worker-src"</span>,
+    CspDirective::Sandbox =&gt; <span class="string">"sandbox"</span>,
+    CspDirective::NavigateTo =&gt; <span class="string">"navigate-to"</span>,
+    CspDirective::ReportUri =&gt; <span class="string">"report-uri"</span>,
+    CspDirective::ReportTo =&gt; <span class="string">"report-to"</span>,
+    CspDirective::BlockAllMixedContent =&gt; <span class="string">"block-all-mixed-content"</span>,
+    CspDirective::RequireSriFor =&gt; <span class="string">"require-sri-for"</span>,
+    CspDirective::RequireTrustedTypesFor =&gt; <span class="string">"require-trusted-types-for"</span>,
+    CspDirective::TrustedTypes =&gt; <span class="string">"trusted-types"</span>,
 });
 
-<span class="macro">relay_common::impl_str_serde!</span>(CspDirective, <span class="string">&quot;a csp directive&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(CspDirective, <span class="string">"a csp directive"</span>);
 
 <span class="kw">fn </span>is_local(uri: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    <span class="macro">matches!</span>(uri, <span class="string">&quot;&quot; </span>| <span class="string">&quot;self&quot; </span>| <span class="string">&quot;&#39;self&#39;&quot;</span>)
+    <span class="macro">matches!</span>(uri, <span class="string">"" </span>| <span class="string">"self" </span>| <span class="string">"'self'"</span>)
 }
 
 <span class="kw">fn </span>schema_uses_host(schema: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    <span class="comment">// List of schemas with host (netloc) from Python&#39;s urlunsplit:
+    <span class="comment">// List of schemas with host (netloc) from Python's urlunsplit:
     // see &lt;https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51&gt;
     //
-    // Only modification: &quot;&quot; is set to false, since there is a separate check in the urlunsplit
-    // implementation that omits the leading &quot;//&quot; in that case.
+    // Only modification: "" is set to false, since there is a separate check in the urlunsplit
+    // implementation that omits the leading "//" in that case.
     </span><span class="macro">matches!</span>(
         schema,
-        <span class="string">&quot;ftp&quot;
-            </span>| <span class="string">&quot;http&quot;
-            </span>| <span class="string">&quot;gopher&quot;
-            </span>| <span class="string">&quot;nntp&quot;
-            </span>| <span class="string">&quot;telnet&quot;
-            </span>| <span class="string">&quot;imap&quot;
-            </span>| <span class="string">&quot;wais&quot;
-            </span>| <span class="string">&quot;file&quot;
-            </span>| <span class="string">&quot;mms&quot;
-            </span>| <span class="string">&quot;https&quot;
-            </span>| <span class="string">&quot;shttp&quot;
-            </span>| <span class="string">&quot;snews&quot;
-            </span>| <span class="string">&quot;prospero&quot;
-            </span>| <span class="string">&quot;rtsp&quot;
-            </span>| <span class="string">&quot;rtspu&quot;
-            </span>| <span class="string">&quot;rsync&quot;
-            </span>| <span class="string">&quot;svn&quot;
-            </span>| <span class="string">&quot;svn+ssh&quot;
-            </span>| <span class="string">&quot;sftp&quot;
-            </span>| <span class="string">&quot;nfs&quot;
-            </span>| <span class="string">&quot;git&quot;
-            </span>| <span class="string">&quot;git+ssh&quot;
-            </span>| <span class="string">&quot;ws&quot;
-            </span>| <span class="string">&quot;wss&quot;
+        <span class="string">"ftp"
+            </span>| <span class="string">"http"
+            </span>| <span class="string">"gopher"
+            </span>| <span class="string">"nntp"
+            </span>| <span class="string">"telnet"
+            </span>| <span class="string">"imap"
+            </span>| <span class="string">"wais"
+            </span>| <span class="string">"file"
+            </span>| <span class="string">"mms"
+            </span>| <span class="string">"https"
+            </span>| <span class="string">"shttp"
+            </span>| <span class="string">"snews"
+            </span>| <span class="string">"prospero"
+            </span>| <span class="string">"rtsp"
+            </span>| <span class="string">"rtspu"
+            </span>| <span class="string">"rsync"
+            </span>| <span class="string">"svn"
+            </span>| <span class="string">"svn+ssh"
+            </span>| <span class="string">"sftp"
+            </span>| <span class="string">"nfs"
+            </span>| <span class="string">"git"
+            </span>| <span class="string">"git+ssh"
+            </span>| <span class="string">"ws"
+            </span>| <span class="string">"wss"
     </span>)
 }
 
-<span class="doccomment">/// Mimicks Python&#39;s urlunsplit with all its quirks.
+<span class="doccomment">/// Mimicks Python's urlunsplit with all its quirks.
 </span><span class="kw">fn </span>unsplit_uri(schema: <span class="kw-2">&amp;</span>str, host: <span class="kw-2">&amp;</span>str) -&gt; String {
     <span class="kw">if </span>!host.is_empty() || schema_uses_host(schema) {
-        <span class="macro">format!</span>(<span class="string">&quot;{schema}://{host}&quot;</span>)
+        <span class="macro">format!</span>(<span class="string">"{schema}://{host}"</span>)
     } <span class="kw">else if </span>!schema.is_empty() {
-        <span class="macro">format!</span>(<span class="string">&quot;{schema}:{host}&quot;</span>)
+        <span class="macro">format!</span>(<span class="string">"{schema}:{host}"</span>)
     } <span class="kw">else </span>{
         String::new()
     }
 }
 
-<span class="kw">fn </span>normalize_uri(value: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
+<span class="kw">fn </span>normalize_uri(value: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
     <span class="kw">if </span>is_local(value) {
-        <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&#39;self&#39;&quot;</span>);
+        <span class="kw">return </span>Cow::Borrowed(<span class="string">"'self'"</span>);
     }
 
-    <span class="comment">// A lot of these values get reported as literally just the scheme. So a value like &#39;data&#39;
-    // or &#39;blob&#39;, which are valid schemes, just not a uri. So we want to normalize it into a
+    <span class="comment">// A lot of these values get reported as literally just the scheme. So a value like 'data'
+    // or 'blob', which are valid schemes, just not a uri. So we want to normalize it into a
     // URI.
 
-    </span><span class="kw">if </span>!value.contains(<span class="string">&#39;:&#39;</span>) {
-        <span class="kw">return </span>Cow::Owned(unsplit_uri(value, <span class="string">&quot;&quot;</span>));
+    </span><span class="kw">if </span>!value.contains(<span class="string">':'</span>) {
+        <span class="kw">return </span>Cow::Owned(unsplit_uri(value, <span class="string">""</span>));
     }
 
     <span class="kw">let </span>url = <span class="kw">match </span>Url::parse(value) {
@@ -2143,12 +2144,12 @@
     };
 
     <span class="kw">let </span>normalized = <span class="kw">match </span>url.scheme() {
-        <span class="string">&quot;http&quot; </span>| <span class="string">&quot;https&quot; </span>=&gt; Cow::Borrowed(url.host_str().unwrap_or_default()),
+        <span class="string">"http" </span>| <span class="string">"https" </span>=&gt; Cow::Borrowed(url.host_str().unwrap_or_default()),
         scheme =&gt; Cow::Owned(unsplit_uri(scheme, url.host_str().unwrap_or_default())),
     };
 
     Cow::Owned(<span class="kw">match </span>url.port() {
-        <span class="prelude-val">Some</span>(port) =&gt; <span class="macro">format!</span>(<span class="string">&quot;{normalized}:{port}&quot;</span>),
+        <span class="prelude-val">Some</span>(port) =&gt; <span class="macro">format!</span>(<span class="string">"{normalized}:{port}"</span>),
         <span class="prelude-val">None </span>=&gt; normalized.into_owned(),
     })
 }
@@ -2157,31 +2158,31 @@
 ///
 /// See `Csp` for meaning of fields.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>CspRaw {
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>effective_directive: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default = <span class="string">&quot;CspRaw::default_blocked_uri&quot;</span>)]
+    <span class="attr">#[serde(default = <span class="string">"CspRaw::default_blocked_uri"</span>)]
     </span>blocked_uri: String,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>document_uri: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>original_policy: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>referrer: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>status_code: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="attr">#[serde(default = <span class="string">&quot;String::new&quot;</span>)]
+    <span class="attr">#[serde(default = <span class="string">"String::new"</span>)]
     </span>violated_directive: String,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>source_file: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>line_number: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>column_number: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>script_sample: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>disposition: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="attr">#[serde(flatten)]
@@ -2190,11 +2191,11 @@
 
 <span class="kw">impl </span>CspRaw {
     <span class="kw">fn </span>default_blocked_uri() -&gt; String {
-        <span class="string">&quot;self&quot;</span>.to_string()
+        <span class="string">"self"</span>.to_string()
     }
 
     <span class="kw">fn </span>effective_directive(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;CspDirective, InvalidSecurityError&gt; {
-        <span class="comment">// Firefox doesn&#39;t send effective-directive, so parse it from
+        <span class="comment">// Firefox doesn't send effective-directive, so parse it from
         // violated-directive but prefer effective-directive when present.
         // refs: https://bugzil.la/1192684#c8
 
@@ -2202,7 +2203,7 @@
             <span class="comment">// In C2P1 and CSP2, violated_directive and possibly effective_directive might contain
             // more information than just the CSP-directive.
             </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_directive) = directive
-                .split_once(<span class="string">&#39; &#39;</span>)
+                .split_once(<span class="string">' '</span>)
                 .map_or(directive.as_str(), |s| s.<span class="number">0</span>)
                 .parse()
             {
@@ -2212,7 +2213,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_directive) = <span class="self">self
             </span>.violated_directive
-            .split_once(<span class="string">&#39; &#39;</span>)
+            .split_once(<span class="string">' '</span>)
             .map_or(<span class="self">self</span>.violated_directive.as_str(), |s| s.<span class="number">0</span>)
             .parse()
         {
@@ -2225,50 +2226,50 @@
     <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>, effective_directive: CspDirective) -&gt; String {
         <span class="kw">if </span>is_local(<span class="kw-2">&amp;</span><span class="self">self</span>.blocked_uri) {
             <span class="kw">match </span>effective_directive {
-                CspDirective::ChildSrc =&gt; <span class="string">&quot;Blocked inline &#39;child&#39;&quot;</span>.to_string(),
-                CspDirective::ConnectSrc =&gt; <span class="string">&quot;Blocked inline &#39;connect&#39;&quot;</span>.to_string(),
-                CspDirective::FontSrc =&gt; <span class="string">&quot;Blocked inline &#39;font&#39;&quot;</span>.to_string(),
-                CspDirective::ImgSrc =&gt; <span class="string">&quot;Blocked inline &#39;image&#39;&quot;</span>.to_string(),
-                CspDirective::ManifestSrc =&gt; <span class="string">&quot;Blocked inline &#39;manifest&#39;&quot;</span>.to_string(),
-                CspDirective::MediaSrc =&gt; <span class="string">&quot;Blocked inline &#39;media&#39;&quot;</span>.to_string(),
-                CspDirective::ObjectSrc =&gt; <span class="string">&quot;Blocked inline &#39;object&#39;&quot;</span>.to_string(),
-                CspDirective::ScriptSrcAttr =&gt; <span class="string">&quot;Blocked unsafe &#39;script&#39; element&quot;</span>.to_string(),
-                CspDirective::ScriptSrcElem =&gt; <span class="string">&quot;Blocked inline script attribute&quot;</span>.to_string(),
-                CspDirective::StyleSrc =&gt; <span class="string">&quot;Blocked inline &#39;style&#39;&quot;</span>.to_string(),
-                CspDirective::StyleSrcElem =&gt; <span class="string">&quot;Blocked &#39;style&#39; or &#39;link&#39; element&quot;</span>.to_string(),
-                CspDirective::StyleSrcAttr =&gt; <span class="string">&quot;Blocked style attribute&quot;</span>.to_string(),
+                CspDirective::ChildSrc =&gt; <span class="string">"Blocked inline 'child'"</span>.to_string(),
+                CspDirective::ConnectSrc =&gt; <span class="string">"Blocked inline 'connect'"</span>.to_string(),
+                CspDirective::FontSrc =&gt; <span class="string">"Blocked inline 'font'"</span>.to_string(),
+                CspDirective::ImgSrc =&gt; <span class="string">"Blocked inline 'image'"</span>.to_string(),
+                CspDirective::ManifestSrc =&gt; <span class="string">"Blocked inline 'manifest'"</span>.to_string(),
+                CspDirective::MediaSrc =&gt; <span class="string">"Blocked inline 'media'"</span>.to_string(),
+                CspDirective::ObjectSrc =&gt; <span class="string">"Blocked inline 'object'"</span>.to_string(),
+                CspDirective::ScriptSrcAttr =&gt; <span class="string">"Blocked unsafe 'script' element"</span>.to_string(),
+                CspDirective::ScriptSrcElem =&gt; <span class="string">"Blocked inline script attribute"</span>.to_string(),
+                CspDirective::StyleSrc =&gt; <span class="string">"Blocked inline 'style'"</span>.to_string(),
+                CspDirective::StyleSrcElem =&gt; <span class="string">"Blocked 'style' or 'link' element"</span>.to_string(),
+                CspDirective::StyleSrcAttr =&gt; <span class="string">"Blocked style attribute"</span>.to_string(),
                 CspDirective::ScriptSrc =&gt; {
-                    <span class="kw">if </span><span class="self">self</span>.violated_directive.contains(<span class="string">&quot;&#39;unsafe-inline&#39;&quot;</span>) {
-                        <span class="string">&quot;Blocked unsafe inline &#39;script&#39;&quot;</span>.to_string()
-                    } <span class="kw">else if </span><span class="self">self</span>.violated_directive.contains(<span class="string">&quot;&#39;unsafe-eval&#39;&quot;</span>) {
-                        <span class="string">&quot;Blocked unsafe eval() &#39;script&#39;&quot;</span>.to_string()
+                    <span class="kw">if </span><span class="self">self</span>.violated_directive.contains(<span class="string">"'unsafe-inline'"</span>) {
+                        <span class="string">"Blocked unsafe inline 'script'"</span>.to_string()
+                    } <span class="kw">else if </span><span class="self">self</span>.violated_directive.contains(<span class="string">"'unsafe-eval'"</span>) {
+                        <span class="string">"Blocked unsafe eval() 'script'"</span>.to_string()
                     } <span class="kw">else </span>{
-                        <span class="string">&quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;</span>.to_string()
+                        <span class="string">"Blocked unsafe (eval() or inline) 'script'"</span>.to_string()
                     }
                 }
-                directive =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked inline &#39;{directive}&#39;&quot;</span>),
+                directive =&gt; <span class="macro">format!</span>(<span class="string">"Blocked inline '{directive}'"</span>),
             }
         } <span class="kw">else </span>{
             <span class="kw">let </span>uri = normalize_uri(<span class="kw-2">&amp;</span><span class="self">self</span>.blocked_uri);
 
             <span class="kw">match </span>effective_directive {
-                CspDirective::ChildSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;child&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::ConnectSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;connect&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::FontSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;font&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::FormAction =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;form&#39; action to &#39;{uri}&#39;&quot;</span>),
-                CspDirective::ImgSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;image&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::ManifestSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;manifest&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::MediaSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;media&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::ObjectSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;object&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::ScriptSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{uri}&#39;&quot;</span>),
+                CspDirective::ChildSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'child' from '{uri}'"</span>),
+                CspDirective::ConnectSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'connect' from '{uri}'"</span>),
+                CspDirective::FontSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'font' from '{uri}'"</span>),
+                CspDirective::FormAction =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'form' action to '{uri}'"</span>),
+                CspDirective::ImgSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'image' from '{uri}'"</span>),
+                CspDirective::ManifestSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'manifest' from '{uri}'"</span>),
+                CspDirective::MediaSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'media' from '{uri}'"</span>),
+                CspDirective::ObjectSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'object' from '{uri}'"</span>),
+                CspDirective::ScriptSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'script' from '{uri}'"</span>),
                 CspDirective::ScriptSrcAttr =&gt; {
-                    <span class="macro">format!</span>(<span class="string">&quot;Blocked inline script attribute from &#39;{uri}&#39;&quot;</span>)
+                    <span class="macro">format!</span>(<span class="string">"Blocked inline script attribute from '{uri}'"</span>)
                 }
-                CspDirective::ScriptSrcElem =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::StyleSrc =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::StyleSrcElem =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{uri}&#39;&quot;</span>),
-                CspDirective::StyleSrcAttr =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked style attribute from &#39;{uri}&#39;&quot;</span>),
-                directive =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;{directive}&#39; from &#39;{uri}&#39;&quot;</span>),
+                CspDirective::ScriptSrcElem =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'script' from '{uri}'"</span>),
+                CspDirective::StyleSrc =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'style' from '{uri}'"</span>),
+                CspDirective::StyleSrcElem =&gt; <span class="macro">format!</span>(<span class="string">"Blocked 'style' from '{uri}'"</span>),
+                CspDirective::StyleSrcAttr =&gt; <span class="macro">format!</span>(<span class="string">"Blocked style attribute from '{uri}'"</span>),
+                directive =&gt; <span class="macro">format!</span>(<span class="string">"Blocked '{directive}' from '{uri}'"</span>),
             }
         }
     }
@@ -2300,13 +2301,13 @@
         // information in querystrings. The real solution is to apply data scrubbing to all tags
         // generically.
         //
-        //    if netloc == &#39;api.stripe.com&#39;:
-        //      query = &#39;&#39; fragment = &#39;&#39;
+        //    if netloc == 'api.stripe.com':
+        //      query = '' fragment = ''
 
         </span><span class="kw">let </span><span class="kw-2">mut </span>uri = <span class="self">self</span>.blocked_uri.clone();
 
-        <span class="kw">if </span>uri.starts_with(<span class="string">&quot;https://api.stripe.com/&quot;</span>) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = uri.find(<span class="kw-2">&amp;</span>[<span class="string">&#39;#&#39;</span>, <span class="string">&#39;?&#39;</span>][..]) {
+        <span class="kw">if </span>uri.starts_with(<span class="string">"https://api.stripe.com/"</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = uri.find(<span class="kw-2">&amp;</span>[<span class="string">'#'</span>, <span class="string">'?'</span>][..]) {
                 uri.truncate(index);
             }
         }
@@ -2314,48 +2315,48 @@
         uri
     }
 
-    <span class="kw">fn </span>normalize_value&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, document_uri: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
+    <span class="kw">fn </span>normalize_value&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, document_uri: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;<span class="lifetime">'a</span>, str&gt; {
         <span class="comment">// &gt; If no scheme is specified, the same scheme as the one used to access the protected
         // &gt; document is assumed.
         // Source: https://developer.mozilla.org/en-US/docs/Web/Security/CSP/CSP_policy_directives
-        </span><span class="kw">if let </span><span class="string">&quot;&#39;none&#39;&quot; </span>| <span class="string">&quot;&#39;self&#39;&quot; </span>| <span class="string">&quot;&#39;unsafe-inline&#39;&quot; </span>| <span class="string">&quot;&#39;unsafe-eval&#39;&quot; </span>= value {
+        </span><span class="kw">if let </span><span class="string">"'none'" </span>| <span class="string">"'self'" </span>| <span class="string">"'unsafe-inline'" </span>| <span class="string">"'unsafe-eval'" </span>= value {
             <span class="kw">return </span>Cow::Borrowed(value);
         }
 
-        <span class="comment">// Normalize a value down to &#39;self&#39; if it matches the origin of document-uri FireFox
-        // transforms a &#39;self&#39; value into the spelled out origin, so we want to reverse this and
+        <span class="comment">// Normalize a value down to 'self' if it matches the origin of document-uri FireFox
+        // transforms a 'self' value into the spelled out origin, so we want to reverse this and
         // bring it back.
-        </span><span class="kw">if </span>value.starts_with(<span class="string">&quot;data:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;mediastream:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;blob:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;filesystem:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;http:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;https:&quot;</span>)
-            || value.starts_with(<span class="string">&quot;file:&quot;</span>)
+        </span><span class="kw">if </span>value.starts_with(<span class="string">"data:"</span>)
+            || value.starts_with(<span class="string">"mediastream:"</span>)
+            || value.starts_with(<span class="string">"blob:"</span>)
+            || value.starts_with(<span class="string">"filesystem:"</span>)
+            || value.starts_with(<span class="string">"http:"</span>)
+            || value.starts_with(<span class="string">"https:"</span>)
+            || value.starts_with(<span class="string">"file:"</span>)
         {
             <span class="kw">if </span>document_uri == normalize_uri(value) {
-                <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&#39;self&#39;&quot;</span>);
+                <span class="kw">return </span>Cow::Borrowed(<span class="string">"'self'"</span>);
             }
 
-            <span class="comment">// Their rule had an explicit scheme, so let&#39;s respect that
+            <span class="comment">// Their rule had an explicit scheme, so let's respect that
             </span><span class="kw">return </span>Cow::Borrowed(value);
         }
 
-        <span class="comment">// Value doesn&#39;t have a scheme, but let&#39;s see if their hostnames match at least, if so,
-        // they&#39;re the same.
+        <span class="comment">// Value doesn't have a scheme, but let's see if their hostnames match at least, if so,
+        // they're the same.
         </span><span class="kw">if </span>value == document_uri {
-            <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&#39;self&#39;&quot;</span>);
+            <span class="kw">return </span>Cow::Borrowed(<span class="string">"'self'"</span>);
         }
 
-        <span class="comment">// Now we need to stitch on a scheme to the value, but let&#39;s not stitch on the boring
+        <span class="comment">// Now we need to stitch on a scheme to the value, but let's not stitch on the boring
         // values.
         </span><span class="kw">let </span>original_uri = <span class="kw">match </span><span class="self">self</span>.document_uri {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>u) =&gt; u,
-            <span class="prelude-val">None </span>=&gt; <span class="string">&quot;&quot;</span>,
+            <span class="prelude-val">None </span>=&gt; <span class="string">""</span>,
         };
 
-        <span class="kw">match </span>original_uri.split_once(<span class="string">&#39;:&#39;</span>).map(|x| x.<span class="number">0</span>) {
-            <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot; </span>| <span class="string">&quot;https&quot;</span>) =&gt; Cow::Borrowed(value),
+        <span class="kw">match </span>original_uri.split_once(<span class="string">':'</span>).map(|x| x.<span class="number">0</span>) {
+            <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="string">"http" </span>| <span class="string">"https"</span>) =&gt; Cow::Borrowed(value),
             <span class="prelude-val">Some</span>(scheme) =&gt; Cow::Owned(unsplit_uri(scheme, value)),
         }
     }
@@ -2368,11 +2369,11 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bits = <span class="self">self</span>.violated_directive.split_ascii_whitespace();
         <span class="kw">let </span><span class="kw-2">mut </span>culprit = bits.next().unwrap_or_default().to_owned();
 
-        <span class="kw">let </span>document_uri = <span class="self">self</span>.document_uri.as_deref().unwrap_or(<span class="string">&quot;&quot;</span>);
+        <span class="kw">let </span>document_uri = <span class="self">self</span>.document_uri.as_deref().unwrap_or(<span class="string">""</span>);
         <span class="kw">let </span>normalized_uri = normalize_uri(document_uri);
 
         <span class="kw">for </span>bit <span class="kw">in </span>bits {
-            <span class="macro">write!</span>(culprit, <span class="string">&quot; {}&quot;</span>, <span class="self">self</span>.normalize_value(bit, <span class="kw-2">&amp;</span>normalized_uri)).ok();
+            <span class="macro">write!</span>(culprit, <span class="string">" {}"</span>, <span class="self">self</span>.normalize_value(bit, <span class="kw-2">&amp;</span>normalized_uri)).ok();
         }
 
         culprit
@@ -2381,11 +2382,11 @@
     <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>, effective_directive: CspDirective) -&gt; Tags {
         Tags(PairList::from(<span class="macro">vec!</span>[
             Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;effective-directive&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"effective-directive"</span>.to_string()),
                 Annotated::new(effective_directive.to_string()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;blocked-uri&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"blocked-uri"</span>.to_string()),
                 Annotated::new(<span class="self">self</span>.sanitized_blocked_uri()),
             )),
         ]))
@@ -2395,7 +2396,7 @@
         <span class="kw">let </span>headers = <span class="kw">match </span><span class="self">self</span>.referrer {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>referrer) <span class="kw">if </span>!referrer.is_empty() =&gt; {
                 Annotated::new(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
-                    Annotated::new(HeaderName::new(<span class="string">&quot;Referer&quot;</span>)),
+                    Annotated::new(HeaderName::new(<span class="string">"Referer"</span>)),
                     Annotated::new(HeaderValue::new(referrer.clone())),
                 ))])))
             }
@@ -2414,7 +2415,7 @@
 ///
 /// See `Csp` for meaning of fields.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>CspReportRaw {
     csp_report: CspRaw,
 }
@@ -2433,18 +2434,18 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>Csp {
     <span class="doccomment">/// The directive whose enforcement caused the violation.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>effective_directive: Annotated&lt;String&gt;,
     <span class="doccomment">/// The URI of the resource that was blocked from loading by the Content Security Policy.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>blocked_uri: Annotated&lt;String&gt;,
     <span class="doccomment">/// The URI of the document in which the violation occurred.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>document_uri: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original policy as specified by the Content-Security-Policy HTTP header.
     </span><span class="kw">pub </span>original_policy: Annotated&lt;String&gt;,
     <span class="doccomment">/// The referrer of the document in which the violation occurred.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>referrer: Annotated&lt;String&gt;,
     <span class="doccomment">/// The HTTP status code of the resource on which the global object was instantiated.
     </span><span class="kw">pub </span>status_code: Annotated&lt;u64&gt;,
@@ -2462,7 +2463,7 @@
     <span class="doccomment">/// Policy disposition (enforce or report).
     </span><span class="kw">pub </span>disposition: Annotated&lt;String&gt;,
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, additional_properties)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, additional_properties)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -2493,12 +2494,12 @@
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(ExpectCtStatus, InvalidSecurityError, {
-    ExpectCtStatus::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
-    ExpectCtStatus::Valid =&gt; <span class="string">&quot;valid&quot;</span>,
-    ExpectCtStatus::Invalid =&gt; <span class="string">&quot;invalid&quot;</span>,
+    ExpectCtStatus::Unknown =&gt; <span class="string">"unknown"</span>,
+    ExpectCtStatus::Valid =&gt; <span class="string">"valid"</span>,
+    ExpectCtStatus::Invalid =&gt; <span class="string">"invalid"</span>,
 });
 
-<span class="macro">relay_common::impl_str_serde!</span>(ExpectCtStatus, <span class="string">&quot;an expect-ct status&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(ExpectCtStatus, <span class="string">"an expect-ct status"</span>);
 
 <span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 </span><span class="kw">enum </span>ExpectCtSource {
@@ -2508,12 +2509,12 @@
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(ExpectCtSource, InvalidSecurityError, {
-            ExpectCtSource::TlsExtension =&gt; <span class="string">&quot;tls-extension&quot;</span>,
-            ExpectCtSource::Ocsp =&gt; <span class="string">&quot;ocsp&quot;</span>,
-            ExpectCtSource::Embedded =&gt; <span class="string">&quot;embedded&quot;</span>,
+            ExpectCtSource::TlsExtension =&gt; <span class="string">"tls-extension"</span>,
+            ExpectCtSource::Ocsp =&gt; <span class="string">"ocsp"</span>,
+            ExpectCtSource::Embedded =&gt; <span class="string">"embedded"</span>,
 });
 
-<span class="macro">relay_common::impl_str_serde!</span>(ExpectCtSource, <span class="string">&quot;an expect-ct source&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(ExpectCtSource, <span class="string">"an expect-ct source"</span>);
 
 <span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 </span><span class="kw">struct </span>SingleCertificateTimestampRaw {
@@ -2535,14 +2536,14 @@
 }
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>ExpectCtRaw {
-    <span class="attr">#[serde(with = <span class="string">&quot;serde_date_time_3339&quot;</span>)]
+    <span class="attr">#[serde(with = <span class="string">"serde_date_time_3339"</span>)]
     </span>date_time: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     hostname: String,
     port: <span class="prelude-ty">Option</span>&lt;i64&gt;,
     scheme: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(with = <span class="string">&quot;serde_date_time_3339&quot;</span>)]
+    <span class="attr">#[serde(with = <span class="string">"serde_date_time_3339"</span>)]
     </span>effective_expiration_date: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     served_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
     validated_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
@@ -2566,17 +2567,17 @@
         }
     }
 
-    <span class="kw">pub fn </span>deserialize&lt;<span class="lifetime">&#39;de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, D::Error&gt;
+    <span class="kw">pub fn </span>deserialize&lt;<span class="lifetime">'de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">struct </span>DateTimeVisitor;
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>DateTimeVisitor {
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>DateTimeVisitor {
             <span class="kw">type </span>Value = <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;;
 
             <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-                formatter.write_str(<span class="string">&quot;expected a date-time in RFC 3339 format&quot;</span>)
+                formatter.write_str(<span class="string">"expected a date-time in RFC 3339 format"</span>)
             }
 
             <span class="kw">fn </span>visit_str&lt;E&gt;(<span class="self">self</span>, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
@@ -2602,7 +2603,7 @@
 
 <span class="kw">impl </span>ExpectCtRaw {
     <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
-        <span class="macro">format!</span>(<span class="string">&quot;Expect-CT failed for &#39;{}&#39;&quot;</span>, <span class="self">self</span>.hostname)
+        <span class="macro">format!</span>(<span class="string">"Expect-CT failed for '{}'"</span>, <span class="self">self</span>.hostname)
     }
 
     <span class="kw">fn </span>into_protocol(<span class="self">self</span>) -&gt; ExpectCt {
@@ -2641,13 +2642,13 @@
 
     <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-            Annotated::new(<span class="string">&quot;hostname&quot;</span>.to_string()),
+            Annotated::new(<span class="string">"hostname"</span>.to_string()),
             Annotated::new(<span class="self">self</span>.hostname.clone()),
         ))];
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;port&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"port"</span>.to_string()),
                 Annotated::new(port.to_string()),
             )));
         }
@@ -2664,7 +2665,7 @@
 }
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>ExpectCtReportRaw {
     expect_ct_report: ExpectCtRaw,
 }
@@ -2720,22 +2721,22 @@
 ///
 /// See `Hpkp` for meaning of fields.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>HpkpRaw {
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>date_time: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     hostname: String,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>port: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>effective_expiration_date: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>include_subdomains: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>noted_hostname: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>served_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>validated_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
     known_pins: Vec&lt;String&gt;,
     <span class="attr">#[serde(flatten)]
@@ -2745,7 +2746,7 @@
 <span class="kw">impl </span>HpkpRaw {
     <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
         <span class="macro">format!</span>(
-            <span class="string">&quot;Public key pinning validation failed for &#39;{}&#39;&quot;</span>,
+            <span class="string">"Public key pinning validation failed for '{}'"</span>,
             <span class="self">self</span>.hostname
         )
     }
@@ -2779,20 +2780,20 @@
 
     <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-            Annotated::new(<span class="string">&quot;hostname&quot;</span>.to_string()),
+            Annotated::new(<span class="string">"hostname"</span>.to_string()),
             Annotated::new(<span class="self">self</span>.hostname.clone()),
         ))];
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;port&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"port"</span>.to_string()),
                 Annotated::new(port.to_string()),
             )));
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(include_subdomains) = <span class="self">self</span>.include_subdomains {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;include-subdomains&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"include-subdomains"</span>.to_string()),
                 Annotated::new(include_subdomains.to_string()),
             )));
         }
@@ -2837,11 +2838,11 @@
     </span><span class="kw">pub </span>validated_certificate_chain: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// Pins that the UA has noted for the Known Pinned Host.
-    </span><span class="comment">// TODO: regex this string for &#39;pin-sha256=&quot;ABC123&quot;&#39; syntax
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="comment">// TODO: regex this string for 'pin-sha256="ABC123"' syntax
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>known_pins: Annotated&lt;Array&lt;String&gt;&gt;,
 
-    <span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, additional_properties)]
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>, additional_properties)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -2862,7 +2863,7 @@
 ///
 /// See `ExpectStaple` for meaning of fields.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>ExpectStapleReportRaw {
     expect_staple_report: ExpectStapleRaw,
 }
@@ -2880,17 +2881,17 @@
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(ExpectStapleResponseStatus, InvalidSecurityError, {
-    ExpectStapleResponseStatus::Missing =&gt; <span class="string">&quot;MISSING&quot;</span>,
-    ExpectStapleResponseStatus::Provided =&gt; <span class="string">&quot;PROVIDED&quot;</span>,
-    ExpectStapleResponseStatus::ErrorResponse =&gt; <span class="string">&quot;ERROR_RESPONSE&quot;</span>,
-    ExpectStapleResponseStatus::BadProducedAt =&gt; <span class="string">&quot;BAD_PRODUCED_AT&quot;</span>,
-    ExpectStapleResponseStatus::NoMatchingResponse =&gt; <span class="string">&quot;NO_MATCHING_RESPONSE&quot;</span>,
-    ExpectStapleResponseStatus::InvalidDate =&gt; <span class="string">&quot;INVALID_DATE&quot;</span>,
-    ExpectStapleResponseStatus::ParseResponseError =&gt; <span class="string">&quot;PARSE_RESPONSE_ERROR&quot;</span>,
-    ExpectStapleResponseStatus::ParseResponseDataError =&gt; <span class="string">&quot;PARSE_RESPONSE_DATA_ERROR&quot;</span>,
+    ExpectStapleResponseStatus::Missing =&gt; <span class="string">"MISSING"</span>,
+    ExpectStapleResponseStatus::Provided =&gt; <span class="string">"PROVIDED"</span>,
+    ExpectStapleResponseStatus::ErrorResponse =&gt; <span class="string">"ERROR_RESPONSE"</span>,
+    ExpectStapleResponseStatus::BadProducedAt =&gt; <span class="string">"BAD_PRODUCED_AT"</span>,
+    ExpectStapleResponseStatus::NoMatchingResponse =&gt; <span class="string">"NO_MATCHING_RESPONSE"</span>,
+    ExpectStapleResponseStatus::InvalidDate =&gt; <span class="string">"INVALID_DATE"</span>,
+    ExpectStapleResponseStatus::ParseResponseError =&gt; <span class="string">"PARSE_RESPONSE_ERROR"</span>,
+    ExpectStapleResponseStatus::ParseResponseDataError =&gt; <span class="string">"PARSE_RESPONSE_DATA_ERROR"</span>,
 });
 
-<span class="macro">relay_common::impl_str_serde!</span>(ExpectStapleResponseStatus, <span class="string">&quot;an expect-ct response status&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(ExpectStapleResponseStatus, <span class="string">"an expect-ct response status"</span>);
 
 <span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>ExpectStapleCertStatus {
@@ -2900,39 +2901,39 @@
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(ExpectStapleCertStatus, InvalidSecurityError, {
-    ExpectStapleCertStatus::Good =&gt; <span class="string">&quot;GOOD&quot;</span>,
-    ExpectStapleCertStatus::Revoked =&gt; <span class="string">&quot;REVOKED&quot;</span>,
-    ExpectStapleCertStatus::Unknown =&gt; <span class="string">&quot;UNKNOWN&quot;</span>,
+    ExpectStapleCertStatus::Good =&gt; <span class="string">"GOOD"</span>,
+    ExpectStapleCertStatus::Revoked =&gt; <span class="string">"REVOKED"</span>,
+    ExpectStapleCertStatus::Unknown =&gt; <span class="string">"UNKNOWN"</span>,
 });
 
-<span class="macro">relay_common::impl_str_serde!</span>(ExpectStapleCertStatus, <span class="string">&quot;an expect-staple cert status&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(ExpectStapleCertStatus, <span class="string">"an expect-staple cert status"</span>);
 
 <span class="doccomment">/// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+#[serde(rename_all = <span class="string">"kebab-case"</span>)]
 </span><span class="kw">struct </span>ExpectStapleRaw {
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>date_time: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     hostname: String,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>port: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>effective_expiration_date: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>response_status: <span class="prelude-ty">Option</span>&lt;ExpectStapleResponseStatus&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>ocsp_response: <span class="prelude-ty">Option</span>&lt;Value&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>cert_status: <span class="prelude-ty">Option</span>&lt;ExpectStapleCertStatus&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>served_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>validated_certificate_chain: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
 }
 
 <span class="kw">impl </span>ExpectStapleRaw {
     <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
-        <span class="macro">format!</span>(<span class="string">&quot;Expect-Staple failed for &#39;{}&#39;&quot;</span>, <span class="self">self</span>.hostname)
+        <span class="macro">format!</span>(<span class="string">"Expect-Staple failed for '{}'"</span>, <span class="self">self</span>.hostname)
     }
 
     <span class="kw">fn </span>into_protocol(<span class="self">self</span>) -&gt; ExpectStaple {
@@ -2963,27 +2964,27 @@
 
     <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-            Annotated::new(<span class="string">&quot;hostname&quot;</span>.to_string()),
+            Annotated::new(<span class="string">"hostname"</span>.to_string()),
             Annotated::new(<span class="self">self</span>.hostname.clone()),
         ))];
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;port&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"port"</span>.to_string()),
                 Annotated::new(port.to_string()),
             )));
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(response_status) = <span class="self">self</span>.response_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;response_status&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"response_status"</span>.to_string()),
                 Annotated::new(response_status.to_string()),
             )));
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(cert_status) = <span class="self">self</span>.cert_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new(<span class="string">&quot;cert_status&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"cert_status"</span>.to_string()),
                 Annotated::new(cert_status.to_string()),
             )));
         }
@@ -3045,7 +3046,7 @@
     /// matches, an error is returned.
     </span><span class="kw">pub fn </span>from_json(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;, serde_json::Error&gt; {
         <span class="attr">#[derive(Deserialize)]
-        #[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+        #[serde(rename_all = <span class="string">"kebab-case"</span>)]
         </span><span class="kw">struct </span>SecurityReport {
             csp_report: <span class="prelude-ty">Option</span>&lt;IgnoredAny&gt;,
             known_pins: <span class="prelude-ty">Option</span>&lt;IgnoredAny&gt;,
@@ -3076,347 +3077,347 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_unsplit_uri() {
-        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">&quot;&quot;</span>, <span class="string">&quot;&quot;</span>), <span class="string">&quot;&quot;</span>);
-        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">&quot;data&quot;</span>, <span class="string">&quot;&quot;</span>), <span class="string">&quot;data:&quot;</span>);
-        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">&quot;data&quot;</span>, <span class="string">&quot;foo&quot;</span>), <span class="string">&quot;data://foo&quot;</span>);
-        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">&quot;http&quot;</span>, <span class="string">&quot;&quot;</span>), <span class="string">&quot;http://&quot;</span>);
-        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">&quot;http&quot;</span>, <span class="string">&quot;foo&quot;</span>), <span class="string">&quot;http://foo&quot;</span>);
+        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">""</span>, <span class="string">""</span>), <span class="string">""</span>);
+        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">"data"</span>, <span class="string">""</span>), <span class="string">"data:"</span>);
+        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">"data"</span>, <span class="string">"foo"</span>), <span class="string">"data://foo"</span>);
+        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">"http"</span>, <span class="string">""</span>), <span class="string">"http://"</span>);
+        <span class="macro">assert_eq!</span>(unsplit_uri(<span class="string">"http"</span>, <span class="string">"foo"</span>), <span class="string">"http://foo"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_uri() {
         <span class="comment">// Special handling for self URIs
-        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;&quot;</span>), <span class="string">&quot;&#39;self&#39;&quot;</span>);
-        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;self&quot;</span>), <span class="string">&quot;&#39;self&#39;&quot;</span>);
+        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">""</span>), <span class="string">"'self'"</span>);
+        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"self"</span>), <span class="string">"'self'"</span>);
 
         <span class="comment">// Special handling for schema-only URIs
-        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;data&quot;</span>), <span class="string">&quot;data:&quot;</span>);
-        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;http&quot;</span>), <span class="string">&quot;http://&quot;</span>);
+        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"data"</span>), <span class="string">"data:"</span>);
+        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"http"</span>), <span class="string">"http://"</span>);
 
         <span class="comment">// URIs without port
-        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;http://notlocalhost/&quot;</span>), <span class="string">&quot;notlocalhost&quot;</span>);
-        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;https://notlocalhost/&quot;</span>), <span class="string">&quot;notlocalhost&quot;</span>);
-        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;data://notlocalhost/&quot;</span>), <span class="string">&quot;data://notlocalhost&quot;</span>);
-        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;http://notlocalhost/lol.css&quot;</span>), <span class="string">&quot;notlocalhost&quot;</span>);
+        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"http://notlocalhost/"</span>), <span class="string">"notlocalhost"</span>);
+        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"https://notlocalhost/"</span>), <span class="string">"notlocalhost"</span>);
+        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"data://notlocalhost/"</span>), <span class="string">"data://notlocalhost"</span>);
+        <span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"http://notlocalhost/lol.css"</span>), <span class="string">"notlocalhost"</span>);
 
         <span class="comment">// URIs with port
         </span><span class="macro">assert_eq!</span>(
-            normalize_uri(<span class="string">&quot;http://notlocalhost:8000/&quot;</span>),
-            <span class="string">&quot;notlocalhost:8000&quot;
+            normalize_uri(<span class="string">"http://notlocalhost:8000/"</span>),
+            <span class="string">"notlocalhost:8000"
         </span>);
         <span class="macro">assert_eq!</span>(
-            normalize_uri(<span class="string">&quot;http://notlocalhost:8000/lol.css&quot;</span>),
-            <span class="string">&quot;notlocalhost:8000&quot;
+            normalize_uri(<span class="string">"http://notlocalhost:8000/lol.css"</span>),
+            <span class="string">"notlocalhost:8000"
         </span>);
 
         <span class="comment">// Invalid URIs
-        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">&quot;xyz://notlocalhost/&quot;</span>), <span class="string">&quot;xyz://notlocalhost&quot;</span>);
+        </span><span class="macro">assert_eq!</span>(normalize_uri(<span class="string">"xyz://notlocalhost/"</span>), <span class="string">"xyz://notlocalhost"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_basic() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com&quot;,
-                &quot;violated-directive&quot;: &quot;style-src cdn.example.com&quot;,
-                &quot;blocked-uri&quot;: &quot;http://example.com/lol.css&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com",
+                "violated-directive": "style-src cdn.example.com",
+                "blocked-uri": "http://example.com/lol.css",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;style-src cdn.example.com&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Blocked &#39;style&#39; from &#39;example.com&#39;&quot;
+          "culprit": "style-src cdn.example.com",
+          "logentry": {
+            "formatted": "Blocked 'style' from 'example.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;http://example.com&quot;
+          "request": {
+            "url": "http://example.com"
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;effective-directive&quot;,
-              &quot;style-src&quot;
+              "effective-directive",
+              "style-src"
             ],
             [
-              &quot;blocked-uri&quot;,
-              &quot;http://example.com/lol.css&quot;
+              "blocked-uri",
+              "http://example.com/lol.css"
             ]
           ],
-          &quot;csp&quot;: {
-            &quot;effective_directive&quot;: &quot;style-src&quot;,
-            &quot;blocked_uri&quot;: &quot;http://example.com/lol.css&quot;,
-            &quot;document_uri&quot;: &quot;http://example.com&quot;,
-            &quot;violated_directive&quot;: &quot;style-src cdn.example.com&quot;
+          "csp": {
+            "effective_directive": "style-src",
+            "blocked_uri": "http://example.com/lol.css",
+            "document_uri": "http://example.com",
+            "violated_directive": "style-src cdn.example.com"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_coerce_blocked_uri_if_missing() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com",
+                "effective-directive": "script-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;
+          "culprit": "",
+          "logentry": {
+            "formatted": "Blocked unsafe (eval() or inline) 'script'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;http://example.com&quot;
+          "request": {
+            "url": "http://example.com"
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;effective-directive&quot;,
-              &quot;script-src&quot;
+              "effective-directive",
+              "script-src"
             ],
             [
-              &quot;blocked-uri&quot;,
-              &quot;self&quot;
+              "blocked-uri",
+              "self"
             ]
           ],
-          &quot;csp&quot;: {
-            &quot;effective_directive&quot;: &quot;script-src&quot;,
-            &quot;blocked_uri&quot;: &quot;self&quot;,
-            &quot;document_uri&quot;: &quot;http://example.com&quot;,
-            &quot;violated_directive&quot;: &quot;&quot;
+          "csp": {
+            "effective_directive": "script-src",
+            "blocked_uri": "self",
+            "document_uri": "http://example.com",
+            "violated_directive": ""
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_msdn() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;https://example.com/foo/bar&quot;,
-                &quot;referrer&quot;: &quot;https://www.google.com/&quot;,
-                &quot;violated-directive&quot;: &quot;default-src self&quot;,
-                &quot;original-policy&quot;: &quot;default-src self; report-uri /csp-hotline.php&quot;,
-                &quot;blocked-uri&quot;: &quot;http://evilhackerscripts.com&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo/bar",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "default-src self",
+                "original-policy": "default-src self; report-uri /csp-hotline.php",
+                "blocked-uri": "http://evilhackerscripts.com"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;default-src self&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Blocked &#39;default-src&#39; from &#39;evilhackerscripts.com&#39;&quot;
+          "culprit": "default-src self",
+          "logentry": {
+            "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;https://example.com/foo/bar&quot;,
-            &quot;headers&quot;: [
+          "request": {
+            "url": "https://example.com/foo/bar",
+            "headers": [
               [
-                &quot;Referer&quot;,
-                &quot;https://www.google.com/&quot;
+                "Referer",
+                "https://www.google.com/"
               ]
             ]
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;effective-directive&quot;,
-              &quot;default-src&quot;
+              "effective-directive",
+              "default-src"
             ],
             [
-              &quot;blocked-uri&quot;,
-              &quot;http://evilhackerscripts.com&quot;
+              "blocked-uri",
+              "http://evilhackerscripts.com"
             ]
           ],
-          &quot;csp&quot;: {
-            &quot;effective_directive&quot;: &quot;default-src&quot;,
-            &quot;blocked_uri&quot;: &quot;http://evilhackerscripts.com&quot;,
-            &quot;document_uri&quot;: &quot;https://example.com/foo/bar&quot;,
-            &quot;original_policy&quot;: &quot;default-src self; report-uri /csp-hotline.php&quot;,
-            &quot;referrer&quot;: &quot;https://www.google.com/&quot;,
-            &quot;violated_directive&quot;: &quot;default-src self&quot;
+          "csp": {
+            "effective_directive": "default-src",
+            "blocked_uri": "http://evilhackerscripts.com",
+            "document_uri": "https://example.com/foo/bar",
+            "original_policy": "default-src self; report-uri /csp-hotline.php",
+            "referrer": "https://www.google.com/",
+            "violated_directive": "default-src self"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_real() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;https://sentry.io/sentry/csp/issues/88513416/&quot;,
-                &quot;referrer&quot;: &quot;https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/&quot;,
-                &quot;violated-directive&quot;: &quot;script-src&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;original-policy&quot;: &quot;default-src *; script-src &#39;make_csp_snapshot&#39; &#39;unsafe-eval&#39; &#39;unsafe-inline&#39; e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src &#39;make_csp_snapshot&#39; &#39;unsafe-inline&#39; e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&amp;sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7&quot;,
-                &quot;disposition&quot;: &quot;enforce&quot;,
-                &quot;blocked-uri&quot;: &quot;http://baddomain.com/test.js?_=1515535030116&quot;,
-                &quot;line-number&quot;: 24,
-                &quot;column-number&quot;: 66270,
-                &quot;source-file&quot;: &quot;https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js&quot;,
-                &quot;status-code&quot;: 0,
-                &quot;script-sample&quot;: &quot;&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "https://sentry.io/sentry/csp/issues/88513416/",
+                "referrer": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/",
+                "violated-directive": "script-src",
+                "effective-directive": "script-src",
+                "original-policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&amp;sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
+                "disposition": "enforce",
+                "blocked-uri": "http://baddomain.com/test.js?_=1515535030116",
+                "line-number": 24,
+                "column-number": 66270,
+                "source-file": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js",
+                "status-code": 0,
+                "script-sample": ""
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;script-src&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Blocked &#39;script&#39; from &#39;baddomain.com&#39;&quot;
+          "culprit": "script-src",
+          "logentry": {
+            "formatted": "Blocked 'script' from 'baddomain.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;https://sentry.io/sentry/csp/issues/88513416/&quot;,
-            &quot;headers&quot;: [
+          "request": {
+            "url": "https://sentry.io/sentry/csp/issues/88513416/",
+            "headers": [
               [
-                &quot;Referer&quot;,
-                &quot;https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/&quot;
+                "Referer",
+                "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/"
               ]
             ]
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;effective-directive&quot;,
-              &quot;script-src&quot;
+              "effective-directive",
+              "script-src"
             ],
             [
-              &quot;blocked-uri&quot;,
-              &quot;http://baddomain.com/test.js?_=1515535030116&quot;
+              "blocked-uri",
+              "http://baddomain.com/test.js?_=1515535030116"
             ]
           ],
-          &quot;csp&quot;: {
-            &quot;effective_directive&quot;: &quot;script-src&quot;,
-            &quot;blocked_uri&quot;: &quot;http://baddomain.com/test.js?_=1515535030116&quot;,
-            &quot;document_uri&quot;: &quot;https://sentry.io/sentry/csp/issues/88513416/&quot;,
-            &quot;original_policy&quot;: &quot;default-src *; script-src &#39;make_csp_snapshot&#39; &#39;unsafe-eval&#39; &#39;unsafe-inline&#39; e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src &#39;make_csp_snapshot&#39; &#39;unsafe-inline&#39; e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&amp;sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7&quot;,
-            &quot;referrer&quot;: &quot;https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/&quot;,
-            &quot;status_code&quot;: 0,
-            &quot;violated_directive&quot;: &quot;script-src&quot;,
-            &quot;source_file&quot;: &quot;https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js&quot;,
-            &quot;line_number&quot;: 24,
-            &quot;column_number&quot;: 66270,
-            &quot;script_sample&quot;: &quot;&quot;,
-            &quot;disposition&quot;: &quot;enforce&quot;
+          "csp": {
+            "effective_directive": "script-src",
+            "blocked_uri": "http://baddomain.com/test.js?_=1515535030116",
+            "document_uri": "https://sentry.io/sentry/csp/issues/88513416/",
+            "original_policy": "default-src *; script-src 'make_csp_snapshot' 'unsafe-eval' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net cdn.ravenjs.com assets.zendesk.com ajax.googleapis.com ssl.google-analytics.com www.googleadservices.com analytics.twitter.com platform.twitter.com *.pingdom.net js.stripe.com api.stripe.com statuspage-production.s3.amazonaws.com s3.amazonaws.com *.google.com www.gstatic.com aui-cdn.atlassian.com *.atlassian.net *.jira.com *.zopim.com; font-src * data:; connect-src * wss://*.zopim.com; style-src 'make_csp_snapshot' 'unsafe-inline' e90d271df3e973c7.global.ssl.fastly.net s3.amazonaws.com aui-cdn.atlassian.com fonts.googleapis.com; img-src * data: blob:; report-uri https://sentry.io/api/54785/csp-report/?sentry_key=f724a8a027db45f5b21507e7142ff78e&amp;sentry_release=39662eb9734f68e56b7f202260bb706be2f4cee7",
+            "referrer": "https://sentry.io/sentry/sentry/releases/7329107476ff14cfa19cf013acd8ce47781bb93a/",
+            "status_code": 0,
+            "violated_directive": "script-src",
+            "source_file": "https://e90d271df3e973c7.global.ssl.fastly.net/_static/f0c7c026a4b2a3d2b287ae2d012c9924/sentry/dist/vendor.js",
+            "line_number": 24,
+            "column_number": 66270,
+            "script_sample": "",
+            "disposition": "enforce"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_0() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src http://cdn.example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://cdn.example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src http://cdn.example.com&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src http://cdn.example.com""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_1() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src cdn.example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src cdn.example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src cdn.example.com&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src cdn.example.com""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_2() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;https://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src cdn.example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo",
+                "violated-directive": "style-src cdn.example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src cdn.example.com&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src cdn.example.com""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_3() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src https://cdn.example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src https://cdn.example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src https://cdn.example.com&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src https://cdn.example.com""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_4() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src http://example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src &#39;self&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src 'self'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_5() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;style-src http://example2.com example.com&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "style-src http://example2.com example.com",
+                "effective-directive": "style-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src http://example2.com &#39;self&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src http://example2.com 'self'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_culprit_uri_without_scheme() {
-        <span class="comment">// Not sure if this is a real-world example, but let&#39;s cover it anyway
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;example.com&quot;,
-                &quot;violated-directive&quot;: &quot;style-src example2.com&quot;
+        <span class="comment">// Not sure if this is a real-world example, but let's cover it anyway
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "example.com",
+                "violated-directive": "style-src example2.com"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src example2.com&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#""style-src example2.com""#</span>);
     }
 
     <span class="attr">#[test]
@@ -3424,411 +3425,411 @@
         <span class="comment">// This is a regression test for potential PII in stripe URLs. PII stripping used to skip
         // report interfaces, which is why there is special handling.
 
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;https://example.com&quot;,
-                &quot;blocked-uri&quot;: &quot;https://api.stripe.com/v1/tokens?card[number]=xxx&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "https://example.com",
+                "blocked-uri": "https://api.stripe.com/v1/tokens?card[number]=xxx",
+                "effective-directive": "script-src"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
         Tags(
             PairList(
                 [
                     TagEntry(
-                        &quot;effective-directive&quot;,
-                        &quot;script-src&quot;,
+                        "effective-directive",
+                        "script-src",
                     ),
                     TagEntry(
-                        &quot;blocked-uri&quot;,
-                        &quot;https://api.stripe.com/v1/tokens&quot;,
+                        "blocked-uri",
+                        "https://api.stripe.com/v1/tokens",
                     ),
                 ],
             ),
         )
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_0() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;img-src&quot;,
-                &quot;blocked-uri&quot;: &quot;http://google.com/foo&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "img-src",
+                "blocked-uri": "http://google.com/foo"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;image&#39; from &#39;google.com&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'image' from 'google.com'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_1() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;,
-                &quot;blocked-uri&quot;: &quot;&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "style-src",
+                "blocked-uri": ""
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked inline &#39;style&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked inline 'style'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_2() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;blocked-uri&quot;: &quot;&quot;,
-                &quot;violated-directive&quot;: &quot;script-src &#39;unsafe-inline&#39;&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src 'unsafe-inline'"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe inline &#39;script&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked unsafe inline 'script'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_3() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;blocked-uri&quot;: &quot;&quot;,
-                &quot;violated-directive&quot;: &quot;script-src &#39;unsafe-eval&#39;&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src 'unsafe-eval'"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe eval() &#39;script&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked unsafe eval() 'script'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_4() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;blocked-uri&quot;: &quot;&quot;,
-                &quot;violated-directive&quot;: &quot;script-src example.com&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "",
+                "violated-directive": "script-src example.com"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked unsafe (eval() or inline) 'script'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_5() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;blocked-uri&quot;: &quot;data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'script' from 'data:'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_6() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src&quot;,
-                &quot;blocked-uri&quot;: &quot;data&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src",
+                "blocked-uri": "data"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'script' from 'data:'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_7() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;style-src-elem&quot;,
-                &quot;blocked-uri&quot;: &quot;http://fonts.google.com/foo&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "style-src-elem",
+                "blocked-uri": "http://fonts.google.com/foo"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;style&#39; from &#39;fonts.google.com&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'style' from 'fonts.google.com'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_8() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src-elem&quot;,
-                &quot;blocked-uri&quot;: &quot;http://cdn.ajaxapis.com/foo&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src-elem",
+                "blocked-uri": "http://cdn.ajaxapis.com/foo"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;cdn.ajaxapis.com&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'script' from 'cdn.ajaxapis.com'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_csp_get_message_9() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://notlocalhost:8000/&quot;,
-                &quot;effective-directive&quot;: &quot;style-src&quot;,
-                &quot;blocked-uri&quot;: &quot;http://notlocalhost:8000/lol.css&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://notlocalhost:8000/",
+                "effective-directive": "style-src",
+                "blocked-uri": "http://notlocalhost:8000/lol.css"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;style&#39; from &#39;notlocalhost:8000&#39;&quot;&quot;#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#""Blocked 'style' from 'notlocalhost:8000'""#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expectct_basic() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;expect-ct-report&quot;: {
-                &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-                &quot;hostname&quot;: &quot;www.example.com&quot;,
-                &quot;port&quot;: 443,
-                &quot;scheme&quot;: &quot;https&quot;,
-                &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-                &quot;served-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-                &quot;validated-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-                &quot;scts&quot;: [
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "expect-ct-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "scheme": "https",
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "scts": [
                     {
-                        &quot;version&quot;: 1,
-                        &quot;status&quot;: &quot;invalid&quot;,
-                        &quot;source&quot;: &quot;embedded&quot;,
-                        &quot;serialized_sct&quot;: &quot;ABCD==&quot;
+                        "version": 1,
+                        "status": "invalid",
+                        "source": "embedded",
+                        "serialized_sct": "ABCD=="
                     }
                 ],
-                &quot;failure-mode&quot;: &quot;enforce&quot;,
-                &quot;test-report&quot;: false
+                "failure-mode": "enforce",
+                "test-report": false
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         ExpectCt::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;www.example.com&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Expect-CT failed for &#39;www.example.com&#39;&quot;
+          "culprit": "www.example.com",
+          "logentry": {
+            "formatted": "Expect-CT failed for 'www.example.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;www.example.com&quot;
+          "request": {
+            "url": "www.example.com"
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;hostname&quot;,
-              &quot;www.example.com&quot;
+              "hostname",
+              "www.example.com"
             ],
             [
-              &quot;port&quot;,
-              &quot;443&quot;
+              "port",
+              "443"
             ]
           ],
-          &quot;expectct&quot;: {
-            &quot;date_time&quot;: &quot;2014-04-06T13:00:50+00:00&quot;,
-            &quot;hostname&quot;: &quot;www.example.com&quot;,
-            &quot;port&quot;: 443,
-            &quot;scheme&quot;: &quot;https&quot;,
-            &quot;effective_expiration_date&quot;: &quot;2014-05-01T12:40:50+00:00&quot;,
-            &quot;served_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+          "expectct": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "www.example.com",
+            "port": 443,
+            "scheme": "https",
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ],
-            &quot;validated_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ],
-            &quot;scts&quot;: [
+            "scts": [
               {
-                &quot;version&quot;: 1,
-                &quot;status&quot;: &quot;invalid&quot;,
-                &quot;source&quot;: &quot;embedded&quot;,
-                &quot;serialized_sct&quot;: &quot;ABCD==&quot;
+                "version": 1,
+                "status": "invalid",
+                "source": "embedded",
+                "serialized_sct": "ABCD=="
               }
             ],
-            &quot;failure_mode&quot;: &quot;enforce&quot;,
-            &quot;test_report&quot;: false
+            "failure_mode": "enforce",
+            "test_report": false
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expectct_invalid() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;hostname&quot;: &quot;www.example.com&quot;,
-            &quot;date_time&quot;: &quot;Not an RFC3339 datetime&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "hostname": "www.example.com",
+            "date_time": "Not an RFC3339 datetime"
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         ExpectCt::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event)
-            .expect_err(<span class="string">&quot;date_time should fail to parse&quot;</span>);
+            .expect_err(<span class="string">"date_time should fail to parse"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expectstaple_basic() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;expect-staple-report&quot;: {
-                &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-                &quot;hostname&quot;: &quot;www.example.com&quot;,
-                &quot;port&quot;: 443,
-                &quot;response-status&quot;: &quot;ERROR_RESPONSE&quot;,
-                &quot;cert-status&quot;: &quot;REVOKED&quot;,
-                &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-                &quot;served-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-                &quot;validated-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;]
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "expect-staple-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "response-status": "ERROR_RESPONSE",
+                "cert-status": "REVOKED",
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"]
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         ExpectStaple::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;culprit&quot;: &quot;www.example.com&quot;,
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Expect-Staple failed for &#39;www.example.com&#39;&quot;
+          "culprit": "www.example.com",
+          "logentry": {
+            "formatted": "Expect-Staple failed for 'www.example.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;www.example.com&quot;
+          "request": {
+            "url": "www.example.com"
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;hostname&quot;,
-              &quot;www.example.com&quot;
+              "hostname",
+              "www.example.com"
             ],
             [
-              &quot;port&quot;,
-              &quot;443&quot;
+              "port",
+              "443"
             ],
             [
-              &quot;response_status&quot;,
-              &quot;ERROR_RESPONSE&quot;
+              "response_status",
+              "ERROR_RESPONSE"
             ],
             [
-              &quot;cert_status&quot;,
-              &quot;REVOKED&quot;
+              "cert_status",
+              "REVOKED"
             ]
           ],
-          &quot;expectstaple&quot;: {
-            &quot;date_time&quot;: &quot;2014-04-06T13:00:50+00:00&quot;,
-            &quot;hostname&quot;: &quot;www.example.com&quot;,
-            &quot;port&quot;: 443,
-            &quot;effective_expiration_date&quot;: &quot;2014-05-01T12:40:50+00:00&quot;,
-            &quot;response_status&quot;: &quot;ERROR_RESPONSE&quot;,
-            &quot;cert_status&quot;: &quot;REVOKED&quot;,
-            &quot;served_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+          "expectstaple": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "www.example.com",
+            "port": 443,
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "response_status": "ERROR_RESPONSE",
+            "cert_status": "REVOKED",
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ],
-            &quot;validated_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ]
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hpkp_basic() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-            &quot;hostname&quot;: &quot;example.com&quot;,
-            &quot;port&quot;: 443,
-            &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-            &quot;include-subdomains&quot;: false,
-            &quot;served-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-            &quot;validated-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-            &quot;known-pins&quot;: [&quot;pin-sha256=\&quot;E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\&quot;&quot;]
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "date-time": "2014-04-06T13:00:50Z",
+            "hostname": "example.com",
+            "port": 443,
+            "effective-expiration-date": "2014-05-01T12:40:50Z",
+            "include-subdomains": false,
+            "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+            "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+            "known-pins": ["pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""]
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Hpkp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#"
         {
-          &quot;logentry&quot;: {
-            &quot;formatted&quot;: &quot;Public key pinning validation failed for &#39;example.com&#39;&quot;
+          "logentry": {
+            "formatted": "Public key pinning validation failed for 'example.com'"
           },
-          &quot;request&quot;: {
-            &quot;url&quot;: &quot;example.com&quot;
+          "request": {
+            "url": "example.com"
           },
-          &quot;tags&quot;: [
+          "tags": [
             [
-              &quot;hostname&quot;,
-              &quot;example.com&quot;
+              "hostname",
+              "example.com"
             ],
             [
-              &quot;port&quot;,
-              &quot;443&quot;
+              "port",
+              "443"
             ],
             [
-              &quot;include-subdomains&quot;,
-              &quot;false&quot;
+              "include-subdomains",
+              "false"
             ]
           ],
-          &quot;hpkp&quot;: {
-            &quot;date_time&quot;: &quot;2014-04-06T13:00:50+00:00&quot;,
-            &quot;hostname&quot;: &quot;example.com&quot;,
-            &quot;port&quot;: 443,
-            &quot;effective_expiration_date&quot;: &quot;2014-05-01T12:40:50+00:00&quot;,
-            &quot;include_subdomains&quot;: false,
-            &quot;served_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+          "hpkp": {
+            "date_time": "2014-04-06T13:00:50+00:00",
+            "hostname": "example.com",
+            "port": 443,
+            "effective_expiration_date": "2014-05-01T12:40:50+00:00",
+            "include_subdomains": false,
+            "served_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ],
-            &quot;validated_certificate_chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+            "validated_certificate_chain": [
+              "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             ],
-            &quot;known_pins&quot;: [
-              &quot;pin-sha256=\&quot;E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\&quot;&quot;
+            "known_pins": [
+              "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
             ]
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_security_report_type_deserializer_recognizes_csp_reports() {
-        <span class="kw">let </span>csp_report_text = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;https://example.com/foo/bar&quot;,
-                &quot;referrer&quot;: &quot;https://www.google.com/&quot;,
-                &quot;violated-directive&quot;: &quot;default-src self&quot;,
-                &quot;original-policy&quot;: &quot;default-src self; report-uri /csp-hotline.php&quot;,
-                &quot;blocked-uri&quot;: &quot;http://evilhackerscripts.com&quot;
+        <span class="kw">let </span>csp_report_text = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "https://example.com/foo/bar",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "default-src self",
+                "original-policy": "default-src self; report-uri /csp-hotline.php",
+                "blocked-uri": "http://evilhackerscripts.com"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span>report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(report_type, <span class="prelude-val">Some</span>(SecurityReportType::Csp));
@@ -3836,28 +3837,28 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_security_report_type_deserializer_recognizes_expect_ct_reports() {
-        <span class="kw">let </span>expect_ct_report_text = <span class="string">r#&quot;{
-            &quot;expect-ct-report&quot;: {
-                &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-                &quot;hostname&quot;: &quot;www.example.com&quot;,
-                &quot;port&quot;: 443,
-                &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-                &quot;served-certificate-chain&quot;: [
-                    &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+        <span class="kw">let </span>expect_ct_report_text = <span class="string">r#"{
+            "expect-ct-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": [
+                    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
                 ],
-                &quot;validated-certificate-chain&quot;: [
-                    &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
+                "validated-certificate-chain": [
+                    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
                 ],
-                &quot;scts&quot;: [
+                "scts": [
                     {
-                        &quot;version&quot;: 1,
-                        &quot;status&quot;: &quot;invalid&quot;,
-                        &quot;source&quot;: &quot;embedded&quot;,
-                        &quot;serialized_sct&quot;: &quot;ABCD==&quot;
+                        "version": 1,
+                        "status": "invalid",
+                        "source": "embedded",
+                        "serialized_sct": "ABCD=="
                     }
                 ]
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span>report_type = SecurityReportType::from_json(expect_ct_report_text.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(report_type, <span class="prelude-val">Some</span>(SecurityReportType::ExpectCt));
@@ -3865,18 +3866,18 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_security_report_type_deserializer_recognizes_expect_staple_reports() {
-        <span class="kw">let </span>expect_staple_report_text = <span class="string">r#&quot;{
-             &quot;expect-staple-report&quot;: {
-                &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-                &quot;hostname&quot;: &quot;www.example.com&quot;,
-                &quot;port&quot;: 443,
-                &quot;response-status&quot;: &quot;ERROR_RESPONSE&quot;,
-                &quot;cert-status&quot;: &quot;REVOKED&quot;,
-                &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-                &quot;served-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
-                &quot;validated-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;]
+        <span class="kw">let </span>expect_staple_report_text = <span class="string">r#"{
+             "expect-staple-report": {
+                "date-time": "2014-04-06T13:00:50Z",
+                "hostname": "www.example.com",
+                "port": 443,
+                "response-status": "ERROR_RESPONSE",
+                "cert-status": "REVOKED",
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+                "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
+                "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"]
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>report_type =
             SecurityReportType::from_json(expect_staple_report_text.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(report_type, <span class="prelude-val">Some</span>(SecurityReportType::ExpectStaple));
@@ -3884,23 +3885,23 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_security_report_type_deserializer_recognizes_hpkp_reports() {
-        <span class="kw">let </span>hpkp_report_text = <span class="string">r#&quot;{
-            &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
-            &quot;hostname&quot;: &quot;www.example.com&quot;,
-            &quot;port&quot;: 443,
-            &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
-            &quot;include-subdomains&quot;: false,
-            &quot;served-certificate-chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----&quot;
+        <span class="kw">let </span>hpkp_report_text = <span class="string">r#"{
+            "date-time": "2014-04-06T13:00:50Z",
+            "hostname": "www.example.com",
+            "port": 443,
+            "effective-expiration-date": "2014-05-01T12:40:50Z",
+            "include-subdomains": false,
+            "served-certificate-chain": [
+              "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----"
             ],
-            &quot;validated-certificate-chain&quot;: [
-              &quot;-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----&quot;
+            "validated-certificate-chain": [
+              "-----BEGIN CERTIFICATE-----\n MIIEBDCCAuygAwIBAgIDAjppMA0GCSqGSIb3DQEBBQUAMEIxCzAJBgNVBAYTAlVT\n... -----END CERTIFICATE-----"
             ],
-            &quot;known-pins&quot;: [
-              &quot;pin-sha256=\&quot;d6qzRu9zOECb90Uez27xWltNsj0e1Md7GkYYkVoZWmM=\&quot;&quot;,
-              &quot;pin-sha256=\&quot;E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\&quot;&quot;
+            "known-pins": [
+              "pin-sha256=\"d6qzRu9zOECb90Uez27xWltNsj0e1Md7GkYYkVoZWmM=\"",
+              "pin-sha256=\"E9CZ9INDbd+2eRQozYqqbQ2yXLVKB9+xcprMF+44U1g=\""
             ]
-          }&quot;#</span>;
+          }"#</span>;
 
         <span class="kw">let </span>report_type = SecurityReportType::from_json(hpkp_report_text.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(report_type, <span class="prelude-val">Some</span>(SecurityReportType::Hpkp));
@@ -3910,7 +3911,7 @@
     </span><span class="kw">fn </span>test_effective_directive_from_violated_directive_single() {
         <span class="comment">// Example from Firefox:
         </span><span class="kw">let </span>csp_raw: CspRaw =
-            serde_json::from_str(<span class="string">r#&quot;{&quot;violated-directive&quot;:&quot;default-src&quot;}&quot;#</span>).unwrap();
+            serde_json::from_str(<span class="string">r#"{"violated-directive":"default-src"}"#</span>).unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             csp_raw.effective_directive(),
             <span class="prelude-val">Ok</span>(CspDirective::DefaultSrc)
@@ -3919,14 +3920,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_effective_directive_from_long_form() {
-        <span class="comment">// First try from &#39;effective-directive&#39; field
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;effective-directive&quot;: &quot;script-src &#39;report-sample&#39; &#39;strict-dynamic&#39; &#39;unsafe-eval&#39; &#39;nonce-random&quot; ,
-                &quot;blocked-uri&quot;: &quot;data&quot;
+        <span class="comment">// First try from 'effective-directive' field
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span>raw_report = serde_json::from_slice::&lt;CspReportRaw&gt;(json.as_bytes()).unwrap();
         <span class="kw">let </span>raw_csp = raw_report.csp_report;
@@ -3935,14 +3936,14 @@
 
         <span class="macro">assert_eq!</span>(effective_directive, CspDirective::ScriptSrc);
 
-        <span class="comment">// Then from &#39;violated-directive&#39; field
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;csp-report&quot;: {
-                &quot;document-uri&quot;: &quot;http://example.com/foo&quot;,
-                &quot;violated-directive&quot;: &quot;script-src &#39;report-sample&#39; &#39;strict-dynamic&#39; &#39;unsafe-eval&#39; &#39;nonce-random&quot; ,
-                &quot;blocked-uri&quot;: &quot;data&quot;
+        <span class="comment">// Then from 'violated-directive' field
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span>raw_report = serde_json::from_slice::&lt;CspReportRaw&gt;(json.as_bytes()).unwrap();
         <span class="kw">let </span>raw_csp = raw_report.csp_report;

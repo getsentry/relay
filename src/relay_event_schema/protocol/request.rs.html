@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/request.rs`."><title>request.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/request.rs`."><title>request.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1000,10 +1001,10 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter::{FromIterator, IntoIterator};
 
 <span class="kw">use </span>cookie::Cookie;
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>url::form_urlencoded;
 
@@ -1014,7 +1015,7 @@
 
 <span class="doccomment">/// A map holding cookies.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Cookies(<span class="kw">pub </span>PairList&lt;(Annotated&lt;String&gt;, Annotated&lt;String&gt;)&gt;);
 
 <span class="kw">impl </span>Cookies {
@@ -1023,9 +1024,9 @@
         pairs.map(Cookies)
     }
 
-    <span class="kw">fn </span>iter_cookies(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;CookieEntry, Error&gt;&gt; + <span class="lifetime">&#39;_ </span>{
+    <span class="kw">fn </span>iter_cookies(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;CookieEntry, Error&gt;&gt; + <span class="lifetime">'_ </span>{
         string
-            .split(<span class="string">&#39;;&#39;</span>)
+            .split(<span class="string">';'</span>)
             .filter(|cookie| !cookie.trim().is_empty())
             .map(Cookies::parse_cookie)
     }
@@ -1079,7 +1080,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;cookies&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"cookies"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -1087,10 +1088,10 @@
     }
 }
 
-<span class="doccomment">/// A &quot;into-string&quot; type that normalizes header names.
+<span class="doccomment">/// A "into-string" type that normalizes header names.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_header_name&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_header_name"</span>)]
 </span><span class="kw">pub struct </span>HeaderName(String);
 
 <span class="kw">impl </span>HeaderName {
@@ -1105,7 +1106,7 @@
             } <span class="kw">else </span>{
                 normalized.push(c); <span class="comment">// does not lowercase on purpose
             </span>}
-            c == <span class="string">&#39;-&#39;
+            c == <span class="string">'-'
         </span>});
 
         HeaderName(normalized)
@@ -1148,7 +1149,7 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str&gt; <span class="kw">for </span>HeaderName {
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str&gt; <span class="kw">for </span>HeaderName {
     <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         HeaderName::new(value)
     }
@@ -1160,9 +1161,9 @@
     }
 }
 
-<span class="doccomment">/// A &quot;into-string&quot; type that normalizes header values.
+<span class="doccomment">/// A "into-string" type that normalizes header values.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>HeaderValue(String);
 
 <span class="kw">impl </span>HeaderValue {
@@ -1197,7 +1198,7 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str&gt; <span class="kw">for </span>HeaderValue {
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str&gt; <span class="kw">for </span>HeaderValue {
     <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         HeaderValue::new(value)
     }
@@ -1216,7 +1217,7 @@
 
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(string) = array_value.value() {
                         <span class="kw">if </span>!header_value.is_empty() {
-                            header_value.push(<span class="string">&#39;,&#39;</span>);
+                            header_value.push(<span class="string">','</span>);
                         }
 
                         header_value.push_str(string);
@@ -1232,7 +1233,7 @@
 
 <span class="doccomment">/// A map holding headers.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Headers(<span class="kw">pub </span>PairList&lt;(Annotated&lt;HeaderName&gt;, Annotated&lt;HeaderValue&gt;)&gt;);
 
 <span class="kw">impl </span>Headers {
@@ -1289,7 +1290,7 @@
 
 <span class="kw">impl </span>Query {
     <span class="kw">pub fn </span>parse(<span class="kw-2">mut </span>string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>string.starts_with(<span class="string">&#39;?&#39;</span>) {
+        <span class="kw">if </span>string.starts_with(<span class="string">'?'</span>) {
             string = <span class="kw-2">&amp;</span>string[<span class="number">1</span>..];
         }
 
@@ -1341,7 +1342,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a query string or map&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a query string or map"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -1349,10 +1350,10 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>Query {
     <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="string">&quot;Query&quot;</span>.to_string()
+        <span class="string">"Query"</span>.to_string()
     }
 
     <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
@@ -1394,8 +1395,8 @@
 ///
 /// ```json
 /// {
-///   &quot;content-type&quot;: &quot;application/json&quot;,
-///   &quot;accept&quot;: &quot;application/json, application/xml&quot;
+///   "content-type": "application/json",
+///   "accept": "application/json, application/xml"
 /// }
 /// ```
 ///
@@ -1403,9 +1404,9 @@
 ///
 /// ```json
 /// [
-///   [&quot;content-type&quot;, &quot;application/json&quot;],
-///   [&quot;accept&quot;, &quot;application/json&quot;],
-///   [&quot;accept&quot;, &quot;application/xml&quot;]
+///   ["content-type", "application/json"],
+///   ["accept", "application/json"],
+///   ["accept", "application/xml"]
 /// ]
 /// ```
 ///
@@ -1413,31 +1414,31 @@
 ///
 /// ```json
 /// {
-///   &quot;request&quot;: {
-///     &quot;method&quot;: &quot;POST&quot;,
-///     &quot;url&quot;: &quot;http://absolute.uri/foo&quot;,
-///     &quot;query_string&quot;: &quot;query=foobar&amp;page=2&quot;,
-///     &quot;data&quot;: {
-///       &quot;foo&quot;: &quot;bar&quot;
+///   "request": {
+///     "method": "POST",
+///     "url": "http://absolute.uri/foo",
+///     "query_string": "query=foobar&amp;page=2",
+///     "data": {
+///       "foo": "bar"
 ///     },
-///     &quot;cookies&quot;: &quot;PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;&quot;,
-///     &quot;headers&quot;: {
-///       &quot;content-type&quot;: &quot;text/html&quot;
+///     "cookies": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;",
+///     "headers": {
+///       "content-type": "text/html"
 ///     },
-///     &quot;env&quot;: {
-///       &quot;REMOTE_ADDR&quot;: &quot;192.168.0.1&quot;
+///     "env": {
+///       "REMOTE_ADDR": "192.168.0.1"
 ///     }
 ///   }
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_request&quot;</span>, value_type = <span class="string">&quot;Request&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_request"</span>, value_type = <span class="string">"Request"</span>)]
 </span><span class="kw">pub struct </span>Request {
     <span class="doccomment">/// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;path&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>url: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// HTTP request method.
@@ -1450,7 +1451,7 @@
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The query string component of the URL.
@@ -1459,28 +1460,28 @@
     ///
     /// If the query string is not declared and part of the `url`, Sentry moves it to the
     /// query string.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;small&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"small"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>query_string: Annotated&lt;Query&gt;,
 
     <span class="doccomment">/// The fragment of the request URI.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;summary&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>fragment: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The cookie values.
     ///
     /// Can be given unparsed as string, as dictionary, or as a list of tuples.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>cookies: Annotated&lt;Cookies&gt;,
 
     <span class="doccomment">/// A dictionary of submitted headers.
     ///
     /// If a header appears multiple times it, needs to be merged according to the HTTP standard
     /// for header merging. Header names are treated case-insensitively by Sentry.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>headers: Annotated&lt;Headers&gt;,
 
     <span class="doccomment">/// HTTP request body size.
@@ -1492,12 +1493,12 @@
     /// information such as CGI/WSGI/Rack keys go that are not HTTP headers.
     ///
     /// Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>env: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// The inferred content type of the request payload.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>inferred_content_type: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The API target/specification that made the request.
@@ -1510,7 +1511,7 @@
     </span><span class="kw">pub </span>api_target: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -1522,29 +1523,29 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_header_normalization() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;-other-&quot;: &quot;header&quot;,
-  &quot;accept&quot;: &quot;application/json&quot;,
-  &quot;WWW-Authenticate&quot;: &quot;basic&quot;,
-  &quot;x-sentry&quot;: &quot;version=8&quot;
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "-other-": "header",
+  "accept": "application/json",
+  "WWW-Authenticate": "basic",
+  "x-sentry": "version=8"
+}"#</span>;
 
         <span class="kw">let </span>headers = <span class="macro">vec!</span>[
             Annotated::new((
-                Annotated::new(<span class="string">&quot;-Other-&quot;</span>.to_string().into()),
-                Annotated::new(<span class="string">&quot;header&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"-Other-"</span>.to_string().into()),
+                Annotated::new(<span class="string">"header"</span>.to_string().into()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;Accept&quot;</span>.to_string().into()),
-                Annotated::new(<span class="string">&quot;application/json&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"Accept"</span>.to_string().into()),
+                Annotated::new(<span class="string">"application/json"</span>.to_string().into()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;WWW-Authenticate&quot;</span>.to_string().into()),
-                Annotated::new(<span class="string">&quot;basic&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"WWW-Authenticate"</span>.to_string().into()),
+                Annotated::new(<span class="string">"basic"</span>.to_string().into()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;X-Sentry&quot;</span>.to_string().into()),
-                Annotated::new(<span class="string">&quot;version=8&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"X-Sentry"</span>.to_string().into()),
+                Annotated::new(<span class="string">"version=8"</span>.to_string().into()),
             )),
         ];
 
@@ -1554,24 +1555,24 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_header_from_sequence() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;[
-  [&quot;accept&quot;, &quot;application/json&quot;]
-]&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"[
+  ["accept", "application/json"]
+]"#</span>;
 
         <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
-            Annotated::new(<span class="string">&quot;Accept&quot;</span>.to_string().into()),
-            Annotated::new(<span class="string">&quot;application/json&quot;</span>.to_string().into()),
+            Annotated::new(<span class="string">"Accept"</span>.to_string().into()),
+            Annotated::new(<span class="string">"application/json"</span>.to_string().into()),
         ))];
 
         <span class="kw">let </span>headers = Annotated::new(Headers(PairList(headers)));
         <span class="macro">assert_eq!</span>(headers, Annotated::from_json(json).unwrap());
 
-        <span class="kw">let </span>json = <span class="string">r#&quot;[
-  [&quot;accept&quot;, &quot;application/json&quot;],
+        <span class="kw">let </span>json = <span class="string">r#"[
+  ["accept", "application/json"],
   [1, 2],
-  [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],
+  ["a", "b", "c"],
   23
-]&quot;#</span>;
+]"#</span>;
         <span class="kw">let </span>headers = Annotated::&lt;Headers&gt;::from_json(json).unwrap();
         <span class="attr">#[derive(Debug, Empty, IntoValue)]
         </span><span class="kw">pub struct </span>Container {
@@ -1581,135 +1582,135 @@
             Annotated::new(Container { headers })
                 .to_json_pretty()
                 .unwrap(),
-            <span class="string">r#&quot;{
-  &quot;headers&quot;: [
+            <span class="string">r#"{
+  "headers": [
     [
-      &quot;Accept&quot;,
-      &quot;application/json&quot;
+      "Accept",
+      "application/json"
     ],
     [
       null,
-      &quot;2&quot;
+      "2"
     ],
     null,
     null
   ],
-  &quot;_meta&quot;: {
-    &quot;headers&quot;: {
-      &quot;1&quot;: {
-        &quot;0&quot;: {
-          &quot;&quot;: {
-            &quot;err&quot;: [
+  "_meta": {
+    "headers": {
+      "1": {
+        "0": {
+          "": {
+            "err": [
               [
-                &quot;invalid_data&quot;,
+                "invalid_data",
                 {
-                  &quot;reason&quot;: &quot;expected a string&quot;
+                  "reason": "expected a string"
                 }
               ]
             ],
-            &quot;val&quot;: 1
+            "val": 1
           }
         }
       },
-      &quot;2&quot;: {
-        &quot;&quot;: {
-          &quot;err&quot;: [
+      "2": {
+        "": {
+          "err": [
             [
-              &quot;invalid_data&quot;,
+              "invalid_data",
               {
-                &quot;reason&quot;: &quot;expected a tuple&quot;
+                "reason": "expected a tuple"
               }
             ]
           ],
-          &quot;val&quot;: [
-            &quot;a&quot;,
-            &quot;b&quot;,
-            &quot;c&quot;
+          "val": [
+            "a",
+            "b",
+            "c"
           ]
         }
       },
-      &quot;3&quot;: {
-        &quot;&quot;: {
-          &quot;err&quot;: [
+      "3": {
+        "": {
+          "err": [
             [
-              &quot;invalid_data&quot;,
+              "invalid_data",
               {
-                &quot;reason&quot;: &quot;expected a tuple&quot;
+                "reason": "expected a tuple"
               }
             ]
           ],
-          &quot;val&quot;: 23
+          "val": 23
         }
       }
     }
   }
-}&quot;#
+}"#
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_request_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;url&quot;: &quot;https://google.com/search&quot;,
-  &quot;method&quot;: &quot;GET&quot;,
-  &quot;data&quot;: {
-    &quot;some&quot;: 1
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "url": "https://google.com/search",
+  "method": "GET",
+  "data": {
+    "some": 1
   },
-  &quot;query_string&quot;: [
+  "query_string": [
     [
-      &quot;q&quot;,
-      &quot;foo&quot;
+      "q",
+      "foo"
     ]
   ],
-  &quot;fragment&quot;: &quot;home&quot;,
-  &quot;cookies&quot;: [
+  "fragment": "home",
+  "cookies": [
     [
-      &quot;GOOGLE&quot;,
-      &quot;1&quot;
+      "GOOGLE",
+      "1"
     ]
   ],
-  &quot;headers&quot;: [
+  "headers": [
     [
-      &quot;Referer&quot;,
-      &quot;https://google.com/&quot;
+      "Referer",
+      "https://google.com/"
     ]
   ],
-  &quot;body_size&quot;: 1024,
-  &quot;env&quot;: {
-    &quot;REMOTE_ADDR&quot;: &quot;213.47.147.207&quot;
+  "body_size": 1024,
+  "env": {
+    "REMOTE_ADDR": "213.47.147.207"
   },
-  &quot;inferred_content_type&quot;: &quot;application/json&quot;,
-  &quot;api_target&quot;: &quot;graphql&quot;,
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "inferred_content_type": "application/json",
+  "api_target": "graphql",
+  "other": "value"
+}"#</span>;
 
         <span class="kw">let </span>request = Annotated::new(Request {
-            url: Annotated::new(<span class="string">&quot;https://google.com/search&quot;</span>.to_string()),
-            method: Annotated::new(<span class="string">&quot;GET&quot;</span>.to_string()),
+            url: Annotated::new(<span class="string">"https://google.com/search"</span>.to_string()),
+            method: Annotated::new(<span class="string">"GET"</span>.to_string()),
             protocol: Annotated::empty(),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
-                map.insert(<span class="string">&quot;some&quot;</span>.to_string(), Annotated::new(Value::I64(<span class="number">1</span>)));
+                map.insert(<span class="string">"some"</span>.to_string(), Annotated::new(Value::I64(<span class="number">1</span>)));
                 Annotated::new(Value::Object(map))
             },
             query_string: Annotated::new(Query(
                 <span class="macro">vec!</span>[Annotated::new((
-                    Annotated::new(<span class="string">&quot;q&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"q"</span>.to_string()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string().into()),
                 ))]
                 .into(),
             )),
-            fragment: Annotated::new(<span class="string">&quot;home&quot;</span>.to_string()),
+            fragment: Annotated::new(<span class="string">"home"</span>.to_string()),
             cookies: Annotated::new(Cookies({
                 PairList(<span class="macro">vec!</span>[Annotated::new((
-                    Annotated::new(<span class="string">&quot;GOOGLE&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">"GOOGLE"</span>.to_string()),
+                    Annotated::new(<span class="string">"1"</span>.to_string()),
                 ))])
             })),
             headers: Annotated::new(Headers({
                 <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
-                    Annotated::new(<span class="string">&quot;Referer&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">&quot;https://google.com/&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"Referer"</span>.to_string().into()),
+                    Annotated::new(<span class="string">"https://google.com/"</span>.to_string().into()),
                 ))];
                 PairList(headers)
             })),
@@ -1717,18 +1718,18 @@
             env: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;REMOTE_ADDR&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;213.47.147.207&quot;</span>.to_string())),
+                    <span class="string">"REMOTE_ADDR"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"213.47.147.207"</span>.to_string())),
                 );
                 map
             }),
-            inferred_content_type: Annotated::new(<span class="string">&quot;application/json&quot;</span>.to_string()),
-            api_target: Annotated::new(<span class="string">&quot;graphql&quot;</span>.to_string()),
+            inferred_content_type: Annotated::new(<span class="string">"application/json"</span>.to_string()),
+            api_target: Annotated::new(<span class="string">"graphql"</span>.to_string()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -1742,28 +1743,28 @@
     </span><span class="kw">fn </span>test_query_string() {
         <span class="kw">let </span>query = Annotated::new(Query(
             <span class="macro">vec!</span>[Annotated::new((
-                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"foo"</span>.to_string()),
+                Annotated::new(<span class="string">"bar"</span>.to_string().into()),
             ))]
             .into(),
         ));
-        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">&quot;\&quot;foo=bar\&quot;&quot;</span>).unwrap());
-        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">&quot;\&quot;?foo=bar\&quot;&quot;</span>).unwrap());
+        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">"\"foo=bar\""</span>).unwrap());
+        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">"\"?foo=bar\""</span>).unwrap());
 
         <span class="kw">let </span>query = Annotated::new(Query(
             <span class="macro">vec!</span>[
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;42&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"baz"</span>.to_string()),
+                    Annotated::new(<span class="string">"42"</span>.to_string().into()),
                 )),
             ]
             .into(),
         ));
-        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">&quot;\&quot;foo=bar&amp;baz=42\&quot;&quot;</span>).unwrap());
+        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">"\"foo=bar&amp;baz=42\""</span>).unwrap());
     }
 
     <span class="attr">#[test]
@@ -1773,22 +1774,22 @@
         // nested objects here but for legacy values we instead serialize it out as JSON.
         </span><span class="kw">let </span>query = Annotated::new(Query(
             <span class="macro">vec!</span>[Annotated::new((
-                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">"foo"</span>.to_string()),
+                Annotated::new(<span class="string">"bar"</span>.to_string().into()),
             ))]
             .into(),
         ));
-        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">&quot;\&quot;foo=bar\&quot;&quot;</span>).unwrap());
+        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">"\"foo=bar\""</span>).unwrap());
 
         <span class="kw">let </span>query = Annotated::new(Query(
             <span class="macro">vec!</span>[
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">r#&quot;{&quot;a&quot;:42}&quot;#</span>.to_string().into()),
+                    Annotated::new(<span class="string">"baz"</span>.to_string()),
+                    Annotated::new(<span class="string">r#"{"a":42}"#</span>.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string().into()),
                 )),
             ]
             .into(),
@@ -1796,12 +1797,12 @@
         <span class="macro">assert_eq!</span>(
             query,
             Annotated::from_json(
-                <span class="string">r#&quot;
+                <span class="string">r#"
         {
-            &quot;foo&quot;: &quot;bar&quot;,
-            &quot;baz&quot;: {&quot;a&quot;: 42}
+            "foo": "bar",
+            "baz": {"a": 42}
         }
-    &quot;#
+    "#
             </span>)
             .unwrap()
         );
@@ -1810,28 +1811,28 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_query_invalid() {
         <span class="kw">let </span>query = Annotated::&lt;Query&gt;::from_error(
-            Error::expected(<span class="string">&quot;a query string or map&quot;</span>),
+            Error::expected(<span class="string">"a query string or map"</span>),
             <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>)),
         );
-        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">&quot;42&quot;</span>).unwrap());
+        <span class="macro">assert_eq!</span>(query, Annotated::from_json(<span class="string">"42"</span>).unwrap());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cookies_parsing() {
-        <span class="kw">let </span>json = <span class="string">&quot;\&quot; PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\&quot;&quot;</span>;
+        <span class="kw">let </span>json = <span class="string">"\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\""</span>;
 
         <span class="kw">let </span>map = <span class="macro">vec!</span>[
             Annotated::new((
-                Annotated::new(<span class="string">&quot;PHPSESSID&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;298zf09hf012fh2&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"PHPSESSID"</span>.to_string()),
+                Annotated::new(<span class="string">"298zf09hf012fh2"</span>.to_string()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;csrftoken&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;u32t4o3tb3gg43&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"csrftoken"</span>.to_string()),
+                Annotated::new(<span class="string">"u32t4o3tb3gg43"</span>.to_string()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;_gat&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;1&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"_gat"</span>.to_string()),
+                Annotated::new(<span class="string">"1"</span>.to_string()),
             )),
         ];
 
@@ -1841,19 +1842,19 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cookies_array() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;cookies&quot;:[[&quot;foo&quot;,&quot;bar&quot;],[&quot;invalid&quot;, 42],[&quot;none&quot;,null]]}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;cookies&quot;:[[&quot;foo&quot;,&quot;bar&quot;],[&quot;invalid&quot;,null],[&quot;none&quot;,null]],&quot;_meta&quot;:{&quot;cookies&quot;:{&quot;1&quot;:{&quot;1&quot;:{&quot;&quot;:{&quot;err&quot;:[[&quot;invalid_data&quot;,{&quot;reason&quot;:&quot;expected a string&quot;}]],&quot;val&quot;:42}}}}}}&quot;#</span>;
+        <span class="kw">let </span>input = <span class="string">r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#</span>;
 
         <span class="kw">let </span>map = <span class="macro">vec!</span>[
             Annotated::new((
-                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"foo"</span>.to_string()),
+                Annotated::new(<span class="string">"bar"</span>.to_string()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;invalid&quot;</span>.to_string()),
-                Annotated::from_error(Error::expected(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>))),
+                Annotated::new(<span class="string">"invalid"</span>.to_string()),
+                Annotated::from_error(Error::expected(<span class="string">"a string"</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>))),
             )),
-            Annotated::new((Annotated::new(<span class="string">&quot;none&quot;</span>.to_string()), Annotated::empty())),
+            Annotated::new((Annotated::new(<span class="string">"none"</span>.to_string()), Annotated::empty())),
         ];
 
         <span class="kw">let </span>cookies = Annotated::new(Cookies(PairList(map)));
@@ -1867,16 +1868,16 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cookies_object() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;foo&quot;:&quot;bar&quot;, &quot;invalid&quot;: 42}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"foo":"bar", "invalid": 42}"#</span>;
 
         <span class="kw">let </span>map = <span class="macro">vec!</span>[
             Annotated::new((
-                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
+                Annotated::new(<span class="string">"foo"</span>.to_string()),
+                Annotated::new(<span class="string">"bar"</span>.to_string()),
             )),
             Annotated::new((
-                Annotated::new(<span class="string">&quot;invalid&quot;</span>.to_string()),
-                Annotated::from_error(Error::expected(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>))),
+                Annotated::new(<span class="string">"invalid"</span>.to_string()),
+                Annotated::from_error(Error::expected(<span class="string">"a string"</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>))),
             )),
         ];
 
@@ -1887,23 +1888,23 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cookies_invalid() {
         <span class="kw">let </span>cookies =
-            Annotated::&lt;Cookies&gt;::from_error(Error::expected(<span class="string">&quot;cookies&quot;</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>)));
-        <span class="macro">assert_eq!</span>(cookies, Annotated::from_json(<span class="string">&quot;42&quot;</span>).unwrap());
+            Annotated::&lt;Cookies&gt;::from_error(Error::expected(<span class="string">"cookies"</span>), <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>)));
+        <span class="macro">assert_eq!</span>(cookies, Annotated::from_json(<span class="string">"42"</span>).unwrap());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_querystring_without_value() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;&quot;foo=bar&amp;baz&quot;&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#""foo=bar&amp;baz""#</span>;
 
         <span class="kw">let </span>query = Annotated::new(Query(
             <span class="macro">vec!</span>[
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"foo"</span>.to_string()),
+                    Annotated::new(<span class="string">"bar"</span>.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string()),
-                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"baz"</span>.to_string()),
+                    Annotated::new(<span class="string">""</span>.to_string().into()),
                 )),
             ]
             .into(),
@@ -1914,35 +1915,35 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_headers_lenient_value() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;headers&quot;: {
-    &quot;X-Foo&quot;: &quot;&quot;,
-    &quot;X-Bar&quot;: 42
+        <span class="kw">let </span>input = <span class="string">r#"{
+  "headers": {
+    "X-Foo": "",
+    "X-Bar": 42
   }
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;headers&quot;: [
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "headers": [
     [
-      &quot;X-Bar&quot;,
-      &quot;42&quot;
+      "X-Bar",
+      "42"
     ],
     [
-      &quot;X-Foo&quot;,
-      &quot;&quot;
+      "X-Foo",
+      ""
     ]
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>request = Annotated::new(Request {
             headers: Annotated::new(Headers(PairList(<span class="macro">vec!</span>[
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;X-Bar&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">&quot;42&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"X-Bar"</span>.to_string().into()),
+                    Annotated::new(<span class="string">"42"</span>.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;X-Foo&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"X-Foo"</span>.to_string().into()),
+                    Annotated::new(<span class="string">""</span>.to_string().into()),
                 )),
             ]))),
             ..Default::default()
@@ -1954,39 +1955,39 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_headers_multiple_values() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;headers&quot;: {
-    &quot;X-Foo&quot;: [&quot;&quot;],
-    &quot;X-Bar&quot;: [
+        <span class="kw">let </span>input = <span class="string">r#"{
+  "headers": {
+    "X-Foo": [""],
+    "X-Bar": [
       42,
-      &quot;bar&quot;,
-      &quot;baz&quot;
+      "bar",
+      "baz"
     ]
   }
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;headers&quot;: [
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "headers": [
     [
-      &quot;X-Bar&quot;,
-      &quot;42,bar,baz&quot;
+      "X-Bar",
+      "42,bar,baz"
     ],
     [
-      &quot;X-Foo&quot;,
-      &quot;&quot;
+      "X-Foo",
+      ""
     ]
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>request = Annotated::new(Request {
             headers: Annotated::new(Headers(PairList(<span class="macro">vec!</span>[
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;X-Bar&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">&quot;42,bar,baz&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"X-Bar"</span>.to_string().into()),
+                    Annotated::new(<span class="string">"42,bar,baz"</span>.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new(<span class="string">&quot;X-Foo&quot;</span>.to_string().into()),
-                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">"X-Foo"</span>.to_string().into()),
+                    Annotated::new(<span class="string">""</span>.to_string().into()),
                 )),
             ]))),
             ..Default::default()

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/generic.rs`."><title>generic.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/generic.rs`."><title>generic.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -548,7 +549,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = instance.timestamp() <span class="kw">else </span>{
-        <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid event timestamp for metric extraction&quot;</span>);
+        <span class="macro">relay_log::error!</span>(<span class="string">"invalid event timestamp for metric extraction"</span>);
         <span class="kw">return </span>metrics;
     };
 
@@ -558,7 +559,7 @@
     // This hack can be removed once the usage metric is stable.
     </span><span class="kw">let </span>allow_span_usage_metric = global_options.map_or(<span class="bool-val">false</span>, |options| options.span_usage_metric);
     <span class="kw">for </span>metric_spec <span class="kw">in </span><span class="kw-2">&amp;</span>config.metrics {
-        <span class="kw">if </span>!allow_span_usage_metric &amp;&amp; metric_spec.mri == <span class="string">&quot;c:spans/usage@none&quot; </span>{
+        <span class="kw">if </span>!allow_span_usage_metric &amp;&amp; metric_spec.mri == <span class="string">"c:spans/usage@none" </span>{
             <span class="kw">continue</span>;
         }
 
@@ -575,7 +576,7 @@
         <span class="comment">// Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
         </span><span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>metric_spec.mri) <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(mri = metric_spec.mri, <span class="string">&quot;invalid MRI for metric extraction&quot;</span>);
+            <span class="macro">relay_log::error!</span>(mri = metric_spec.mri, <span class="string">"invalid MRI for metric extraction"</span>);
             <span class="kw">continue</span>;
         };
 
@@ -663,7 +664,7 @@
             <span class="macro">relay_log::error!</span>(
                 tags.field = field,
                 tags.metric_type = <span class="question-mark">?</span>ty,
-                <span class="string">&quot;non-finite float value in generic metric extraction&quot;
+                <span class="string">"non-finite float value in generic metric extraction"
             </span>);
             <span class="prelude-val">None
         </span>}
@@ -693,66 +694,66 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_counter() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;c:transactions/counter@none&quot;</span>,
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"c:transactions/counter@none"</span>,
                 }
             ]
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;c:transactions/counter@none&quot;,
+                name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_distribution() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;start_timestamp&quot;</span>: <span class="number">1597976300.0</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"start_timestamp"</span>: <span class="number">1597976300.0</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;d:transactions/duration@none&quot;</span>,
-                    <span class="string">&quot;field&quot;</span>: <span class="string">&quot;event.duration&quot;</span>,
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"d:transactions/duration@none"</span>,
+                    <span class="string">"field"</span>: <span class="string">"event.duration"</span>,
                 }
             ]
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;d:transactions/duration@none&quot;,
+                name: "d:transactions/duration@none",
                 value: Distribution(
                     [
                         2000.0,
@@ -761,39 +762,39 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_set() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
-            <span class="string">&quot;user&quot;</span>: {
-                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;4711&quot;</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"user"</span>: {
+                <span class="string">"id"</span>: <span class="string">"4711"</span>,
             },
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;s:transactions/users@none&quot;</span>,
-                    <span class="string">&quot;field&quot;</span>: <span class="string">&quot;event.user.id&quot;</span>,
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"s:transactions/users@none"</span>,
+                    <span class="string">"field"</span>: <span class="string">"event.user.id"</span>,
                 }
             ]
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;s:transactions/users@none&quot;,
+                name: "s:transactions/users@none",
                 value: Set(
                     {
                         943162418,
@@ -802,37 +803,37 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_tag_conditions() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;start_timestamp&quot;</span>: <span class="number">1597976300.0</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
-            <span class="string">&quot;release&quot;</span>: <span class="string">&quot;myapp@1.0.0&quot;</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"start_timestamp"</span>: <span class="number">1597976300.0</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"release"</span>: <span class="string">"myapp@1.0.0"</span>,
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;c:transactions/counter@none&quot;</span>,
-                    <span class="string">&quot;tags&quot;</span>: [
-                        {<span class="string">&quot;key&quot;</span>: <span class="string">&quot;id&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="string">&quot;4711&quot;</span>},
-                        {<span class="string">&quot;key&quot;</span>: <span class="string">&quot;release&quot;</span>, <span class="string">&quot;field&quot;</span>: <span class="string">&quot;event.release&quot;</span>},
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"c:transactions/counter@none"</span>,
+                    <span class="string">"tags"</span>: [
+                        {<span class="string">"key"</span>: <span class="string">"id"</span>, <span class="string">"value"</span>: <span class="string">"4711"</span>},
+                        {<span class="string">"key"</span>: <span class="string">"release"</span>, <span class="string">"field"</span>: <span class="string">"event.release"</span>},
                         {
-                            <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                            <span class="string">&quot;value&quot;</span>: <span class="string">&quot;yes&quot;</span>,
-                            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;lt&quot;</span>, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.duration&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">2000</span>},
+                            <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                            <span class="string">"value"</span>: <span class="string">"yes"</span>,
+                            <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"lt"</span>, <span class="string">"name"</span>: <span class="string">"event.duration"</span>, <span class="string">"value"</span>: <span class="number">2000</span>},
                         },
                         {
-                            <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                            <span class="string">&quot;value&quot;</span>: <span class="string">&quot;no&quot;</span>,
-                            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;gte&quot;</span>, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.duration&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">2000</span>},
+                            <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                            <span class="string">"value"</span>: <span class="string">"no"</span>,
+                            <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"gte"</span>, <span class="string">"name"</span>: <span class="string">"event.duration"</span>, <span class="string">"value"</span>: <span class="number">2000</span>},
                         },
                     ]
                 }
@@ -841,52 +842,52 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;c:transactions/counter@none&quot;,
+                name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
                 tags: {
-                    &quot;fast&quot;: &quot;no&quot;,
-                    &quot;id&quot;: &quot;4711&quot;,
-                    &quot;release&quot;: &quot;myapp@1.0.0&quot;,
+                    "fast": "no",
+                    "id": "4711",
+                    "release": "myapp@1.0.0",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_tag_precedence() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;start_timestamp&quot;</span>: <span class="number">1597976300.0</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
-            <span class="string">&quot;release&quot;</span>: <span class="string">&quot;myapp@1.0.0&quot;</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"start_timestamp"</span>: <span class="number">1597976300.0</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"release"</span>: <span class="string">"myapp@1.0.0"</span>,
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="comment">// NOTE: The first condition should match and therefore the second tag should be skipped.
 
         </span><span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;c:transactions/counter@none&quot;</span>,
-                    <span class="string">&quot;tags&quot;</span>: [
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"c:transactions/counter@none"</span>,
+                    <span class="string">"tags"</span>: [
                         {
-                            <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                            <span class="string">&quot;value&quot;</span>: <span class="string">&quot;yes&quot;</span>,
-                            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;lte&quot;</span>, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.duration&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">2000</span>},
+                            <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                            <span class="string">"value"</span>: <span class="string">"yes"</span>,
+                            <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"lte"</span>, <span class="string">"name"</span>: <span class="string">"event.duration"</span>, <span class="string">"value"</span>: <span class="number">2000</span>},
                         },
                         {
-                            <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                            <span class="string">&quot;value&quot;</span>: <span class="string">&quot;no&quot;</span>,
+                            <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                            <span class="string">"value"</span>: <span class="string">"no"</span>,
                         },
                     ]
                 }
@@ -895,55 +896,55 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;c:transactions/counter@none&quot;,
+                name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
                 tags: {
-                    &quot;fast&quot;: &quot;yes&quot;,
+                    "fast": "yes",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_tag_precedence_multiple_rules() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;start_timestamp&quot;</span>: <span class="number">1597976300.0</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
-            <span class="string">&quot;release&quot;</span>: <span class="string">&quot;myapp@1.0.0&quot;</span>,
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"start_timestamp"</span>: <span class="number">1597976300.0</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"release"</span>: <span class="string">"myapp@1.0.0"</span>,
         });
         <span class="kw">let </span>event = Event::from_value(event_json.into());
 
         <span class="comment">// NOTE: The first tagging condition should match and the second one should be skipped.
 
         </span><span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [{
-                <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;c:transactions/counter@none&quot;</span>,
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [{
+                <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                <span class="string">"mri"</span>: <span class="string">"c:transactions/counter@none"</span>,
             }],
-            <span class="string">&quot;tags&quot;</span>: [
+            <span class="string">"tags"</span>: [
                 {
-                    <span class="string">&quot;metrics&quot;</span>: [<span class="string">&quot;c:transactions/counter@none&quot;</span>],
-                    <span class="string">&quot;tags&quot;</span>: [{
-                        <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;yes&quot;</span>,
-                        <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;lte&quot;</span>, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;event.duration&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">2000</span>},
+                    <span class="string">"metrics"</span>: [<span class="string">"c:transactions/counter@none"</span>],
+                    <span class="string">"tags"</span>: [{
+                        <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                        <span class="string">"value"</span>: <span class="string">"yes"</span>,
+                        <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"lte"</span>, <span class="string">"name"</span>: <span class="string">"event.duration"</span>, <span class="string">"value"</span>: <span class="number">2000</span>},
                     }],
                 },
                 {
-                    <span class="string">&quot;metrics&quot;</span>: [<span class="string">&quot;c:transactions/counter@none&quot;</span>],
-                    <span class="string">&quot;tags&quot;</span>: [{
-                        <span class="string">&quot;key&quot;</span>: <span class="string">&quot;fast&quot;</span>,
-                        <span class="string">&quot;value&quot;</span>: <span class="string">&quot;no&quot;</span>,
+                    <span class="string">"metrics"</span>: [<span class="string">"c:transactions/counter@none"</span>],
+                    <span class="string">"tags"</span>: [{
+                        <span class="string">"key"</span>: <span class="string">"fast"</span>,
+                        <span class="string">"value"</span>: <span class="string">"no"</span>,
                     }]
                 },
             ]
@@ -951,31 +952,31 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;c:transactions/counter@none&quot;,
+                name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
                 tags: {
-                    &quot;fast&quot;: &quot;yes&quot;,
+                    "fast": "yes",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>skip_nonfinite_float() {
         <span class="kw">let </span>event_json = <span class="macro">json!</span>({
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-            <span class="string">&quot;timestamp&quot;</span>: <span class="number">1597976302.0</span>,
-            <span class="string">&quot;measurements&quot;</span>: {
-                <span class="string">&quot;valid&quot;</span>: {<span class="string">&quot;value&quot;</span>: <span class="number">1.0</span>},
-                <span class="string">&quot;invalid&quot;</span>: {<span class="string">&quot;value&quot;</span>: <span class="number">0.0</span>},
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"measurements"</span>: {
+                <span class="string">"valid"</span>: {<span class="string">"value"</span>: <span class="number">1.0</span>},
+                <span class="string">"invalid"</span>: {<span class="string">"value"</span>: <span class="number">0.0</span>},
             }
         });
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(event_json.into());
@@ -989,7 +990,7 @@
             .value_mut()
             .as_mut()
             .unwrap()
-            .get_mut(<span class="string">&quot;invalid&quot;</span>)
+            .get_mut(<span class="string">"invalid"</span>)
             .unwrap()
             .value_mut()
             .as_mut()
@@ -998,29 +999,29 @@
             .set_value(<span class="prelude-val">Some</span>(f64::NAN));
 
         <span class="kw">let </span>config_json = <span class="macro">json!</span>({
-            <span class="string">&quot;version&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;metrics&quot;</span>: [
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;d:transactions/measurements.valid@none&quot;</span>,
-                    <span class="string">&quot;field&quot;</span>: <span class="string">&quot;event.measurements.valid.value&quot;</span>,
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"d:transactions/measurements.valid@none"</span>,
+                    <span class="string">"field"</span>: <span class="string">"event.measurements.valid.value"</span>,
                 },
                 {
-                    <span class="string">&quot;category&quot;</span>: <span class="string">&quot;transaction&quot;</span>,
-                    <span class="string">&quot;mri&quot;</span>: <span class="string">&quot;d:transactions/measurements.invalid@none&quot;</span>,
-                    <span class="string">&quot;field&quot;</span>: <span class="string">&quot;event.measurements.invalid.value&quot;</span>,
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"d:transactions/measurements.invalid@none"</span>,
+                    <span class="string">"field"</span>: <span class="string">"event.measurements.invalid.value"</span>,
                 }
             ]
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: &quot;d:transactions/measurements.valid@none&quot;,
+                name: "d:transactions/measurements.valid@none",
                 value: Distribution(
                     [
                         1.0,
@@ -1029,7 +1030,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

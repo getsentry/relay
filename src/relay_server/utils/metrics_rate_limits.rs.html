@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/metrics_rate_limits.rs`."><title>metrics_rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/metrics_rate_limits.rs`."><title>metrics_rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -560,7 +561,7 @@
     </span>profile_count: usize,
 }
 
-<span class="kw">const </span>PROFILE_TAG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;has_profile&quot;</span>;
+<span class="kw">const </span>PROFILE_TAG: <span class="kw-2">&amp;</span>str = <span class="string">"has_profile"</span>;
 
 <span class="doccomment">/// Extracts quota information from a metric.
 ///
@@ -570,11 +571,11 @@
 /// Additionally tracks whether the transactions also contained profiling information.
 ///
 /// Returns `None` if the metric was not extracted from transactions.
-</span><span class="kw">fn </span>count_metric_bucket(metric: BucketView&lt;<span class="lifetime">&#39;_</span>&gt;, mode: ExtractionMode) -&gt; <span class="prelude-ty">Option</span>&lt;TransactionCount&gt; {
+</span><span class="kw">fn </span>count_metric_bucket(metric: BucketView&lt;<span class="lifetime">'_</span>&gt;, mode: ExtractionMode) -&gt; <span class="prelude-ty">Option</span>&lt;TransactionCount&gt; {
     <span class="kw">let </span>mri = <span class="kw">match </span>MetricResourceIdentifier::parse(metric.name()) {
         <span class="prelude-val">Ok</span>(mri) =&gt; mri,
         <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid MRI: {}&quot;</span>, metric.name());
+            <span class="macro">relay_log::error!</span>(<span class="string">"invalid MRI: {}"</span>, metric.name());
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
     };
@@ -585,22 +586,22 @@
 
     <span class="kw">let </span>usage = <span class="macro">matches!</span>(mode, ExtractionMode::Usage);
     <span class="kw">let </span>count = <span class="kw">match </span>metric.value() {
-        BucketViewValue::Counter(c) <span class="kw">if </span>usage &amp;&amp; mri.name == <span class="string">&quot;usage&quot; </span>=&gt; c.to_f64() <span class="kw">as </span>usize,
-        BucketViewValue::Distribution(d) <span class="kw">if </span>!usage &amp;&amp; mri.name == <span class="string">&quot;duration&quot; </span>=&gt; d.len(),
+        BucketViewValue::Counter(c) <span class="kw">if </span>usage &amp;&amp; mri.name == <span class="string">"usage" </span>=&gt; c.to_f64() <span class="kw">as </span>usize,
+        BucketViewValue::Distribution(d) <span class="kw">if </span>!usage &amp;&amp; mri.name == <span class="string">"duration" </span>=&gt; d.len(),
         <span class="kw">_ </span>=&gt; <span class="number">0</span>,
     };
 
-    <span class="kw">let </span>has_profile = <span class="macro">matches!</span>(mri.name.as_ref(), <span class="string">&quot;usage&quot; </span>| <span class="string">&quot;duration&quot;</span>)
-        &amp;&amp; metric.tag(PROFILE_TAG) == <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>);
+    <span class="kw">let </span>has_profile = <span class="macro">matches!</span>(mri.name.as_ref(), <span class="string">"usage" </span>| <span class="string">"duration"</span>)
+        &amp;&amp; metric.tag(PROFILE_TAG) == <span class="prelude-val">Some</span>(<span class="string">"true"</span>);
 
     <span class="prelude-val">Some</span>(TransactionCount { count, has_profile })
 }
 
 <span class="doccomment">/// Extracts quota information from a list of metric buckets.
-</span><span class="kw">pub fn </span>extract_metric_quantities&lt;<span class="lifetime">&#39;a</span>, I, V&gt;(buckets: I, mode: ExtractionMode) -&gt; SourceQuantities
+</span><span class="kw">pub fn </span>extract_metric_quantities&lt;<span class="lifetime">'a</span>, I, V&gt;(buckets: I, mode: ExtractionMode) -&gt; SourceQuantities
 <span class="kw">where
     </span>I: IntoIterator&lt;Item = V&gt;,
-    BucketView&lt;<span class="lifetime">&#39;a</span>&gt;: From&lt;V&gt;,
+    BucketView&lt;<span class="lifetime">'a</span>&gt;: From&lt;V&gt;,
 {
     <span class="kw">let </span><span class="kw-2">mut </span>quantities = SourceQuantities::default();
 
@@ -787,7 +788,7 @@
     <span class="comment">// Drop transaction-related metrics and create outcomes for any active rate limits.
     //
     // If rate limits could not be checked for some reason, pass an `Err` to this function.
-    // In this case, transaction-related metrics will also be dropped, and an &quot;internal&quot;
+    // In this case, transaction-related metrics will also be dropped, and an "internal"
     // outcome is generated.
     //
     // Returns true if any metrics were dropped.
@@ -869,7 +870,7 @@
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
+                name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
@@ -877,15 +878,15 @@
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">456</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
             },
@@ -893,16 +894,16 @@
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;something_else&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"something_else"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
         ];
@@ -924,7 +925,7 @@
             Scoping {
                 organization_id: <span class="number">1</span>,
                 project_id: ProjectId::new(<span class="number">1</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             ExtractionMode::Usage,
@@ -958,7 +959,7 @@
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
+                name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
@@ -966,15 +967,15 @@
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">456</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
             },
@@ -982,16 +983,16 @@
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
-                name: <span class="string">&quot;something_else&quot;</span>.to_string(),
-                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                name: <span class="string">"something_else"</span>.to_string(),
+                tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
         ];
@@ -1013,7 +1014,7 @@
             Scoping {
                 organization_id: <span class="number">1</span>,
                 project_id: ProjectId::new(<span class="number">1</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             ExtractionMode::Usage,

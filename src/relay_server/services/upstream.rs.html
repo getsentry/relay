@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/upstream.rs`."><title>upstream.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/upstream.rs`."><title>upstream.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1630,7 +1631,7 @@
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
-                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;generic&quot;</span>)),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"generic"</span>)),
                 retry_after: <span class="self">self</span>.retry_after,
                 namespace: <span class="prelude-val">None</span>,
             });
@@ -1642,27 +1643,27 @@
 <span class="doccomment">/// An error returned from [`SendRequest`] and [`SendQuery`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamRequestError {
-    <span class="attr">#[error(<span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"attempted to send upstream request without credentials configured"</span>)]
     </span>NoCredentials,
 
     <span class="doccomment">/// As opposed to HTTP variant this contains all network errors.
-    </span><span class="attr">#[error(<span class="string">&quot;could not send request to upstream&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"could not send request to upstream"</span>)]
     </span>SendFailed(<span class="attr">#[from] </span>reqwest::Error),
 
     <span class="doccomment">/// Likely a bad HTTP status code or unparseable response.
-    </span><span class="attr">#[error(<span class="string">&quot;could not send request&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"could not send request"</span>)]
     </span>Http(<span class="attr">#[from] </span>HttpError),
 
-    <span class="attr">#[error(<span class="string">&quot;upstream requests rate limited&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"upstream requests rate limited"</span>)]
     </span>RateLimited(UpstreamRateLimits),
 
-    <span class="attr">#[error(<span class="string">&quot;upstream request returned error {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"upstream request returned error {0}"</span>)]
     </span>ResponseError(StatusCode, <span class="attr">#[source] </span>ApiErrorResponse),
 
-    <span class="attr">#[error(<span class="string">&quot;channel closed&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"channel closed"</span>)]
     </span>ChannelClosed,
 
-    <span class="attr">#[error(<span class="string">&quot;upstream permanently denied authentication&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"upstream permanently denied authentication"</span>)]
     </span>AuthDenied,
 }
 
@@ -1724,18 +1725,18 @@
     <span class="doccomment">/// Returns a categorized description of the error.
     ///
     /// This is used for metrics and logging.
-    </span><span class="kw">fn </span>description(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">fn </span>description(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            UpstreamRequestError::NoCredentials =&gt; <span class="string">&quot;credentials&quot;</span>,
-            UpstreamRequestError::SendFailed(<span class="kw">_</span>) =&gt; <span class="string">&quot;send_failed&quot;</span>,
-            UpstreamRequestError::Http(HttpError::Io(<span class="kw">_</span>)) =&gt; <span class="string">&quot;payload_failed&quot;</span>,
-            UpstreamRequestError::Http(HttpError::Json(<span class="kw">_</span>)) =&gt; <span class="string">&quot;invalid_json&quot;</span>,
-            UpstreamRequestError::Http(HttpError::Reqwest(<span class="kw">_</span>)) =&gt; <span class="string">&quot;reqwest_error&quot;</span>,
-            UpstreamRequestError::Http(HttpError::Overflow) =&gt; <span class="string">&quot;overflow&quot;</span>,
-            UpstreamRequestError::RateLimited(<span class="kw">_</span>) =&gt; <span class="string">&quot;rate_limited&quot;</span>,
-            UpstreamRequestError::ResponseError(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;response_error&quot;</span>,
-            UpstreamRequestError::ChannelClosed =&gt; <span class="string">&quot;channel_closed&quot;</span>,
-            UpstreamRequestError::AuthDenied =&gt; <span class="string">&quot;auth_denied&quot;</span>,
+            UpstreamRequestError::NoCredentials =&gt; <span class="string">"credentials"</span>,
+            UpstreamRequestError::SendFailed(<span class="kw">_</span>) =&gt; <span class="string">"send_failed"</span>,
+            UpstreamRequestError::Http(HttpError::Io(<span class="kw">_</span>)) =&gt; <span class="string">"payload_failed"</span>,
+            UpstreamRequestError::Http(HttpError::Json(<span class="kw">_</span>)) =&gt; <span class="string">"invalid_json"</span>,
+            UpstreamRequestError::Http(HttpError::Reqwest(<span class="kw">_</span>)) =&gt; <span class="string">"reqwest_error"</span>,
+            UpstreamRequestError::Http(HttpError::Overflow) =&gt; <span class="string">"overflow"</span>,
+            UpstreamRequestError::RateLimited(<span class="kw">_</span>) =&gt; <span class="string">"rate_limited"</span>,
+            UpstreamRequestError::ResponseError(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"response_error"</span>,
+            UpstreamRequestError::ChannelClosed =&gt; <span class="string">"channel_closed"</span>,
+            UpstreamRequestError::AuthDenied =&gt; <span class="string">"auth_denied"</span>,
         }
     }
 }
@@ -1777,17 +1778,17 @@
 
 <span class="kw">impl </span>RequestPriority {
     <span class="doccomment">/// The name of the priority for logging and metrics.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RequestPriority::High =&gt; <span class="string">&quot;high&quot;</span>,
-            RequestPriority::Low =&gt; <span class="string">&quot;low&quot;</span>,
+            RequestPriority::High =&gt; <span class="string">"high"</span>,
+            RequestPriority::Low =&gt; <span class="string">"low"</span>,
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>RequestPriority {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.name())
     }
 }
 
@@ -1797,7 +1798,7 @@
     </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
 
     <span class="doccomment">/// The path relative to the upstream.
-    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;;
+    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt;;
 
     <span class="doccomment">/// Whether this request should retry on network errors.
     ///
@@ -1846,7 +1847,7 @@
     /// should return the payload to sign. For requests with content encoding, this must be the
     /// **uncompressed** payload.
     ///
-    /// This requires configuration of the Relay&#39;s credentials. If the credentials are not
+    /// This requires configuration of the Relay's credentials. If the credentials are not
     /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
@@ -1858,12 +1859,12 @@
     ///
     /// This is used for internal metrics and logging. Other than the path, this cannot contain
     /// dynamic elements and should be globally unique.
-    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
     <span class="doccomment">/// Callback to apply configuration to the request.
     ///
     /// This hook is called at least once before `build`. It can be used to include additional
-    /// properties from Relay&#39;s config in the Request before it is sent or handled if during request
+    /// properties from Relay's config in the Request before it is sent or handled if during request
     /// creation time the configuration is not available.
     ///
     /// This method is optional and defaults to a no-op.
@@ -1910,7 +1911,7 @@
     </span><span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method;
 
     <span class="doccomment">/// The path relative to the upstream.
-    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;;
+    </span><span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'static</span>, str&gt;;
 
     <span class="doccomment">/// Whether this query should retry on network errors.
     ///
@@ -1936,7 +1937,7 @@
     ///
     /// This is used for internal metrics and logging. Other than the path, this cannot contain
     /// dynamic elements and should be globally unique.
-    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// Transmitting end of the return channel for [`UpstreamQuery`].
@@ -1956,7 +1957,7 @@
 
 <span class="kw">impl</span>&lt;T&gt; UpstreamQueryRequest&lt;T&gt;
 <span class="kw">where
-    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+    </span>T: UpstreamQuery + <span class="lifetime">'static</span>,
 {
     <span class="doccomment">/// Wraps the given `query` in an [`UpstreamQuery`] implementation.
     </span><span class="kw">pub fn </span>new(query: T, sender: QuerySender&lt;T&gt;) -&gt; <span class="self">Self </span>{
@@ -1981,7 +1982,7 @@
 
 <span class="kw">impl</span>&lt;T&gt; UpstreamRequest <span class="kw">for </span>UpstreamQueryRequest&lt;T&gt;
 <span class="kw">where
-    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+    </span>T: UpstreamQuery + <span class="lifetime">'static</span>,
 {
     <span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         T::retry()
@@ -2000,7 +2001,7 @@
     </span>}
 
     <span class="kw">fn </span>sign(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Bytes&gt; {
-        <span class="comment">// Computing the body is practically infallible since we&#39;re serializing standard structures
+        <span class="comment">// Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
         </span><span class="self">self</span>.body().ok()
@@ -2010,11 +2011,11 @@
         <span class="self">self</span>.query.method()
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
         <span class="self">self</span>.query.path()
     }
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="self">self</span>.query.route()
     }
 
@@ -2032,7 +2033,7 @@
         );
 
         builder
-            .header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>)
+            .header(header::CONTENT_TYPE, <span class="string">b"application/json"</span>)
             .body(body.clone());
 
         <span class="prelude-val">Ok</span>(())
@@ -2110,7 +2111,7 @@
 
 <span class="kw">impl</span>&lt;T&gt; FromMessage&lt;SendRequest&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay
 <span class="kw">where
-    </span>T: UpstreamRequest + <span class="lifetime">&#39;static</span>,
+    </span>T: UpstreamRequest + <span class="lifetime">'static</span>,
 {
     <span class="kw">type </span>Response = NoResponse;
 
@@ -2122,7 +2123,7 @@
 
 <span class="kw">impl</span>&lt;T&gt; FromMessage&lt;SendQuery&lt;T&gt;&gt; <span class="kw">for </span>UpstreamRelay
 <span class="kw">where
-    </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+    </span>T: UpstreamQuery + <span class="lifetime">'static</span>,
 {
     <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;&gt;;
 
@@ -2139,14 +2140,14 @@
     send_result: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
 ) {
     <span class="kw">let </span>description = <span class="kw">match </span>send_result {
-        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;success&quot;</span>,
+        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="string">"success"</span>,
         <span class="prelude-val">Err</span>(e) =&gt; e.description(),
     };
     <span class="kw">let </span>status_code = <span class="kw">match </span>send_result {
         <span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>response) =&gt; <span class="prelude-val">Some</span>(response.status()),
         <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>error) =&gt; error.status_code(),
     };
-    <span class="kw">let </span>status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or(<span class="string">&quot;-&quot;</span>);
+    <span class="kw">let </span>status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or(<span class="string">"-"</span>);
 
     <span class="macro">relay_statsd::metric!</span>(
         timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
@@ -2154,11 +2155,11 @@
         status_code = status_str,
         route = entry.request.route(),
         retries = <span class="kw">match </span>entry.retries {
-            <span class="number">0 </span>=&gt; <span class="string">&quot;0&quot;</span>,
-            <span class="number">1 </span>=&gt; <span class="string">&quot;1&quot;</span>,
-            <span class="number">2 </span>=&gt; <span class="string">&quot;2&quot;</span>,
-            <span class="number">3</span>..=<span class="number">10 </span>=&gt; <span class="string">&quot;few&quot;</span>,
-            <span class="kw">_ </span>=&gt; <span class="string">&quot;many&quot;</span>,
+            <span class="number">0 </span>=&gt; <span class="string">"0"</span>,
+            <span class="number">1 </span>=&gt; <span class="string">"1"</span>,
+            <span class="number">2 </span>=&gt; <span class="string">"2"</span>,
+            <span class="number">3</span>..=<span class="number">10 </span>=&gt; <span class="string">"few"</span>,
+            <span class="kw">_ </span>=&gt; <span class="string">"many"</span>,
         },
     );
 
@@ -2179,8 +2180,8 @@
         Method::GET
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
-        Cow::Borrowed(<span class="string">&quot;/api/0/relays/live/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
+        Cow::Borrowed(<span class="string">"/api/0/relays/live/"</span>)
     }
 
     <span class="kw">fn </span>retry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -2188,7 +2189,7 @@
     </span>}
 
     <span class="kw">fn </span>priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RequestPriority {
-        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
+        <span class="macro">unreachable!</span>(<span class="string">"sent directly to client"</span>)
     }
 
     <span class="kw">fn </span>set_relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -2199,8 +2200,8 @@
         <span class="bool-val">true
     </span>}
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;check_live&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"check_live"
     </span>}
 
     <span class="kw">fn </span>respond(
@@ -2222,20 +2223,20 @@
         Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
-        Cow::Borrowed(<span class="string">&quot;/api/0/relays/register/challenge/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">"/api/0/relays/register/challenge/"</span>)
     }
 
     <span class="kw">fn </span>priority() -&gt; RequestPriority {
-        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
+        <span class="macro">unreachable!</span>(<span class="string">"sent directly to client"</span>)
     }
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">false
     </span>}
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;challenge&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"challenge"
     </span>}
 }
 
@@ -2246,20 +2247,20 @@
         Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
-        Cow::Borrowed(<span class="string">&quot;/api/0/relays/register/response/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">"/api/0/relays/register/response/"</span>)
     }
 
     <span class="kw">fn </span>priority() -&gt; RequestPriority {
-        <span class="macro">unreachable!</span>(<span class="string">&quot;sent directly to client&quot;</span>)
+        <span class="macro">unreachable!</span>(<span class="string">"sent directly to client"</span>)
     }
 
     <span class="kw">fn </span>retry() -&gt; bool {
         <span class="bool-val">false
     </span>}
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;response&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"response"
     </span>}
 }
 
@@ -2315,11 +2316,11 @@
                 .unwrap_or_else(|| <span class="self">self</span>.config.upstream_descriptor().host());
 
             <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(<span class="self">self</span>.reqwest.request(request.method(), url));
-            builder.header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
+            builder.header(<span class="string">"Host"</span>, host_header.as_bytes());
 
             <span class="kw">if </span>request.set_relay_id() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(credentials) = <span class="self">self</span>.config.credentials() {
-                    builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
+                    builder.header(<span class="string">"X-Sentry-Relay-Id"</span>, credentials.id.to_string());
                 }
             }
 
@@ -2332,7 +2333,7 @@
                     .ok_or(UpstreamRequestError::NoCredentials)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>signature = credentials.secret_key.sign(<span class="kw-2">&amp;</span>payload);
-                builder.header(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, signature.as_bytes());
+                builder.header(<span class="string">"X-Sentry-Relay-Signature"</span>, signature.as_bytes());
             }
 
             <span class="kw">match </span>builder.finish() {
@@ -2371,7 +2372,7 @@
                 .get_all_headers(utils::RATE_LIMITS_HEADER)
                 .iter()
                 .filter_map(|v| std::str::from_utf8(v).ok())
-                .join(<span class="string">&quot;, &quot;</span>);
+                .join(<span class="string">", "</span>);
 
             <span class="kw">let </span>upstream_limits = UpstreamRateLimits::new()
                 .retry_after(retry_after)
@@ -2411,7 +2412,7 @@
     <span class="doccomment">/// Convenience method to send a query to the upstream and await the result.
     </span><span class="kw">pub async fn </span>send_query&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, query: T) -&gt; <span class="prelude-ty">Result</span>&lt;T::Response, UpstreamRequestError&gt;
     <span class="kw">where
-        </span>T: UpstreamQuery + <span class="lifetime">&#39;static</span>,
+        </span>T: UpstreamQuery + <span class="lifetime">'static</span>,
     {
         <span class="kw">let </span>(sender, receiver) = AsyncResponse::channel();
 
@@ -2505,7 +2506,7 @@
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
             priority = priority.name(),
-            attempt = <span class="string">&quot;first&quot;
+            attempt = <span class="string">"first"
         </span>);
     }
 
@@ -2527,7 +2528,7 @@
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
             priority = priority.name(),
-            attempt = <span class="string">&quot;retry&quot;
+            attempt = <span class="string">"retry"
         </span>);
     }
 
@@ -2608,9 +2609,9 @@
     </span>Received,
 }
 
-<span class="doccomment">/// Internal message of the upstream&#39;s [`UpstreamBroker`].
+<span class="doccomment">/// Internal message of the upstream's [`UpstreamBroker`].
 ///
-/// These messages are used to serialize state mutations to the broker&#39;s internals. They are emitted
+/// These messages are used to serialize state mutations to the broker's internals. They are emitted
 /// by the auth monitor, connection monitor, and internal tasks for request handling.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>Action {
@@ -2666,7 +2667,7 @@
         }
     }
 
-    <span class="doccomment">/// Updates the monitor&#39;s internal state and subscribers.
+    <span class="doccomment">/// Updates the monitor's internal state and subscribers.
     </span><span class="kw">fn </span>send_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: AuthState) -&gt; <span class="prelude-ty">Result</span>&lt;(), UpstreamRequestError&gt; {
         <span class="self">self</span>.state = state;
         <span class="self">self</span>.tx
@@ -2688,7 +2689,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), UpstreamRequestError&gt; {
         <span class="macro">relay_log::info!</span>(
             descriptor = %<span class="self">self</span>.config.upstream_descriptor(),
-            <span class="string">&quot;registering with upstream&quot;
+            <span class="string">"registering with upstream"
         </span>);
 
         <span class="self">self</span>.send_state(<span class="kw">if </span><span class="self">self</span>.state.is_authenticated() {
@@ -2699,24 +2700,24 @@
 
         <span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>credentials.id, <span class="kw-2">&amp;</span>credentials.public_key);
         <span class="kw">let </span>challenge = <span class="self">self</span>.client.send_query(request).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="macro">relay_log::debug!</span>(token = challenge.token(), <span class="string">&quot;got register challenge&quot;</span>);
+        <span class="macro">relay_log::debug!</span>(token = challenge.token(), <span class="string">"got register challenge"</span>);
 
         <span class="kw">let </span>response = challenge.into_response();
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
+        <span class="macro">relay_log::debug!</span>(<span class="string">"sending register challenge response"</span>);
         <span class="self">self</span>.client.send_query(response).<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay successfully registered with upstream&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">"relay successfully registered with upstream"</span>);
         <span class="self">self</span>.send_state(AuthState::Registered)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Starts the authentication monitor&#39;s cycle.
+    <span class="doccomment">/// Starts the authentication monitor's cycle.
     ///
     /// Authentication starts immediately and then enters a loop of recurring reauthentication until
     /// one of the following conditions is met:
     ///
-    ///  - Authentication is not required based on the Relay&#39;s mode configuration.
+    ///  - Authentication is not required based on the Relay's mode configuration.
     ///  - The upstream responded with a permanent rejection (auth denied).
     ///  - All subscibers have shut down and the action channel is closed.
     </span><span class="kw">pub async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>) {
@@ -2727,7 +2728,7 @@
         <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
         <span class="kw">let </span><span class="prelude-val">Some</span>(credentials) = config.credentials() <span class="kw">else </span>{
             <span class="comment">// This is checked during setup by `check_config` and should never happen.
-            </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;authentication called without credentials&quot;</span>);
+            </span><span class="macro">relay_log::error!</span>(<span class="string">"authentication called without credentials"</span>);
             <span class="kw">return</span>;
         };
 
@@ -2746,7 +2747,7 @@
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;authentication encountered error&quot;
+                        <span class="string">"authentication encountered error"
                     </span>);
 
                     <span class="comment">// ChannelClosed indicates that there are no more listeners, so we stop
@@ -2770,7 +2771,7 @@
                     <span class="comment">// Even on network errors, retry authentication independently.
                     </span><span class="kw">let </span>backoff = backoff.next_backoff();
                     <span class="macro">relay_log::debug!</span>(
-                        <span class="string">&quot;scheduling authentication retry in {} seconds&quot;</span>,
+                        <span class="string">"scheduling authentication retry in {} seconds"</span>,
                         backoff.as_secs()
                     );
                     tokio::time::sleep(backoff).<span class="kw">await</span>;
@@ -2852,7 +2853,7 @@
 
         <span class="kw">loop </span>{
             <span class="kw">let </span>next_backoff = backoff.next_backoff();
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;network outage, scheduling another check in {next_backoff:?}&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="string">"network outage, scheduling another check in {next_backoff:?}"</span>);
 
             tokio::time::sleep(next_backoff).<span class="kw">await</span>;
             <span class="kw">match </span>client.send(<span class="kw-2">&amp;mut </span>GetHealthCheck).<span class="kw">await </span>{
@@ -2944,7 +2945,7 @@
     /// other cases, the request is enqueued and will wait for submission.
     </span><span class="kw">async fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: Box&lt;<span class="kw">dyn </span>UpstreamRequest&gt;) {
         <span class="kw">if let </span>AuthState::Denied = <span class="self">self</span>.auth_state {
-            <span class="comment">// This respond is near-instant because it should just send the error into the request&#39;s
+            <span class="comment">// This respond is near-instant because it should just send the error into the request's
             // response channel. We do not expect that this blocks the broker.
             </span>request.respond(<span class="prelude-val">Err</span>(UpstreamRequestError::AuthDenied)).<span class="kw">await</span>;
         } <span class="kw">else </span>{
@@ -3029,7 +3030,7 @@
 <span class="kw">impl </span>UpstreamRelayService {
     <span class="doccomment">/// Creates a new `UpstreamRelay` instance.
     </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
-        <span class="comment">// Broker and other actual components are implemented in the Service&#39;s `spawn_handler`.
+        <span class="comment">// Broker and other actual components are implemented in the Service's `spawn_handler`.
         </span><span class="self">Self </span>{ config }
     }
 }

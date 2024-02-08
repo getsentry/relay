@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/trace.rs`."><title>trace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/trace.rs`."><title>trace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -289,7 +290,7 @@
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
@@ -298,15 +299,15 @@
 
 <span class="doccomment">/// A 32-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>TraceId(<span class="kw">pub </span>String);
 
 <span class="kw">impl </span>FromValue <span class="kw">for </span>TraceId {
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>value {
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
-                <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">32</span>) || value.bytes().all(|x| x == <span class="string">b&#39;0&#39;</span>) {
-                    meta.add_error(Error::invalid(<span class="string">&quot;not a valid trace id&quot;</span>));
+                <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">32</span>) || value.bytes().all(|x| x == <span class="string">b'0'</span>) {
+                    meta.add_error(Error::invalid(<span class="string">"not a valid trace id"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 } <span class="kw">else </span>{
@@ -315,7 +316,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;trace id&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"trace id"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -331,15 +332,15 @@
 
 <span class="doccomment">/// A 16-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>SpanId(<span class="kw">pub </span>String);
 
 <span class="kw">impl </span>FromValue <span class="kw">for </span>SpanId {
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>value {
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
-                <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">16</span>) || value.bytes().all(|x| x == <span class="string">b&#39;0&#39;</span>) {
-                    meta.add_error(Error::invalid(<span class="string">&quot;not a valid span id&quot;</span>));
+                <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">16</span>) || value.bytes().all(|x| x == <span class="string">b'0'</span>) {
+                    meta.add_error(Error::invalid(<span class="string">"not a valid span id"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 } <span class="kw">else </span>{
@@ -348,7 +349,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;span id&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"span id"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -368,22 +369,22 @@
 
 <span class="doccomment">/// Trace context
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_trace_context&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_trace_context"</span>)]
 </span><span class="kw">pub struct </span>TraceContext {
     <span class="doccomment">/// The trace ID.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
     <span class="doccomment">/// The ID of the span.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the span enclosing this span.
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// Whether the trace failed or succeeded. Currently only used to indicate status of individual
@@ -394,14 +395,14 @@
     /// excluding its immediate child spans.
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// The client-side sample rate as reported in the envelope&#39;s `trace.sample_rate` header.
+    <span class="doccomment">/// The client-side sample rate as reported in the envelope's `trace.sample_rate` header.
     ///
     /// The server takes this field from envelope headers and writes it back into the event. Clients
     /// should not ever send this value.
     </span><span class="kw">pub </span>client_sample_rate: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// The origin of the trace indicates what created the trace (see [OriginType] docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
     <span class="doccomment">/// Track whether the trace connected to this event has been sampled entirely.
@@ -410,60 +411,60 @@
     </span><span class="kw">pub </span>sampled: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Arbitrary additional data on a trace.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Data&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">"true"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="doccomment">/// The arbitrary data on the trace.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Data {
     <span class="doccomment">/// The current route in the application.
     ///
     /// Set by React Native SDK.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>route: Annotated&lt;Route&gt;,
     <span class="doccomment">/// The previous route in the application
     ///
     /// Set by React Native SDK.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;previousRoute&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"previousRoute"</span>, pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>previous_route: Annotated&lt;Route&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(
         additional_properties,
-        retain = <span class="string">&quot;true&quot;</span>,
-        pii = <span class="string">&quot;maybe&quot;</span>,
-        skip_serialization = <span class="string">&quot;empty&quot;
+        retain = <span class="string">"true"</span>,
+        pii = <span class="string">"maybe"</span>,
+        skip_serialization = <span class="string">"empty"
     </span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="doccomment">/// The route in the application, set by React Native SDK.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Route {
     <span class="doccomment">/// Parameters assigned to this route.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>, bag_size = <span class="string">"medium"</span>)]
     </span>params: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(
         additional_properties,
-        retain = <span class="string">&quot;true&quot;</span>,
-        pii = <span class="string">&quot;maybe&quot;</span>,
-        skip_serialization = <span class="string">&quot;empty&quot;
+        retain = <span class="string">"true"</span>,
+        pii = <span class="string">"maybe"</span>,
+        skip_serialization = <span class="string">"empty"
     </span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="kw">impl </span><span class="kw">super</span>::DefaultContext <span class="kw">for </span>TraceContext {
-    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;trace&quot;
+    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"trace"
     </span>}
 
     <span class="kw">fn </span>from_context(context: <span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
@@ -499,50 +500,50 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_trace_context_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-  &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
-  &quot;parent_span_id&quot;: &quot;fa90fdead5f74053&quot;,
-  &quot;op&quot;: &quot;http&quot;,
-  &quot;status&quot;: &quot;ok&quot;,
-  &quot;exclusive_time&quot;: 0.0,
-  &quot;client_sample_rate&quot;: 0.5,
-  &quot;origin&quot;: &quot;auto.http&quot;,
-  &quot;data&quot;: {
-    &quot;route&quot;: {
-      &quot;params&quot;: {
-        &quot;tok&quot;: &quot;test&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "span_id": "fa90fdead5f74052",
+  "parent_span_id": "fa90fdead5f74053",
+  "op": "http",
+  "status": "ok",
+  "exclusive_time": 0.0,
+  "client_sample_rate": 0.5,
+  "origin": "auto.http",
+  "data": {
+    "route": {
+      "params": {
+        "tok": "test"
       },
-      &quot;path&quot;: &quot;/path&quot;
+      "path": "/path"
     }
   },
-  &quot;other&quot;: &quot;value&quot;,
-  &quot;type&quot;: &quot;trace&quot;
-}&quot;#</span>;
+  "other": "value",
+  "type": "trace"
+}"#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
-            parent_span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-            op: Annotated::new(<span class="string">&quot;http&quot;</span>.into()),
+            trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+            span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
+            parent_span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+            op: Annotated::new(<span class="string">"http"</span>.into()),
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(<span class="number">0.0</span>),
             client_sample_rate: Annotated::new(<span class="number">0.5</span>),
-            origin: Annotated::new(<span class="string">&quot;auto.http&quot;</span>.to_owned()),
+            origin: Annotated::new(<span class="string">"auto.http"</span>.to_owned()),
             data: Annotated::new(Data {
                 route: Annotated::new(Route {
                     params: Annotated::new({
                         <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                         map.insert(
-                            <span class="string">&quot;tok&quot;</span>.to_string(),
-                            Annotated::new(Value::String(<span class="string">&quot;test&quot;</span>.into())),
+                            <span class="string">"tok"</span>.to_string(),
+                            Annotated::new(Value::String(<span class="string">"test"</span>.into())),
                         );
                         map
                     }),
                     other: {
                         <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                         map.insert(
-                            <span class="string">&quot;path&quot;</span>.to_string(),
-                            Annotated::new(Value::String(<span class="string">&quot;/path&quot;</span>.into())),
+                            <span class="string">"path"</span>.to_string(),
+                            Annotated::new(Value::String(<span class="string">"/path"</span>.into())),
                         );
                         map
                     },
@@ -552,8 +553,8 @@
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -566,14 +567,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_trace_context_normalization() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
-  &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,
-  &quot;type&quot;: &quot;trace&quot;
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+  "span_id": "FA90FDEAD5F74052",
+  "type": "trace"
+}"#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
+            trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+            span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
             ..Default::default()
         })));
 

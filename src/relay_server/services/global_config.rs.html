@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/global_config.rs`."><title>global_config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/global_config.rs`."><title>global_config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -536,7 +537,7 @@
 
 <span class="doccomment">/// The response of a fetch of a global config from upstream.
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">struct </span>GetGlobalConfigResponse {
     global: <span class="prelude-ty">Option</span>&lt;GlobalConfig&gt;,
     <span class="comment">// Instead of using [`Status`], we use StatusResponse as a separate field in order to not
@@ -546,7 +547,7 @@
 
 <span class="doccomment">/// A mirror of [`Status`] without the associated data for use in serialization.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>StatusResponse {
     Ready,
     Pending,
@@ -560,7 +561,7 @@
 
 <span class="doccomment">/// The request to fetch a global config from upstream.
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">struct </span>GetGlobalConfig {
     global: bool,
     <span class="comment">// Dummy variable - upstream expects a list of public keys.
@@ -583,8 +584,8 @@
         Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::borrow::Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
-        Cow::Borrowed(<span class="string">&quot;/api/0/relays/projectconfigs/?version=3&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::borrow::Cow&lt;<span class="lifetime">'static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">"/api/0/relays/projectconfigs/?version=3"</span>)
     }
 
     <span class="kw">fn </span>retry() -&gt; bool {
@@ -595,8 +596,8 @@
         RequestPriority::High
     }
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;global_config&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"global_config"
     </span>}
 }
 
@@ -692,8 +693,8 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>GlobalConfigHandle {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_tuple(<span class="string">&quot;GlobalConfigHandle&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_tuple(<span class="string">"GlobalConfigHandle"</span>)
             .field(<span class="kw-2">&amp;*</span><span class="self">self</span>.watch.borrow())
             .finish()
     }
@@ -805,7 +806,7 @@
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(response)) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>success = <span class="bool-val">false</span>;
-                <span class="comment">// Older relays won&#39;t send a global status, in that case, we will pretend like the
+                <span class="comment">// Older relays won't send a global status, in that case, we will pretend like the
                 // default global config is an up to date one, because that was the old behaviour.
                 </span><span class="kw">let </span>is_ready = response.global_status.map_or(<span class="bool-val">true</span>, |stat| stat.is_ready());
 
@@ -813,32 +814,32 @@
                     <span class="prelude-val">Some</span>(global_config) <span class="kw">if </span>is_ready =&gt; {
                         <span class="comment">// Log the first time we receive a global config from upstream.
                         </span><span class="kw">if </span>!<span class="self">self</span>.global_config_watch.borrow().is_ready() {
-                            <span class="macro">relay_log::info!</span>(<span class="string">&quot;received global config from upstream&quot;</span>);
+                            <span class="macro">relay_log::info!</span>(<span class="string">"received global config from upstream"</span>);
                         }
                         <span class="self">self</span>.global_config_watch
                             .send_replace(Status::Ready(Arc::new(global_config)));
                         success = <span class="bool-val">true</span>;
                         <span class="self">self</span>.last_fetched = Instant::now();
                     }
-                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;global config from upstream is not yet ready&quot;</span>),
-                    <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;global config missing in upstream response&quot;</span>),
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">"global config from upstream is not yet ready"</span>),
+                    <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::error!</span>(<span class="string">"global config missing in upstream response"</span>),
                 }
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::GlobalConfigFetched) += <span class="number">1</span>,
-                    success = <span class="kw">if </span>success { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
+                    success = <span class="kw">if </span>success { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
                 );
             }
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(e)) =&gt; {
                 <span class="kw">if </span><span class="self">self</span>.last_fetched.elapsed() &gt;= <span class="self">self</span>.upstream_failure_interval {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;failed to fetch global config from upstream&quot;
+                        <span class="string">"failed to fetch global config from upstream"
                     </span>);
                 }
             }
             <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                <span class="string">&quot;failed to send request to upstream&quot;
+                <span class="string">"failed to send request to upstream"
             </span>),
         }
 
@@ -859,28 +860,28 @@
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>shutdown_handle = Controller::shutdown_handle();
 
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;global config service starting&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"global config service starting"</span>);
             <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;requesting global config from upstream&quot;</span>);
+                <span class="macro">relay_log::info!</span>(<span class="string">"requesting global config from upstream"</span>);
                 <span class="self">self</span>.request_global_config();
             } <span class="kw">else </span>{
                 <span class="kw">match </span>GlobalConfig::load(<span class="self">self</span>.config.path()) {
                     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(from_file)) =&gt; {
-                        <span class="macro">relay_log::info!</span>(<span class="string">&quot;serving static global config loaded from file&quot;</span>);
+                        <span class="macro">relay_log::info!</span>(<span class="string">"serving static global config loaded from file"</span>);
                         <span class="self">self</span>.global_config_watch
                             .send_replace(Status::Ready(Arc::new(from_file)));
                     }
                     <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
                         <span class="macro">relay_log::info!</span>(
-                                <span class="string">&quot;serving default global configs due to lacking static global config file&quot;
+                                <span class="string">"serving default global configs due to lacking static global config file"
                             </span>);
                         <span class="self">self</span>.global_config_watch
                             .send_replace(Status::Ready(Arc::default()));
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to load global config from file: {}&quot;</span>, e);
+                        <span class="macro">relay_log::error!</span>(<span class="string">"failed to load global config from file: {}"</span>, e);
                         <span class="macro">relay_log::info!</span>(
-                                <span class="string">&quot;serving default global configs due to failure to load global config from file&quot;
+                                <span class="string">"serving default global configs due to failure to load global config from file"
                             </span>);
                         <span class="self">self</span>.global_config_watch
                             .send_replace(Status::Ready(Arc::default()));
@@ -900,7 +901,7 @@
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;global config service stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"global config service stopped"</span>);
         });
     }
 }
@@ -923,11 +924,11 @@
         relay_test::setup();
         tokio::time::pause();
 
-        <span class="kw">let </span>(upstream, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream&quot;</span>, <span class="number">0</span>, |state, <span class="kw">_</span>| {
+        <span class="kw">let </span>(upstream, <span class="kw">_</span>) = mock_service(<span class="string">"upstream"</span>, <span class="number">0</span>, |state, <span class="kw">_</span>| {
             <span class="kw-2">*</span>state += <span class="number">1</span>;
 
             <span class="kw">if </span><span class="kw-2">*</span>state &gt; <span class="number">1 </span>{
-                <span class="macro">panic!</span>(<span class="string">&quot;should not receive requests after shutdown&quot;</span>);
+                <span class="macro">panic!</span>(<span class="string">"should not receive requests after shutdown"</span>);
             }
         });
 
@@ -952,13 +953,13 @@
         relay_test::setup();
         tokio::time::pause();
 
-        <span class="kw">let </span>(upstream, handle) = mock_service(<span class="string">&quot;upstream&quot;</span>, (), |(), <span class="kw">_</span>| {
+        <span class="kw">let </span>(upstream, handle) = mock_service(<span class="string">"upstream"</span>, (), |(), <span class="kw">_</span>| {
             <span class="macro">panic!</span>();
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;relay&quot;</span>: {
-                <span class="string">&quot;mode&quot;</span>:  RelayMode::Managed
+            <span class="string">"relay"</span>: {
+                <span class="string">"mode"</span>:  RelayMode::Managed
             }
         }))
         .unwrap();
@@ -977,13 +978,13 @@
         relay_test::setup();
         tokio::time::pause();
 
-        <span class="kw">let </span>(upstream, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream&quot;</span>, (), |(), <span class="kw">_</span>| {
-            <span class="macro">panic!</span>(<span class="string">&quot;upstream should not be called outside of managed mode&quot;</span>);
+        <span class="kw">let </span>(upstream, <span class="kw">_</span>) = mock_service(<span class="string">"upstream"</span>, (), |(), <span class="kw">_</span>| {
+            <span class="macro">panic!</span>(<span class="string">"upstream should not be called outside of managed mode"</span>);
         });
 
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;relay&quot;</span>: {
-                <span class="string">&quot;mode&quot;</span>:  RelayMode::Proxy
+            <span class="string">"relay"</span>: {
+                <span class="string">"mode"</span>:  RelayMode::Proxy
             }
         }))
         .unwrap();

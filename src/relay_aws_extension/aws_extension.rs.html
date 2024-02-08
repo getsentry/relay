@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/aws_extension.rs`."><title>aws_extension.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_aws_extension" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_aws_extension/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_aws_extension"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/aws_extension.rs`."><title>aws_extension.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_aws_extension" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_aws_extension/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_aws_extension"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -252,9 +253,9 @@
 <span class="kw">use </span>reqwest::{Client, ClientBuilder, StatusCode, Url};
 <span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">const </span>EXTENSION_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;sentry-lambda-extension&quot;</span>;
-<span class="kw">const </span>EXTENSION_NAME_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Lambda-Extension-Name&quot;</span>;
-<span class="kw">const </span>EXTENSION_ID_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Lambda-Extension-Identifier&quot;</span>;
+<span class="kw">const </span>EXTENSION_NAME: <span class="kw-2">&amp;</span>str = <span class="string">"sentry-lambda-extension"</span>;
+<span class="kw">const </span>EXTENSION_NAME_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">"Lambda-Extension-Name"</span>;
+<span class="kw">const </span>EXTENSION_ID_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">"Lambda-Extension-Identifier"</span>;
 
 <span class="doccomment">/// Response received from the register API.
 ///
@@ -262,13 +263,13 @@
 ///
 /// ```json
 /// {
-///    &quot;functionName&quot;: &quot;helloWorld&quot;,
-///    &quot;functionVersion&quot;: &quot;$LATEST&quot;,
-///    &quot;handler&quot;: &quot;lambda_function.lambda_handler&quot;
+///    "functionName": "helloWorld",
+///    "functionVersion": "$LATEST",
+///    "handler": "lambda_function.lambda_handler"
 /// }
 /// ```
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>RegisterResponse {
     <span class="doccomment">/// The name of the lambda function.
     </span><span class="kw">pub </span>function_name: String,
@@ -280,10 +281,10 @@
 
 <span class="doccomment">/// Tracing headers from an [`InvokeResponse`].
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Tracing {
     <span class="doccomment">/// type of tracing header
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>ty: String,
     <span class="doccomment">/// tracing header value
     </span><span class="kw">pub </span>value: String,
@@ -297,26 +298,26 @@
 ///
 /// ```json
 /// {
-///     &quot;eventType&quot;: &quot;INVOKE&quot;,
-///     &quot;deadlineMs&quot;: 676051,
-///     &quot;requestId&quot;: &quot;3da1f2dc-3222-475e-9205-e2e6c6318895&quot;,
-///     &quot;invokedFunctionArn&quot;: &quot;arn:aws:lambda:us-east-1:123456789012:function:ExtensionTest&quot;,
-///     &quot;tracing&quot;: {
-///         &quot;type&quot;: &quot;X-Amzn-Trace-Id&quot;,
-///         &quot;value&quot;: &quot;Root=1-5f35ae12-0c0fec141ab77a00bc047aa2;Parent=2be948a625588e32;Sampled=1&quot;
+///     "eventType": "INVOKE",
+///     "deadlineMs": 676051,
+///     "requestId": "3da1f2dc-3222-475e-9205-e2e6c6318895",
+///     "invokedFunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:ExtensionTest",
+///     "tracing": {
+///         "type": "X-Amzn-Trace-Id",
+///         "value": "Root=1-5f35ae12-0c0fec141ab77a00bc047aa2;Parent=2be948a625588e32;Sampled=1"
 ///     }
 /// }
 /// ```
 ///
 /// [invoke phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-invoke
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>InvokeResponse {
     <span class="doccomment">/// The time and date when the lambda function times out in Unix time milliseconds.
     </span><span class="kw">pub </span>deadline_ms: u64,
     <span class="doccomment">/// Unique request identifier.
     </span><span class="kw">pub </span>request_id: String,
-    <span class="doccomment">/// The invoked lambda function&#39;s ARN (Amazon Resource Name).
+    <span class="doccomment">/// The invoked lambda function's ARN (Amazon Resource Name).
     </span><span class="kw">pub </span>invoked_function_arn: String,
     <span class="doccomment">/// Tracing headers.
     </span><span class="kw">pub </span>tracing: Tracing,
@@ -330,15 +331,15 @@
 ///
 /// ```json
 /// {
-///   &quot;eventType&quot;: &quot;SHUTDOWN&quot;,
-///   &quot;shutdownReason&quot;: &quot;TIMEOUT&quot;,
-///   &quot;deadlineMs&quot;: 42069
+///   "eventType": "SHUTDOWN",
+///   "shutdownReason": "TIMEOUT",
+///   "deadlineMs": 42069
 /// }
 /// ```
 ///
 /// [shutdown phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-shutdown
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>ShutdownResponse {
     <span class="doccomment">/// The reason for the shutdown.
     </span><span class="kw">pub </span>shutdown_reason: String,
@@ -348,7 +349,7 @@
 
 <span class="doccomment">/// All possible next event responses.
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;UPPERCASE&quot;</span>, tag = <span class="string">&quot;eventType&quot;</span>)]
+#[serde(rename_all = <span class="string">"UPPERCASE"</span>, tag = <span class="string">"eventType"</span>)]
 </span><span class="kw">pub enum </span>NextEventResponse {
     <span class="doccomment">/// `INVOKE` response.
     </span>Invoke(InvokeResponse),
@@ -361,8 +362,8 @@
 </span><span class="kw">pub struct </span>AwsExtensionError(());
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>AwsExtensionError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;aws extension error&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"aws extension error"</span>)
     }
 }
 
@@ -395,7 +396,7 @@
 <span class="kw">impl </span>AwsExtension {
     <span class="doccomment">/// Creates a new `AwsExtension` instance.
     </span><span class="kw">pub fn </span>new(aws_runtime_api: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, AwsExtensionError&gt; {
-        <span class="kw">let </span>base_url = <span class="macro">format!</span>(<span class="string">&quot;http://{aws_runtime_api}/2020-01-01/extension&quot;</span>)
+        <span class="kw">let </span>base_url = <span class="macro">format!</span>(<span class="string">"http://{aws_runtime_api}/2020-01-01/extension"</span>)
             .parse()
             .map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 
@@ -411,9 +412,9 @@
     }
 
     <span class="kw">async fn </span>register(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, AwsExtensionError&gt; {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;Registering AWS extension on {}&quot;</span>, <span class="self">self</span>.base_url);
-        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">&quot;{}/register&quot;</span>, <span class="self">self</span>.base_url);
-        <span class="kw">let </span>body = HashMap::from([(<span class="string">&quot;events&quot;</span>, [<span class="string">&quot;INVOKE&quot;</span>, <span class="string">&quot;SHUTDOWN&quot;</span>])]);
+        <span class="macro">relay_log::info!</span>(<span class="string">"Registering AWS extension on {}"</span>, <span class="self">self</span>.base_url);
+        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">"{}/register"</span>, <span class="self">self</span>.base_url);
+        <span class="kw">let </span>body = HashMap::from([(<span class="string">"events"</span>, [<span class="string">"INVOKE"</span>, <span class="string">"SHUTDOWN"</span>])]);
 
         <span class="kw">let </span>request = <span class="self">self
             </span>.reqwest_client
@@ -438,7 +439,7 @@
     }
 
     <span class="kw">async fn </span>next_event(<span class="kw-2">&amp;</span><span class="self">self</span>, extension_id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;ControlFlow&lt;()&gt;, AwsExtensionError&gt; {
-        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">&quot;{}/event/next&quot;</span>, <span class="self">self</span>.base_url);
+        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">"{}/event/next"</span>, <span class="self">self</span>.base_url);
 
         <span class="kw">let </span>request = <span class="self">self
             </span>.reqwest_client
@@ -450,11 +451,11 @@
 
         <span class="kw">match </span>next_event {
             NextEventResponse::Invoke(response) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received INVOKE: request_id {}&quot;</span>, response.request_id);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Received INVOKE: request_id {}"</span>, response.request_id);
                 <span class="prelude-val">Ok</span>(ControlFlow::Continue(()))
             }
             NextEventResponse::Shutdown(response) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received SHUTDOWN: reason {}&quot;</span>, response.shutdown_reason);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Received SHUTDOWN: reason {}"</span>, response.shutdown_reason);
                 Controller::shutdown(ShutdownMode::Graceful);
                 <span class="prelude-val">Ok</span>(ControlFlow::Break(()))
             }
@@ -467,15 +468,15 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension started&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"AWS extension started"</span>);
 
             <span class="kw">let </span>extension_id = <span class="kw">match </span><span class="self">self</span>.register().<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(extension_id) =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension successfully registered&quot;</span>);
+                    <span class="macro">relay_log::info!</span>(<span class="string">"AWS extension successfully registered"</span>);
                     extension_id
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension registration failed&quot;</span>);
+                    <span class="macro">relay_log::info!</span>(<span class="string">"AWS extension registration failed"</span>);
                     <span class="kw">return</span>;
                 }
             };
@@ -486,7 +487,7 @@
                 }
             }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"AWS extension stopped"</span>);
         });
     }
 }

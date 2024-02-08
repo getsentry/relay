@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/processing.rs`."><title>processing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_cabi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_cabi/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cabi"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/processing.rs`."><title>processing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_cabi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_cabi/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_cabi"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -458,7 +459,7 @@
 <span class="doccomment">/// Chunks the given text based on remarks.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_split_chunks(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_split_chunks(
     string: <span class="kw-2">*const </span>RelayStr,
     remarks: <span class="kw-2">*const </span>RelayStr,
 ) -&gt; RelayStr {
@@ -471,7 +472,7 @@
 <span class="doccomment">/// Opens a maxminddb file by path.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_geoip_lookup_new(path: <span class="kw-2">*const </span>c_char) -&gt; <span class="kw-2">*mut </span>RelayGeoIpLookup {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_geoip_lookup_new(path: <span class="kw-2">*const </span>c_char) -&gt; <span class="kw-2">*mut </span>RelayGeoIpLookup {
     <span class="kw">let </span>path = CStr::from_ptr(path).to_string_lossy();
     <span class="kw">let </span>lookup = GeoIpLookup::open(path.as_ref())<span class="question-mark">?</span>;
     Box::into_raw(Box::new(lookup)) <span class="kw">as </span><span class="kw-2">*mut </span>RelayGeoIpLookup
@@ -480,7 +481,7 @@
 <span class="doccomment">/// Frees a `RelayGeoIpLookup`.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_geoip_lookup_free(lookup: <span class="kw-2">*mut </span>RelayGeoIpLookup) {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_geoip_lookup_free(lookup: <span class="kw-2">*mut </span>RelayGeoIpLookup) {
     <span class="kw">if </span>!lookup.is_null() {
         <span class="kw">let </span>lookup = lookup <span class="kw">as </span><span class="kw-2">*mut </span>GeoIpLookup;
         <span class="kw">let </span>_dropped = Box::from_raw(lookup);
@@ -490,7 +491,7 @@
 <span class="doccomment">/// Returns a list of all valid platform identifiers.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_valid_platforms(size_out: <span class="kw-2">*mut </span>usize) -&gt; <span class="kw-2">*const </span>RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_valid_platforms(size_out: <span class="kw-2">*mut </span>usize) -&gt; <span class="kw-2">*const </span>RelayStr {
     <span class="kw">static </span>VALID_PLATFORM_STRS: OnceCell&lt;Vec&lt;RelayStr&gt;&gt; = OnceCell::new();
     <span class="kw">let </span>platforms = VALID_PLATFORM_STRS
         .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
@@ -505,7 +506,7 @@
 <span class="doccomment">/// Creates a new normalization processor.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_new(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_store_normalizer_new(
     config: <span class="kw-2">*const </span>RelayStr,
     _geoip_lookup: <span class="kw-2">*const </span>RelayGeoIpLookup,
 ) -&gt; <span class="kw-2">*mut </span>RelayStoreNormalizer {
@@ -517,7 +518,7 @@
 <span class="doccomment">/// Frees a `RelayStoreNormalizer`.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_free(normalizer: <span class="kw-2">*mut </span>RelayStoreNormalizer) {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_store_normalizer_free(normalizer: <span class="kw-2">*mut </span>RelayStoreNormalizer) {
     <span class="kw">if </span>!normalizer.is_null() {
         <span class="kw">let </span>normalizer = normalizer <span class="kw">as </span><span class="kw-2">*mut </span>StoreProcessor;
         <span class="kw">let </span>_dropped = Box::from_raw(normalizer);
@@ -527,7 +528,7 @@
 <span class="doccomment">/// Normalizes the event given as JSON.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_normalize_event(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_store_normalizer_normalize_event(
     normalizer: <span class="kw-2">*mut </span>RelayStoreNormalizer,
     event: <span class="kw-2">*const </span>RelayStr,
 ) -&gt; RelayStr {
@@ -576,7 +577,7 @@
 <span class="doccomment">/// Replaces invalid JSON generated by Python.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_translate_legacy_python_json(event: <span class="kw-2">*mut </span>RelayStr) -&gt; bool {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_translate_legacy_python_json(event: <span class="kw-2">*mut </span>RelayStr) -&gt; bool {
     <span class="kw">let </span>data = slice::from_raw_parts_mut((<span class="kw-2">*</span>event).data <span class="kw">as </span><span class="kw-2">*mut </span>u8, (<span class="kw-2">*</span>event).len);
     json_forensics::translate_slice(data);
     <span class="bool-val">true
@@ -585,15 +586,15 @@
 <span class="doccomment">/// Validates a PII selector spec. Used to validate datascrubbing safe fields.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_pii_selector(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_validate_pii_selector(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
     <span class="kw">match </span>value.parse::&lt;SelectorSpec&gt;() {
-        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; RelayStr::new(<span class="string">&quot;&quot;</span>),
+        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; RelayStr::new(<span class="string">""</span>),
         <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">match </span>err {
             InvalidSelectorError::ParseError(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// Change the error to something more concise we can show in an UI.
                 // Error message follows the same format used for fingerprinting rules.
-                </span>RelayStr::from_string(<span class="macro">format!</span>(<span class="string">&quot;invalid syntax near {value:?}&quot;</span>))
+                </span>RelayStr::from_string(<span class="macro">format!</span>(<span class="string">"invalid syntax near {value:?}"</span>))
             }
             err =&gt; RelayStr::from_string(err.to_string()),
         },
@@ -603,10 +604,10 @@
 <span class="doccomment">/// Validate a PII config against the schema. Used in project options UI.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_pii_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_validate_pii_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">match </span>serde_json::from_str::&lt;PiiConfig&gt;((<span class="kw-2">*</span>value).as_str()) {
         <span class="prelude-val">Ok</span>(config) =&gt; <span class="kw">match </span>config.compiled().force_compile() {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; RelayStr::new(<span class="string">&quot;&quot;</span>),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; RelayStr::new(<span class="string">""</span>),
             <span class="prelude-val">Err</span>(PiiConfigError::RegexError(source)) =&gt; RelayStr::from_string(source.to_string()),
         },
         <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
@@ -616,11 +617,11 @@
 <span class="doccomment">/// Convert an old datascrubbing config to the new PII config format.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_convert_datascrubbing_config(config: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_convert_datascrubbing_config(config: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">let </span>config: DataScrubbingConfig = serde_json::from_str((<span class="kw-2">*</span>config).as_str())<span class="question-mark">?</span>;
     <span class="kw">match </span>config.pii_config() {
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(config)) =&gt; RelayStr::from_string(serde_json::to_string(config)<span class="question-mark">?</span>),
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; RelayStr::new(<span class="string">&quot;{}&quot;</span>),
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; RelayStr::new(<span class="string">"{}"</span>),
         <span class="comment">// NOTE: Callers of this function must be able to handle this error.
         </span><span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
@@ -629,7 +630,7 @@
 <span class="doccomment">/// Scrub an event using new PII stripping config.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_pii_strip_event(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_pii_strip_event(
     config: <span class="kw-2">*const </span>RelayStr,
     event: <span class="kw-2">*const </span>RelayStr,
 ) -&gt; RelayStr {
@@ -646,7 +647,7 @@
 /// function is used in the UI to provide auto-completion of selectors.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_pii_selector_suggestions_from_event(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_pii_selector_suggestions_from_event(
     event: <span class="kw-2">*const </span>RelayStr,
 ) -&gt; RelayStr {
     <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
@@ -658,8 +659,8 @@
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
 #[allow(clippy::diverging_sub_expression)]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_test_panic() -&gt; () {
-    <span class="macro">panic!</span>(<span class="string">&quot;this is a test panic&quot;</span>)
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_test_panic() -&gt; () {
+    <span class="macro">panic!</span>(<span class="string">"this is a test panic"</span>)
 }
 
 <span class="doccomment">/// Controls the globbing behaviors.
@@ -680,7 +681,7 @@
 /// Returns `true` if the glob matches, `false` otherwise.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_is_glob_match(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_is_glob_match(
     value: <span class="kw-2">*const </span>RelayBuf,
     pat: <span class="kw-2">*const </span>RelayStr,
     flags: GlobFlags,
@@ -705,7 +706,7 @@
 <span class="doccomment">/// Parse a sentry release structure from a string.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_parse_release(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_parse_release(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">let </span>release = sentry_release_parser::Release::parse((<span class="kw-2">*</span>value).as_str())<span class="question-mark">?</span>;
     RelayStr::from_string(serde_json::to_string(<span class="kw-2">&amp;</span>release)<span class="question-mark">?</span>)
 }
@@ -713,7 +714,7 @@
 <span class="doccomment">/// Compares two versions.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_compare_versions(a: <span class="kw-2">*const </span>RelayStr, b: <span class="kw-2">*const </span>RelayStr) -&gt; i32 {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_compare_versions(a: <span class="kw-2">*const </span>RelayStr, b: <span class="kw-2">*const </span>RelayStr) -&gt; i32 {
     <span class="kw">let </span>ver_a = sentry_release_parser::Version::parse((<span class="kw-2">*</span>a).as_str())<span class="question-mark">?</span>;
     <span class="kw">let </span>ver_b = sentry_release_parser::Version::parse((<span class="kw-2">*</span>b).as_str())<span class="question-mark">?</span>;
     <span class="kw">match </span>ver_a.cmp(<span class="kw-2">&amp;</span>ver_b) {
@@ -728,13 +729,13 @@
 /// Used by dynamic sampling, metric extraction, and metric tagging.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_rule_condition(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_validate_rule_condition(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">let </span>ret_val = <span class="kw">match </span>serde_json::from_str::&lt;RuleCondition&gt;((<span class="kw-2">*</span>value).as_str()) {
         <span class="prelude-val">Ok</span>(condition) =&gt; {
             <span class="kw">if </span>condition.supported() {
-                <span class="string">&quot;&quot;</span>.to_string()
+                <span class="string">""</span>.to_string()
             } <span class="kw">else </span>{
-                <span class="string">&quot;unsupported condition&quot;</span>.to_string()
+                <span class="string">"unsupported condition"</span>.to_string()
             }
         }
         <span class="prelude-val">Err</span>(e) =&gt; e.to_string(),
@@ -743,16 +744,16 @@
 }
 
 <span class="doccomment">/// Validate whole rule ( this will be also implemented in Sentry for better error messages)
-/// The implementation in relay is just to make sure that the Sentry implementation doesn&#39;t
+/// The implementation in relay is just to make sure that the Sentry implementation doesn't
 /// go out of sync.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_sampling_configuration(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_validate_sampling_configuration(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">match </span>serde_json::from_str::&lt;SamplingConfig&gt;((<span class="kw-2">*</span>value).as_str()) {
         <span class="prelude-val">Ok</span>(config) =&gt; {
             <span class="kw">for </span>rule <span class="kw">in </span>config.rules {
                 <span class="kw">if </span>!rule.condition.supported() {
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(RelayStr::new(<span class="string">&quot;unsupported sampling rule&quot;</span>));
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(RelayStr::new(<span class="string">"unsupported sampling rule"</span>));
                 }
             }
             RelayStr::default()
@@ -766,7 +767,7 @@
 /// If `strict` is true, checks for unknown fields in the input.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_project_config(
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_validate_project_config(
     value: <span class="kw-2">*const </span>RelayStr,
     strict: bool,
 ) -&gt; RelayStr {
@@ -780,7 +781,7 @@
 <span class="doccomment">/// Normalize a global config.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>normalize_global_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>normalize_global_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
     <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
     <span class="kw">match </span>normalize_json::&lt;GlobalConfig&gt;(value) {
         <span class="prelude-val">Ok</span>(normalized) =&gt; RelayStr::from_string(normalized),
@@ -794,51 +795,51 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>pii_config_validation_invalid_regex() {
-        <span class="kw">let </span>config = <span class="string">r#&quot;
+        <span class="kw">let </span>config = <span class="string">r#"
         {
-          &quot;rules&quot;: {
-            &quot;strip-fields&quot;: {
-              &quot;type&quot;: &quot;redact_pair&quot;,
-              &quot;keyPattern&quot;: &quot;(not valid regex&quot;,
-              &quot;redaction&quot;: {
-                &quot;method&quot;: &quot;replace&quot;,
-                &quot;text&quot;: &quot;[Filtered]&quot;
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(not valid regex",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
               }
             }
           },
-          &quot;applications&quot;: {
-            &quot;*.everything&quot;: [&quot;strip-fields&quot;]
+          "applications": {
+            "*.everything": ["strip-fields"]
           }
         }
-    &quot;#</span>;
+    "#</span>;
         <span class="macro">assert_eq!</span>(
             <span class="kw">unsafe </span>{ relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str() },
-            <span class="string">&quot;regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group&quot;
+            <span class="string">"regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>pii_config_validation_valid_regex() {
-        <span class="kw">let </span>config = <span class="string">r#&quot;
+        <span class="kw">let </span>config = <span class="string">r#"
         {
-          &quot;rules&quot;: {
-            &quot;strip-fields&quot;: {
-              &quot;type&quot;: &quot;redact_pair&quot;,
-              &quot;keyPattern&quot;: &quot;(\\w+)?+&quot;,
-              &quot;redaction&quot;: {
-                &quot;method&quot;: &quot;replace&quot;,
-                &quot;text&quot;: &quot;[Filtered]&quot;
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(\\w+)?+",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
               }
             }
           },
-          &quot;applications&quot;: {
-            &quot;*.everything&quot;: [&quot;strip-fields&quot;]
+          "applications": {
+            "*.everything": ["strip-fields"]
           }
         }
-    &quot;#</span>;
+    "#</span>;
         <span class="macro">assert_eq!</span>(
             <span class="kw">unsafe </span>{ relay_validate_pii_config(<span class="kw-2">&amp;</span>RelayStr::from(config)).as_str() },
-            <span class="string">&quot;&quot;
+            <span class="string">""
         </span>);
     }
 }

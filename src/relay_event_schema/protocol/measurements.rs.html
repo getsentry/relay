@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/measurements.rs`."><title>measurements.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/measurements.rs`."><title>measurements.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -276,7 +277,7 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>Measurement {
     <span class="doccomment">/// Value of observed measurement value.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;never&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, skip_serialization = <span class="string">"never"</span>)]
     </span><span class="kw">pub </span>value: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// The unit of this measurement, defaulting to no unit.
@@ -316,13 +317,13 @@
 
                     <span class="kw">if </span>name.is_empty() {
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;measurement name &#39;{name}&#39; cannot be empty&quot;
+                            <span class="string">"measurement name '{name}' cannot be empty"
                         </span>)));
                     } <span class="kw">else if </span>is_valid_measurement_name(name) {
                         <span class="kw">return </span><span class="prelude-val">Some</span>((name.to_lowercase(), object));
                     } <span class="kw">else </span>{
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;measurement name &#39;{name}&#39; can contain only characters a-z0-9._&quot;
+                            <span class="string">"measurement name '{name}' can contain only characters a-z0-9._"
                         </span>)));
                     }
 
@@ -359,7 +360,7 @@
     name.starts_with(|c: char| c.is_ascii_alphabetic())
         &amp;&amp; name
             .chars()
-            .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))
+            .all(|c| <span class="macro">matches!</span>(c, <span class="string">'a'</span>..=<span class="string">'z' </span>| <span class="string">'A'</span>..=<span class="string">'Z' </span>| <span class="string">'0'</span>..=<span class="string">'9' </span>| <span class="string">'_' </span>| <span class="string">'.'</span>))
 }
 
 <span class="attr">#[cfg(test)]
@@ -372,140 +373,140 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_measurements_serialization() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{
-    &quot;measurements&quot;: {
-        &quot;LCP&quot;: {&quot;value&quot;: 420.69, &quot;unit&quot;: &quot;millisecond&quot;},
-        &quot;   lcp_final.element-Size123  &quot;: {&quot;value&quot;: 1},
-        &quot;fid&quot;: {&quot;value&quot;: 2020},
-        &quot;inp&quot;: {&quot;value&quot;: 100.14},
-        &quot;cls&quot;: {&quot;value&quot;: null},
-        &quot;fp&quot;: {&quot;value&quot;: &quot;im a first paint&quot;},
-        &quot;Total Blocking Time&quot;: {&quot;value&quot;: 3.14159},
-        &quot;missing_value&quot;: &quot;string&quot;,
-        &quot;&quot;: {&quot;value&quot;: 2.71828}
+        <span class="kw">let </span>input = <span class="string">r#"{
+    "measurements": {
+        "LCP": {"value": 420.69, "unit": "millisecond"},
+        "   lcp_final.element-Size123  ": {"value": 1},
+        "fid": {"value": 2020},
+        "inp": {"value": 100.14},
+        "cls": {"value": null},
+        "fp": {"value": "im a first paint"},
+        "Total Blocking Time": {"value": 3.14159},
+        "missing_value": "string",
+        "": {"value": 2.71828}
     }
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;measurements&quot;: {
-    &quot;cls&quot;: {
-      &quot;value&quot;: null
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "measurements": {
+    "cls": {
+      "value": null
     },
-    &quot;fid&quot;: {
-      &quot;value&quot;: 2020.0
+    "fid": {
+      "value": 2020.0
     },
-    &quot;fp&quot;: {
-      &quot;value&quot;: null
+    "fp": {
+      "value": null
     },
-    &quot;inp&quot;: {
-      &quot;value&quot;: 100.14
+    "inp": {
+      "value": 100.14
     },
-    &quot;lcp&quot;: {
-      &quot;value&quot;: 420.69,
-      &quot;unit&quot;: &quot;millisecond&quot;
+    "lcp": {
+      "value": 420.69,
+      "unit": "millisecond"
     },
-    &quot;missing_value&quot;: null
+    "missing_value": null
   },
-  &quot;_meta&quot;: {
-    &quot;measurements&quot;: {
-      &quot;&quot;: {
-        &quot;err&quot;: [
+  "_meta": {
+    "measurements": {
+      "": {
+        "err": [
           [
-            &quot;invalid_data&quot;,
+            "invalid_data",
             {
-              &quot;reason&quot;: &quot;measurement name &#39;&#39; cannot be empty&quot;
+              "reason": "measurement name '' cannot be empty"
             }
           ],
           [
-            &quot;invalid_data&quot;,
+            "invalid_data",
             {
-              &quot;reason&quot;: &quot;measurement name &#39;lcp_final.element-Size123&#39; can contain only characters a-z0-9._&quot;
+              "reason": "measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._"
             }
           ],
           [
-            &quot;invalid_data&quot;,
+            "invalid_data",
             {
-              &quot;reason&quot;: &quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9._&quot;
+              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9._"
             }
           ]
         ]
       },
-      &quot;fp&quot;: {
-        &quot;value&quot;: {
-          &quot;&quot;: {
-            &quot;err&quot;: [
+      "fp": {
+        "value": {
+          "": {
+            "err": [
               [
-                &quot;invalid_data&quot;,
+                "invalid_data",
                 {
-                  &quot;reason&quot;: &quot;expected a floating point number&quot;
+                  "reason": "expected a floating point number"
                 }
               ]
             ],
-            &quot;val&quot;: &quot;im a first paint&quot;
+            "val": "im a first paint"
           }
         }
       },
-      &quot;missing_value&quot;: {
-        &quot;&quot;: {
-          &quot;err&quot;: [
+      "missing_value": {
+        "": {
+          "err": [
             [
-              &quot;invalid_data&quot;,
+              "invalid_data",
               {
-                &quot;reason&quot;: &quot;expected measurement&quot;
+                "reason": "expected measurement"
               }
             ]
           ],
-          &quot;val&quot;: &quot;string&quot;
+          "val": "string"
         }
       }
     }
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>measurements = Annotated::new(Measurements({
             <span class="kw">let </span><span class="kw-2">mut </span>measurements = Object::new();
             measurements.insert(
-                <span class="string">&quot;cls&quot;</span>.to_owned(),
+                <span class="string">"cls"</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::empty(),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                <span class="string">&quot;lcp&quot;</span>.to_owned(),
+                <span class="string">"lcp"</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(<span class="number">420.69</span>),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
             measurements.insert(
-                <span class="string">&quot;fid&quot;</span>.to_owned(),
+                <span class="string">"fid"</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(<span class="number">2020f64</span>),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                <span class="string">&quot;inp&quot;</span>.to_owned(),
+                <span class="string">"inp"</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(<span class="number">100.14</span>),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                <span class="string">&quot;fp&quot;</span>.to_owned(),
+                <span class="string">"fp"</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::from_error(
-                        Error::expected(<span class="string">&quot;a floating point number&quot;</span>),
-                        <span class="prelude-val">Some</span>(<span class="string">&quot;im a first paint&quot;</span>.into()),
+                        Error::expected(<span class="string">"a floating point number"</span>),
+                        <span class="prelude-val">Some</span>(<span class="string">"im a first paint"</span>.into()),
                     ),
                     unit: Annotated::empty(),
                 }),
             );
 
             measurements.insert(
-                <span class="string">&quot;missing_value&quot;</span>.to_owned(),
-                Annotated::from_error(Error::expected(<span class="string">&quot;measurement&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;string&quot;</span>.into())),
+                <span class="string">"missing_value"</span>.to_owned(),
+                Annotated::from_error(Error::expected(<span class="string">"measurement"</span>), <span class="prelude-val">Some</span>(<span class="string">"string"</span>.into())),
             );
 
             measurements
@@ -513,14 +514,14 @@
 
         <span class="kw">let </span>measurements_meta = measurements.meta_mut();
 
-        measurements_meta.add_error(Error::invalid(<span class="string">&quot;measurement name &#39;&#39; cannot be empty&quot;</span>));
+        measurements_meta.add_error(Error::invalid(<span class="string">"measurement name '' cannot be empty"</span>));
 
         measurements_meta.add_error(Error::invalid(
-            <span class="string">&quot;measurement name &#39;lcp_final.element-Size123&#39; can contain only characters a-z0-9._&quot;</span>,
+            <span class="string">"measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._"</span>,
         ));
 
         measurements_meta.add_error(Error::invalid(
-            <span class="string">&quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9._&quot;</span>,
+            <span class="string">"measurement name 'Total Blocking Time' can contain only characters a-z0-9._"</span>,
         ));
 
         <span class="kw">let </span>event = Annotated::new(Event {

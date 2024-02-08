@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/session.rs`."><title>session.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/session.rs`."><title>session.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -555,7 +556,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::utils::null_to_default;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::IpAddr;
 
-<span class="doccomment">/// The type of session event we&#39;re dealing with.
+<span class="doccomment">/// The type of session event we're dealing with.
 </span><span class="attr">#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 </span><span class="kw">pub enum </span>SessionStatus {
     <span class="doccomment">/// The session is healthy.
@@ -591,34 +592,34 @@
     }
     <span class="kw">fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            SessionStatus::Ok =&gt; <span class="string">&quot;ok&quot;</span>,
-            SessionStatus::Crashed =&gt; <span class="string">&quot;crashed&quot;</span>,
-            SessionStatus::Abnormal =&gt; <span class="string">&quot;abnormal&quot;</span>,
-            SessionStatus::Exited =&gt; <span class="string">&quot;exited&quot;</span>,
-            SessionStatus::Errored =&gt; <span class="string">&quot;errored&quot;</span>,
+            SessionStatus::Ok =&gt; <span class="string">"ok"</span>,
+            SessionStatus::Crashed =&gt; <span class="string">"crashed"</span>,
+            SessionStatus::Abnormal =&gt; <span class="string">"abnormal"</span>,
+            SessionStatus::Exited =&gt; <span class="string">"exited"</span>,
+            SessionStatus::Errored =&gt; <span class="string">"errored"</span>,
             SessionStatus::Unknown(s) =&gt; s.as_str(),
         }
     }
 }
 
 <span class="kw">impl </span>Display <span class="kw">for </span>SessionStatus {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_str())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(SessionStatus, <span class="string">&quot;A session status&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(SessionStatus, <span class="string">"A session status"</span>);
 
 <span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>SessionStatus {
     <span class="kw">type </span><span class="prelude-val">Err </span>= ParseSessionStatusError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;ok&quot; </span>=&gt; SessionStatus::Ok,
-            <span class="string">&quot;crashed&quot; </span>=&gt; SessionStatus::Crashed,
-            <span class="string">&quot;abnormal&quot; </span>=&gt; SessionStatus::Abnormal,
-            <span class="string">&quot;exited&quot; </span>=&gt; SessionStatus::Exited,
-            <span class="string">&quot;errored&quot; </span>=&gt; SessionStatus::Errored,
+            <span class="string">"ok" </span>=&gt; SessionStatus::Ok,
+            <span class="string">"crashed" </span>=&gt; SessionStatus::Crashed,
+            <span class="string">"abnormal" </span>=&gt; SessionStatus::Abnormal,
+            <span class="string">"exited" </span>=&gt; SessionStatus::Exited,
+            <span class="string">"errored" </span>=&gt; SessionStatus::Errored,
             other =&gt; SessionStatus::Unknown(other.to_owned()),
         })
     }
@@ -635,15 +636,15 @@
 </span><span class="kw">pub struct </span>ParseSessionStatusError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseSessionStatusError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid session status&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid session status"</span>)
     }
 }
 
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseSessionStatusError {}
 
 <span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
 </span><span class="kw">pub enum </span>AbnormalMechanism {
     AnrForeground,
     AnrBackground,
@@ -656,15 +657,15 @@
 </span><span class="kw">pub struct </span>ParseAbnormalMechanismError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseAbnormalMechanismError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;invalid abnormal mechanism&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"invalid abnormal mechanism"</span>)
     }
 }
 
 <span class="macro">relay_common::derive_fromstr_and_display!</span>(AbnormalMechanism, ParseAbnormalMechanismError, {
-    AbnormalMechanism::AnrForeground =&gt; <span class="string">&quot;anr_foreground&quot;</span>,
-    AbnormalMechanism::AnrBackground =&gt; <span class="string">&quot;anr_background&quot;</span>,
-    AbnormalMechanism::None =&gt; <span class="string">&quot;none&quot;</span>,
+    AbnormalMechanism::AnrForeground =&gt; <span class="string">"anr_foreground"</span>,
+    AbnormalMechanism::AnrBackground =&gt; <span class="string">"anr_background"</span>,
+    AbnormalMechanism::None =&gt; <span class="string">"none"</span>,
 });
 
 <span class="kw">impl </span>AbnormalMechanism {
@@ -680,15 +681,15 @@
     </span><span class="kw">pub </span>release: String,
 
     <span class="doccomment">/// The environment identifier.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// The ip address of the user.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>ip_address: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
 
     <span class="doccomment">/// The user agent of the user.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>user_agent: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -727,24 +728,24 @@
 <span class="attr">#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>SessionUpdate {
     <span class="doccomment">/// The session identifier.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;sid&quot;</span>, default = <span class="string">&quot;Uuid::new_v4&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"sid"</span>, default = <span class="string">"Uuid::new_v4"</span>)]
     </span><span class="kw">pub </span>session_id: Uuid,
     <span class="doccomment">/// The distinct identifier.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;did&quot;</span>, default)]
+    </span><span class="attr">#[serde(rename = <span class="string">"did"</span>, default)]
     </span><span class="kw">pub </span>distinct_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// An optional logical clock.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;seq&quot;</span>, default = <span class="string">&quot;default_sequence&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"seq"</span>, default = <span class="string">"default_sequence"</span>)]
     </span><span class="kw">pub </span>sequence: u64,
     <span class="doccomment">/// A flag that indicates that this is the initial transmission of the session.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_false"</span>)]
     </span><span class="kw">pub </span>init: bool,
     <span class="doccomment">/// The timestamp of when the session change event was created.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;Utc::now&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"Utc::now"</span>)]
     </span><span class="kw">pub </span>timestamp: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// The timestamp of when the session itself started.
     </span><span class="kw">pub </span>started: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// An optional duration of the session in seconds.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
     <span class="doccomment">/// The status of the session.
     </span><span class="attr">#[serde(default)]
@@ -753,13 +754,13 @@
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>errors: u64,
     <span class="doccomment">/// The session event attributes.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;attrs&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"attrs"</span>)]
     </span><span class="kw">pub </span>attributes: SessionAttributes,
     <span class="doccomment">/// The abnormal mechanism.
     </span><span class="attr">#[serde(
         default,
-        deserialize_with = <span class="string">&quot;null_to_default&quot;</span>,
-        skip_serializing_if = <span class="string">&quot;AbnormalMechanism::is_none&quot;
+        deserialize_with = <span class="string">"null_to_default"</span>,
+        skip_serializing_if = <span class="string">"AbnormalMechanism::is_none"
     </span>)]
     </span><span class="kw">pub </span>abnormal_mechanism: AbnormalMechanism,
 }
@@ -826,19 +827,19 @@
     <span class="doccomment">/// The timestamp of when the session itself started.
     </span><span class="kw">pub </span>started: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// The distinct identifier.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;did&quot;</span>, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"did"</span>, default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>distinct_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The number of exited sessions that ocurred.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_zero&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_zero"</span>)]
     </span><span class="kw">pub </span>exited: u32,
     <span class="doccomment">/// The number of errored sessions that ocurred, not including the abnormal and crashed ones.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_zero&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_zero"</span>)]
     </span><span class="kw">pub </span>errored: u32,
     <span class="doccomment">/// The number of abnormal sessions that ocurred.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_zero&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_zero"</span>)]
     </span><span class="kw">pub </span>abnormal: u32,
     <span class="doccomment">/// The number of crashed sessions that ocurred.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_zero&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_zero"</span>)]
     </span><span class="kw">pub </span>crashed: u32,
 }
 
@@ -884,7 +885,7 @@
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>aggregates: Vec&lt;SessionAggregateItem&gt;,
     <span class="doccomment">/// The shared session event attributes.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;attrs&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"attrs"</span>)]
     </span><span class="kw">pub </span>attributes: SessionAttributes,
 }
 
@@ -911,9 +912,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sessionstatus_unknown() {
-        <span class="kw">let </span>unknown = SessionStatus::from_str(<span class="string">&quot;invalid status&quot;</span>).unwrap();
+        <span class="kw">let </span>unknown = SessionStatus::from_str(<span class="string">"invalid status"</span>).unwrap();
         <span class="kw">if let </span>SessionStatus::Unknown(inner) = unknown {
-            <span class="macro">assert_eq!</span>(inner, <span class="string">&quot;invalid status&quot;</span>.to_owned());
+            <span class="macro">assert_eq!</span>(inner, <span class="string">"invalid status"</span>.to_owned());
         } <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         }
@@ -921,41 +922,41 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_default_values() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-  &quot;timestamp&quot;: &quot;2020-02-07T15:17:00Z&quot;,
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0"
   }
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-  &quot;did&quot;: null,
-  &quot;seq&quot;: 4711,
-  &quot;timestamp&quot;: &quot;2020-02-07T15:17:00Z&quot;,
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;status&quot;: &quot;ok&quot;,
-  &quot;errors&quot;: 0,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "did": null,
+  "seq": 4711,
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "ok",
+  "errors": 0,
+  "attrs": {
+    "release": "sentry-test@1.0.0"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate {
-            session_id: <span class="string">&quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;</span>.parse().unwrap(),
+            session_id: <span class="string">"8333339f-5675-4f89-a9a0-1c935255ab58"</span>.parse().unwrap(),
             distinct_id: <span class="prelude-val">None</span>,
             sequence: <span class="number">4711</span>, <span class="comment">// this would be a timestamp instead
-            </span>timestamp: <span class="string">&quot;2020-02-07T15:17:00Z&quot;</span>.parse().unwrap(),
-            started: <span class="string">&quot;2020-02-07T14:16:00Z&quot;</span>.parse().unwrap(),
+            </span>timestamp: <span class="string">"2020-02-07T15:17:00Z"</span>.parse().unwrap(),
+            started: <span class="string">"2020-02-07T14:16:00Z"</span>.parse().unwrap(),
             duration: <span class="prelude-val">None</span>,
             init: <span class="bool-val">false</span>,
             status: SessionStatus::Ok,
             abnormal_mechanism: AbnormalMechanism::None,
             errors: <span class="number">0</span>,
             attributes: SessionAttributes {
-                release: <span class="string">&quot;sentry-test@1.0.0&quot;</span>.to_owned(),
+                release: <span class="string">"sentry-test@1.0.0"</span>.to_owned(),
                 environment: <span class="prelude-val">None</span>,
                 ip_address: <span class="prelude-val">None</span>,
                 user_agent: <span class="prelude-val">None</span>,
@@ -974,12 +975,12 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_default_timestamp_and_sid() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;attrs&quot;: {
-      &quot;release&quot;: &quot;sentry-test@1.0.0&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+      "release": "sentry-test@1.0.0"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
         <span class="macro">assert!</span>(!parsed.session_id.is_nil());
@@ -987,40 +988,40 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-  &quot;did&quot;: &quot;foobarbaz&quot;,
-  &quot;seq&quot;: 42,
-  &quot;init&quot;: true,
-  &quot;timestamp&quot;: &quot;2020-02-07T15:17:00Z&quot;,
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;duration&quot;: 1947.49,
-  &quot;status&quot;: &quot;exited&quot;,
-  &quot;errors&quot;: 0,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;,
-    &quot;environment&quot;: &quot;production&quot;,
-    &quot;ip_address&quot;: &quot;::1&quot;,
-    &quot;user_agent&quot;: &quot;Firefox/72.0&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "did": "foobarbaz",
+  "seq": 42,
+  "init": true,
+  "timestamp": "2020-02-07T15:17:00Z",
+  "started": "2020-02-07T14:16:00Z",
+  "duration": 1947.49,
+  "status": "exited",
+  "errors": 0,
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production",
+    "ip_address": "::1",
+    "user_agent": "Firefox/72.0"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate {
-            session_id: <span class="string">&quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;</span>.parse().unwrap(),
-            distinct_id: <span class="prelude-val">Some</span>(<span class="string">&quot;foobarbaz&quot;</span>.into()),
+            session_id: <span class="string">"8333339f-5675-4f89-a9a0-1c935255ab58"</span>.parse().unwrap(),
+            distinct_id: <span class="prelude-val">Some</span>(<span class="string">"foobarbaz"</span>.into()),
             sequence: <span class="number">42</span>,
-            timestamp: <span class="string">&quot;2020-02-07T15:17:00Z&quot;</span>.parse().unwrap(),
-            started: <span class="string">&quot;2020-02-07T14:16:00Z&quot;</span>.parse().unwrap(),
+            timestamp: <span class="string">"2020-02-07T15:17:00Z"</span>.parse().unwrap(),
+            started: <span class="string">"2020-02-07T14:16:00Z"</span>.parse().unwrap(),
             duration: <span class="prelude-val">Some</span>(<span class="number">1947.49</span>),
             status: SessionStatus::Exited,
             abnormal_mechanism: AbnormalMechanism::None,
             errors: <span class="number">0</span>,
             init: <span class="bool-val">true</span>,
             attributes: SessionAttributes {
-                release: <span class="string">&quot;sentry-test@1.0.0&quot;</span>.to_owned(),
-                environment: <span class="prelude-val">Some</span>(<span class="string">&quot;production&quot;</span>.to_owned()),
-                ip_address: <span class="prelude-val">Some</span>(IpAddr::parse(<span class="string">&quot;::1&quot;</span>).unwrap()),
-                user_agent: <span class="prelude-val">Some</span>(<span class="string">&quot;Firefox/72.0&quot;</span>.to_owned()),
+                release: <span class="string">"sentry-test@1.0.0"</span>.to_owned(),
+                environment: <span class="prelude-val">Some</span>(<span class="string">"production"</span>.to_owned()),
+                ip_address: <span class="prelude-val">Some</span>(IpAddr::parse(<span class="string">"::1"</span>).unwrap()),
+                user_agent: <span class="prelude-val">Some</span>(<span class="string">"Firefox/72.0"</span>.to_owned()),
             },
         };
 
@@ -1030,29 +1031,29 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_ip_addr_auto() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;,
-    &quot;ip_address&quot;: &quot;{{auto}}&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "ip_address": "{{auto}}"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate::parse(json.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(update.attributes.ip_address, <span class="prelude-val">Some</span>(IpAddr::auto()));
     }
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_abnormal_mechanism() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-    &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-    &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-    &quot;status&quot;: &quot;abnormal&quot;,
-    &quot;abnormal_mechanism&quot;: &quot;anr_background&quot;,
-    &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;,
-    &quot;environment&quot;: &quot;production&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+    "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+    "started": "2020-02-07T14:16:00Z",
+    "status": "abnormal",
+    "abnormal_mechanism": "anr_background",
+    "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
     }
-    }&quot;#</span>;
+    }"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate::parse(json.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(update.abnormal_mechanism, AbnormalMechanism::AnrBackground);
@@ -1060,16 +1061,16 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_invalid_abnormal_mechanism() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;status&quot;: &quot;abnormal&quot;,
-  &quot;abnormal_mechanism&quot;: &quot;invalid_mechanism&quot;,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;,
-    &quot;environment&quot;: &quot;production&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "abnormal",
+  "abnormal_mechanism": "invalid_mechanism",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate::parse(json.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(update.abnormal_mechanism, AbnormalMechanism::None);
@@ -1077,16 +1078,16 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_session_null_abnormal_mechanism() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;sid&quot;: &quot;8333339f-5675-4f89-a9a0-1c935255ab58&quot;,
-  &quot;started&quot;: &quot;2020-02-07T14:16:00Z&quot;,
-  &quot;status&quot;: &quot;abnormal&quot;,
-  &quot;abnormal_mechanism&quot;: null,
-  &quot;attrs&quot;: {
-    &quot;release&quot;: &quot;sentry-test@1.0.0&quot;,
-    &quot;environment&quot;: &quot;production&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "abnormal",
+  "abnormal_mechanism": null,
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = SessionUpdate::parse(json.as_bytes()).unwrap();
         <span class="macro">assert_eq!</span>(update.abnormal_mechanism, AbnormalMechanism::None);

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2865,7 +2866,7 @@
 <span class="kw">use </span>smallvec::{smallvec, SmallVec};
 <span class="kw">use </span>tokio::sync::Semaphore;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
@@ -2907,7 +2908,7 @@
 <span class="kw">mod </span>report;
 <span class="kw">mod </span>session;
 <span class="kw">mod </span>span;
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">mod </span>unreal;
 
 <span class="doccomment">/// Creates the block only if used with `processing` feature.
@@ -2915,7 +2916,7 @@
 /// Provided code block will be executed only if the provided config has `processing_enabled` set.
 </span><span class="macro">macro_rules! </span>if_processing {
     (<span class="macro-nonterminal">$config</span>:expr, <span class="macro-nonterminal">$if_true</span>:block) =&gt; {
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>{
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>{
             <span class="kw">if </span><span class="macro-nonterminal">$config</span>.processing_enabled() <span class="macro-nonterminal">$if_true
         </span>}
     };
@@ -3070,57 +3071,57 @@
 <span class="doccomment">/// An error returned when handling [`ProcessEnvelope`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ProcessingError {
-    <span class="attr">#[error(<span class="string">&quot;invalid json in event&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid json in event"</span>)]
     </span>InvalidJson(<span class="attr">#[source] </span>serde_json::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;invalid message pack event payload&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid message pack event payload"</span>)]
     </span>InvalidMsgpack(<span class="attr">#[from] </span>rmp_serde::decode::Error),
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[error(<span class="string">&quot;invalid unreal crash report&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    #[error(<span class="string">"invalid unreal crash report"</span>)]
     </span>InvalidUnrealReport(<span class="attr">#[source] </span>Unreal4Error),
 
-    <span class="attr">#[error(<span class="string">&quot;event payload too large&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"event payload too large"</span>)]
     </span>PayloadTooLarge,
 
-    <span class="attr">#[error(<span class="string">&quot;invalid transaction event&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid transaction event"</span>)]
     </span>InvalidTransaction,
 
-    <span class="attr">#[error(<span class="string">&quot;envelope processor failed&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"envelope processor failed"</span>)]
     </span>ProcessingFailed(<span class="attr">#[from] </span>ProcessingAction),
 
-    <span class="attr">#[error(<span class="string">&quot;duplicate {0} in event&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"duplicate {0} in event"</span>)]
     </span>DuplicateItem(ItemType),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to extract event payload&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to extract event payload"</span>)]
     </span>NoEventPayload,
 
-    <span class="attr">#[error(<span class="string">&quot;missing project id in DSN&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"missing project id in DSN"</span>)]
     </span>MissingProjectId,
 
-    <span class="attr">#[error(<span class="string">&quot;invalid security report type: {0:?}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid security report type: {0:?}"</span>)]
     </span>InvalidSecurityType(Bytes),
 
-    <span class="attr">#[error(<span class="string">&quot;invalid security report&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid security report"</span>)]
     </span>InvalidSecurityReport(<span class="attr">#[source] </span>serde_json::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;invalid nel report&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid nel report"</span>)]
     </span>InvalidNelReport(<span class="attr">#[source] </span>NetworkReportError),
 
-    <span class="attr">#[error(<span class="string">&quot;event filtered with reason: {0:?}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"event filtered with reason: {0:?}"</span>)]
     </span>EventFiltered(FilterStatKey),
 
-    <span class="attr">#[error(<span class="string">&quot;missing or invalid required event timestamp&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"missing or invalid required event timestamp"</span>)]
     </span>InvalidTimestamp,
 
-    <span class="attr">#[error(<span class="string">&quot;could not serialize event payload&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"could not serialize event payload"</span>)]
     </span>SerializeFailed(<span class="attr">#[source] </span>serde_json::Error),
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[error(<span class="string">&quot;failed to apply quotas&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    #[error(<span class="string">"failed to apply quotas"</span>)]
     </span>QuotasFailed(<span class="attr">#[from] </span>RateLimitingError),
 
-    <span class="attr">#[error(<span class="string">&quot;invalid pii config&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid pii config"</span>)]
     </span>PiiConfigError(PiiConfigError),
 }
 
@@ -3142,20 +3143,20 @@
             <span class="self">Self</span>::NoEventPayload =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)
-            </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span><span class="self">Self</span>::InvalidUnrealReport(<span class="kw-2">ref </span>err)
                 <span class="kw">if </span>err.kind() == Unreal4ErrorKind::BadCompression =&gt;
             {
                 <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span><span class="self">Self</span>::InvalidUnrealReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             <span class="comment">// Internal errors
             </span><span class="self">Self</span>::SerializeFailed(<span class="kw">_</span>) | <span class="self">Self</span>::ProcessingFailed(<span class="kw">_</span>) =&gt; {
                 <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Internal))
             }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span><span class="self">Self</span>::QuotasFailed(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Internal)),
             <span class="self">Self</span>::PiiConfigError(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::ProjectStatePii)),
 
@@ -3171,7 +3172,7 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">impl </span>From&lt;Unreal4Error&gt; <span class="kw">for </span>ProcessingError {
     <span class="kw">fn </span>from(err: Unreal4Error) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>err.kind() {
@@ -3219,7 +3220,7 @@
 
 <span class="doccomment">/// A state container for envelope processing.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>ProcessEnvelopeState&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -3244,7 +3245,7 @@
 
     <span class="doccomment">/// The result of a dynamic sampling operation on this envelope.
     ///
-    /// The event will be kept if there&#39;s either no match, or there&#39;s a match and it was sampled.
+    /// The event will be kept if there's either no match, or there's a match and it was sampled.
     </span>sampling_result: SamplingResult,
 
     <span class="doccomment">/// Metrics extracted from items in the envelope.
@@ -3262,7 +3263,7 @@
 
     <span class="doccomment">/// The id of the project that this envelope is ingested into.
     ///
-    /// This identifier can differ from the one stated in the Envelope&#39;s DSN if the key was moved to
+    /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
     /// a new project or on the legacy endpoint. In that case, normalization will update the project
     /// ID.
     </span>project_id: ProjectId,
@@ -3274,10 +3275,10 @@
     </span>profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
-    </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ProcessEnvelopeState&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
     </span><span class="kw">fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Envelope {
         <span class="self">self</span>.managed_envelope.envelope()
@@ -3326,7 +3327,7 @@
 }
 
 <span class="doccomment">/// Response of the [`ProcessEnvelope`] message.
-</span><span class="attr">#[cfg_attr(not(feature = <span class="string">&quot;processing&quot;</span>), allow(dead_code))]
+</span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), allow(dead_code))]
 </span><span class="kw">pub struct </span>ProcessEnvelopeResponse {
     <span class="doccomment">/// The processed envelope.
     ///
@@ -3338,7 +3339,7 @@
 
 <span class="doccomment">/// Applies processing to all contents of the given envelope.
 ///
-/// Depending on the contents of the envelope and Relay&#39;s mode, this includes:
+/// Depending on the contents of the envelope and Relay's mode, this includes:
 ///
 ///  - Basic normalization and validation for all item types.
 ///  - Clock drift correction if the required `sent_at` header is present.
@@ -3353,7 +3354,7 @@
     <span class="kw">pub </span>reservoir_counters: ReservoirCounters,
 }
 
-<span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.
+<span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
 ///
 /// This parses and validates the metrics:
 ///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
@@ -3375,7 +3376,7 @@
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>start_time: Instant,
 
-    <span class="doccomment">/// The value of the Envelope&#39;s [`sent_at`](Envelope::sent_at) header for clock drift
+    <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
@@ -3444,7 +3445,7 @@
 }
 
 <span class="doccomment">/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 #[derive(Debug)]
 </span><span class="kw">pub struct </span>RateLimitBuckets {
     <span class="kw">pub </span>bucket_limiter: MetricsLimiter,
@@ -3461,24 +3462,24 @@
     EncodeMetricMeta(Box&lt;EncodeMetricMeta&gt;),
     SubmitEnvelope(Box&lt;SubmitEnvelope&gt;),
     SubmitClientReports(Box&lt;SubmitClientReports&gt;),
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>RateLimitBuckets(RateLimitBuckets),
 }
 
 <span class="kw">impl </span>EnvelopeProcessor {
     <span class="doccomment">/// Returns the name of the message variant.
-    </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            EnvelopeProcessor::ProcessEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessEnvelope&quot;</span>,
-            EnvelopeProcessor::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetrics&quot;</span>,
-            EnvelopeProcessor::ProcessBatchedMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessBatchedMetrics&quot;</span>,
-            EnvelopeProcessor::ProcessMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetricMeta&quot;</span>,
-            EnvelopeProcessor::EncodeMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeMetrics&quot;</span>,
-            EnvelopeProcessor::EncodeMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeMetricMeta&quot;</span>,
-            EnvelopeProcessor::SubmitEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;SubmitEnvelope&quot;</span>,
-            EnvelopeProcessor::SubmitClientReports(<span class="kw">_</span>) =&gt; <span class="string">&quot;SubmitClientReports&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>EnvelopeProcessor::RateLimitBuckets(<span class="kw">_</span>) =&gt; <span class="string">&quot;RateLimitBuckets&quot;</span>,
+            EnvelopeProcessor::ProcessEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"ProcessEnvelope"</span>,
+            EnvelopeProcessor::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">"ProcessMetrics"</span>,
+            EnvelopeProcessor::ProcessBatchedMetrics(<span class="kw">_</span>) =&gt; <span class="string">"ProcessBatchedMetrics"</span>,
+            EnvelopeProcessor::ProcessMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"ProcessMetricMeta"</span>,
+            EnvelopeProcessor::EncodeMetrics(<span class="kw">_</span>) =&gt; <span class="string">"EncodeMetrics"</span>,
+            EnvelopeProcessor::EncodeMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"EncodeMetricMeta"</span>,
+            EnvelopeProcessor::SubmitEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"SubmitEnvelope"</span>,
+            EnvelopeProcessor::SubmitClientReports(<span class="kw">_</span>) =&gt; <span class="string">"SubmitClientReports"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>EnvelopeProcessor::RateLimitBuckets(<span class="kw">_</span>) =&gt; <span class="string">"RateLimitBuckets"</span>,
         }
     }
 }
@@ -3549,7 +3550,7 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">impl </span>FromMessage&lt;RateLimitBuckets&gt; <span class="kw">for </span>EnvelopeProcessor {
     <span class="kw">type </span>Response = NoResponse;
 
@@ -3569,22 +3570,22 @@
 <span class="kw">struct </span>InnerProcessor {
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>aggregator: Addr&lt;Aggregator&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     test_store: Addr&lt;TestStore&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>metric_meta_store: <span class="prelude-ty">Option</span>&lt;RedisMetricMetaStore&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
 }
 
@@ -3594,19 +3595,19 @@
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         test_store: Addr&lt;TestStore&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
             <span class="kw">match </span>GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 <span class="prelude-val">Ok</span>(geoip) =&gt; <span class="prelude-val">Some</span>(geoip),
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to open GeoIP db {p:?}: {err:?}&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">"failed to open GeoIP db {p:?}: {err:?}"</span>);
                     <span class="prelude-val">None
                 </span>}
             }
@@ -3614,9 +3615,9 @@
 
         <span class="kw">let </span>inner = InnerProcessor {
             global_config,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pool: redis.clone(),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -3625,13 +3626,13 @@
             upstream_relay,
             test_store,
             geoip_lookup,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>aggregator,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
             }),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>cardinality_limiter: redis
                 .clone()
                 .map(|pool| {
@@ -3644,7 +3645,7 @@
                     )
                 })
                 .map(CardinalityLimiter::new),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store_forwarder,
             config,
         };
@@ -3655,7 +3656,7 @@
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>process_check_ins(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         state.managed_envelope.retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::CheckIn {
@@ -3672,7 +3673,7 @@
                     <span class="comment">// TODO: Track an outcome.
                     </span><span class="macro">relay_log::debug!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;dropped invalid monitor check-in&quot;
+                        <span class="string">"dropped invalid monitor check-in"
                     </span>);
                     ItemAction::DropSilently
                 }
@@ -3702,7 +3703,7 @@
             envelope.set_retention(retention);
         }
 
-        <span class="comment">// Prefer the project&#39;s project ID, and fall back to the stated project id from the
+        <span class="comment">// Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
         // envelopes for unknown projects are forwarded blindly.
         //
@@ -3727,7 +3728,7 @@
 
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_pool) = <span class="self">self</span>.inner.redis_pool.as_ref() {
             <span class="kw">let </span>org_id = managed_envelope.scoping().organization_id;
             reservoir.set_redis(org_id, redis_pool);
@@ -3749,7 +3750,7 @@
         })
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>enforce_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.as_ref() {
             <span class="prelude-val">Some</span>(rate_limiter) =&gt; rate_limiter,
@@ -4098,11 +4099,11 @@
     }
 
     <span class="kw">fn </span>process_state(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="comment">// Get the group from the managed envelope context, and if it&#39;s not set, try to guess it
+        <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         </span><span class="kw">let </span>group = state.managed_envelope.group();
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Processing {group:?} group&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group:?} group"</span>);
 
         <span class="kw">match </span>group {
             ProcessingGroup::Error =&gt; <span class="self">self</span>.process_errors(state)<span class="question-mark">?</span>,
@@ -4118,7 +4119,7 @@
                 <span class="macro">relay_log::error!</span>(
                     tags.project = %state.project_id,
                     items = <span class="question-mark">?</span>state.envelope().items().next().map(Item::ty),
-                    <span class="string">&quot;received metrics in the process_state&quot;
+                    <span class="string">"received metrics in the process_state"
                 </span>);
             }
             <span class="comment">// Fallback to the legacy process_state implementation for Ungrouped events.
@@ -4126,7 +4127,7 @@
                 <span class="macro">relay_log::error!</span>(
                     tags.project = %state.project_id,
                     items = <span class="question-mark">?</span>state.envelope().items().next().map(Item::ty),
-                    <span class="string">&quot;could not identify the processing group based on the envelope&#39;s items&quot;
+                    <span class="string">"could not identify the processing group based on the envelope's items"
                 </span>);
             }
             <span class="comment">// Leave this group unchanged.
@@ -4149,12 +4150,12 @@
 
         relay_log::with_scope(
             |scope| {
-                scope.set_tag(<span class="string">&quot;project&quot;</span>, project_id);
+                scope.set_tag(<span class="string">"project"</span>, project_id);
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client {
-                    scope.set_tag(<span class="string">&quot;sdk&quot;</span>, client);
+                    scope.set_tag(<span class="string">"sdk"</span>, client);
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
-                    scope.set_extra(<span class="string">&quot;user_agent&quot;</span>, user_agent.into());
+                    scope.set_extra(<span class="string">"user_agent"</span>, user_agent.into());
                 }
             },
             || {
@@ -4215,12 +4216,12 @@
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="comment">// Errors are only logged for what we consider infrastructure or implementation
-                // bugs. In other cases, we &quot;expect&quot; errors and log them as debug level.
+                // bugs. In other cases, we "expect" errors and log them as debug level.
                 </span><span class="kw">if </span>error.is_unexpected() {
                     <span class="macro">relay_log::error!</span>(
                         tags.project_key = %project_key,
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;error processing envelope&quot;
+                        <span class="string">"error processing envelope"
                     </span>);
                 }
             }
@@ -4253,12 +4254,12 @@
                         }
                         <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::debug!</span>(
                             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to parse metric bucket from statsd format&quot;</span>,
+                            <span class="string">"failed to parse metric bucket from statsd format"</span>,
                         ),
                     }
                 }
 
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metric buckets into project cache&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"inserting metric buckets into project cache"</span>);
                 <span class="self">self</span>.inner
                     .project_cache
                     .send(MergeBuckets::new(public_key, buckets));
@@ -4269,7 +4270,7 @@
                             clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
                         }
 
-                        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
+                        <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
                         <span class="self">self</span>.inner
                             .project_cache
                             .send(MergeBuckets::new(public_key, buckets));
@@ -4277,14 +4278,14 @@
                     <span class="prelude-val">Err</span>(error) =&gt; {
                         <span class="macro">relay_log::debug!</span>(
                             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to parse metric bucket&quot;</span>,
+                            <span class="string">"failed to parse metric bucket"</span>,
                         );
                         <span class="macro">metric!</span>(counter(RelayCounters::MetricBucketsParsingFailed) += <span class="number">1</span>);
                     }
                 }
             } <span class="kw">else </span>{
                 <span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;invalid item of type {} passed to ProcessMetrics&quot;</span>,
+                    <span class="string">"invalid item of type {} passed to ProcessMetrics"</span>,
                     item.ty()
                 );
             }
@@ -4314,7 +4315,7 @@
                         clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
                     }
 
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
                     <span class="self">self</span>.inner
                         .project_cache
                         .send(MergeBuckets::new(public_key, buckets));
@@ -4323,7 +4324,7 @@
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    <span class="string">&quot;failed to parse batched metrics&quot;</span>,
+                    <span class="string">"failed to parse batched metrics"</span>,
                 );
                 <span class="macro">metric!</span>(counter(RelayCounters::MetricBucketsParsingFailed) += <span class="number">1</span>);
             }
@@ -4336,7 +4337,7 @@
         <span class="kw">for </span>item <span class="kw">in </span>items {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::MetricMeta {
                 <span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;invalid item of type {} passed to ProcessMetricMeta&quot;</span>,
+                    <span class="string">"invalid item of type {} passed to ProcessMetricMeta"</span>,
                     item.ty()
                 );
                 <span class="kw">continue</span>;
@@ -4345,7 +4346,7 @@
             <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload();
             <span class="kw">match </span>serde_json::from_slice::&lt;MetricMeta&gt;(<span class="kw-2">&amp;</span>payload) {
                 <span class="prelude-val">Ok</span>(meta) =&gt; {
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;adding metric metadata to project cache&quot;</span>);
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"adding metric metadata to project cache"</span>);
                     <span class="self">self</span>.inner
                         .project_cache
                         .send(AddMetricMeta { project_key, meta });
@@ -4359,15 +4360,15 @@
                             </span>payload.truncate(<span class="number">200_000</span>);
                             scope.add_attachment(relay_log::protocol::Attachment {
                                 buffer: payload.into(),
-                                filename: <span class="string">&quot;payload.json&quot;</span>.to_owned(),
-                                content_type: <span class="prelude-val">Some</span>(<span class="string">&quot;application/json&quot;</span>.to_owned()),
+                                filename: <span class="string">"payload.json"</span>.to_owned(),
+                                content_type: <span class="prelude-val">Some</span>(<span class="string">"application/json"</span>.to_owned()),
                                 ty: <span class="prelude-val">None</span>,
                             })
                         },
                         || {
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                                <span class="string">&quot;failed to parse metric meta&quot;
+                                <span class="string">"failed to parse metric meta"
                             </span>)
                         },
                     );
@@ -4379,10 +4380,10 @@
     <span class="kw">fn </span>handle_submit_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SubmitEnvelope) {
         <span class="kw">let </span>SubmitEnvelope { <span class="kw-2">mut </span>envelope } = message;
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="self">self</span>.inner.store_forwarder.clone() {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to kafka&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"sending envelope to kafka"</span>);
                 store_forwarder.send(StoreEnvelope { envelope });
                 <span class="kw">return</span>;
             }
@@ -4390,7 +4391,7 @@
 
         <span class="comment">// If we are in capture mode, we stash away the event instead of forwarding it.
         </span><span class="kw">if </span>Capture::should_capture(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.config) {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;capturing envelope in memory&quot;</span>);
+            <span class="macro">relay_log::trace!</span>(<span class="string">"capturing envelope in memory"</span>);
             <span class="self">self</span>.inner.test_store.send(Capture::accepted(envelope));
             <span class="kw">return</span>;
         }
@@ -4402,7 +4403,7 @@
         // possible so that we avoid internal delays.
         </span>envelope.envelope_mut().set_sent_at(Utc::now());
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to sentry endpoint&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"sending envelope to sentry endpoint"</span>);
         <span class="kw">let </span>http_encoding = <span class="self">self</span>.inner.config.http_encoding();
         <span class="kw">let </span>result = envelope.envelope().to_vec().and_then(|v| {
             encode_payload(<span class="kw-2">&amp;</span>v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
@@ -4423,7 +4424,7 @@
                 </span><span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                     tags.project_key = %envelope.scoping().project_key,
-                    <span class="string">&quot;failed to serialize envelope payload&quot;
+                    <span class="string">"failed to serialize envelope payload"
                 </span>);
 
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
@@ -4457,7 +4458,7 @@
     }
 
     <span class="doccomment">/// Check and apply rate limits to metrics buckets.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>handle_rate_limit_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, message: RateLimitBuckets) {
         <span class="kw">let </span>RateLimitBuckets { <span class="kw-2">mut </span>bucket_limiter } = message;
 
@@ -4505,7 +4506,7 @@
         }
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>rate_limit_buckets_by_namespace(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
@@ -4539,7 +4540,7 @@
     }
 
     <span class="doccomment">/// Returns `true` if the batches should be rate limited.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>rate_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         item_scoping: relay_quotas::ItemScoping,
@@ -4557,7 +4558,7 @@
         </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, <span class="bool-val">false</span>) {
             <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
                 <span class="macro">relay_log::debug!</span>(
-                    <span class="string">&quot;dropping {} buckets due to throughput rate limit&quot;</span>,
+                    <span class="string">"dropping {} buckets due to throughput rate limit"</span>,
                     quantities.buckets
                 );
 
@@ -4580,7 +4581,7 @@
             <span class="prelude-val">Err</span>(e) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    <span class="string">&quot;failed to check redis rate limits&quot;
+                    <span class="string">"failed to check redis rate limits"
                 </span>);
                 <span class="bool-val">false
             </span>}
@@ -4588,7 +4589,7 @@
     }
 
     <span class="doccomment">/// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>cardinality_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
@@ -4617,7 +4618,7 @@
             <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    <span class="string">&quot;cardinality limiter failed&quot;
+                    <span class="string">"cardinality limiter failed"
                 </span>);
 
                 <span class="kw">return </span>buckets;
@@ -4630,7 +4631,7 @@
                 <span class="macro">relay_log::error!</span>(
                     tags.organization_id = scoping.organization_id,
                     tags.limit_id = limit_id,
-                    <span class="string">&quot;Cardinality Limit&quot;
+                    <span class="string">"Cardinality Limit"
                 </span>);
             }
         }
@@ -4656,7 +4657,7 @@
     ///  - cardinality limiting
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>encode_metrics_processing(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics, store_forwarder: <span class="kw-2">&amp;</span>Addr&lt;Store&gt;) {
         <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
         <span class="kw">use </span><span class="kw">crate</span>::services::store::StoreMetrics;
@@ -4774,7 +4775,7 @@
     }
 
     <span class="doccomment">/// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="prelude-ty">Option</span>&lt;u64&gt;, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">&#39;_</span>&gt;) {
+    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="prelude-ty">Option</span>&lt;u64&gt;, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">'_</span>&gt;) {
         <span class="kw">if </span>partition.is_empty() {
             <span class="kw">return</span>;
         }
@@ -4785,7 +4786,7 @@
             <span class="prelude-val">Ok</span>(payload) =&gt; payload,
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
-                <span class="macro">relay_log::error!</span>(error, <span class="string">&quot;failed to encode metrics payload&quot;</span>);
+                <span class="macro">relay_log::error!</span>(error, <span class="string">"failed to encode metrics payload"</span>);
                 <span class="kw">return</span>;
             }
         };
@@ -4856,7 +4857,7 @@
     }
 
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.store_forwarder {
                 <span class="kw">return </span><span class="self">self</span>.encode_metrics_processing(message, store_forwarder);
@@ -4871,7 +4872,7 @@
     }
 
     <span class="kw">fn </span>handle_encode_metric_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetricMeta) {
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">return </span><span class="self">self</span>.store_metric_meta(message);
         }
@@ -4899,7 +4900,7 @@
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>store_metric_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetricMeta) {
         <span class="kw">let </span>EncodeMetricMeta { scoping, meta } = message;
 
@@ -4911,12 +4912,12 @@
         <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = r {
             <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                <span class="string">&quot;failed to store metric meta in redis&quot;
+                <span class="string">"failed to store metric meta in redis"
             </span>)
         }
     }
 
-    <span class="attr">#[cfg(all(test, feature = <span class="string">&quot;processing&quot;</span>))]
+    <span class="attr">#[cfg(all(test, feature = <span class="string">"processing"</span>))]
     </span><span class="kw">fn </span>redis_rate_limiter_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.inner.rate_limiter.is_some()
     }
@@ -4935,7 +4936,7 @@
                 EnvelopeProcessor::EncodeMetricMeta(m) =&gt; <span class="self">self</span>.handle_encode_metric_meta(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitClientReports(m) =&gt; <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">*</span>m),
-                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span>EnvelopeProcessor::RateLimitBuckets(m) =&gt; <span class="self">self</span>.handle_rate_limit_buckets(m),
             }
         });
@@ -4947,7 +4948,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>thread_count = <span class="self">self</span>.inner.config.cpu_concurrency();
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {thread_count} envelope processing workers&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} envelope processing workers"</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(thread_count));
@@ -5017,12 +5018,12 @@
         reqwest::Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
-        <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.envelope.scoping().project_id).into()
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
+        <span class="macro">format!</span>(<span class="string">"/api/{}/envelope/"</span>, <span class="self">self</span>.envelope.scoping().project_id).into()
     }
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;envelope&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"envelope"
     </span>}
 
     <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: <span class="kw-2">&amp;mut </span>http::RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;(), http::HttpError&gt; {
@@ -5033,12 +5034,12 @@
         <span class="kw">let </span>shard = <span class="self">self</span>.envelope.partition_key().map(|p| p.to_string());
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
-            .header_opt(<span class="string">&quot;Origin&quot;</span>, meta.origin().map(|url| url.as_str()))
-            .header_opt(<span class="string">&quot;User-Agent&quot;</span>, meta.user_agent())
-            .header(<span class="string">&quot;X-Sentry-Auth&quot;</span>, meta.auth_header())
-            .header(<span class="string">&quot;X-Forwarded-For&quot;</span>, meta.forwarded_for())
-            .header(<span class="string">&quot;Content-Type&quot;</span>, envelope::CONTENT_TYPE)
-            .header_opt(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, shard)
+            .header_opt(<span class="string">"Origin"</span>, meta.origin().map(|url| url.as_str()))
+            .header_opt(<span class="string">"User-Agent"</span>, meta.user_agent())
+            .header(<span class="string">"X-Sentry-Auth"</span>, meta.auth_header())
+            .header(<span class="string">"X-Forwarded-For"</span>, meta.forwarded_for())
+            .header(<span class="string">"Content-Type"</span>, envelope::CONTENT_TYPE)
+            .header_opt(<span class="string">"X-Sentry-Relay-Shard"</span>, shard)
             .body(envelope_body);
 
         <span class="prelude-val">Ok</span>(())
@@ -5075,7 +5076,7 @@
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                         tags.project_key = %envelope.scoping().project_key,
-                        <span class="string">&quot;error sending envelope&quot;
+                        <span class="string">"error sending envelope"
                     </span>);
                 }
             }
@@ -5086,7 +5087,7 @@
 <span class="doccomment">/// Returns `true` if the current item should be sampled.
 ///
 /// The passed `rate` is expected to be `0 &lt;= rate &lt;= 1`.
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">fn </span>sample(rate: f32) -&gt; bool {
     (rate &gt;= <span class="number">1.0</span>) || (rate &gt; <span class="number">0.0 </span>&amp;&amp; rand::random::&lt;f32&gt;() &lt; rate)
 }
@@ -5110,15 +5111,15 @@
 /// the size of all metrics and allows to split them into multiple batches. See
 /// [`insert`](Self::insert) for more information.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>Partition&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>Partition&lt;<span class="lifetime">'a</span>&gt; {
     max_size: usize,
     remaining: usize,
-    views: HashMap&lt;ProjectKey, Vec&lt;BucketView&lt;<span class="lifetime">&#39;a</span>&gt;&gt;&gt;,
+    views: HashMap&lt;ProjectKey, Vec&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt;&gt;,
     quantities: Vec&lt;(Scoping, SourceQuantities)&gt;,
     mode: ExtractionMode,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Partition&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Partition&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new partition with the given maximum size in bytes.
     </span><span class="kw">pub fn </span>new(size: usize, mode: ExtractionMode) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -5140,7 +5141,7 @@
     /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
-    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bucket: BucketView&lt;<span class="lifetime">&#39;a</span>&gt;, scoping: Scoping) -&gt; <span class="prelude-ty">Option</span>&lt;BucketView&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bucket: BucketView&lt;<span class="lifetime">'a</span>&gt;, scoping: Scoping) -&gt; <span class="prelude-ty">Option</span>&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt; {
         <span class="kw">let </span>(current, next) = bucket.split(<span class="self">self</span>.remaining, <span class="prelude-val">Some</span>(<span class="self">self</span>.max_size));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(current) = current {
@@ -5166,8 +5167,8 @@
     /// This empties the partition, so that it can be reused.
     </span><span class="kw">fn </span>take_parts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; (Bytes, Vec&lt;(Scoping, SourceQuantities)&gt;) {
         <span class="attr">#[derive(serde::Serialize)]
-        </span><span class="kw">struct </span>Wrapper&lt;<span class="lifetime">&#39;a</span>&gt; {
-            buckets: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HashMap&lt;ProjectKey, Vec&lt;BucketView&lt;<span class="lifetime">&#39;a</span>&gt;&gt;&gt;,
+        </span><span class="kw">struct </span>Wrapper&lt;<span class="lifetime">'a</span>&gt; {
+            buckets: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;ProjectKey, Vec&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt;&gt;,
         }
 
         <span class="kw">let </span>buckets = <span class="kw-2">&amp;</span><span class="self">self</span>.views;
@@ -5214,12 +5215,12 @@
         reqwest::Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
-        <span class="string">&quot;/api/0/relays/metrics/&quot;</span>.into()
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
+        <span class="string">"/api/0/relays/metrics/"</span>.into()
     }
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;global_metrics&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"global_metrics"
     </span>}
 
     <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: <span class="kw-2">&amp;mut </span>http::RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;(), http::HttpError&gt; {
@@ -5227,8 +5228,8 @@
 
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
-            .header_opt(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="self">self</span>.partition_key.as_ref())
-            .header(header::CONTENT_TYPE, <span class="string">b&quot;application/json&quot;</span>)
+            .header_opt(<span class="string">"X-Sentry-Relay-Shard"</span>, <span class="self">self</span>.partition_key.as_ref())
+            .header(header::CONTENT_TYPE, <span class="string">b"application/json"</span>)
             .body(<span class="self">self</span>.encoded.clone());
 
         <span class="prelude-val">Ok</span>(())
@@ -5284,7 +5285,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">use </span>{
         relay_metrics::BucketValue,
         relay_quotas::{Quota, ReasonCode},
@@ -5293,9 +5294,9 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="doccomment">/// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won&#39;t
+    <span class="doccomment">/// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
     /// also ratelimit the next batches in the same message automatically.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     #[tokio::test]
     </span><span class="kw">async fn </span>test_ratelimit_per_batch() {
         <span class="kw">let </span>rate_limited_org = <span class="number">1</span>;
@@ -5304,13 +5305,13 @@
         <span class="kw">let </span>message = {
             <span class="kw">let </span>project_state = {
                 <span class="kw">let </span>quota = Quota {
-                    id: <span class="prelude-val">Some</span>(<span class="string">&quot;testing&quot;</span>.into()),
+                    id: <span class="prelude-val">Some</span>(<span class="string">"testing"</span>.into()),
                     categories: <span class="macro">vec!</span>[DataCategory::MetricBucket].into(),
                     scope: relay_quotas::QuotaScope::Organization,
                     scope_id: <span class="prelude-val">Some</span>(rate_limited_org.to_string()),
                     limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
                     window: <span class="prelude-val">None</span>,
-                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;test&quot;</span>)),
+                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"test"</span>)),
                     namespace: <span class="prelude-val">None</span>,
                 };
 
@@ -5324,7 +5325,7 @@
 
             <span class="kw">let </span>project_metrics = ProjectMetrics {
                 buckets: <span class="macro">vec!</span>[Bucket {
-                    name: <span class="string">&quot;d:transactions/bar&quot;</span>.to_string(),
+                    name: <span class="string">"d:transactions/bar"</span>.to_string(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(<span class="number">1.0</span>).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
@@ -5336,7 +5337,7 @@
             <span class="kw">let </span>scoping_by_org_id = |org_id: u64| Scoping {
                 organization_id: org_id,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
             };
 
@@ -5355,11 +5356,11 @@
 
         <span class="kw">let </span>config = {
             <span class="kw">let </span>config_json = <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;processing&quot;</span>: {
-                    <span class="string">&quot;enabled&quot;</span>: <span class="bool-val">true</span>,
-                    <span class="string">&quot;kafka_config&quot;</span>: [],
-                    <span class="string">&quot;redis&quot;</span>: {
-                        <span class="string">&quot;server&quot;</span>: std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned()),
+                <span class="string">"processing"</span>: {
+                    <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+                    <span class="string">"kafka_config"</span>: [],
+                    <span class="string">"redis"</span>: {
+                        <span class="string">"server"</span>: std::env::var(<span class="string">"RELAY_REDIS_URL"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned()),
                     }
                 }
             });
@@ -5370,12 +5371,12 @@
             <span class="kw">let </span>f = |org_ids: <span class="kw-2">&amp;mut </span>Vec&lt;u64&gt;, msg: Store| {
                 <span class="kw">let </span>org_id = <span class="kw">match </span>msg {
                     Store::Metrics(x) =&gt; x.scoping.organization_id,
-                    Store::Envelope(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;received envelope when expecting only metrics&quot;</span>),
+                    Store::Envelope(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">"received envelope when expecting only metrics"</span>),
                 };
                 org_ids.push(org_id);
             };
 
-            mock_service(<span class="string">&quot;store_forwarder&quot;</span>, <span class="macro">vec!</span>[], f)
+            mock_service(<span class="string">"store_forwarder"</span>, <span class="macro">vec!</span>[], f)
         };
 
         <span class="kw">let </span>processor = create_test_processor(config);
@@ -5395,7 +5396,7 @@
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
         <span class="kw">let </span>event_id = EventId::new();
 
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
             .unwrap();
 
@@ -5406,15 +5407,15 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
                 item.set_payload(
                     ContentType::Json,
-                    <span class="string">r#&quot;
+                    <span class="string">r#"
                     {
-                        &quot;request&quot;: {
-                            &quot;headers&quot;: [
-                                [&quot;User-Agent&quot;, &quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36&quot;]
+                        "request": {
+                            "headers": [
+                                ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"]
                             ]
                         }
                     }
-                &quot;#</span>,
+                "#</span>,
                 );
                 item
             });
@@ -5426,7 +5427,7 @@
         datascrubbing_settings.scrub_ip_addresses = <span class="bool-val">true</span>;
 
         <span class="comment">// Make sure to mask any IP-like looking data
-        </span><span class="kw">let </span>pii_config = serde_json::from_str(<span class="string">r#&quot;{&quot;applications&quot;: {&quot;**&quot;: [&quot;@ip:mask&quot;]}}&quot;#</span>).unwrap();
+        </span><span class="kw">let </span>pii_config = serde_json::from_str(<span class="string">r#"{"applications": {"**": ["@ip:mask"]}}"#</span>).unwrap();
 
         <span class="kw">let </span>config = ProjectConfig {
             datascrubbing_settings,
@@ -5467,37 +5468,37 @@
             .unwrap();
 
         <span class="comment">// IP-like data must be masked
-        </span><span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36&quot;</span>), headers.get_header(<span class="string">&quot;User-Agent&quot;</span>));
+        </span><span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"</span>), headers.get_header(<span class="string">"User-Agent"</span>));
         <span class="comment">// But we still get correct browser and version number
         </span><span class="kw">let </span>contexts = event.contexts.into_value().unwrap();
-        <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">&quot;browser&quot;</span>).unwrap();
+        <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">"browser"</span>).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="string">r#&quot;{&quot;name&quot;:&quot;Chrome&quot;,&quot;version&quot;:&quot;103.0.0&quot;,&quot;type&quot;:&quot;browser&quot;}&quot;#</span>,
+            <span class="string">r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#</span>,
             browser.to_json().unwrap()
         );
     }
 
     <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r#&quot;
+            <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;transaction&quot;: &quot;/foo/&quot;,
-                &quot;timestamp&quot;: 946684810.0,
-                &quot;start_timestamp&quot;: 946684800.0,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-                    &quot;op&quot;: &quot;http.server&quot;,
-                    &quot;type&quot;: &quot;trace&quot;
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
                     }
                 },
-                &quot;transaction_info&quot;: {
-                    &quot;source&quot;: &quot;url&quot;
+                "transaction_info": {
+                    "source": "url"
                 }
             }
-            &quot;#</span>,
+            "#</span>,
         )
         .unwrap();
         <span class="kw">let </span>e = event.value_mut().as_mut().unwrap();
@@ -5515,10 +5516,10 @@
                 <span class="kw">let </span>config = NormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
-                            pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_owned()),
+                            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
                             expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
                             redaction: RedactionRule::Replace {
-                                substitution: <span class="string">&quot;*&quot;</span>.to_owned(),
+                                substitution: <span class="string">"*"</span>.to_owned(),
                             },
                         }],
                     },
@@ -5531,52 +5532,52 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
-        <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/nothing&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/nothing"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false&quot;,
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
-        <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/denver&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/denver"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false&quot;,
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
-        <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/something/12345&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/something/12345"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false&quot;,
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
-        <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false&quot;,
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
-        <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Route);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Route);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false&quot;,
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="doccomment">/// This is a stand-in test to assert panicking behavior for spawn_blocking.
@@ -5597,8 +5598,8 @@
                 </span><span class="kw">let </span>permit = semaphore.clone().acquire_owned().<span class="kw">await</span>.unwrap();
 
                 <span class="kw">let </span>handle = tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-                    <span class="kw">let </span>_permit = permit; <span class="comment">// drop(permit) after panic!() would warn as &quot;unreachable&quot;
-                    </span><span class="macro">panic!</span>(<span class="string">&quot;ignored&quot;</span>);
+                    <span class="kw">let </span>_permit = permit; <span class="comment">// drop(permit) after panic!() would warn as "unreachable"
+                    </span><span class="macro">panic!</span>(<span class="string">"ignored"</span>);
                 });
 
                 <span class="macro">assert!</span>(handle.<span class="kw">await</span>.is_err());
@@ -5620,7 +5621,7 @@
         <span class="kw">let </span>hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
 
         <span class="kw">let </span>derived_value = {
-            <span class="kw">let </span>name = <span class="string">&quot;foobar&quot;</span>.to_string();
+            <span class="kw">let </span>name = <span class="string">"foobar"</span>.to_string();
             <span class="kw">let </span>value = <span class="number">5</span>.into(); <span class="comment">// Arbitrary value.
             </span><span class="kw">let </span>unit = MetricUnit::Duration(DurationUnit::default());
             <span class="kw">let </span>tags = TransactionMeasurementTags {
@@ -5640,7 +5641,7 @@
         };
         <span class="macro">assert_eq!</span>(
             hardcoded_value, derived_value,
-            <span class="string">&quot;Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed.&quot;
+            <span class="string">"Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         </span>);
     }
 }

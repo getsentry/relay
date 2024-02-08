@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/device.rs`."><title>device.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/device.rs`."><title>device.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -325,7 +326,7 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 <span class="kw">use </span>uuid::Uuid;
@@ -337,10 +338,10 @@
 /// Device context describes the device that caused the event. This is most appropriate for mobile
 /// applications.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>DeviceContext {
     <span class="doccomment">/// Name of the device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Family of the device model.
@@ -382,23 +383,23 @@
     <span class="doccomment">/// Device screen resolution.
     ///
     /// (e.g.: 800x600, 3040x1444)
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>screen_resolution: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Width of the screen in pixels.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>screen_width_pixels: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Height of the screen in pixels.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>screen_height_pixels: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Device screen density.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>screen_density: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Screen density as dots-per-inch.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>screen_dpi: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Whether the device was online or not.
@@ -414,46 +415,46 @@
     </span><span class="kw">pub </span>simulator: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Total memory available in bytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>memory_size: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// How much memory is still available in bytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>free_memory: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// How much memory is usable for the app in bytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>usable_memory: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Total storage size of the device in bytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>storage_size: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// How much storage is free in bytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>free_storage: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Total size of the attached external storage in bytes (eg: android SDK card).
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>external_storage_size: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Free size of the attached external storage in bytes (eg: android SDK card).
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>external_free_storage: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Indicator when the device was booted.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>boot_time: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Timezone of the device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>timezone: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// ISO 639-1 code of the locale the device is set to.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>locale: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Number of &quot;logical processors&quot;.
+    <span class="doccomment">/// Number of "logical processors".
     ///
     /// For example, 8.
     </span><span class="kw">pub </span>processor_count: Annotated&lt;u64&gt;,
@@ -461,7 +462,7 @@
     <span class="doccomment">/// CPU description.
     ///
     /// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>cpu_description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Processor frequency in MHz.
@@ -473,17 +474,17 @@
     <span class="doccomment">/// Kind of device the application is running on.
     ///
     /// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>device_type: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Status of the device&#39;s battery.
+    <span class="doccomment">/// Status of the device's battery.
     ///
     /// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>battery_status: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Unique device identifier.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>device_unique_identifier: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Whether vibration is available on the device.
@@ -502,17 +503,17 @@
     </span><span class="kw">pub </span>supports_location_service: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// UUID of the device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>uuid: Annotated&lt;Uuid&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility
-    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">"true"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="kw">impl </span><span class="kw">super</span>::DefaultContext <span class="kw">for </span>DeviceContext {
-    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;device&quot;
+    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"device"
     </span>}
 
     <span class="kw">fn </span>from_context(context: <span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
@@ -551,62 +552,62 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_device_context_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;name&quot;: &quot;iphone&quot;,
-  &quot;family&quot;: &quot;iphone&quot;,
-  &quot;model&quot;: &quot;iphone7,3&quot;,
-  &quot;model_id&quot;: &quot;AH223&quot;,
-  &quot;arch&quot;: &quot;arm64&quot;,
-  &quot;battery_level&quot;: 58.5,
-  &quot;orientation&quot;: &quot;landscape&quot;,
-  &quot;manufacturer&quot;: &quot;Apple&quot;,
-  &quot;brand&quot;: &quot;iphone&quot;,
-  &quot;screen_resolution&quot;: &quot;800x600&quot;,
-  &quot;screen_width_pixels&quot;: 1920,
-  &quot;screen_height_pixels&quot;: 1080,
-  &quot;screen_density&quot;: 1.1,
-  &quot;screen_dpi&quot;: 1,
-  &quot;online&quot;: true,
-  &quot;charging&quot;: false,
-  &quot;low_memory&quot;: false,
-  &quot;simulator&quot;: true,
-  &quot;memory_size&quot;: 3137978368,
-  &quot;free_memory&quot;: 322781184,
-  &quot;usable_memory&quot;: 2843525120,
-  &quot;storage_size&quot;: 63989469184,
-  &quot;free_storage&quot;: 31994734592,
-  &quot;external_storage_size&quot;: 2097152,
-  &quot;external_free_storage&quot;: 2097152,
-  &quot;boot_time&quot;: &quot;2018-02-08T12:52:12Z&quot;,
-  &quot;timezone&quot;: &quot;Europe/Vienna&quot;,
-  &quot;locale&quot;: &quot;de-AT&quot;,
-  &quot;processor_count&quot;: 8,
-  &quot;cpu_description&quot;: &quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;,
-  &quot;processor_frequency&quot;: 2400,
-  &quot;device_type&quot;: &quot;Handheld&quot;,
-  &quot;battery_status&quot;: &quot;Charging&quot;,
-  &quot;device_unique_identifier&quot;: &quot;1234567&quot;,
-  &quot;supports_vibration&quot;: true,
-  &quot;supports_accelerometer&quot;: true,
-  &quot;supports_gyroscope&quot;: true,
-  &quot;supports_audio&quot;: true,
-  &quot;supports_location_service&quot;: true,
-  &quot;uuid&quot;: &quot;abadcade-feed-dead-beef-baddadfeeded&quot;,
-  &quot;other&quot;: &quot;value&quot;,
-  &quot;type&quot;: &quot;device&quot;
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "name": "iphone",
+  "family": "iphone",
+  "model": "iphone7,3",
+  "model_id": "AH223",
+  "arch": "arm64",
+  "battery_level": 58.5,
+  "orientation": "landscape",
+  "manufacturer": "Apple",
+  "brand": "iphone",
+  "screen_resolution": "800x600",
+  "screen_width_pixels": 1920,
+  "screen_height_pixels": 1080,
+  "screen_density": 1.1,
+  "screen_dpi": 1,
+  "online": true,
+  "charging": false,
+  "low_memory": false,
+  "simulator": true,
+  "memory_size": 3137978368,
+  "free_memory": 322781184,
+  "usable_memory": 2843525120,
+  "storage_size": 63989469184,
+  "free_storage": 31994734592,
+  "external_storage_size": 2097152,
+  "external_free_storage": 2097152,
+  "boot_time": "2018-02-08T12:52:12Z",
+  "timezone": "Europe/Vienna",
+  "locale": "de-AT",
+  "processor_count": 8,
+  "cpu_description": "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz",
+  "processor_frequency": 2400,
+  "device_type": "Handheld",
+  "battery_status": "Charging",
+  "device_unique_identifier": "1234567",
+  "supports_vibration": true,
+  "supports_accelerometer": true,
+  "supports_gyroscope": true,
+  "supports_audio": true,
+  "supports_location_service": true,
+  "uuid": "abadcade-feed-dead-beef-baddadfeeded",
+  "other": "value",
+  "type": "device"
+}"#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Device(Box::new(DeviceContext {
-            name: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
-            family: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
-            model: Annotated::new(<span class="string">&quot;iphone7,3&quot;</span>.to_string()),
-            model_id: Annotated::new(<span class="string">&quot;AH223&quot;</span>.to_string()),
-            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            name: Annotated::new(<span class="string">"iphone"</span>.to_string()),
+            family: Annotated::new(<span class="string">"iphone"</span>.to_string()),
+            model: Annotated::new(<span class="string">"iphone7,3"</span>.to_string()),
+            model_id: Annotated::new(<span class="string">"AH223"</span>.to_string()),
+            arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
             battery_level: Annotated::new(<span class="number">58.5</span>),
-            orientation: Annotated::new(<span class="string">&quot;landscape&quot;</span>.to_string()),
+            orientation: Annotated::new(<span class="string">"landscape"</span>.to_string()),
             simulator: Annotated::new(<span class="bool-val">true</span>),
-            manufacturer: Annotated::new(<span class="string">&quot;Apple&quot;</span>.to_string()),
-            brand: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
-            screen_resolution: Annotated::new(<span class="string">&quot;800x600&quot;</span>.to_string()),
+            manufacturer: Annotated::new(<span class="string">"Apple"</span>.to_string()),
+            brand: Annotated::new(<span class="string">"iphone"</span>.to_string()),
+            screen_resolution: Annotated::new(<span class="string">"800x600"</span>.to_string()),
             screen_width_pixels: Annotated::new(<span class="number">1920</span>),
             screen_height_pixels: Annotated::new(<span class="number">1080</span>),
             screen_density: Annotated::new(<span class="number">1.1</span>),
@@ -621,28 +622,28 @@
             free_storage: Annotated::new(<span class="number">31_994_734_592</span>),
             external_storage_size: Annotated::new(<span class="number">2_097_152</span>),
             external_free_storage: Annotated::new(<span class="number">2_097_152</span>),
-            boot_time: Annotated::new(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.to_string()),
-            timezone: Annotated::new(<span class="string">&quot;Europe/Vienna&quot;</span>.to_string()),
-            locale: Annotated::new(<span class="string">&quot;de-AT&quot;</span>.to_string()),
+            boot_time: Annotated::new(<span class="string">"2018-02-08T12:52:12Z"</span>.to_string()),
+            timezone: Annotated::new(<span class="string">"Europe/Vienna"</span>.to_string()),
+            locale: Annotated::new(<span class="string">"de-AT"</span>.to_string()),
             processor_count: Annotated::new(<span class="number">8</span>),
             cpu_description: Annotated::new(
-                <span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.to_string(),
+                <span class="string">"Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz"</span>.to_string(),
             ),
             processor_frequency: Annotated::new(<span class="number">2400</span>),
-            device_type: Annotated::new(<span class="string">&quot;Handheld&quot;</span>.to_string()),
-            battery_status: Annotated::new(<span class="string">&quot;Charging&quot;</span>.to_string()),
-            device_unique_identifier: Annotated::new(<span class="string">&quot;1234567&quot;</span>.to_string()),
+            device_type: Annotated::new(<span class="string">"Handheld"</span>.to_string()),
+            battery_status: Annotated::new(<span class="string">"Charging"</span>.to_string()),
+            device_unique_identifier: Annotated::new(<span class="string">"1234567"</span>.to_string()),
             supports_vibration: Annotated::new(<span class="bool-val">true</span>),
             supports_accelerometer: Annotated::new(<span class="bool-val">true</span>),
             supports_gyroscope: Annotated::new(<span class="bool-val">true</span>),
             supports_audio: Annotated::new(<span class="bool-val">true</span>),
             supports_location_service: Annotated::new(<span class="bool-val">true</span>),
-            uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>)),
+            uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">"abadcade-feed-dead-beef-baddadfeeded"</span>)),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },

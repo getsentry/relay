@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/gpu.rs`."><title>gpu.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/contexts/gpu.rs`."><title>gpu.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -117,7 +118,7 @@
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
@@ -128,55 +129,55 @@
 /// Example:
 ///
 /// ```json
-/// &quot;gpu&quot;: {
-///   &quot;name&quot;: &quot;AMD Radeon Pro 560&quot;,
-///   &quot;vendor_name&quot;: &quot;Apple&quot;,
-///   &quot;memory_size&quot;: 4096,
-///   &quot;api_type&quot;: &quot;Metal&quot;,
-///   &quot;multi_threaded_rendering&quot;: true,
-///   &quot;version&quot;: &quot;Metal&quot;,
-///   &quot;npot_support&quot;: &quot;Full&quot;
+/// "gpu": {
+///   "name": "AMD Radeon Pro 560",
+///   "vendor_name": "Apple",
+///   "memory_size": 4096,
+///   "api_type": "Metal",
+///   "multi_threaded_rendering": true,
+///   "version": "Metal",
+///   "npot_support": "Full"
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>GpuContext {
     <span class="doccomment">/// The name of the graphics device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The Version of the graphics device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>version: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The PCI identifier of the graphics device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The PCI vendor identifier of the graphics device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>vendor_id: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The vendor name as reported by the graphics device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>vendor_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The total GPU memory available in Megabytes.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>memory_size: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The device low-level API type.
     ///
-    /// Examples: `&quot;Apple Metal&quot;` or `&quot;Direct3D11&quot;`
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    /// Examples: `"Apple Metal"` or `"Direct3D11"`
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>api_type: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Whether the GPU has multi-threaded rendering or not.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>multi_threaded_rendering: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// The Non-Power-Of-Two support.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>npot_support: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Largest size of a texture that is supported by the graphics hardware.
@@ -184,7 +185,7 @@
     /// For Example: 16384
     </span><span class="kw">pub </span>max_texture_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Approximate &quot;shader capability&quot; level of the graphics device.
+    <span class="doccomment">/// Approximate "shader capability" level of the graphics device.
     ///
     /// For Example: Shader Model 2.0, OpenGL ES 3.0, Metal / OpenGL ES 3.1, 27 (unknown)
     </span><span class="kw">pub </span>graphics_shader_level: Annotated&lt;String&gt;,
@@ -202,13 +203,13 @@
     </span><span class="kw">pub </span>supports_geometry_shaders: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">"true"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="kw">impl </span><span class="kw">super</span>::DefaultContext <span class="kw">for </span>GpuContext {
-    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;gpu&quot;
+    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"gpu"
     </span>}
 
     <span class="kw">fn </span>from_context(context: <span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/stacktrace.rs`."><title>stacktrace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/stacktrace.rs`."><title>stacktrace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -798,7 +799,7 @@
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -813,15 +814,15 @@
 /// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
 /// attribute. All values are optional, but recommended.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_frame&quot;</span>, value_type = <span class="string">&quot;Frame&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_frame"</span>, value_type = <span class="string">"Frame"</span>)]
 </span><span class="kw">pub struct </span>Frame {
-    <span class="doccomment">/// Name of the frame&#39;s function. This might include the name of a class.
+    <span class="doccomment">/// Name of the frame's function. This might include the name of a class.
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>function: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// A raw (but potentially truncated) function value.
@@ -829,7 +830,7 @@
     /// The original function name, if the function name is shortened or demangled. Sentry shows the
     /// raw function when clicking on the shortened one in the UI.
     ///
-    /// If this has the same value as `function` it&#39;s best to be omitted.  This exists because on
+    /// If this has the same value as `function` it's best to be omitted.  This exists because on
     /// many platforms the function itself contains additional information like overload specifies
     /// or a lot of generics which can make it exceed the maximum limit we provide for the field.
     /// In those cases then we cannot reliably trim down the function any more at a later point
@@ -839,8 +840,8 @@
     /// `function` and the value before trimming is stored in this field instead.  However also this
     /// field will be capped at 256 characters at the moment which often means that not the entire
     /// original value can be stored.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>raw_function: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Potentially mangled name of the symbol as it appears in an executable.
@@ -850,14 +851,14 @@
     /// like Swift, C++ or Rust.
     </span><span class="comment">// XXX(markus): How is this different from just storing the mangled function name in
     // `function`?
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
     </span><span class="kw">pub </span>symbol: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Name of the module the frame is contained in.
     ///
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="comment">// TODO: Cap? This can be a FS path or a dotted path
     </span><span class="kw">pub </span>module: Annotated&lt;String&gt;,
 
@@ -865,45 +866,45 @@
     ///
     /// For instance this can be a dylib for native languages, the name of the jar
     /// or .NET assembly.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="comment">// TODO: Cap? This can be a FS path or a dotted path
     </span><span class="kw">pub </span>package: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The source file name (basename only).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;path&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>filename: Annotated&lt;NativeImagePath&gt;,
 
     <span class="doccomment">/// Absolute path to the source file.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;path&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>abs_path: Annotated&lt;NativeImagePath&gt;,
 
     <span class="doccomment">/// Line number within the source file, starting at 1.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>lineno: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Column number within the source file, starting at 1.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>colno: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Which platform this frame is from.
     ///
     /// This can override the platform for a single frame. Otherwise, the platform of the event is
     /// assumed. This can be used for multi-platform stack traces, such as in React Native.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>platform: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Source code leading up to `lineno`.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>pre_context: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// Source code of the current line (`lineno`).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>context_line: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Source code of the lines after `lineno`.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>post_context: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// Override whether this frame should be considered part of application code, or part of
@@ -911,21 +912,21 @@
     ///
     /// Setting this attribute to `false` causes the frame to be hidden/collapsed by default and
     /// mostly ignored during issue grouping.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>in_app: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Mapping of local variables and expression names that were available in this frame.
     </span><span class="comment">// XXX: Probably want to trim per-var =&gt; new bag size?
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
     </span><span class="kw">pub </span>vars: Annotated&lt;FrameVars&gt;,
 
     <span class="doccomment">/// Auxiliary information about the frame that is platform specific.
     </span><span class="attr">#[metastructure(omit_from_schema)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;FrameData&gt;,
 
     <span class="doccomment">/// (C/C++/Native) Start address of the containing code module (image).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>image_addr: Annotated&lt;Addr&gt;,
 
     <span class="doccomment">/// (C/C++/Native) An optional instruction address for symbolication.
@@ -934,41 +935,41 @@
     /// If this is set and a known image is defined in the
     /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
     /// then symbolication can take place.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>instruction_addr: Annotated&lt;Addr&gt;,
 
     <span class="doccomment">/// Defines the addressing mode for addresses.
     ///
     /// This can be:
-    /// - `&quot;abs&quot;` (the default): `instruction_addr` is absolute.
-    /// - `&quot;rel:$idx&quot;`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.
-    /// - `&quot;rel:$uuid&quot;`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.
+    /// - `"abs"` (the default): `instruction_addr` is absolute.
+    /// - `"rel:$idx"`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.
+    /// - `"rel:$uuid"`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.
     ///
-    /// If one of the `&quot;rel:XXX&quot;` variants is given together with `function_id`, the `instruction_addr` is relative
+    /// If one of the `"rel:XXX"` variants is given together with `function_id`, the `instruction_addr` is relative
     /// to the uniquely identified function in the references `debug_meta.image`.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>addr_mode: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// (.NET) The function id / index that uniquely identifies a function inside a module.
     ///
     /// This is the `MetadataToken` of a .NET `MethodBase`.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>function_id: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// (C/C++/Native) Start address of the frame&#39;s function.
+    <span class="doccomment">/// (C/C++/Native) Start address of the frame's function.
     ///
     /// We use the instruction address for symbolication, but this can be used to calculate
     /// an instruction offset automatically.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>symbol_addr: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// (C/C++/Native) Used for native crashes to indicate how much we can &quot;trust&quot; the instruction_addr
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    <span class="doccomment">/// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     #[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>trust: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The language of the frame if it overrides the stacktrace language.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     #[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>lang: Annotated&lt;String&gt;,
 
@@ -980,11 +981,11 @@
     /// stub.
     ///
     /// This field should only be specified when true.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>stack_start: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// A possible lock (java monitor object) held by this frame.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>lock: Annotated&lt;LockReason&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -994,23 +995,23 @@
 
 <span class="doccomment">/// Frame local variables.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-</span><span class="kw">pub struct </span>FrameVars(<span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)] </span><span class="kw">pub </span>Object&lt;Value&gt;);
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>FrameVars(<span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)] </span><span class="kw">pub </span>Object&lt;Value&gt;);
 
 <span class="doccomment">/// Additional frame data information.
 ///
 /// This value is set by the server and should not be set by the SDK.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>FrameData {
     <span class="doccomment">/// A reference to the sourcemap used.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;path&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
     </span>sourcemap: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original function name before it was resolved.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
     </span>orig_function: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original minified filename.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;path&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
     </span>orig_filename: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original line number.
     </span>orig_lineno: Annotated&lt;u64&gt;,
@@ -1065,7 +1066,7 @@
 ///
 /// ```python
 /// def foo():
-///     my_var = &#39;foo&#39;
+///     my_var = 'foo'
 ///     raise ValueError()
 ///
 /// def main():
@@ -1076,9 +1077,9 @@
 ///
 /// ```json
 /// {
-///   &quot;frames&quot;: [
-///     {&quot;function&quot;: &quot;main&quot;},
-///     {&quot;function&quot;: &quot;foo&quot;}
+///   "frames": [
+///     {"function": "main"},
+///     {"function": "foo"}
 ///   ]
 /// }
 /// ```
@@ -1087,50 +1088,50 @@
 ///
 /// ```json
 /// {
-///   &quot;frames&quot;: [{
-///     &quot;in_app&quot;: true,
-///     &quot;function&quot;: &quot;myfunction&quot;,
-///     &quot;abs_path&quot;: &quot;/real/file/name.py&quot;,
-///     &quot;filename&quot;: &quot;file/name.py&quot;,
-///     &quot;lineno&quot;: 3,
-///     &quot;vars&quot;: {
-///       &quot;my_var&quot;: &quot;&#39;value&#39;&quot;
+///   "frames": [{
+///     "in_app": true,
+///     "function": "myfunction",
+///     "abs_path": "/real/file/name.py",
+///     "filename": "file/name.py",
+///     "lineno": 3,
+///     "vars": {
+///       "my_var": "'value'"
 ///     },
-///     &quot;pre_context&quot;: [
-///       &quot;def foo():&quot;,
-///       &quot;  my_var = &#39;foo&#39;&quot;,
+///     "pre_context": [
+///       "def foo():",
+///       "  my_var = 'foo'",
 ///     ],
-///     &quot;context_line&quot;: &quot;  raise ValueError()&quot;,
-///     &quot;post_context&quot;: [
-///       &quot;&quot;,
-///       &quot;def main():&quot;
+///     "context_line": "  raise ValueError()",
+///     "post_context": [
+///       "",
+///       "def main():"
 ///     ],
 ///   }]
 /// }
 /// ```
 ///
 /// A minimal native stack trace with register values. Note that the `package` event attribute must
-/// be &quot;native&quot; for these frames to be symbolicated.
+/// be "native" for these frames to be symbolicated.
 ///
 /// ```json
 /// {
-///   &quot;frames&quot;: [
-///     {&quot;instruction_addr&quot;: &quot;0x7fff5bf3456c&quot;},
-///     {&quot;instruction_addr&quot;: &quot;0x7fff5bf346c0&quot;},
+///   "frames": [
+///     {"instruction_addr": "0x7fff5bf3456c"},
+///     {"instruction_addr": "0x7fff5bf346c0"},
 ///   ],
-///   &quot;registers&quot;: {
-///     &quot;rip&quot;: &quot;0x00007ff6eef54be2&quot;,
-///     &quot;rsp&quot;: &quot;0x0000003b710cd9e0&quot;
+///   "registers": {
+///     "rip": "0x00007ff6eef54be2",
+///     "rsp": "0x0000003b710cd9e0"
 ///   }
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_raw_stacktrace&quot;</span>, value_type = <span class="string">&quot;Stacktrace&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_raw_stacktrace"</span>, value_type = <span class="string">"Stacktrace"</span>)]
 </span><span class="kw">pub struct </span>RawStacktrace {
     <span class="doccomment">/// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
     /// oldest to youngest. The last frame is the one creating the exception.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>, nonempty = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, nonempty = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>frames: Annotated&lt;Array&lt;Frame&gt;&gt;,
 
     <span class="doccomment">/// Register values of the thread (top frame).
@@ -1141,11 +1142,11 @@
 
     <span class="doccomment">/// Optional. A flag that indicates if, and how, `instruction_addr` values need to be adjusted
     /// before they are symbolicated.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>instruction_addr_adjustment: Annotated&lt;InstructionAddrAdjustment&gt;,
 
     <span class="doccomment">/// The language of the stacktrace.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>lang: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Indicates that this stack trace is a snapshot triggered by an external signal.
@@ -1171,22 +1172,22 @@
 /// usually taken directly from the cpu context of a hardware exception or a suspended thread and
 /// the stack trace is created from that.
 ///
-/// When the stack walking implementation truncates frames from the top, `&quot;all&quot;` frames should be
+/// When the stack walking implementation truncates frames from the top, `"all"` frames should be
 /// adjusted. In case the stack walking implementation already does the adjustment when producing
-/// stack frames, `&quot;none&quot;` should be used here.
+/// stack frames, `"none"` should be used here.
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(schemars::JsonSchema))]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(schemars::JsonSchema))]
 </span><span class="kw">pub enum </span>InstructionAddrAdjustment {
     <span class="doccomment">/// The default. Applies a heuristic based on other event / exception attributes.
     </span>Auto,
 
-    <span class="doccomment">/// All but the first frame needs to be adjusted. The first frame&#39;s address is not a *return address*,
+    <span class="doccomment">/// All but the first frame needs to be adjusted. The first frame's address is not a *return address*,
     /// but points directly to the faulty instruction.
     </span>AllButFirst,
 
     <span class="doccomment">/// All frames should be adjusted, for example because the stack walking implementation truncated
-    /// frames from the top of the stack, and all remaining frames&#39; addresses are *return addresses*.
+    /// frames from the top of the stack, and all remaining frames' addresses are *return addresses*.
     </span>All,
 
     <span class="doccomment">/// The stack walking implementation already provides correct addresses and no adjustment should
@@ -1196,7 +1197,7 @@
     <span class="doccomment">/// Any other unknown adjustment strategy.
     ///
     /// This exists to ensure forward compatibility.
-    </span><span class="attr">#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(skip))]
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(skip))]
     </span>Unknown(String),
 }
 
@@ -1205,22 +1206,22 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>s {
-            <span class="string">&quot;auto&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Auto),
-            <span class="string">&quot;all_but_first&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AllButFirst),
-            <span class="string">&quot;all&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::All),
-            <span class="string">&quot;none&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::None),
+            <span class="string">"auto" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Auto),
+            <span class="string">"all_but_first" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AllButFirst),
+            <span class="string">"all" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::All),
+            <span class="string">"none" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::None),
             s =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unknown(s.to_string())),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>InstructionAddrAdjustment {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span>s = <span class="kw">match </span><span class="self">self </span>{
-            InstructionAddrAdjustment::Auto =&gt; <span class="string">&quot;auto&quot;</span>,
-            InstructionAddrAdjustment::AllButFirst =&gt; <span class="string">&quot;all_but_first&quot;</span>,
-            InstructionAddrAdjustment::All =&gt; <span class="string">&quot;all&quot;</span>,
-            InstructionAddrAdjustment::None =&gt; <span class="string">&quot;none&quot;</span>,
+            InstructionAddrAdjustment::Auto =&gt; <span class="string">"auto"</span>,
+            InstructionAddrAdjustment::AllButFirst =&gt; <span class="string">"all_but_first"</span>,
+            InstructionAddrAdjustment::All =&gt; <span class="string">"all"</span>,
+            InstructionAddrAdjustment::None =&gt; <span class="string">"none"</span>,
             InstructionAddrAdjustment::Unknown(s) =&gt; s,
         };
         f.write_str(s)
@@ -1276,8 +1277,8 @@
 <span class="comment">// NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_stacktrace&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_stacktrace"</span>)]
 </span><span class="kw">pub struct </span>Stacktrace(<span class="kw">pub </span>RawStacktrace);
 
 <span class="kw">impl </span>Deref <span class="kw">for </span>Stacktrace {
@@ -1315,95 +1316,95 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;function&quot;: &quot;main@8&quot;,
-  &quot;raw_function&quot;: &quot;main&quot;,
-  &quot;symbol&quot;: &quot;_main@8&quot;,
-  &quot;module&quot;: &quot;app&quot;,
-  &quot;package&quot;: &quot;/my/app&quot;,
-  &quot;filename&quot;: &quot;myfile.rs&quot;,
-  &quot;abs_path&quot;: &quot;/path/to&quot;,
-  &quot;lineno&quot;: 2,
-  &quot;colno&quot;: 42,
-  &quot;platform&quot;: &quot;rust&quot;,
-  &quot;pre_context&quot;: [
-    &quot;fn main() {&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "function": "main@8",
+  "raw_function": "main",
+  "symbol": "_main@8",
+  "module": "app",
+  "package": "/my/app",
+  "filename": "myfile.rs",
+  "abs_path": "/path/to",
+  "lineno": 2,
+  "colno": 42,
+  "platform": "rust",
+  "pre_context": [
+    "fn main() {"
   ],
-  &quot;context_line&quot;: &quot;unimplemented!()&quot;,
-  &quot;post_context&quot;: [
-    &quot;}&quot;
+  "context_line": "unimplemented!()",
+  "post_context": [
+    "}"
   ],
-  &quot;in_app&quot;: true,
-  &quot;vars&quot;: {
-    &quot;variable&quot;: &quot;value&quot;
+  "in_app": true,
+  "vars": {
+    "variable": "value"
   },
-  &quot;data&quot;: {
-    &quot;sourcemap&quot;: &quot;http://example.com/invalid.map&quot;
+  "data": {
+    "sourcemap": "http://example.com/invalid.map"
   },
-  &quot;image_addr&quot;: &quot;0x400&quot;,
-  &quot;instruction_addr&quot;: &quot;0x404&quot;,
-  &quot;addr_mode&quot;: &quot;abs&quot;,
-  &quot;symbol_addr&quot;: &quot;0x404&quot;,
-  &quot;trust&quot;: &quot;69&quot;,
-  &quot;lang&quot;: &quot;rust&quot;,
-  &quot;stack_start&quot;: true,
-  &quot;lock&quot;: {
-    &quot;type&quot;: 2,
-    &quot;address&quot;: &quot;0x07d7437b&quot;,
-    &quot;package_name&quot;: &quot;io.sentry.samples&quot;,
-    &quot;class_name&quot;: &quot;MainActivity&quot;,
-    &quot;thread_id&quot;: 7
+  "image_addr": "0x400",
+  "instruction_addr": "0x404",
+  "addr_mode": "abs",
+  "symbol_addr": "0x404",
+  "trust": "69",
+  "lang": "rust",
+  "stack_start": true,
+  "lock": {
+    "type": 2,
+    "address": "0x07d7437b",
+    "package_name": "io.sentry.samples",
+    "class_name": "MainActivity",
+    "thread_id": 7
   },
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>frame = Annotated::new(Frame {
-            function: Annotated::new(<span class="string">&quot;main@8&quot;</span>.to_string()),
-            raw_function: Annotated::new(<span class="string">&quot;main&quot;</span>.to_string()),
-            symbol: Annotated::new(<span class="string">&quot;_main@8&quot;</span>.to_string()),
-            module: Annotated::new(<span class="string">&quot;app&quot;</span>.to_string()),
-            package: Annotated::new(<span class="string">&quot;/my/app&quot;</span>.to_string()),
-            filename: Annotated::new(<span class="string">&quot;myfile.rs&quot;</span>.into()),
-            abs_path: Annotated::new(<span class="string">&quot;/path/to&quot;</span>.into()),
+            function: Annotated::new(<span class="string">"main@8"</span>.to_string()),
+            raw_function: Annotated::new(<span class="string">"main"</span>.to_string()),
+            symbol: Annotated::new(<span class="string">"_main@8"</span>.to_string()),
+            module: Annotated::new(<span class="string">"app"</span>.to_string()),
+            package: Annotated::new(<span class="string">"/my/app"</span>.to_string()),
+            filename: Annotated::new(<span class="string">"myfile.rs"</span>.into()),
+            abs_path: Annotated::new(<span class="string">"/path/to"</span>.into()),
             lineno: Annotated::new(<span class="number">2</span>),
             colno: Annotated::new(<span class="number">42</span>),
-            platform: Annotated::new(<span class="string">&quot;rust&quot;</span>.to_string()),
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;fn main() {&quot;</span>.to_string())]),
-            context_line: Annotated::new(<span class="string">&quot;unimplemented!()&quot;</span>.to_string()),
-            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;}&quot;</span>.to_string())]),
+            platform: Annotated::new(<span class="string">"rust"</span>.to_string()),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_string())]),
+            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_string()),
+            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_string())]),
             in_app: Annotated::new(<span class="bool-val">true</span>),
             vars: {
                 <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
                 vars.insert(
-                    <span class="string">&quot;variable&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"variable"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 Annotated::new(vars.into())
             },
             data: Annotated::new(FrameData {
-                sourcemap: Annotated::new(<span class="string">&quot;http://example.com/invalid.map&quot;</span>.to_string()),
+                sourcemap: Annotated::new(<span class="string">"http://example.com/invalid.map"</span>.to_string()),
                 ..Default::default()
             }),
             image_addr: Annotated::new(Addr(<span class="number">0x400</span>)),
             instruction_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
-            addr_mode: Annotated::new(<span class="string">&quot;abs&quot;</span>.into()),
+            addr_mode: Annotated::new(<span class="string">"abs"</span>.into()),
             function_id: Annotated::empty(),
             symbol_addr: Annotated::new(Addr(<span class="number">0x404</span>)),
-            trust: Annotated::new(<span class="string">&quot;69&quot;</span>.into()),
-            lang: Annotated::new(<span class="string">&quot;rust&quot;</span>.into()),
+            trust: Annotated::new(<span class="string">"69"</span>.into()),
+            lang: Annotated::new(<span class="string">"rust"</span>.into()),
             stack_start: Annotated::new(<span class="bool-val">true</span>),
             lock: Annotated::new(LockReason {
                 ty: Annotated::new(LockReasonType::Waiting),
-                address: Annotated::new(<span class="string">&quot;0x07d7437b&quot;</span>.to_string()),
-                package_name: Annotated::new(<span class="string">&quot;io.sentry.samples&quot;</span>.to_string()),
-                class_name: Annotated::new(<span class="string">&quot;MainActivity&quot;</span>.to_string()),
+                address: Annotated::new(<span class="string">"0x07d7437b"</span>.to_string()),
+                package_name: Annotated::new(<span class="string">"io.sentry.samples"</span>.to_string()),
+                class_name: Annotated::new(<span class="string">"MainActivity"</span>.to_string()),
                 thread_id: Annotated::new(ThreadId::Int(<span class="number">7</span>)),
                 other: Default::default(),
             }),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
                 vars.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 vars
             },
@@ -1415,7 +1416,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_default_values() {
-        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>json = <span class="string">"{}"</span>;
         <span class="kw">let </span>frame = Annotated::new(Frame::default());
 
         <span class="macro">assert_eq!</span>(frame, Annotated::from_json(json).unwrap());
@@ -1424,44 +1425,44 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stacktrace_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;frames&quot;: [
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "frames": [
     {
-      &quot;function&quot;: &quot;foobar&quot;
+      "function": "foobar"
     }
   ],
-  &quot;registers&quot;: {
-    &quot;cspr&quot;: &quot;0x20000000&quot;,
-    &quot;lr&quot;: &quot;0x18a31aadc&quot;,
-    &quot;pc&quot;: &quot;0x18a310ea4&quot;,
-    &quot;sp&quot;: &quot;0x16fd75060&quot;
+  "registers": {
+    "cspr": "0x20000000",
+    "lr": "0x18a31aadc",
+    "pc": "0x18a310ea4",
+    "sp": "0x16fd75060"
   },
-  &quot;instruction_addr_adjustment&quot;: &quot;all_but_first&quot;,
-  &quot;lang&quot;: &quot;rust&quot;,
-  &quot;snapshot&quot;: false,
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "instruction_addr_adjustment": "all_but_first",
+  "lang": "rust",
+  "snapshot": false,
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
             frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
-                function: Annotated::new(<span class="string">&quot;foobar&quot;</span>.to_string()),
+                function: Annotated::new(<span class="string">"foobar"</span>.to_string()),
                 ..Default::default()
             })]),
             registers: {
                 <span class="kw">let </span><span class="kw-2">mut </span>registers = Object::new();
-                registers.insert(<span class="string">&quot;cspr&quot;</span>.to_string(), Annotated::new(RegVal(<span class="number">0x2000_0000</span>)));
-                registers.insert(<span class="string">&quot;lr&quot;</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_8a31_aadc</span>)));
-                registers.insert(<span class="string">&quot;pc&quot;</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_8a31_0ea4</span>)));
-                registers.insert(<span class="string">&quot;sp&quot;</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_6fd7_5060</span>)));
+                registers.insert(<span class="string">"cspr"</span>.to_string(), Annotated::new(RegVal(<span class="number">0x2000_0000</span>)));
+                registers.insert(<span class="string">"lr"</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_8a31_aadc</span>)));
+                registers.insert(<span class="string">"pc"</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_8a31_0ea4</span>)));
+                registers.insert(<span class="string">"sp"</span>.to_string(), Annotated::new(RegVal(<span class="number">0x1_6fd7_5060</span>)));
                 Annotated::new(registers)
             },
             instruction_addr_adjustment: Annotated::new(InstructionAddrAdjustment::AllButFirst),
-            lang: Annotated::new(<span class="string">&quot;rust&quot;</span>.into()),
+            lang: Annotated::new(<span class="string">"rust"</span>.into()),
             snapshot: Annotated::new(<span class="bool-val">false</span>),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
                 other.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 other
             },
@@ -1473,12 +1474,12 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stacktrace_default_values() {
-        <span class="comment">// This needs an empty frame because &quot;frames&quot; is required
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;frames&quot;: [
+        <span class="comment">// This needs an empty frame because "frames" is required
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+  "frames": [
     {}
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>stack = Annotated::new(RawStacktrace {
             frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame::default())]),
@@ -1491,15 +1492,15 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_vars_null_preserved() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;vars&quot;: {
-    &quot;despacito&quot;: null
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "vars": {
+    "despacito": null
   }
-}&quot;#</span>;
+}"#</span>;
         <span class="kw">let </span>frame = Annotated::new(Frame {
             vars: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-                vars.insert(<span class="string">&quot;despacito&quot;</span>.to_string(), Annotated::empty());
+                vars.insert(<span class="string">"despacito"</span>.to_string(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()
@@ -1511,17 +1512,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_vars_empty_annotated_is_serialized() {
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;vars&quot;: {
-    &quot;despacito&quot;: null,
-    &quot;despacito2&quot;: null
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "vars": {
+    "despacito": null,
+    "despacito2": null
   }
-}&quot;#</span>;
+}"#</span>;
         <span class="kw">let </span>frame = Annotated::new(Frame {
             vars: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-                vars.insert(<span class="string">&quot;despacito&quot;</span>.to_string(), Annotated::empty());
-                vars.insert(<span class="string">&quot;despacito2&quot;</span>.to_string(), Annotated::empty());
+                vars.insert(<span class="string">"despacito"</span>.to_string(), Annotated::empty());
+                vars.insert(<span class="string">"despacito2"</span>.to_string(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()
@@ -1532,20 +1533,20 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_empty_context_lines() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;pre_context&quot;: [
-    &quot;&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "pre_context": [
+    ""
   ],
-  &quot;context_line&quot;: &quot;&quot;,
-  &quot;post_context&quot;: [
-    &quot;&quot;
+  "context_line": "",
+  "post_context": [
+    ""
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>frame = Annotated::new(Frame {
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;&quot;</span>.to_string())]),
-            context_line: Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
-            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;&quot;</span>.to_string())]),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_string())]),
+            context_line: Annotated::new(<span class="string">""</span>.to_string()),
+            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_string())]),
             ..Frame::default()
         });
 
@@ -1559,26 +1560,26 @@
         //
         // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
 
-        </span><span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;vars&quot;: [&quot;foo&quot;, &quot;bar&quot;, &quot;baz&quot;, null]
-}&quot;#</span>;
+        </span><span class="kw">let </span>input = <span class="string">r#"{
+  "vars": ["foo", "bar", "baz", null]
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;vars&quot;: {
-    &quot;0&quot;: &quot;foo&quot;,
-    &quot;1&quot;: &quot;bar&quot;,
-    &quot;2&quot;: &quot;baz&quot;,
-    &quot;3&quot;: null
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "vars": {
+    "0": "foo",
+    "1": "bar",
+    "2": "baz",
+    "3": null
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>frame = Annotated::new(Frame {
             vars: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>vars = Object::new();
-                vars.insert(<span class="string">&quot;0&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string().into()));
-                vars.insert(<span class="string">&quot;1&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string().into()));
-                vars.insert(<span class="string">&quot;2&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string().into()));
-                vars.insert(<span class="string">&quot;3&quot;</span>.to_string(), Annotated::empty());
+                vars.insert(<span class="string">"0"</span>.to_string(), Annotated::new(<span class="string">"foo"</span>.to_string().into()));
+                vars.insert(<span class="string">"1"</span>.to_string(), Annotated::new(<span class="string">"bar"</span>.to_string().into()));
+                vars.insert(<span class="string">"2"</span>.to_string(), Annotated::new(<span class="string">"baz"</span>.to_string().into()));
+                vars.insert(<span class="string">"3"</span>.to_string(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()

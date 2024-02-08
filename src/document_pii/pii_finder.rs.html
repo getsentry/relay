@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/pii_finder.rs`."><title>pii_finder.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/pii_finder.rs`."><title>pii_finder.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -293,7 +294,7 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! This module takes the types and paths from &#39;item_collector&#39; module, and will recursively find
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module takes the types and paths from 'item_collector' module, and will recursively find
 //! all the fields with the specified PII-value, and save those fields with the full path.
 //!
 //! E.g. `MyStruct.sub_struct.mystery_field.bitcoin_wallet_key`, meaning you can find the full path
@@ -311,7 +312,7 @@
 <span class="doccomment">/// The name of a field along with its type. Used for the path to a PII-field.
 </span><span class="attr">#[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
 </span><span class="kw">pub struct </span>TypeAndField {
-    <span class="comment">// Full path of a type. E.g. relay_common::protocol::Event, rather than just &#39;Event&#39;.
+    <span class="comment">// Full path of a type. E.g. relay_common::protocol::Event, rather than just 'Event'.
     </span><span class="kw">pub </span>qualified_type_name: String,
     <span class="kw">pub </span>field_ident: String,
 }
@@ -368,29 +369,29 @@
 
 <span class="doccomment">/// This is the visitor that actually generates the pii_types, it has a lot of associated data
 /// because it using the Visit trait from syn-crate means I cannot add data as arguments.
-/// The &#39;pii_types&#39; field can be regarded as the output.
-</span><span class="kw">pub struct </span>PiiFinder&lt;<span class="lifetime">&#39;a</span>&gt; {
+/// The 'pii_types' field can be regarded as the output.
+</span><span class="kw">pub struct </span>PiiFinder&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Module path of a type is the full path up to the type itself.
     ///
     /// Example: `relay_event_schema::protocol::Event` -&gt; `relay_event_schema::protocol`
     </span><span class="kw">pub </span>module_path: String,
     <span class="kw">pub </span>current_type: String,
-    <span class="kw">pub </span>all_types: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HashMap&lt;String, EnumOrStruct&gt;,
+    <span class="kw">pub </span>all_types: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;String, EnumOrStruct&gt;,
     <span class="comment">// The full paths of rust types either defined in the module or brought in to scope with a use-statement.
-    </span><span class="kw">pub </span>scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
+    </span><span class="kw">pub </span>scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
     <span class="kw">pub </span>current_path: Vec&lt;TypeAndField&gt;,
     <span class="kw">pub </span>pii_types: BTreeSet&lt;FieldsWithAttribute&gt;, <span class="comment">// output
 </span>}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PiiFinder&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PiiFinder&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub fn </span>new(
         path: <span class="kw-2">&amp;</span>str,
-        all_types: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HashMap&lt;String, EnumOrStruct&gt;,
-        scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
+        all_types: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>HashMap&lt;String, EnumOrStruct&gt;,
+        scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>module_path = path
-            .rsplit_once(<span class="string">&quot;::&quot;</span>)
-            .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">&quot;invalid module path: {}&quot;</span>, path))<span class="question-mark">?
+            .rsplit_once(<span class="string">"::"</span>)
+            .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"invalid module path: {}"</span>, path))<span class="question-mark">?
             </span>.<span class="number">0
             </span>.to_owned();
 
@@ -417,7 +418,7 @@
                 // return to this function after the match statement, we can set them back.
                 </span><span class="kw">let </span>current_type = <span class="self">self</span>.current_type.clone();
                 <span class="kw">let </span>module_path = <span class="self">self</span>.module_path.clone();
-                <span class="self">self</span>.module_path = use_path.rsplit_once(<span class="string">&quot;::&quot;</span>).unwrap().<span class="number">0</span>.to_owned();
+                <span class="self">self</span>.module_path = use_path.rsplit_once(<span class="string">"::"</span>).unwrap().<span class="number">0</span>.to_owned();
 
                 <span class="kw">match </span>enum_or_struct {
                     EnumOrStruct::Struct(itemstruct) =&gt; <span class="self">self</span>.visit_item_struct(<span class="kw-2">&amp;</span>itemstruct),
@@ -447,8 +448,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;ast</span>&gt; Visit&lt;<span class="lifetime">&#39;ast</span>&gt; <span class="kw">for </span>PiiFinder&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>visit_item_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>ItemStruct) {
+<span class="kw">impl</span>&lt;<span class="lifetime">'ast</span>&gt; Visit&lt;<span class="lifetime">'ast</span>&gt; <span class="kw">for </span>PiiFinder&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>visit_item_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>ItemStruct) {
         <span class="self">self</span>.current_type = node.ident.to_string();
         <span class="kw">if </span>!<span class="self">self</span>.is_current_type_already_visited() {
             <span class="kw">for </span>field <span class="kw">in </span>node.fields.iter() {
@@ -457,7 +458,7 @@
         }
     }
 
-    <span class="kw">fn </span>visit_item_enum(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>ItemEnum) {
+    <span class="kw">fn </span>visit_item_enum(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>ItemEnum) {
         <span class="self">self</span>.current_type = node.ident.to_string();
         <span class="kw">if </span>!<span class="self">self</span>.is_current_type_already_visited() {
             <span class="kw">for </span>variant <span class="kw">in </span>node.variants.iter() {
@@ -468,7 +469,7 @@
         }
     }
 
-    <span class="kw">fn </span>visit_field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>Field) {
+    <span class="kw">fn </span>visit_field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>Field) {
         <span class="comment">// Every time we visit a field, we have to append the field to the current_path, it gets
         // popped in the end of this function. This is done so that we can store the full path
         // whenever the field matches a correct PII value.
@@ -478,12 +479,12 @@
                 .clone()
                 .ident
                 .map(|x| x.to_string())
-                .unwrap_or_else(|| <span class="string">&quot;{{Unnamed}}&quot;</span>.to_string()),
+                .unwrap_or_else(|| <span class="string">"{{Unnamed}}"</span>.to_string()),
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>all_attributes = BTreeMap::new();
         <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>node.attrs {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>attributes) = get_attributes(attr, <span class="string">&quot;metastructure&quot;</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>attributes) = get_attributes(attr, <span class="string">"metastructure"</span>) {
                 all_attributes.append(<span class="kw-2">&amp;mut </span>attributes);
             }
         }
@@ -503,14 +504,14 @@
 }
 
 <span class="doccomment">/// Finds the full path to the given types by comparing them to the types in the scope.
-</span><span class="kw">fn </span>get_matching_scoped_paths&lt;<span class="lifetime">&#39;a</span>&gt;(
-    field_types: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeSet&lt;String&gt;,
-    scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeSet&lt;String&gt;,
-) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>String&gt; {
+</span><span class="kw">fn </span>get_matching_scoped_paths&lt;<span class="lifetime">'a</span>&gt;(
+    field_types: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeSet&lt;String&gt;,
+    scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeSet&lt;String&gt;,
+) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>String&gt; {
     scoped_paths
         .iter()
         .filter(|use_path| {
-            <span class="kw">let </span>last_use_path = use_path.split(<span class="string">&quot;::&quot;</span>).last().unwrap().trim();
+            <span class="kw">let </span>last_use_path = use_path.split(<span class="string">"::"</span>).last().unwrap().trim();
             field_types
                 .iter()
                 .any(|field_type| field_type.trim() == last_use_path)
@@ -519,7 +520,7 @@
 }
 
 <span class="doccomment">/// This function extracts the type names from a complex type and stores them in a BTreeSet.
-/// It&#39;s designed to handle nested generic types, such as `Foo&lt;Bar&lt;Baz&gt;&gt;`, and return [&quot;Foo&quot;, &quot;Bar&quot;, &quot;Baz&quot;].
+/// It's designed to handle nested generic types, such as `Foo&lt;Bar&lt;Baz&gt;&gt;`, and return ["Foo", "Bar", "Baz"].
 </span><span class="kw">fn </span>get_field_types(path: <span class="kw-2">&amp;</span>Path, segments: <span class="kw-2">&amp;mut </span>BTreeSet&lt;String&gt;) {
     <span class="comment">// Iterating over path segments allows us to handle complex, possibly nested types
     </span><span class="kw">let </span><span class="kw-2">mut </span>path_iter = path.segments.iter();
@@ -535,9 +536,9 @@
             }
         }
 
-        <span class="comment">// Namespace resolution: if a second segment exists, it&#39;s part of the first type&#39;s namespace
+        <span class="comment">// Namespace resolution: if a second segment exists, it's part of the first type's namespace
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(second_segment) = path_iter.next() {
-            ident.push_str(<span class="string">&quot;::&quot;</span>);
+            ident.push_str(<span class="string">"::"</span>);
             ident.push_str(<span class="kw-2">&amp;</span>second_segment.ident.to_string());
         }
         segments.insert(ident);
@@ -551,7 +552,7 @@
         <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
     };
 
-    <span class="comment">// Checks name of attribute, E.g. &#39;metastructure&#39;
+    <span class="comment">// Checks name of attribute, E.g. 'metastructure'
     </span><span class="kw">if </span>!meta_list.path.is_ident(ident) {
         <span class="kw">return </span><span class="prelude-val">None</span>;
     }

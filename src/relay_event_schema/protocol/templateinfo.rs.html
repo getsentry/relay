@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/templateinfo.rs`."><title>templateinfo.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/templateinfo.rs`."><title>templateinfo.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -103,14 +104,14 @@
 
 <span class="doccomment">/// Template debug information.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(process_func = <span class="string">&quot;process_template_info&quot;</span>)]
+#[metastructure(process_func = <span class="string">"process_template_info"</span>)]
 </span><span class="kw">pub struct </span>TemplateInfo {
     <span class="doccomment">/// The file name (basename only).
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;short_path&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"short_path"</span>)]
     </span><span class="kw">pub </span>filename: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Absolute path to the file.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;path&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"path"</span>)]
     </span><span class="kw">pub </span>abs_path: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Line number within the source file.
@@ -142,33 +143,33 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_template_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;filename&quot;: &quot;myfile.rs&quot;,
-  &quot;abs_path&quot;: &quot;/path/to&quot;,
-  &quot;lineno&quot;: 2,
-  &quot;colno&quot;: 42,
-  &quot;pre_context&quot;: [
-    &quot;fn main() {&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "filename": "myfile.rs",
+  "abs_path": "/path/to",
+  "lineno": 2,
+  "colno": 42,
+  "pre_context": [
+    "fn main() {"
   ],
-  &quot;context_line&quot;: &quot;unimplemented!()&quot;,
-  &quot;post_context&quot;: [
-    &quot;}&quot;
+  "context_line": "unimplemented!()",
+  "post_context": [
+    "}"
   ],
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>template_info = Annotated::new(TemplateInfo {
-            filename: Annotated::new(<span class="string">&quot;myfile.rs&quot;</span>.to_string()),
-            abs_path: Annotated::new(<span class="string">&quot;/path/to&quot;</span>.to_string()),
+            filename: Annotated::new(<span class="string">"myfile.rs"</span>.to_string()),
+            abs_path: Annotated::new(<span class="string">"/path/to"</span>.to_string()),
             lineno: Annotated::new(<span class="number">2</span>),
             colno: Annotated::new(<span class="number">42</span>),
-            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;fn main() {&quot;</span>.to_string())]),
-            context_line: Annotated::new(<span class="string">&quot;unimplemented!()&quot;</span>.to_string()),
-            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;}&quot;</span>.to_string())]),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_string())]),
+            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_string()),
+            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_string())]),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -180,7 +181,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_template_default_values() {
-        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>json = <span class="string">"{}"</span>;
         <span class="kw">let </span>template_info = Annotated::new(TemplateInfo {
             filename: Annotated::empty(),
             abs_path: Annotated::empty(),

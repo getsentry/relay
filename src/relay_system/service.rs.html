@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/service.rs`."><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_system" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_system/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_system"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/service.rs`."><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_system" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_system/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_system"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1217,9 +1218,9 @@
 /// # Requirements
 ///
 /// Interfaces are meant to be sent to services via channels. As such, they need to be both `Send`
-/// and `&#39;static`. It is highly encouraged to implement `Debug` on all interfaces and their
+/// and `'static`. It is highly encouraged to implement `Debug` on all interfaces and their
 /// messages.
-</span><span class="kw">pub trait </span>Interface: Send + <span class="lifetime">&#39;static </span>{}
+</span><span class="kw">pub trait </span>Interface: Send + <span class="lifetime">'static </span>{}
 
 <span class="doccomment">/// Services without messages can use `()` as their interface.
 </span><span class="kw">impl </span>Interface <span class="kw">for </span>() {}
@@ -1229,8 +1230,8 @@
 </span><span class="kw">pub struct </span>SendError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>SendError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;failed to send message to service&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"failed to send message to service"</span>)
     }
 }
 
@@ -1264,15 +1265,15 @@
 </span><span class="kw">pub struct </span>Request&lt;T&gt;(oneshot::Receiver&lt;T&gt;);
 
 <span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>Request&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Request&quot;</span>).finish_non_exhaustive()
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Request"</span>).finish_non_exhaustive()
     }
 }
 
 <span class="kw">impl</span>&lt;T&gt; Future <span class="kw">for </span>Request&lt;T&gt; {
     <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;T, SendError&gt;;
 
-    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::task::Poll&lt;<span class="self">Self</span>::Output&gt; {
+    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::task::Poll&lt;<span class="self">Self</span>::Output&gt; {
         Pin::new(<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0</span>)
             .poll(cx)
             .map(|r| r.map_err(|<span class="kw">_</span>| SendError))
@@ -1287,9 +1288,9 @@
 </span><span class="kw">pub struct </span>Sender&lt;T&gt;(oneshot::Sender&lt;T&gt;);
 
 <span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>Sender&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Sender&quot;</span>)
-            .field(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.<span class="number">0</span>.is_closed())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Sender"</span>)
+            .field(<span class="string">"open"</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.<span class="number">0</span>.is_closed())
             .finish()
     }
 }
@@ -1311,8 +1312,8 @@
 </span><span class="kw">pub struct </span>AsyncResponse&lt;T&gt;(PhantomData&lt;T&gt;);
 
 <span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>AsyncResponse&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.write_str(<span class="string">&quot;AsyncResponse&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">"AsyncResponse"</span>)
     }
 }
 
@@ -1335,8 +1336,8 @@
 </span><span class="kw">pub struct </span>NoResponse;
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>NoResponse {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.write_str(<span class="string">&quot;NoResponse&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">"NoResponse"</span>)
     }
 }
 
@@ -1385,7 +1386,7 @@
 <span class="kw">impl</span>&lt;T: Clone&gt; Future <span class="kw">for </span>BroadcastRequest&lt;T&gt; {
     <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;T, SendError&gt;;
 
-    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; Poll&lt;<span class="self">Self</span>::Output&gt; {
+    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="self">Self</span>::Output&gt; {
         Poll::Ready(<span class="kw">loop </span>{
             <span class="kw">match </span><span class="self">self</span>.<span class="number">0 </span>{
                 BroadcastState::Pending(<span class="kw-2">ref mut </span>pending) =&gt; {
@@ -1495,8 +1496,8 @@
     /// let (sender, rx) = BroadcastResponse::&lt;&amp;str&gt;::channel();
     ///
     /// let channel = sender.into_channel();
-    /// channel.send(&quot;test&quot;);
-    /// assert_eq!(rx.await, Ok(&quot;test&quot;));
+    /// channel.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
     /// # })
     /// ```
     </span><span class="kw">pub fn </span>send(<span class="self">self</span>, value: T) {
@@ -1563,9 +1564,9 @@
 /// channel.attach(sender2);
 ///
 /// // Send a value into the channel to resolve all requests simultaneously
-/// channel.send(&quot;test&quot;);
-/// assert_eq!(rx1.await, Ok(&quot;test&quot;));
-/// assert_eq!(rx2.await, Ok(&quot;test&quot;));
+/// channel.send("test");
+/// assert_eq!(rx1.await, Ok("test"));
+/// assert_eq!(rx2.await, Ok("test"));
 /// # })
 /// ```
 </span><span class="attr">#[derive(Debug)]
@@ -1592,8 +1593,8 @@
     ///
     /// // sender is NOT converted into a channel!
     ///
-    /// sender.send(&quot;test&quot;);
-    /// assert_eq!(rx.await, Ok(&quot;test&quot;));
+    /// sender.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
     /// # })
     /// ```
     </span><span class="kw">pub fn </span>send(<span class="self">self</span>, value: T) {
@@ -1641,8 +1642,8 @@
     </span>T: Clone;
 
 <span class="kw">impl</span>&lt;T: Clone&gt; fmt::Debug <span class="kw">for </span>BroadcastResponse&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.write_str(<span class="string">&quot;BroadcastResponse&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">"BroadcastResponse"</span>)
     }
 }
 
@@ -1824,7 +1825,7 @@
 <span class="kw">impl</span>&lt;I: Interface&gt; Addr&lt;I&gt; {
     <span class="doccomment">/// Sends a message to the service and returns the response.
     ///
-    /// Depending on the message&#39;s response behavior, this either returns a future resolving to the
+    /// Depending on the message's response behavior, this either returns a future resolving to the
     /// return value, or does not return anything for fire-and-forget messages. The communication
     /// channel with the service is unbounded, so backlogs could occur when sending too many
     /// messages.
@@ -1838,7 +1839,7 @@
     {
         <span class="kw">let </span>(tx, rx) = I::Response::channel();
         <span class="self">self</span>.queue_size.fetch_add(<span class="number">1</span>, Ordering::SeqCst);
-        <span class="self">self</span>.tx.send(I::from_message(message, tx)).ok(); <span class="comment">// it&#39;s ok to drop, the response will fail
+        <span class="self">self</span>.tx.send(I::from_message(message, tx)).ok(); <span class="comment">// it's ok to drop, the response will fail
         </span>rx
     }
 
@@ -1875,10 +1876,10 @@
 }
 
 <span class="kw">impl</span>&lt;I: Interface&gt; fmt::Debug <span class="kw">for </span>Addr&lt;I&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Addr&quot;</span>)
-            .field(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.tx.is_closed())
-            .field(<span class="string">&quot;queue_size&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.queue_size.load(Ordering::Relaxed))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Addr"</span>)
+            .field(<span class="string">"open"</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.tx.is_closed())
+            .field(<span class="string">"queue_size"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.queue_size.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -1917,7 +1918,7 @@
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 </span><span class="kw">pub struct </span>Receiver&lt;I: Interface&gt; {
     rx: mpsc::UnboundedReceiver&lt;I&gt;,
-    name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     interval: tokio::time::Interval,
     queue_size: Arc&lt;AtomicU64&gt;,
 }
@@ -1926,11 +1927,11 @@
     <span class="doccomment">/// Receives the next value for this receiver.
     ///
     /// This method returns `None` if the channel has been closed and there are
-    /// no remaining messages in the channel&#39;s buffer. This indicates that no
+    /// no remaining messages in the channel's buffer. This indicates that no
     /// further values can ever be received from this `Receiver`. The channel is
     /// closed when all senders have been dropped.
     ///
-    /// If there are no messages in the channel&#39;s buffer, but the channel has
+    /// If there are no messages in the channel's buffer, but the channel has
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     </span><span class="kw">pub async fn </span>recv(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;I&gt; {
@@ -1955,10 +1956,10 @@
 }
 
 <span class="kw">impl</span>&lt;I: Interface&gt; fmt::Debug <span class="kw">for </span>Receiver&lt;I&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Receiver&quot;</span>)
-            .field(<span class="string">&quot;name&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.name)
-            .field(<span class="string">&quot;queue_size&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.queue_size.load(Ordering::Relaxed))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Receiver"</span>)
+            .field(<span class="string">"name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.name)
+            .field(<span class="string">"queue_size"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.queue_size.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -1967,7 +1968,7 @@
 ///
 /// The `Addr` as the sending part provides public access to the service, while the `Receiver`
 /// should remain internal to the service.
-</span><span class="kw">pub fn </span>channel&lt;I: Interface&gt;(name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; (Addr&lt;I&gt;, Receiver&lt;I&gt;) {
+</span><span class="kw">pub fn </span>channel&lt;I: Interface&gt;(name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; (Addr&lt;I&gt;, Receiver&lt;I&gt;) {
     <span class="kw">let </span>queue_size = Arc::new(AtomicU64::new(<span class="number">0</span>));
     <span class="kw">let </span>(tx, rx) = mpsc::unbounded_channel();
 
@@ -2003,7 +2004,7 @@
 /// # Implementing Services
 ///
 /// The standard way to implement services is through the `run` function. It receives an inbound
-/// channel for all messages sent through the service&#39;s address. Note that this function is
+/// channel for all messages sent through the service's address. Note that this function is
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
@@ -2094,7 +2095,7 @@
 
     <span class="doccomment">/// Spawns a task to handle service messages.
     ///
-    /// Receives an inbound channel for all messages sent through the service&#39;s [`Addr`]. Note
+    /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
     /// that this function is synchronous, so that this needs to spawn a task internally.
     </span><span class="kw">fn </span>spawn_handler(<span class="self">self</span>, rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;);
 
@@ -2115,7 +2116,7 @@
     ///
     /// This is used for internal diagnostics and uses the fully qualified type name of the service
     /// implementor by default.
-    </span><span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         std::any::type_name::&lt;<span class="self">Self</span>&gt;()
     }
 }
@@ -2149,8 +2150,8 @@
             });
         }
 
-        <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-            <span class="string">&quot;mock&quot;
+        <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+            <span class="string">"mock"
         </span>}
     }
 
@@ -2174,7 +2175,7 @@
             })
         });
 
-        <span class="macro">assert_eq!</span>(captures, [<span class="string">&quot;service.back_pressure:0|g|#service:mock&quot;</span>]);
+        <span class="macro">assert_eq!</span>(captures, [<span class="string">"service.back_pressure:0|g|#service:mock"</span>]);
 
         <span class="comment">// Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
         </span><span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
@@ -2201,9 +2202,9 @@
         <span class="macro">assert_eq!</span>(
             captures,
             [
-                <span class="string">&quot;service.back_pressure:2|g|#service:mock&quot;</span>, <span class="comment">// 2 * INTERVAL
-                </span><span class="string">&quot;service.back_pressure:1|g|#service:mock&quot;</span>, <span class="comment">// 4 * INTERVAL
-                </span><span class="string">&quot;service.back_pressure:0|g|#service:mock&quot;</span>, <span class="comment">// 6 * INTERVAL
+                <span class="string">"service.back_pressure:2|g|#service:mock"</span>, <span class="comment">// 2 * INTERVAL
+                </span><span class="string">"service.back_pressure:1|g|#service:mock"</span>, <span class="comment">// 4 * INTERVAL
+                </span><span class="string">"service.back_pressure:0|g|#service:mock"</span>, <span class="comment">// 6 * INTERVAL
             </span>]
         );
     }

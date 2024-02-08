@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/thread.rs`."><title>thread.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/thread.rs`."><title>thread.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -395,7 +396,7 @@
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -407,7 +408,7 @@
 
 <span class="doccomment">/// Represents a thread id.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[serde(untagged)]
 </span><span class="kw">pub enum </span>ThreadId {
     <span class="doccomment">/// Integer representation of the thread id.
@@ -428,7 +429,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;a thread id&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"a thread id"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -468,10 +469,10 @@
     }
 }
 
-<span class="doccomment">/// Possible lock types responsible for a thread&#39;s blocked state
+<span class="doccomment">/// Possible lock types responsible for a thread's blocked state
 </span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq, ProcessValue, Empty)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(schemars::JsonSchema))]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(rename_all = <span class="string">&quot;lowercase&quot;</span>))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(schemars::JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(rename_all = <span class="string">"lowercase"</span>))]
 </span><span class="kw">pub enum </span>LockReasonType {
     <span class="doccomment">/// Thread is Runnable but holding a lock object (generic case).
     </span>Locked = <span class="number">1</span>,
@@ -522,7 +523,7 @@
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;lock reason type&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"lock reason type"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -546,26 +547,26 @@
 
 <span class="doccomment">/// Represents an instance of a held lock (java monitor object) in a thread.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>LockReason {
     <span class="doccomment">/// Type of lock on the thread with available options being blocked, waiting, sleeping and locked.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>, required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;LockReasonType&gt;,
 
     <span class="doccomment">/// Address of the java monitor object.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>address: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Package name of the java monitor object.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>package_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Class name of the java monitor object.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>class_name: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Thread ID that&#39;s holding the lock.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    <span class="doccomment">/// Thread ID that's holding the lock.
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>thread_id: Annotated&lt;ThreadId&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -583,40 +584,40 @@
 ///
 /// ```json
 /// {
-///   &quot;threads&quot;: {
-///     &quot;values&quot;: [
+///   "threads": {
+///     "values": [
 ///       {
-///         &quot;id&quot;: &quot;0&quot;,
-///         &quot;name&quot;: &quot;main&quot;,
-///         &quot;crashed&quot;: true,
-///         &quot;stacktrace&quot;: {}
+///         "id": "0",
+///         "name": "main",
+///         "crashed": true,
+///         "stacktrace": {}
 ///       }
 ///     ]
 ///   }
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_thread&quot;</span>, value_type = <span class="string">&quot;Thread&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_thread"</span>, value_type = <span class="string">"Thread"</span>)]
 </span><span class="kw">pub struct </span>Thread {
     <span class="doccomment">/// The ID of the thread. Typically a number or numeric string.
     ///
     /// Needs to be unique among the threads. An exception can set the `thread_id` attribute to cross-reference this thread.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;ThreadId&gt;,
 
     <span class="doccomment">/// Display name of this thread.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;summary&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"summary"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Stack trace containing frames of this exception.
     ///
     /// The thread that crashed with an exception should not have a stack trace, but instead, the `thread_id` attribute should be set on the exception and Sentry will connect the two.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>stacktrace: Annotated&lt;Stacktrace&gt;,
 
     <span class="doccomment">/// Optional unprocessed stack trace.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, omit_from_schema)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, omit_from_schema)]
     </span><span class="kw">pub </span>raw_stacktrace: Annotated&lt;RawStacktrace&gt;,
 
     <span class="doccomment">/// A flag indicating whether the thread crashed. Defaults to `false`.
@@ -629,7 +630,7 @@
     </span><span class="kw">pub </span>main: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Thread state at the time of the crash.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>state: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Represents a collection of locks (java monitor objects) held by a thread.
@@ -652,52 +653,52 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_thread_id() {
         <span class="macro">assert_eq!</span>(
-            ThreadId::String(<span class="string">&quot;testing&quot;</span>.into()),
-            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">&quot;\&quot;testing\&quot;&quot;</span>)
+            ThreadId::String(<span class="string">"testing"</span>.into()),
+            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">"\"testing\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
-            ThreadId::String(<span class="string">&quot;42&quot;</span>.into()),
-            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">&quot;\&quot;42\&quot;&quot;</span>)
+            ThreadId::String(<span class="string">"42"</span>.into()),
+            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">"\"42\""</span>)
                 .unwrap()
                 .<span class="number">0
                 </span>.unwrap()
         );
         <span class="macro">assert_eq!</span>(
             ThreadId::Int(<span class="number">42</span>),
-            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">&quot;42&quot;</span>).unwrap().<span class="number">0</span>.unwrap()
+            Annotated::&lt;ThreadId&gt;::from_json(<span class="string">"42"</span>).unwrap().<span class="number">0</span>.unwrap()
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_thread_roundtrip() {
         <span class="comment">// stack traces are tested separately
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;id&quot;: 42,
-  &quot;name&quot;: &quot;myname&quot;,
-  &quot;crashed&quot;: true,
-  &quot;current&quot;: true,
-  &quot;main&quot;: true,
-  &quot;state&quot;: &quot;RUNNABLE&quot;,
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+        </span><span class="kw">let </span>json = <span class="string">r#"{
+  "id": 42,
+  "name": "myname",
+  "crashed": true,
+  "current": true,
+  "main": true,
+  "state": "RUNNABLE",
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>thread = Annotated::new(Thread {
             id: Annotated::new(ThreadId::Int(<span class="number">42</span>)),
-            name: Annotated::new(<span class="string">&quot;myname&quot;</span>.to_string()),
+            name: Annotated::new(<span class="string">"myname"</span>.to_string()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(<span class="bool-val">true</span>),
             current: Annotated::new(<span class="bool-val">true</span>),
             main: Annotated::new(<span class="bool-val">true</span>),
-            state: Annotated::new(<span class="string">&quot;RUNNABLE&quot;</span>.to_string()),
+            state: Annotated::new(<span class="string">"RUNNABLE"</span>.to_string()),
             held_locks: Annotated::empty(),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -709,7 +710,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_thread_default_values() {
-        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>json = <span class="string">"{}"</span>;
         <span class="kw">let </span>thread = Annotated::new(Thread::default());
 
         <span class="macro">assert_eq!</span>(thread, Annotated::from_json(json).unwrap());
@@ -719,58 +720,58 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_thread_lock_reason_roundtrip() {
         <span class="comment">// stack traces are tested separately
-        </span><span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;id&quot;: 42,
-  &quot;name&quot;: &quot;myname&quot;,
-  &quot;crashed&quot;: true,
-  &quot;current&quot;: true,
-  &quot;main&quot;: true,
-  &quot;state&quot;: &quot;BLOCKED&quot;,
-  &quot;held_locks&quot;: {
-    &quot;0x07d7437b&quot;: {
-      &quot;type&quot;: 2,
-      &quot;package_name&quot;: &quot;io.sentry.samples&quot;,
-      &quot;class_name&quot;: &quot;MainActivity&quot;,
-      &quot;thread_id&quot;: 7
+        </span><span class="kw">let </span>input = <span class="string">r#"{
+  "id": 42,
+  "name": "myname",
+  "crashed": true,
+  "current": true,
+  "main": true,
+  "state": "BLOCKED",
+  "held_locks": {
+    "0x07d7437b": {
+      "type": 2,
+      "package_name": "io.sentry.samples",
+      "class_name": "MainActivity",
+      "thread_id": 7
     },
-    &quot;0x0d3a2f0a&quot;: {
-      &quot;type&quot;: 1,
-      &quot;package_name&quot;: &quot;android.database.sqlite&quot;,
-      &quot;class_name&quot;: &quot;SQLiteConnection&quot;,
-      &quot;thread_id&quot;: 2
+    "0x0d3a2f0a": {
+      "type": 1,
+      "package_name": "android.database.sqlite",
+      "class_name": "SQLiteConnection",
+      "thread_id": 2
     }
   },
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>thread = Annotated::new(Thread {
             id: Annotated::new(ThreadId::Int(<span class="number">42</span>)),
-            name: Annotated::new(<span class="string">&quot;myname&quot;</span>.to_string()),
+            name: Annotated::new(<span class="string">"myname"</span>.to_string()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(<span class="bool-val">true</span>),
             current: Annotated::new(<span class="bool-val">true</span>),
             main: Annotated::new(<span class="bool-val">true</span>),
-            state: Annotated::new(<span class="string">&quot;BLOCKED&quot;</span>.to_string()),
+            state: Annotated::new(<span class="string">"BLOCKED"</span>.to_string()),
             held_locks: {
                 <span class="kw">let </span><span class="kw-2">mut </span>locks = Object::new();
                 locks.insert(
-                    <span class="string">&quot;0x07d7437b&quot;</span>.to_string(),
+                    <span class="string">"0x07d7437b"</span>.to_string(),
                     Annotated::new(LockReason {
                         ty: Annotated::new(LockReasonType::Waiting),
                         address: Annotated::empty(),
-                        package_name: Annotated::new(<span class="string">&quot;io.sentry.samples&quot;</span>.to_string()),
-                        class_name: Annotated::new(<span class="string">&quot;MainActivity&quot;</span>.to_string()),
+                        package_name: Annotated::new(<span class="string">"io.sentry.samples"</span>.to_string()),
+                        class_name: Annotated::new(<span class="string">"MainActivity"</span>.to_string()),
                         thread_id: Annotated::new(ThreadId::Int(<span class="number">7</span>)),
                         other: Default::default(),
                     }),
                 );
                 locks.insert(
-                    <span class="string">&quot;0x0d3a2f0a&quot;</span>.to_string(),
+                    <span class="string">"0x0d3a2f0a"</span>.to_string(),
                     Annotated::new(LockReason {
                         ty: Annotated::new(LockReasonType::Locked),
                         address: Annotated::empty(),
-                        package_name: Annotated::new(<span class="string">&quot;android.database.sqlite&quot;</span>.to_string()),
-                        class_name: Annotated::new(<span class="string">&quot;SQLiteConnection&quot;</span>.to_string()),
+                        package_name: Annotated::new(<span class="string">"android.database.sqlite"</span>.to_string()),
+                        class_name: Annotated::new(<span class="string">"SQLiteConnection"</span>.to_string()),
                         thread_id: Annotated::new(ThreadId::Int(<span class="number">2</span>)),
                         other: Default::default(),
                     }),
@@ -780,8 +781,8 @@
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },

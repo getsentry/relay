@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/view.rs`."><title>view.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/view.rs`."><title>view.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1109,7 +1110,7 @@
 
 <span class="doccomment">/// The base size of a serialized bucket in bytes.
 ///
-/// This is the size of a bucket&#39;s fixed fields in JSON format, excluding the value and tags.
+/// This is the size of a bucket's fixed fields in JSON format, excluding the value and tags.
 </span><span class="kw">const </span>BUCKET_SIZE: usize = <span class="number">50</span>;
 
 <span class="doccomment">/// The average size of values when serialized.
@@ -1147,9 +1148,9 @@
 ///
 /// Using the above example, iterating over `View 1` yields the buckets:
 /// `[C:1], [C:12], [D:0, 1, 2, 3]`.
-</span><span class="kw">pub struct </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Source slice of buckets.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket],
+    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket],
     <span class="doccomment">/// Start index.
     ///
     /// - Slice index indicates bucket.
@@ -1162,9 +1163,9 @@
     </span>end: Index,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketsView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new buckets view containing all data from the slice.
-    </span><span class="kw">pub fn </span>new(buckets: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket]) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(buckets: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             inner: buckets,
             start: Index {
@@ -1193,35 +1194,35 @@
     </span>}
 
     <span class="doccomment">/// Iterator over all buckets in the view.
-    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsViewIter&lt;<span class="lifetime">'a</span>&gt; {
         BucketsViewIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end)
     }
 
     <span class="doccomment">/// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
-    </span><span class="kw">pub fn </span>by_size(<span class="kw-2">&amp;</span><span class="self">self</span>, size_in_bytes: usize) -&gt; BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>by_size(<span class="kw-2">&amp;</span><span class="self">self</span>, size_in_bytes: usize) -&gt; BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
         BucketsViewBySizeIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end, size_in_bytes)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Debug <span class="kw">for </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span>contents = <span class="self">self</span>.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-        f.debug_tuple(<span class="string">&quot;BucketsView&quot;</span>).field(<span class="kw-2">&amp;</span>contents).finish()
+        f.debug_tuple(<span class="string">"BucketsView"</span>).field(<span class="kw-2">&amp;</span>contents).finish()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">&#39;a</span>&gt;;
-    <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">'a</span>&gt;;
+    <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
         <span class="self">self</span>.iter()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">&#39;a</span>&gt;;
-    <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">'a</span>&gt;;
+    <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
         <span class="self">self</span>.iter()
@@ -1231,20 +1232,20 @@
 <span class="doccomment">/// Iterator yielding all items contained in a [`BucketsView`].
 ///
 /// First and/or last item may be partial buckets.
-</span><span class="kw">pub struct </span>BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketsViewIter&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Source slice of buckets.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket],
+    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket],
     <span class="doccomment">/// Current index.
     </span>current: Index,
     <span class="doccomment">/// End index.
     </span>end: Index,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketsViewIter&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new iterator.
     ///
     /// Start and end must be valid indices or iterator may end early.
-    </span><span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket], start: Index, end: Index) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket], start: Index, end: Index) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             inner,
             end,
@@ -1253,8 +1254,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">&#39;a</span>&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>BucketsViewIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
         <span class="comment">// We reached the exact end, there is no sub-bucket index.
@@ -1266,10 +1267,10 @@
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="comment">// This doesn&#39;t overflow because the last bucket in the inner slice will always have a 0 bucket index.
+        <span class="comment">// This doesn't overflow because the last bucket in the inner slice will always have a 0 bucket index.
         </span><span class="macro">debug_assert!</span>(
             <span class="self">self</span>.current.slice &lt; <span class="self">self</span>.inner.len(),
-            <span class="string">&quot;invariant violated, iterator pointing past the slice&quot;
+            <span class="string">"invariant violated, iterator pointing past the slice"
         </span>);
         <span class="kw">let </span>next = <span class="self">self</span>.inner.get(<span class="self">self</span>.current.slice)<span class="question-mark">?</span>;
 
@@ -1281,8 +1282,8 @@
 
         <span class="kw">let </span>next = BucketView::new(next).select(<span class="self">self</span>.current.bucket..end);
         <span class="kw">let </span><span class="prelude-val">Some</span>(next) = next <span class="kw">else </span>{
-            <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">&quot;invariant violated, invalid bucket split&quot;</span>);
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;Internal invariant violated, invalid bucket split, dropping all remaining buckets.&quot;</span>);
+            <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"invariant violated, invalid bucket split"</span>);
+            <span class="macro">relay_log::error!</span>(<span class="string">"Internal invariant violated, invalid bucket split, dropping all remaining buckets."</span>);
             <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
@@ -1300,9 +1301,9 @@
 <span class="doccomment">/// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
 </span><span class="comment">// See [`estimate_size`] for how the size of a bucket is calculated.
-</span><span class="kw">pub struct </span>BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Source slice.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket],
+    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket],
     <span class="doccomment">/// Current position in the slice.
     </span>current: Index,
     <span class="doccomment">/// Terminal position.
@@ -1311,11 +1312,11 @@
     </span>max_size_bytes: usize,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new iterator.
     ///
     /// Start and end must be valid indices or iterator may end early.
-    </span><span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket], start: Index, end: Index, max_size_bytes: usize) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket], start: Index, end: Index, max_size_bytes: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             inner,
             end,
@@ -1325,15 +1326,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = BucketsView&lt;<span class="lifetime">&#39;a</span>&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = BucketsView&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
         <span class="kw">let </span>start = <span class="self">self</span>.current;
 
         <span class="kw">let </span><span class="kw-2">mut </span>remaining_bytes = <span class="self">self</span>.max_size_bytes;
         <span class="kw">loop </span>{
-            <span class="comment">// Make sure, we don&#39;t shoot past the end ...
+            <span class="comment">// Make sure, we don't shoot past the end ...
             </span><span class="kw">if </span>(<span class="self">self</span>.current.slice &gt; <span class="self">self</span>.end.slice)
                 || (<span class="self">self</span>.current.slice == <span class="self">self</span>.end.slice &amp;&amp; <span class="self">self</span>.end.bucket == <span class="number">0</span>)
             {
@@ -1345,7 +1346,7 @@
             // we just validated that current is constrained by end.
             </span><span class="macro">debug_assert!</span>(
                 <span class="self">self</span>.current.slice &lt; <span class="self">self</span>.inner.len(),
-                <span class="string">&quot;invariant violated, iterator pointing past the slice&quot;
+                <span class="string">"invariant violated, iterator pointing past the slice"
             </span>);
             <span class="kw">let </span>bucket = <span class="self">self</span>.inner.get(<span class="self">self</span>.current.slice)<span class="question-mark">?</span>;
 
@@ -1353,8 +1354,8 @@
             // or we previously already split the bucket, which means this range is good.
             </span><span class="kw">let </span>bucket = BucketView::new(bucket).select(<span class="self">self</span>.current.bucket..bucket.value.len());
             <span class="kw">let </span><span class="prelude-val">Some</span>(bucket) = bucket <span class="kw">else </span>{
-                <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">&quot;internal invariant violated, invalid bucket split&quot;</span>);
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Internal invariant violated, invalid bucket split, dropping all remaining buckets.&quot;</span>);
+                <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"internal invariant violated, invalid bucket split"</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">"Internal invariant violated, invalid bucket split, dropping all remaining buckets."</span>);
                 <span class="kw">return </span><span class="prelude-val">None</span>;
             };
 
@@ -1384,7 +1385,7 @@
 
         <span class="kw">if </span>start == <span class="self">self</span>.current {
             <span class="comment">// Either no progress could be made (not enough space to fit a bucket),
-            // or we&#39;re done.
+            // or we're done.
             </span><span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
@@ -1398,7 +1399,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Serialize <span class="kw">for </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Serialize <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -1426,19 +1427,19 @@
 ///
 /// A view can be split again into multiple smaller views.
 </span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The source bucket.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket,
+    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Bucket,
     <span class="doccomment">/// Non-empty and valid range into the bucket.
     /// The full range is constrained by `0..bucket.value.len()`
     </span>range: Range&lt;usize&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new bucket view of a bucket.
     ///
     /// The resulting view contains the entire bucket.
-    </span><span class="kw">pub fn </span>new(bucket: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(bucket: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Bucket) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             inner: bucket,
             range: <span class="number">0</span>..bucket.value.len(),
@@ -1467,7 +1468,7 @@
     }
 
     <span class="doccomment">/// Value of the bucket view.
-    </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketViewValue&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketViewValue&lt;<span class="lifetime">'a</span>&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.inner.value {
             BucketValue::Counter(c) =&gt; BucketViewValue::Counter(<span class="kw-2">*</span>c),
             BucketValue::Distribution(d) =&gt; BucketViewValue::Distribution(<span class="kw-2">&amp;</span>d[<span class="self">self</span>.range.clone()]),
@@ -1577,25 +1578,25 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Debug <span class="kw">for </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;BucketView&quot;</span>)
-            .field(<span class="string">&quot;timestamp&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.timestamp)
-            .field(<span class="string">&quot;width&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.width)
-            .field(<span class="string">&quot;name&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.name)
-            .field(<span class="string">&quot;value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value())
-            .field(<span class="string">&quot;tags&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.tags)
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>BucketView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"BucketView"</span>)
+            .field(<span class="string">"timestamp"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.timestamp)
+            .field(<span class="string">"width"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.width)
+            .field(<span class="string">"name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.name)
+            .field(<span class="string">"value"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value())
+            .field(<span class="string">"tags"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.tags)
             .finish()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket&gt; <span class="kw">for </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Bucket&gt; <span class="kw">for </span>BucketView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Bucket) -&gt; <span class="self">Self </span>{
         BucketView::new(value)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Serialize <span class="kw">for </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Serialize <span class="kw">for </span>BucketView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -1615,9 +1616,9 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>state = serializer.serialize_map(<span class="prelude-val">Some</span>(len))<span class="question-mark">?</span>;
 
-        state.serialize_entry(<span class="string">&quot;timestamp&quot;</span>, timestamp)<span class="question-mark">?</span>;
-        state.serialize_entry(<span class="string">&quot;width&quot;</span>, width)<span class="question-mark">?</span>;
-        state.serialize_entry(<span class="string">&quot;name&quot;</span>, name)<span class="question-mark">?</span>;
+        state.serialize_entry(<span class="string">"timestamp"</span>, timestamp)<span class="question-mark">?</span>;
+        state.serialize_entry(<span class="string">"width"</span>, width)<span class="question-mark">?</span>;
+        state.serialize_entry(<span class="string">"name"</span>, name)<span class="question-mark">?</span>;
 
         <span class="kw">if </span><span class="self">self</span>.is_full_bucket() {
             <span class="self">self</span>.inner
@@ -1629,7 +1630,7 @@
         }
 
         <span class="kw">if </span>!tags.is_empty() {
-            state.serialize_entry(<span class="string">&quot;tags&quot;</span>, tags)<span class="question-mark">?</span>;
+            state.serialize_entry(<span class="string">"tags"</span>, tags)<span class="question-mark">?</span>;
         }
 
         state.end()
@@ -1638,32 +1639,32 @@
 
 <span class="doccomment">/// A view into the datapoints of a [`BucketValue`].
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>, content = <span class="string">&quot;value&quot;</span>)]
-</span><span class="kw">pub enum </span>BucketViewValue&lt;<span class="lifetime">&#39;a</span>&gt; {
+#[serde(tag = <span class="string">"type"</span>, content = <span class="string">"value"</span>)]
+</span><span class="kw">pub enum </span>BucketViewValue&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// A counter metric.
     ///
     /// See: [`BucketValue::Counter`].
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;c&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"c"</span>)]
     </span>Counter(CounterType),
     <span class="doccomment">/// A distribution metric.
     ///
     /// See: [`BucketValue::Distribution`].
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;d&quot;</span>)]
-    </span>Distribution(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[DistributionType]),
+    </span><span class="attr">#[serde(rename = <span class="string">"d"</span>)]
+    </span>Distribution(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[DistributionType]),
     <span class="doccomment">/// A set metric.
     ///
     /// See: [`BucketValue::Set`].
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;s&quot;</span>)]
-    </span>Set(SetView&lt;<span class="lifetime">&#39;a</span>&gt;),
+    </span><span class="attr">#[serde(rename = <span class="string">"s"</span>)]
+    </span>Set(SetView&lt;<span class="lifetime">'a</span>&gt;),
     <span class="doccomment">/// A gauage metric.
     ///
     /// See: [`BucketValue::Gauge`].
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;g&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"g"</span>)]
     </span>Gauge(GaugeValue),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BucketValue&gt; <span class="kw">for </span>BucketViewValue&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BucketValue) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BucketValue&gt; <span class="kw">for </span>BucketViewValue&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BucketValue) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>value {
             BucketValue::Counter(c) =&gt; BucketViewValue::Counter(<span class="kw-2">*</span>c),
             BucketValue::Distribution(d) =&gt; BucketViewValue::Distribution(d),
@@ -1675,13 +1676,13 @@
 
 <span class="doccomment">/// A view into the datapoints of a set metric.
 </span><span class="attr">#[derive(Clone)]
-</span><span class="kw">pub struct </span>SetView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    source: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SetValue,
+</span><span class="kw">pub struct </span>SetView&lt;<span class="lifetime">'a</span>&gt; {
+    source: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SetValue,
     range: Range&lt;usize&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; SetView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(source: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SetValue, range: Range&lt;usize&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; SetView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(source: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SetValue, range: Range&lt;usize&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ source, range }
     }
 
@@ -1704,21 +1705,21 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PartialEq <span class="kw">for </span>SetView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PartialEq <span class="kw">for </span>SetView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.iter().eq(other.iter())
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Debug <span class="kw">for </span>SetView&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_tuple(<span class="string">&quot;SetView&quot;</span>)
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>SetView&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_tuple(<span class="string">"SetView"</span>)
             .field(<span class="kw-2">&amp;</span><span class="self">self</span>.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;())
             .finish()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Serialize <span class="kw">for </span>SetView&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Serialize <span class="kw">for </span>SetView&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -1756,8 +1757,8 @@
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
 /// `estimate_size` for more information.
-</span><span class="kw">fn </span>split_at(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;, max_size: usize, min_split_size: usize) -&gt; SplitDecision {
-    <span class="comment">// If there&#39;s enough space for the entire bucket, do not perform a split.
+</span><span class="kw">fn </span>split_at(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'_</span>&gt;, max_size: usize, min_split_size: usize) -&gt; SplitDecision {
+    <span class="comment">// If there's enough space for the entire bucket, do not perform a split.
     </span><span class="kw">let </span>bucket_size = bucket.estimated_size();
     <span class="kw">if </span>max_size &gt;= bucket_size {
         <span class="kw">return </span>SplitDecision::BucketFits(bucket_size);
@@ -1767,7 +1768,7 @@
         <span class="kw">return </span>SplitDecision::MoveToNextBatch;
     }
 
-    <span class="comment">// If the bucket key can&#39;t even fit into the remaining length, move the entire bucket into
+    <span class="comment">// If the bucket key can't even fit into the remaining length, move the entire bucket into
     // the right-hand side.
     </span><span class="kw">let </span>own_size = bucket.estimated_base_size();
     <span class="kw">if </span>max_size &lt; (own_size + AVG_VALUE_SIZE) {
@@ -1794,7 +1795,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_counter() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b0:1|c&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b0:1|c"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">1</span>).unwrap();
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">1</span>);
@@ -1806,7 +1807,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_invalid_counter() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b0:1|c&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b0:1|c"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">0</span>).is_none());
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">2</span>).is_none());
@@ -1815,7 +1816,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_distribution() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b2:1:2:3:5:5|d&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b2:1:2:3:5:5|d"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">3</span>).unwrap();
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">3</span>);
@@ -1839,7 +1840,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_invalid_distribution() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b2:1:2:3:5:5|d&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b2:1:2:3:5:5|d"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">6</span>).is_none());
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">5</span>..<span class="number">6</span>).is_none());
@@ -1848,7 +1849,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_set() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b3:42:75|s&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b3:42:75|s"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
         <span class="kw">let </span>s = [<span class="number">42</span>, <span class="number">75</span>].into();
 
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">2</span>).unwrap();
@@ -1864,7 +1865,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_invalid_set() {
-        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b&quot;b3:42:75|s&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b3:42:75|s"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">3</span>).is_none());
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">2</span>..<span class="number">5</span>).is_none());
@@ -1874,7 +1875,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_gauge() {
         <span class="kw">let </span>bucket =
-            Bucket::parse(<span class="string">b&quot;b4:25:17:42:220:85|g&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+            Bucket::parse(<span class="string">b"b4:25:17:42:220:85|g"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">5</span>).unwrap();
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">5</span>);
@@ -1893,7 +1894,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_view_select_invalid_gauge() {
         <span class="kw">let </span>bucket =
-            Bucket::parse(<span class="string">b&quot;b4:25:17:42:220:85|g&quot;</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+            Bucket::parse(<span class="string">b"b4:25:17:42:220:85|g"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
 
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">1</span>).is_none());
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">0</span>..<span class="number">4</span>).is_none());
@@ -1913,11 +1914,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_full() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -1929,23 +1930,23 @@ b3:42:75|s&quot;#</span>;
         <span class="macro">assert!</span>(!view.is_empty());
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(partials.len(), <span class="number">4</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">&quot;c:custom/b0@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">"c:custom/b0@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">&quot;c:custom/b1@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">"c:custom/b1@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].name(), <span class="string">&quot;d:custom/b2@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].name(), <span class="string">"d:custom/b2@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].len(), <span class="number">5</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">3</span>].name(), <span class="string">&quot;s:custom/b3@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">3</span>].name(), <span class="string">"s:custom/b3@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">3</span>].len(), <span class="number">2</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_end() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -1960,21 +1961,21 @@ b3:42:75|s&quot;#</span>;
 
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(partials.len(), <span class="number">3</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">&quot;c:custom/b0@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">"c:custom/b0@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">&quot;c:custom/b1@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">"c:custom/b1@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].name(), <span class="string">&quot;d:custom/b2@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].name(), <span class="string">"d:custom/b2@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">2</span>].len(), <span class="number">3</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_start() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -1989,19 +1990,19 @@ b3:42:75|s&quot;#</span>;
 
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(partials.len(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">&quot;d:custom/b2@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">"d:custom/b2@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].len(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">&quot;s:custom/b3@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">"s:custom/b3@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].len(), <span class="number">2</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_start_and_end() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2018,19 +2019,19 @@ b3:42:75|s&quot;#</span>;
 
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(partials.len(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">&quot;d:custom/b2@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].name(), <span class="string">"d:custom/b2@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">0</span>].len(), <span class="number">4</span>);
-        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">&quot;s:custom/b3@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].name(), <span class="string">"s:custom/b3@none"</span>);
         <span class="macro">assert_eq!</span>(partials[<span class="number">1</span>].len(), <span class="number">1</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_small() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2052,11 +2053,11 @@ b3:42:75|s&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_one_split() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2078,11 +2079,11 @@ b3:42:75|s&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_no_split() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2104,11 +2105,11 @@ b3:42:75|s&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_no_too_small_no_bucket_fits() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c
 b2:1:2:3:5:5|d
-b3:42:75|s&quot;#</span>;
+b3:42:75|s"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2125,8 +2126,8 @@ b3:42:75|s&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_do_not_split_gauge() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
-transactions/foo:25:17:42:220:85|g&quot;#</span>;
+        <span class="kw">let </span>b = <span class="string">br#"
+transactions/foo:25:17:42:220:85|g"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2143,12 +2144,12 @@ transactions/foo:25:17:42:220:85|g&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_serialize_full() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b0:1|c
 b1:12|c|#foo,bar:baz
 b2:1:2:3:5:5|d|#foo,bar:baz
 b3:42:75|s
-transactions/foo:25:17:42:220:85|g&quot;#</span>;
+transactions/foo:25:17:42:220:85|g"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
@@ -2163,11 +2164,11 @@ transactions/foo:25:17:42:220:85|g&quot;#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_serialize_partial() {
-        <span class="kw">let </span>b = <span class="string">br#&quot;
+        <span class="kw">let </span>b = <span class="string">br#"
 b1:12|c|#foo,bar:baz
 b2:1:2:3:5:5|d|#foo,bar:baz
 b3:42:75|s
-b4:25:17:42:220:85|g&quot;#</span>;
+b4:25:17:42:220:85|g"#</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
         <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)

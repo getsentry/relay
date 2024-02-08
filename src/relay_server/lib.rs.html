@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -329,10 +330,10 @@
 //!
 //! loadbalancer(Load Balancer)
 //! relay(Relay)
-//! projectconfigs(&quot;Project config endpoint (in Sentry)&quot;)
+//! projectconfigs("Project config endpoint (in Sentry)")
 //! ingestconsumer(Ingest Consumer)
 //! outcomesconsumer(Outcomes Consumer)
-//! preprocess{&quot;&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)&quot;}
+//! preprocess{"&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)"}
 //! process(&lt;code&gt;process_event&lt;/code&gt;)
 //! save(&lt;code&gt;save_event&lt;/code&gt;)
 //!
@@ -349,7 +350,7 @@
 //!
 //! ## Processing enabled vs not?
 //!
-//! Relay can run as part of a Sentry installation, such as within `sentry.io`&#39;s
+//! Relay can run as part of a Sentry installation, such as within `sentry.io`'s
 //! infrastructure, or next to the application as a forwarding proxy. A lot of
 //! steps described here are skipped or run in a limited form when Relay is *not*
 //! running with processing enabled:
@@ -390,7 +391,7 @@
 //! actually attempt to populate it at this stage. **It just returns a `200` even
 //! though the event might be dropped later.** This implies:
 //!
-//! *  The first store request that runs into a rate limit doesn&#39;t actually result
+//! *  The first store request that runs into a rate limit doesn't actually result
 //!    in a `429`, but a subsequent request will (because by that time the project
 //!    cache will have been updated).
 //!
@@ -411,14 +412,14 @@
 //!
 //! The response is completed at this point. All expensive work (such as talking to
 //! external services) is deferred into a background task. Except for responding to
-//! the HTTP request, there&#39;s no I/O done in the endpoint in any form. We didn&#39;t
+//! the HTTP request, there's no I/O done in the endpoint in any form. We didn't
 //! even hit Redis to calculate rate limits.
 //!
 //! ### Summary
 //!
 //! The HTTP response returned is just a best-effort guess at what the actual
 //! outcome of the event is going to be. We only return a `4xx` code if we know that
-//! the response will fail (based on cached information), if we don&#39;t we return a
+//! the response will fail (based on cached information), if we don't we return a
 //! 200 and continue to process the event asynchronously. This asynchronous
 //! processing used to happen synchronously in the Python implementation of
 //! `StoreView`.
@@ -442,7 +443,7 @@
 //!     not overload Sentry too much.
 //!
 //!     At this stage Relay may drop the event because it realized that the DSN was
-//!     invalid or the project didn&#39;t even exist. The next incoming event will get a
+//!     invalid or the project didn't even exist. The next incoming event will get a
 //!     proper 4xx status code.
 //!
 //! 1.  **The event is parsed.** In the endpoint we only did decompression, a basic
@@ -457,18 +458,18 @@
 //!     from deprecated fields to newer fields and generally just does schema
 //!     validation.
 //!
-//! 1.  **Filters (&quot;inbound filters&quot;) are applied.** Event may be discarded because of IP
+//! 1.  **Filters ("inbound filters") are applied.** Event may be discarded because of IP
 //!     addresses, patterns on the error message or known web crawlers.
 //!
-//! 1.  **Exact rate limits (&quot;quotas&quot;) are applied.** `is_rate_limited.lua` is
-//!     executed on Redis. The input parameters for `is_rate_limited.lua` (&quot;quota
-//!     objects&quot;) are part of the project config. See [this pull
+//! 1.  **Exact rate limits ("quotas") are applied.** `is_rate_limited.lua` is
+//!     executed on Redis. The input parameters for `is_rate_limited.lua` ("quota
+//!     objects") are part of the project config. See [this pull
 //!     request](https://github.com/getsentry/sentry/pull/14558) for an explanation
 //!     of what quota objects are.
 //!
 //!     The event may be discarded here. If so, we write the rate limit info
 //!     (reason and expiration timestamp) into the in-memory project cache so that
-//!     the next store request returns a 429 in the endpoint and doesn&#39;t hit Redis
+//!     the next store request returns a 429 in the endpoint and doesn't hit Redis
 //!     at all.
 //!
 //!     This contraption has the advantage that suspended or permanently
@@ -552,16 +553,16 @@
 //! deactivate envelopemanager
 //! ```
 //!
-//! &lt;script src=&quot;https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js&quot;&gt;&lt;/script&gt;
+//! &lt;script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"&gt;&lt;/script&gt;
 //! &lt;script&gt;
-//! mermaid.init({}, &quot;.language-mermaid code&quot;);
+//! mermaid.init({}, ".language-mermaid code");
 //! // Could not get dark mode in mermaid to work
-//! Array.from(document.getElementsByTagName(&#39;svg&#39;)).map(x =&gt; x.style.background = &quot;white&quot;)
+//! Array.from(document.getElementsByTagName('svg')).map(x =&gt; x.style.background = "white")
 //! &lt;/script&gt;
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
@@ -595,10 +596,10 @@
 /// the `config` passed into this funciton.
 </span><span class="kw">pub fn </span>run(config: Config) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>config = Arc::new(config);
-    <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
+    <span class="macro">relay_log::info!</span>(<span class="string">"relay server starting"</span>);
 
     <span class="comment">// Creates the main runtime.
-    </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
+    </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
 
     <span class="comment">// Create secondary service runtimes.
     //
@@ -619,7 +620,7 @@
     drop(runtimes);
     drop(main_runtime);
 
-    <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
+    <span class="macro">relay_log::info!</span>(<span class="string">"relay shutdown complete"</span>);
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div></section></main></body></html>

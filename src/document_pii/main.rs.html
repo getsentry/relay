@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -285,8 +286,8 @@
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -318,10 +319,10 @@
     <span class="kw">let </span><span class="kw-2">mut </span>rs_files = Vec::new();
 
     <span class="kw">for </span>entry <span class="kw">in </span>walker.filter_map(walkdir::Result::ok) {
-        <span class="kw">if </span>!entry.path().to_string_lossy().contains(<span class="string">&quot;src&quot;</span>) {
+        <span class="kw">if </span>!entry.path().to_string_lossy().contains(<span class="string">"src"</span>) {
             <span class="kw">continue</span>;
         }
-        <span class="kw">if </span>entry.file_type().is_file() &amp;&amp; entry.path().extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">&quot;rs&quot;</span>)
+        <span class="kw">if </span>entry.file_type().is_file() &amp;&amp; entry.path().extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">"rs"</span>)
         {
             rs_files.push(entry.into_path());
         }
@@ -346,8 +347,8 @@
     </span><span class="attr">#[arg(short, long)]
     </span><span class="kw">pub </span>item: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
-    <span class="doccomment">/// Vector of which PII-values should be looked for, options are: &quot;true, maybe, false&quot;.
-    </span><span class="attr">#[arg(long, default_value = <span class="string">&quot;true&quot;</span>)]
+    <span class="doccomment">/// Vector of which PII-values should be looked for, options are: "true, maybe, false".
+    </span><span class="attr">#[arg(long, default_value = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>pii_values: Vec&lt;String&gt;,
 }
 
@@ -356,8 +357,8 @@
         <span class="comment">// User must either provide the path to a rust crate/workspace or be in one when calling this script.
         </span><span class="kw">let </span>path = <span class="kw">match </span><span class="self">self</span>.path.clone() {
             <span class="prelude-val">Some</span>(path) =&gt; {
-                <span class="kw">if </span>!path.join(<span class="string">&quot;Cargo.toml&quot;</span>).exists() {
-                    <span class="macro">anyhow::bail!</span>(<span class="string">&quot;Please provide the path to a rust crate/workspace&quot;</span>);
+                <span class="kw">if </span>!path.join(<span class="string">"Cargo.toml"</span>).exists() {
+                    <span class="macro">anyhow::bail!</span>(<span class="string">"Please provide the path to a rust crate/workspace"</span>);
                 }
                 path
             }
@@ -395,7 +396,7 @@
 <span class="kw">impl </span>Output {
     <span class="kw">fn </span>new(pii_type: FieldsWithAttribute) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="self">Self </span>{
-            additional_properties: pii_type.attributes.contains_key(<span class="string">&quot;additional_properties&quot;</span>),
+            additional_properties: pii_type.attributes.contains_key(<span class="string">"additional_properties"</span>),
             ..Default::default()
         };
 
@@ -405,15 +406,15 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>iter = pii_type.type_and_fields.iter().peekable();
         <span class="kw">while let </span><span class="prelude-val">Some</span>(path) = iter.next() {
-            <span class="comment">// If field has attribute &quot;additional_properties&quot; it means it&#39;s not a real field
+            <span class="comment">// If field has attribute "additional_properties" it means it's not a real field
             // but represents unstrucutred data. So we remove it and pass the information as a boolean
             // in order to properly document this fact in the docs.
             </span><span class="kw">if </span>!(output.additional_properties &amp;&amp; iter.peek().is_none()) {
-                output.path.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;.{}&quot;</span>, path.field_ident));
+                output.path.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">".{}"</span>, path.field_ident));
             }
         }
 
-        output.path = output.path.replace(<span class="string">&quot;{{Unnamed}}.&quot;</span>, <span class="string">&quot;&quot;</span>);
+        output.path = output.path.replace(<span class="string">"{{Unnamed}}."</span>, <span class="string">""</span>);
         output
     }
 
@@ -430,11 +431,11 @@
 }
 
 <span class="kw">fn </span>print_error(error: <span class="kw-2">&amp;</span>anyhow::Error) {
-    <span class="macro">eprintln!</span>(<span class="string">&quot;Error: {error}&quot;</span>);
+    <span class="macro">eprintln!</span>(<span class="string">"Error: {error}"</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>cause = error.source();
     <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>e) = cause {
-        <span class="macro">eprintln!</span>(<span class="string">&quot;  caused by: {e}&quot;</span>);
+        <span class="macro">eprintln!</span>(<span class="string">"  caused by: {e}"</span>);
         cause = e.source();
     }
 }
@@ -459,7 +460,7 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">const </span>RUST_TEST_CRATE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;../../tests/test_pii_docs&quot;</span>;
+    <span class="kw">const </span>RUST_TEST_CRATE: <span class="kw-2">&amp;</span>str = <span class="string">"../../tests/test_pii_docs"</span>;
 
     <span class="kw">fn </span>get_types_and_use_statements() -&gt; TypesAndScopedPaths {
         <span class="kw">let </span>rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
@@ -468,7 +469,7 @@
     }
 
     <span class="comment">// On windows the assert fails because of how file paths are different there.
-    </span><span class="attr">#[cfg(not(target_os = <span class="string">&quot;windows&quot;</span>))]
+    </span><span class="attr">#[cfg(not(target_os = <span class="string">"windows"</span>))]
     #[test]
     </span><span class="kw">fn </span>test_find_rs_files() {
         <span class="kw">let </span>rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
@@ -482,7 +483,7 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields(<span class="prelude-val">Some</span>(<span class="string">&quot;test_pii_docs::SubStruct&quot;</span>), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">Some</span>(<span class="string">"test_pii_docs::SubStruct"</span>), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()])
             .unwrap();
 
         <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -502,7 +503,7 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()])
             .unwrap();
 
         <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -514,7 +515,7 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;false&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"false"</span>.to_string()])
             .unwrap();
 
         <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -528,7 +529,7 @@
         <span class="kw">let </span>pii_types = types_and_use_statements
             .find_pii_fields(
                 <span class="prelude-val">None</span>,
-                <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string(), <span class="string">&quot;false&quot;</span>.to_string(), <span class="string">&quot;maybe&quot;</span>.to_string()],
+                <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string(), <span class="string">"false"</span>.to_string(), <span class="string">"maybe"</span>.to_string()],
             )
             .unwrap();
 
@@ -539,14 +540,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_pii_retain_additional_properties_truth_table()
     <span class="comment">/*
-    Fields should be chosen if there is a pii match, and either retain = &quot;true&quot;, or there&#39;s no
-    &quot;additional_properties&quot; attribute.
-    Logic: ((pii match) &amp; (retain = &quot;true&quot; | !additional_properties))
+    Fields should be chosen if there is a pii match, and either retain = "true", or there's no
+    "additional_properties" attribute.
+    Logic: ((pii match) &amp; (retain = "true" | !additional_properties))
 
     truth table:
 
     +-----------+-----------------+----------  ------------+----------+
-    | pii match | retain = &quot;true&quot; | !additional_properties | selected |
+    | pii match | retain = "true" | !additional_properties | selected |
     +-----------+----------------------+-------------------+----------+
     | True      | True            | True                   | True     |
     | True      | True            | False                  | True     |
@@ -563,7 +564,7 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;truth_table_test&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"truth_table_test"</span>.to_string()])
             .unwrap();
 
         <span class="kw">let </span>output = Output::from_btreeset(pii_types);

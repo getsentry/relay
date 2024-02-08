@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/convert.rs`."><title>convert.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/convert.rs`."><title>convert.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1636,14 +1637,14 @@
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 </span><span class="kw">static </span>DATASCRUBBER_IGNORE: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
-    <span class="string">&quot;(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)&quot;
+    <span class="string">"(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)"
         </span>.parse()
         .unwrap()
 });
 
 <span class="doccomment">/// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 </span><span class="kw">static </span>KNOWN_IP_FIELDS: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
-    <span class="string">&quot;($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)&quot;
+    <span class="string">"($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
         </span>.parse()
         .unwrap()
 });
@@ -1651,31 +1652,31 @@
 <span class="kw">static </span>SENSITIVE_COOKIES: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
     [
         <span class="comment">// Common session cookie names for popular web frameworks
-        </span><span class="string">&quot;*.cookies.sentrysid&quot;</span>, <span class="comment">// Sentry default session cookie name
-        </span><span class="string">&quot;*.cookies.sudo&quot;</span>,      <span class="comment">// Sentry default sudo cookie name
-        </span><span class="string">&quot;*.cookies.su&quot;</span>,        <span class="comment">// Sentry superuser cookie name
-        </span><span class="string">&quot;*.cookies.session&quot;</span>,
-        <span class="string">&quot;*.cookies.__session&quot;</span>,
-        <span class="string">&quot;*.cookies.sessionid&quot;</span>,
-        <span class="string">&quot;*.cookies.user_session&quot;</span>,
-        <span class="string">&quot;*.cookies.symfony&quot;</span>,
-        <span class="string">&quot;*.cookies.phpsessid&quot;</span>,
-        <span class="string">&quot;*.cookies.fasthttpsessionid&quot;</span>,
-        <span class="string">&quot;*.cookies.mysession&quot;</span>,
-        <span class="string">&quot;*.cookies.irissessionid&quot;</span>,
+        </span><span class="string">"*.cookies.sentrysid"</span>, <span class="comment">// Sentry default session cookie name
+        </span><span class="string">"*.cookies.sudo"</span>,      <span class="comment">// Sentry default sudo cookie name
+        </span><span class="string">"*.cookies.su"</span>,        <span class="comment">// Sentry superuser cookie name
+        </span><span class="string">"*.cookies.session"</span>,
+        <span class="string">"*.cookies.__session"</span>,
+        <span class="string">"*.cookies.sessionid"</span>,
+        <span class="string">"*.cookies.user_session"</span>,
+        <span class="string">"*.cookies.symfony"</span>,
+        <span class="string">"*.cookies.phpsessid"</span>,
+        <span class="string">"*.cookies.fasthttpsessionid"</span>,
+        <span class="string">"*.cookies.mysession"</span>,
+        <span class="string">"*.cookies.irissessionid"</span>,
         <span class="comment">// Common CSRF/XSRF cookie names for popular web frameworks
-        </span><span class="string">&quot;*.cookies.csrf&quot;</span>,
-        <span class="string">&quot;*.cookies.xsrf&quot;</span>,
-        <span class="string">&quot;*.cookies._xsrf&quot;</span>,
-        <span class="string">&quot;*.cookies._csrf&quot;</span>,
-        <span class="string">&quot;*.cookies.csrf-token&quot;</span>,
-        <span class="string">&quot;*.cookies.csrf_token&quot;</span>,
-        <span class="string">&quot;*.cookies.xsrf-token&quot;</span>,
-        <span class="string">&quot;*.cookies.xsrf_token&quot;</span>,
-        <span class="string">&quot;*.cookies.fastcsrf&quot;</span>,
-        <span class="string">&quot;*.cookies._iris_csrf&quot;</span>,
+        </span><span class="string">"*.cookies.csrf"</span>,
+        <span class="string">"*.cookies.xsrf"</span>,
+        <span class="string">"*.cookies._xsrf"</span>,
+        <span class="string">"*.cookies._csrf"</span>,
+        <span class="string">"*.cookies.csrf-token"</span>,
+        <span class="string">"*.cookies.csrf_token"</span>,
+        <span class="string">"*.cookies.xsrf-token"</span>,
+        <span class="string">"*.cookies.xsrf_token"</span>,
+        <span class="string">"*.cookies.fastcsrf"</span>,
+        <span class="string">"*.cookies._iris_csrf"</span>,
     ]
-    .join(<span class="string">&quot;|&quot;</span>)
+    .join(<span class="string">"|"</span>)
     .parse()
     .unwrap()
 });
@@ -1688,19 +1689,19 @@
     <span class="kw">let </span><span class="kw-2">mut </span>applications = BTreeMap::new();
 
     <span class="kw">if </span>datascrubbing_config.scrub_data &amp;&amp; datascrubbing_config.scrub_defaults {
-        applied_rules.push(<span class="string">&quot;@common:filter&quot;</span>.to_owned());
+        applied_rules.push(<span class="string">"@common:filter"</span>.to_owned());
         applications.insert(
             SENSITIVE_COOKIES.clone(),
-            <span class="macro">vec!</span>[<span class="string">&quot;@anything:filter&quot;</span>.to_owned()],
+            <span class="macro">vec!</span>[<span class="string">"@anything:filter"</span>.to_owned()],
         );
     }
 
     <span class="kw">if </span>datascrubbing_config.scrub_ip_addresses {
         <span class="comment">// legacy(?) scrubs all fields that are known to have IPs regardless of actual content
-        </span>applications.insert(KNOWN_IP_FIELDS.clone(), <span class="macro">vec!</span>[<span class="string">&quot;@anything:remove&quot;</span>.to_owned()]);
+        </span>applications.insert(KNOWN_IP_FIELDS.clone(), <span class="macro">vec!</span>[<span class="string">"@anything:remove"</span>.to_owned()]);
 
         <span class="comment">// checks actual contents of all fields and scrubs where there is an IP address
-        </span>applied_rules.push(<span class="string">&quot;@ip:replace&quot;</span>.to_owned());
+        </span>applied_rules.push(<span class="string">"@ip:replace"</span>.to_owned());
     }
 
     <span class="kw">if </span>datascrubbing_config.scrub_data {
@@ -1712,18 +1713,18 @@
             .peekable();
 
         <span class="kw">let </span>sensitive_fields_re = <span class="kw">if </span>sensitive_fields.peek().is_some() {
-            <span class="kw">let </span><span class="kw-2">mut </span>re = <span class="string">&quot;&quot;</span>.to_owned();
+            <span class="kw">let </span><span class="kw-2">mut </span>re = <span class="string">""</span>.to_owned();
 
             <span class="kw">for </span>(idx, field) <span class="kw">in </span>sensitive_fields.enumerate() {
                 <span class="kw">if </span>idx != <span class="number">0 </span>{
-                    re.push(<span class="string">&#39;|&#39;</span>);
+                    re.push(<span class="string">'|'</span>);
                 }
 
                 <span class="comment">// ugly: regex::escape returns owned string
                 </span>re.push_str(<span class="kw-2">&amp;</span>regex::escape(field));
             }
 
-            re.push_str(<span class="string">&quot;&quot;</span>);
+            re.push_str(<span class="string">""</span>);
             <span class="prelude-val">Some</span>(re)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1731,16 +1732,16 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(key_pattern) = sensitive_fields_re {
             custom_rules.insert(
-                <span class="string">&quot;strip-fields&quot;</span>.to_owned(),
+                <span class="string">"strip-fields"</span>.to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
                         key_pattern: LazyPattern::new(key_pattern).case_insensitive(<span class="bool-val">true</span>),
                     }),
-                    redaction: Redaction::Replace(<span class="string">&quot;[Filtered]&quot;</span>.to_owned().into()),
+                    redaction: Redaction::Replace(<span class="string">"[Filtered]"</span>.to_owned().into()),
                 },
             );
 
-            applied_rules.push(<span class="string">&quot;strip-fields&quot;</span>.to_owned());
+            applied_rules.push(<span class="string">"strip-fields"</span>.to_owned());
         }
     }
 
@@ -1769,7 +1770,7 @@
             <span class="prelude-val">Ok</span>(spec) =&gt; spec,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// Ideally safe fields should be caught by sentry-side validation,
-                // but there is still a considerable amount of &quot;invalid&quot; safe fields.
+                // but there is still a considerable amount of "invalid" safe fields.
                 // Fallback to stay compatible with the old behaviour.
                 </span>SelectorSpec::Path(<span class="macro">vec!</span>[SelectorPathItem::Key(field.to_owned())])
             }
@@ -1804,7 +1805,7 @@
     <span class="kw">use </span><span class="kw">super</span>::to_pii_config <span class="kw">as </span>to_pii_config_impl;
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="doccomment">/// These tests are ported from Sentry&#39;s Python testsuite (test_data_scrubber). Each testcase
+    <span class="doccomment">/// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
 
     </span><span class="kw">fn </span>to_pii_config(datascrubbing_config: <span class="kw-2">&amp;</span>DataScrubbingConfig) -&gt; <span class="prelude-ty">Option</span>&lt;PiiConfig&gt; {
@@ -1817,70 +1818,70 @@
         rv
     }
 
-    <span class="kw">static </span>PUBLIC_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#&quot;&quot;&quot;-----BEGIN PUBLIC KEY-----
+    <span class="kw">static </span>PUBLIC_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#"""-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA6A6TQjlPyMurLh/igZY4
 izA9sJgeZ7s5+nGydO4AI9k33gcy2DObZuadWRMnDwc3uH/qoAPw/mo3KOcgEtxU
 xdwiQeATa3HVPcQDCQiKm8xIG2Ny0oUbR0IFNvClvx7RWnPEMk05CuvsL0AA3eH5
 xn02Yg0JTLgZEtUT3whwFm8CAwEAAQ==
------END PUBLIC KEY-----&quot;&quot;&quot;#</span>;
+-----END PUBLIC KEY-----"""#</span>;
 
-    <span class="kw">static </span>PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#&quot;&quot;&quot;-----BEGIN PRIVATE KEY-----
+    <span class="kw">static </span>PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#"""-----BEGIN PRIVATE KEY-----
 MIIJRAIBADANBgkqhkiG9w0BAQEFAASCCS4wggkqAgEAAoICAQCoNFY4P+EeIXl0
 mLpO+i8uFqAaEFQ8ZX2VVpA13kNEHuiWXC3HPlQ+7G+O3XmAsO+Wf/xY6pCSeQ8h
 mLpO+i8uFqAaEFQ8ZX2VVpA13kNEHuiWXC3HPlQ+7G+O3XmAsO+Wf/xY6pCSeQ8h
------END PRIVATE KEY-----&quot;&quot;&quot;#</span>;
+-----END PRIVATE KEY-----"""#</span>;
 
-    <span class="kw">static </span>ENCRYPTED_PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#&quot;&quot;&quot;-----BEGIN ENCRYPTED PRIVATE KEY-----
+    <span class="kw">static </span>ENCRYPTED_PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#"""-----BEGIN ENCRYPTED PRIVATE KEY-----
 MIIJjjBABgkqhkiG9w0BBQ0wMzAbBgkqhkiG9w0BBQwwDgQIWVhErdQOFVoCAggA
 IrlYQUV1ig4U3viYh1Y8viVvRlANKICvgj4faYNH36UterkfDjzMonb/cXNeJEOS
 YgorM2Pfuec5vtPRPKd88+Ds/ktIlZhjJwnJjHQMX+lSw5t0/juna2sLH2dpuAbi
 PSk=
------END ENCRYPTED PRIVATE KEY-----&quot;&quot;&quot;#</span>;
+-----END ENCRYPTED PRIVATE KEY-----"""#</span>;
 
-    <span class="kw">static </span>RSA_PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#&quot;&quot;&quot;-----BEGIN RSA PRIVATE KEY-----
+    <span class="kw">static </span>RSA_PRIVATE_KEY: <span class="kw-2">&amp;</span>str = <span class="string">r#"""-----BEGIN RSA PRIVATE KEY-----
 +wn9Iu+zgamKDUu22xc45F2gdwM04rTITlZgjAs6U1zcvOzGxk8mWJD5MqFWwAtF
 zN87YGV0VMTG6ehxnkI4Fg6i0JPU3QIDAQABAoICAQCoCPjlYrODRU+vd2YeU/gM
 THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
------END RSA PRIVATE KEY-----&quot;&quot;&quot;#</span>;
+-----END RSA PRIVATE KEY-----"""#</span>;
 
     <span class="kw">fn </span>sensitive_vars() -&gt; serde_json::Value {
         <span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;bar&quot;</span>,
-            <span class="string">&quot;password&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-            <span class="string">&quot;the_secret&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-            <span class="string">&quot;a_password_here&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-            <span class="string">&quot;api_key&quot;</span>: <span class="string">&quot;secret_key&quot;</span>,
-            <span class="string">&quot;apiKey&quot;</span>: <span class="string">&quot;secret_key&quot;</span>,
+            <span class="string">"foo"</span>: <span class="string">"bar"</span>,
+            <span class="string">"password"</span>: <span class="string">"hello"</span>,
+            <span class="string">"the_secret"</span>: <span class="string">"hello"</span>,
+            <span class="string">"a_password_here"</span>: <span class="string">"hello"</span>,
+            <span class="string">"api_key"</span>: <span class="string">"secret_key"</span>,
+            <span class="string">"apiKey"</span>: <span class="string">"secret_key"</span>,
         })
     }
 
     <span class="kw">fn </span>sensitive_cookies() -&gt; serde_json::Value {
         <span class="macro">serde_json::json!</span>({
         <span class="comment">// Common session cookie names for popular web frameworks
-        </span><span class="string">&quot;sentrysid&quot;</span>: <span class="string">&quot;my sentrysid&quot;</span>, <span class="comment">// Sentry default session cookie name
-        </span><span class="string">&quot;sudo&quot;</span>: <span class="string">&quot;my sudo&quot;</span>,   <span class="comment">// Sentry default sudo cookie name
-        </span><span class="string">&quot;su&quot;</span>: <span class="string">&quot;my su&quot;</span>,    <span class="comment">// Sentry superuser cookie name
-        </span><span class="string">&quot;session&quot;</span>: <span class="string">&quot;my session&quot;</span>,
-        <span class="string">&quot;__session&quot;</span>: <span class="string">&quot;my __session&quot;</span>,
-        <span class="string">&quot;sessionid&quot;</span>: <span class="string">&quot;my sessionid&quot;</span>,
-        <span class="string">&quot;user_session&quot;</span>: <span class="string">&quot;my user_session&quot;</span>,
-        <span class="string">&quot;symfony&quot;</span>: <span class="string">&quot;my symfony&quot;</span>,
-        <span class="string">&quot;phpsessid&quot;</span>: <span class="string">&quot;my phpsessid&quot;</span>,
-        <span class="string">&quot;fasthttpsessionid&quot;</span>: <span class="string">&quot;my fasthttpsessionid&quot;</span>,
-        <span class="string">&quot;mysession&quot;</span>: <span class="string">&quot;my mysession&quot;</span>,
-        <span class="string">&quot;irissessionid&quot;</span>: <span class="string">&quot;my irissessionid&quot;</span>,
+        </span><span class="string">"sentrysid"</span>: <span class="string">"my sentrysid"</span>, <span class="comment">// Sentry default session cookie name
+        </span><span class="string">"sudo"</span>: <span class="string">"my sudo"</span>,   <span class="comment">// Sentry default sudo cookie name
+        </span><span class="string">"su"</span>: <span class="string">"my su"</span>,    <span class="comment">// Sentry superuser cookie name
+        </span><span class="string">"session"</span>: <span class="string">"my session"</span>,
+        <span class="string">"__session"</span>: <span class="string">"my __session"</span>,
+        <span class="string">"sessionid"</span>: <span class="string">"my sessionid"</span>,
+        <span class="string">"user_session"</span>: <span class="string">"my user_session"</span>,
+        <span class="string">"symfony"</span>: <span class="string">"my symfony"</span>,
+        <span class="string">"phpsessid"</span>: <span class="string">"my phpsessid"</span>,
+        <span class="string">"fasthttpsessionid"</span>: <span class="string">"my fasthttpsessionid"</span>,
+        <span class="string">"mysession"</span>: <span class="string">"my mysession"</span>,
+        <span class="string">"irissessionid"</span>: <span class="string">"my irissessionid"</span>,
         <span class="comment">// Common CSRF/XSRF cookie names for popular web frameworks
-        </span><span class="string">&quot;csrf&quot;</span>: <span class="string">&quot;my csrf&quot;</span>,
-        <span class="string">&quot;xsrf&quot;</span>: <span class="string">&quot;my xsrf&quot;</span>,
-        <span class="string">&quot;_xsrf&quot;</span>: <span class="string">&quot;my _xsrf&quot;</span>,
-        <span class="string">&quot;_csrf&quot;</span>: <span class="string">&quot;my _csrf&quot;</span>,
-        <span class="string">&quot;csrf-token&quot;</span>: <span class="string">&quot;my csrf-token&quot;</span>,
-        <span class="string">&quot;csrf_token&quot;</span>: <span class="string">&quot;my csrf_token&quot;</span>,
-        <span class="string">&quot;xsrf-token&quot;</span>: <span class="string">&quot;my  xsrf-token&quot;</span>,
-        <span class="string">&quot;xsrf_token&quot;</span>: <span class="string">&quot;my  xsrf_token&quot;</span>,
-        <span class="string">&quot;fastcsrf&quot;</span>: <span class="string">&quot;my fastcsrf&quot;</span>,
-        <span class="string">&quot;_iris_csrf&quot;</span>: <span class="string">&quot;my _iris_csrf&quot;</span>,
-        <span class="string">&quot;not_sensitive&quot;</span>: <span class="string">&quot;keep this&quot;</span>,
+        </span><span class="string">"csrf"</span>: <span class="string">"my csrf"</span>,
+        <span class="string">"xsrf"</span>: <span class="string">"my xsrf"</span>,
+        <span class="string">"_xsrf"</span>: <span class="string">"my _xsrf"</span>,
+        <span class="string">"_csrf"</span>: <span class="string">"my _csrf"</span>,
+        <span class="string">"csrf-token"</span>: <span class="string">"my csrf-token"</span>,
+        <span class="string">"csrf_token"</span>: <span class="string">"my csrf_token"</span>,
+        <span class="string">"xsrf-token"</span>: <span class="string">"my  xsrf-token"</span>,
+        <span class="string">"xsrf_token"</span>: <span class="string">"my  xsrf_token"</span>,
+        <span class="string">"fastcsrf"</span>: <span class="string">"my fastcsrf"</span>,
+        <span class="string">"_iris_csrf"</span>: <span class="string">"my _iris_csrf"</span>,
+        <span class="string">"not_sensitive"</span>: <span class="string">"keep this"</span>,
         })
     }
 
@@ -1899,113 +1900,113 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_datascrubbing_default() {
-        <span class="macro">insta::assert_json_snapshot!</span>(to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig::default()), @<span class="string">&quot;null&quot;</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig::default()), @<span class="string">"null"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_default_pii_config() {
-        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r###"
         {
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
-              &quot;@common:filter&quot;,
-              &quot;@ip:replace&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
+              "@common:filter",
+              "@ip:replace"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
-            &quot;*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf&quot;: [
-              &quot;@anything:filter&quot;
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_empty_sensitive_field() {
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned(), <span class="string">&quot; &quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned(), <span class="string">" "</span>.to_owned()],
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###"
         {
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
-              &quot;@common:filter&quot;,
-              &quot;@ip:replace&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
+              "@common:filter",
+              "@ip:replace"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
-            &quot;*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf&quot;: [
-              &quot;@anything:filter&quot;
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_sensitive_fields() {
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;fieldy_field&quot;</span>.to_owned(), <span class="string">&quot;moar_other_field&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"fieldy_field"</span>.to_owned(), <span class="string">"moar_other_field"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###"
         {
-          &quot;rules&quot;: {
-            &quot;strip-fields&quot;: {
-              &quot;type&quot;: &quot;redact_pair&quot;,
-              &quot;keyPattern&quot;: &quot;fieldy_field|moar_other_field&quot;,
-              &quot;redaction&quot;: {
-                &quot;method&quot;: &quot;replace&quot;,
-                &quot;text&quot;: &quot;[Filtered]&quot;
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "fieldy_field|moar_other_field",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
               }
             }
           },
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
-              &quot;@common:filter&quot;,
-              &quot;@ip:replace&quot;,
-              &quot;strip-fields&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
+              "@common:filter",
+              "@ip:replace",
+              "strip-fields"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
-            &quot;*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf&quot;: [
-              &quot;@anything:filter&quot;
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_exclude_field() {
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.to_owned()],
+            exclude_fields: <span class="macro">vec!</span>[<span class="string">"foobar"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###"
         {
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) &amp;&amp; !foobar&quot;: [
-              &quot;@common:filter&quot;,
-              &quot;@ip:replace&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) &amp;&amp; !foobar": [
+              "@common:filter",
+              "@ip:replace"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
-            &quot;*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf&quot;: [
-              &quot;@anything:filter&quot;
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -2017,28 +2018,28 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###"
         {
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
-              &quot;@ip:replace&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
+              "@ip:replace"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stacktrace() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;stacktrace&quot;</span>: {
-                    <span class="string">&quot;frames&quot;</span>: [
+                <span class="string">"stacktrace"</span>: {
+                    <span class="string">"frames"</span>: [
                     {
-                        <span class="string">&quot;vars&quot;</span>: sensitive_vars()
+                        <span class="string">"vars"</span>: sensitive_vars()
                     }
                     ]
                 }
@@ -2056,11 +2057,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_http() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;env&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;headers&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;cookies&quot;</span>: sensitive_vars()
+                <span class="string">"request"</span>: {
+                    <span class="string">"data"</span>: sensitive_vars(),
+                    <span class="string">"env"</span>: sensitive_vars(),
+                    <span class="string">"headers"</span>: sensitive_vars(),
+                    <span class="string">"cookies"</span>: sensitive_vars()
                 },
             })
             .into(),
@@ -2076,12 +2077,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sensitive_cookies() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;cookies&quot;</span>: sensitive_cookies()
+                <span class="string">"request"</span>: {
+                    <span class="string">"cookies"</span>: sensitive_cookies()
                 },
-                <span class="string">&quot;contexts&quot;</span>: {
-                    <span class="string">&quot;response&quot;</span>: {
-                        <span class="string">&quot;cookies&quot;</span>: sensitive_cookies(),
+                <span class="string">"contexts"</span>: {
+                    <span class="string">"response"</span>: {
+                        <span class="string">"cookies"</span>: sensitive_cookies(),
                     }
                 }
             })
@@ -2097,9 +2098,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_http_remote_addr_stripped() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;env&quot;</span>: {
-                        <span class="string">&quot;REMOTE_ADDR&quot;</span>: <span class="string">&quot;127.0.0.1&quot;
+                <span class="string">"request"</span>: {
+                    <span class="string">"env"</span>: {
+                        <span class="string">"REMOTE_ADDR"</span>: <span class="string">"127.0.0.1"
                     </span>}
                 }
             })
@@ -2116,10 +2117,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_user() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;user&quot;</span>: {
-                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;secret&quot;</span>,
-                    <span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
-                    <span class="string">&quot;data&quot;</span>: sensitive_vars()
+                <span class="string">"user"</span>: {
+                    <span class="string">"username"</span>: <span class="string">"secret"</span>,
+                    <span class="string">"ip_address"</span>: <span class="string">"73.133.27.120"</span>,
+                    <span class="string">"data"</span>: sensitive_vars()
                 }
             })
             .into(),
@@ -2132,29 +2133,29 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     <span class="doccomment">/// Checks that any fields containing an IP-address is scrubbed.
-    /// Even if it doesn&#39;t make sense for there to be an IP-address
+    /// Even if it doesn't make sense for there to be an IP-address
     /// such as in the username field.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_stripped() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;user&quot;</span>: {
-                    <span class="string">&quot;username&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>, <span class="comment">// should be stripped despite not being &quot;known ip field&quot;
-                    </span><span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;should be stripped despite lacking ip address&quot;</span>,
-                    <span class="string">&quot;data&quot;</span>: sensitive_vars()
+                <span class="string">"user"</span>: {
+                    <span class="string">"username"</span>: <span class="string">"73.133.27.120"</span>, <span class="comment">// should be stripped despite not being "known ip field"
+                    </span><span class="string">"ip_address"</span>: <span class="string">"should be stripped despite lacking ip address"</span>,
+                    <span class="string">"data"</span>: sensitive_vars()
                 },
-                <span class="string">&quot;breadcrumbs&quot;</span>: {
-                    <span class="string">&quot;values&quot;</span>: [
+                <span class="string">"breadcrumbs"</span>: {
+                    <span class="string">"values"</span>: [
                         {
-                            <span class="string">&quot;message&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
-                            <span class="string">&quot;data&quot;</span>: {
-                                <span class="string">&quot;test_data&quot;</span>: <span class="string">&quot;73.133.27.120&quot; </span><span class="comment">// test deep wildcard stripping
+                            <span class="string">"message"</span>: <span class="string">"73.133.27.120"</span>,
+                            <span class="string">"data"</span>: {
+                                <span class="string">"test_data"</span>: <span class="string">"73.133.27.120" </span><span class="comment">// test deep wildcard stripping
                                 </span>}
                         },
                     ],
                 },
-                <span class="string">&quot;sdk&quot;</span>: {
-                    <span class="string">&quot;client_ip&quot;</span>: <span class="string">&quot;should also be stripped&quot;
+                <span class="string">"sdk"</span>: {
+                    <span class="string">"client_ip"</span>: <span class="string">"should also be stripped"
                 </span>}
             })
             .into(),
@@ -2177,15 +2178,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_extra() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;bar&quot;</span>,
-                    <span class="string">&quot;password&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-                    <span class="string">&quot;the_secret&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-                    <span class="string">&quot;a_password_here&quot;</span>: <span class="string">&quot;hello&quot;</span>,
-                    <span class="string">&quot;api_key&quot;</span>: <span class="string">&quot;secret_key&quot;</span>,
-                    <span class="string">&quot;apiKey&quot;</span>: <span class="string">&quot;secret_key&quot;</span>,
-                    <span class="string">&quot;a_password_number&quot;</span>: <span class="number">42</span>,
-                    <span class="string">&quot;a_password_array&quot;</span>: [<span class="number">42</span>, <span class="number">43</span>],
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"bar"</span>,
+                    <span class="string">"password"</span>: <span class="string">"hello"</span>,
+                    <span class="string">"the_secret"</span>: <span class="string">"hello"</span>,
+                    <span class="string">"a_password_here"</span>: <span class="string">"hello"</span>,
+                    <span class="string">"api_key"</span>: <span class="string">"secret_key"</span>,
+                    <span class="string">"apiKey"</span>: <span class="string">"secret_key"</span>,
+                    <span class="string">"a_password_number"</span>: <span class="number">42</span>,
+                    <span class="string">"a_password_array"</span>: [<span class="number">42</span>, <span class="number">43</span>],
                 }
             })
             .into(),
@@ -2201,23 +2202,23 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_contexts() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;contexts&quot;</span>: {
-                    <span class="string">&quot;secret&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;biz&quot;</span>: sensitive_vars(),
+                <span class="string">"contexts"</span>: {
+                    <span class="string">"secret"</span>: sensitive_vars(),
+                    <span class="string">"biz"</span>: sensitive_vars(),
 
                     <span class="comment">// all the structured contexts are not properly scrubbed. We introduced quite a
-                    // few regressions here when porting old datascrubbers to rust, but that&#39;s fine
+                    // few regressions here when porting old datascrubbers to rust, but that's fine
                     // because we saw in real data that nobody tried to scrub contexts in the first
-                    // place. We&#39;re just snapshotting this so that we don&#39;t randomly change
+                    // place. We're just snapshotting this so that we don't randomly change
                     // behavior further.
-                    </span><span class="string">&quot;device&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;os&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;runtime&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;app&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;browser&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;gpu&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;trace&quot;</span>: sensitive_vars(),
-                    <span class="string">&quot;monitor&quot;</span>: sensitive_vars(),
+                    </span><span class="string">"device"</span>: sensitive_vars(),
+                    <span class="string">"os"</span>: sensitive_vars(),
+                    <span class="string">"runtime"</span>: sensitive_vars(),
+                    <span class="string">"app"</span>: sensitive_vars(),
+                    <span class="string">"browser"</span>: sensitive_vars(),
+                    <span class="string">"gpu"</span>: sensitive_vars(),
+                    <span class="string">"trace"</span>: sensitive_vars(),
+                    <span class="string">"monitor"</span>: sensitive_vars(),
                 }
             })
             .into(),
@@ -2228,15 +2229,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
         <span class="comment">// n.b.: This diverges from Python behavior because it would strip a context that is called
-        // &quot;secret&quot;, not just a string. We accept this difference.
+        // "secret", not just a string. We accept this difference.
         </span><span class="macro">assert_annotated_snapshot!</span>(data);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_querystring_as_string() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;request&quot;</span>: {
-                <span class="string">&quot;query_string&quot;</span>: <span class="string">&quot;foo=bar&amp;password=hello&amp;the_secret=hello&amp;a_password_here=hello&amp;api_key=secret_key&quot;</span>,
+            <span class="string">"request"</span>: {
+                <span class="string">"query_string"</span>: <span class="string">"foo=bar&amp;password=hello&amp;the_secret=hello&amp;a_password_here=hello&amp;api_key=secret_key"</span>,
             }
         }).into());
 
@@ -2250,13 +2251,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_querystring_as_pairlist() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;query_string&quot;</span>: [
-                        [<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>],
-                        [<span class="string">&quot;password&quot;</span>, <span class="string">&quot;hello&quot;</span>],
-                        [<span class="string">&quot;the_secret&quot;</span>, <span class="string">&quot;hello&quot;</span>],
-                        [<span class="string">&quot;a_password_here&quot;</span>, <span class="string">&quot;hello&quot;</span>],
-                        [<span class="string">&quot;api_key&quot;</span>, <span class="string">&quot;secret_key&quot;</span>]
+                <span class="string">"request"</span>: {
+                    <span class="string">"query_string"</span>: [
+                        [<span class="string">"foo"</span>, <span class="string">"bar"</span>],
+                        [<span class="string">"password"</span>, <span class="string">"hello"</span>],
+                        [<span class="string">"the_secret"</span>, <span class="string">"hello"</span>],
+                        [<span class="string">"a_password_here"</span>, <span class="string">"hello"</span>],
+                        [<span class="string">"api_key"</span>, <span class="string">"secret_key"</span>]
                     ]
                 }
             })
@@ -2273,8 +2274,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_querystring_as_string_with_partials() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;query_string&quot;</span>: <span class="string">&quot;foo=bar&amp;password&amp;baz=bar&quot;
+                <span class="string">"request"</span>: {
+                    <span class="string">"query_string"</span>: <span class="string">"foo=bar&amp;password&amp;baz=bar"
                 </span>}
             })
             .into(),
@@ -2290,8 +2291,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_querystring_as_pairlist_with_partials() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;query_string&quot;</span>: [[<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>], [<span class="string">&quot;password&quot;</span>, <span class="string">&quot;&quot;</span>], [<span class="string">&quot;baz&quot;</span>, <span class="string">&quot;bar&quot;</span>]]
+                <span class="string">"request"</span>: {
+                    <span class="string">"query_string"</span>: [[<span class="string">"foo"</span>, <span class="string">"bar"</span>], [<span class="string">"password"</span>, <span class="string">""</span>], [<span class="string">"baz"</span>, <span class="string">"bar"</span>]]
                 }
             })
             .into(),
@@ -2308,17 +2309,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>extra = sensitive_vars();
         {
             <span class="kw">let </span>map = extra.as_object_mut().unwrap();
-            map.insert(<span class="string">&quot;fieldy_field&quot;</span>.to_owned(), <span class="macro">serde_json::json!</span>(<span class="string">&quot;value&quot;</span>));
+            map.insert(<span class="string">"fieldy_field"</span>.to_owned(), <span class="macro">serde_json::json!</span>(<span class="string">"value"</span>));
             map.insert(
-                <span class="string">&quot;moar_other_field&quot;</span>.to_owned(),
-                <span class="macro">serde_json::json!</span>(<span class="string">&quot;another value&quot;</span>),
+                <span class="string">"moar_other_field"</span>.to_owned(),
+                <span class="macro">serde_json::json!</span>(<span class="string">"another value"</span>),
             );
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(<span class="macro">serde_json::json!</span>({ <span class="string">&quot;extra&quot;</span>: extra }).into());
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(<span class="macro">serde_json::json!</span>({ <span class="string">"extra"</span>: extra }).into());
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;fieldy_field&quot;</span>.to_owned(), <span class="string">&quot;moar_other_field&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"fieldy_field"</span>.to_owned(), <span class="string">"moar_other_field"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2332,8 +2333,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sanitize_credit_card() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;4571234567890111&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"4571234567890111"
                 </span>}
             })
             .into(),
@@ -2350,8 +2351,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="comment">// AMEX numbers are 15 digits, not 16
         </span><span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;378282246310005&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"378282246310005"
                 </span>}
             })
             .into(),
@@ -2367,8 +2368,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sanitize_credit_card_discover() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;6011111111111117&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"6011111111111117"
                 </span>}
             })
             .into(),
@@ -2384,8 +2385,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sanitize_credit_card_visa() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;4111111111111111&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"4111111111111111"
                 </span>}
             })
             .into(),
@@ -2401,8 +2402,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sanitize_credit_card_mastercard() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;5555555555554444&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"5555555555554444"
                 </span>}
             })
             .into(),
@@ -2418,8 +2419,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         (<span class="macro-nonterminal">$cc</span>:literal) =&gt; {{
             <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
                 <span class="macro">serde_json::json!</span>({
-                    <span class="string">&quot;extra&quot;</span>: {
-                        <span class="string">&quot;foo&quot;</span>: <span class="macro-nonterminal">$cc
+                    <span class="string">"extra"</span>: {
+                        <span class="string">"foo"</span>: <span class="macro-nonterminal">$cc
                     </span>}
                 })
                 .into(),
@@ -2434,20 +2435,20 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_credit_card_within_value_1() {
-        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">&quot;&#39;4571234567890111&#39;&quot;</span>);
+        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"'4571234567890111'"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_credit_card_within_value_2() {
-        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">&quot;foo 4571234567890111&quot;</span>);
+        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">"foo 4571234567890111"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_sanitize_timestamp_looks_like_card() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;1453843029218310&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="string">"1453843029218310"
                 </span>}
             })
             .into(),
@@ -2456,21 +2457,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span>pii_config = simple_enabled_pii_config();
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#"
         {
-          &quot;extra&quot;: {
-            &quot;foo&quot;: &quot;1453843029218310&quot;
+          "extra": {
+            "foo": "1453843029218310"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="macro">macro_rules! </span>sanitize_url_test {
         (<span class="macro-nonterminal">$url</span>:literal) =&gt; {{
             <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
                 <span class="macro">serde_json::json!</span>({
-                    <span class="string">&quot;extra&quot;</span>: {
-                        <span class="string">&quot;foo&quot;</span>: <span class="macro-nonterminal">$url
+                    <span class="string">"extra"</span>: {
+                        <span class="string">"foo"</span>: <span class="macro-nonterminal">$url
                     </span>}
                 })
                 .into(),
@@ -2485,42 +2486,42 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_1() {
-        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;pg://matt:pass@localhost/1&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">"pg://matt:pass@localhost/1"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_2() {
-        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo &#39;redis://redis:foo@localhost:6379/0&#39; bar&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">"foo 'redis://redis:foo@localhost:6379/0' bar"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_3() {
-        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;&#39;redis://redis:foo@localhost:6379/0&#39;&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">"'redis://redis:foo@localhost:6379/0'"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_4() {
-        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">"foo redis://redis:foo@localhost:6379/0 bar"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_5() {
-        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">"foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_6() {
-        <span class="comment">// Make sure we don&#39;t mess up any other url.
+        <span class="comment">// Make sure we don't mess up any other url.
         // This url specifically if passed through urlunsplit(urlsplit()),
-        // it&#39;ll change the value.
-        </span><span class="macro">sanitize_url_test!</span>(<span class="string">&quot;postgres:///path&quot;</span>);
+        // it'll change the value.
+        </span><span class="macro">sanitize_url_test!</span>(<span class="string">"postgres:///path"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sanitize_url_7() {
-        <span class="comment">// Don&#39;t be too overly eager within JSON strings an catch the right field.
+        <span class="comment">// Don't be too overly eager within JSON strings an catch the right field.
         </span><span class="macro">sanitize_url_test!</span>(
-            <span class="string">r#&quot;{&quot;a&quot;:&quot;https://localhost&quot;,&quot;b&quot;:&quot;foo@localhost&quot;,&quot;c&quot;:&quot;pg://matt:pass@localhost/1&quot;,&quot;d&quot;:&quot;lol&quot;}&quot;#
+            <span class="string">r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#
         </span>);
     }
 
@@ -2530,8 +2531,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_sanitize_http_body() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: {<span class="string">&quot;email&quot;</span>:<span class="string">&quot;zzzz@gmail.com&quot;</span>,<span class="string">&quot;password&quot;</span>:<span class="string">&quot;zzzzz&quot;</span>}
+                <span class="string">"request"</span>: {
+                    <span class="string">"data"</span>: {<span class="string">"email"</span>:<span class="string">"zzzz@gmail.com"</span>,<span class="string">"password"</span>:<span class="string">"zzzzz"</span>}
                 }
             })
             .into(),
@@ -2547,8 +2548,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_does_not_fail_on_non_string() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="number">1
+                <span class="string">"extra"</span>: {
+                    <span class="string">"foo"</span>: <span class="number">1
                 </span>}
             })
             .into(),
@@ -2558,21 +2559,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#"
         {
-          &quot;extra&quot;: {
-            &quot;foo&quot;: 1
+          "extra": {
+            "foo": 1
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_sanitize_public_key() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;s&quot;</span>: PUBLIC_KEY,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"s"</span>: PUBLIC_KEY,
                 }
             })
             .into(),
@@ -2588,8 +2589,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_does_sanitize_private_key() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;s&quot;</span>: PRIVATE_KEY,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"s"</span>: PRIVATE_KEY,
                 }
             })
             .into(),
@@ -2605,8 +2606,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_does_sanitize_encrypted_private_key() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;s&quot;</span>: ENCRYPTED_PRIVATE_KEY,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"s"</span>: ENCRYPTED_PRIVATE_KEY,
                 }
             })
             .into(),
@@ -2622,8 +2623,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_does_sanitize_rsa_private_key() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;s&quot;</span>: RSA_PRIVATE_KEY,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"s"</span>: RSA_PRIVATE_KEY,
                 }
             })
             .into(),
@@ -2639,8 +2640,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_does_sanitize_social_security_number() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;s&quot;</span>: <span class="string">&quot;123-45-6789&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"s"</span>: <span class="string">"123-45-6789"
                 </span>}
             })
             .into(),
@@ -2656,7 +2657,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_exclude_fields_on_field_name() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;password&quot;</span>: <span class="string">&quot;123-45-6789&quot;</span>}
+                <span class="string">"extra"</span>: {<span class="string">"password"</span>: <span class="string">"123-45-6789"</span>}
             })
             .into(),
         );
@@ -2671,13 +2672,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_explicit_fields() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;mystuff&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
+                <span class="string">"extra"</span>: {<span class="string">"mystuff"</span>: <span class="string">"xxx"</span>}
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;mystuff&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"mystuff"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2691,13 +2692,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_explicit_fields_case_insensitive() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;MYSTUFF&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
+                <span class="string">"extra"</span>: {<span class="string">"MYSTUFF"</span>: <span class="string">"xxx"</span>}
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;myStuff&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"myStuff"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2711,13 +2712,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_exclude_fields_on_field_value() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;foobar&quot;</span>: <span class="string">&quot;123-45-6789&quot;</span>}
+                <span class="string">"extra"</span>: {<span class="string">"foobar"</span>: <span class="string">"123-45-6789"</span>}
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.to_owned()],
+            exclude_fields: <span class="macro">vec!</span>[<span class="string">"foobar"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2725,27 +2726,27 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#"
         {
-          &quot;extra&quot;: {
-            &quot;foobar&quot;: &quot;123-45-6789&quot;
+          "extra": {
+            "foobar": "123-45-6789"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_field() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;foobar&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
+                <span class="string">"extra"</span>: {<span class="string">"foobar"</span>: <span class="string">"xxx"</span>}
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned(), <span class="string">&quot; &quot;</span>.to_owned()],
-            exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned(), <span class="string">&quot; &quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned(), <span class="string">" "</span>.to_owned()],
+            exclude_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned(), <span class="string">" "</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2753,28 +2754,28 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#"
         {
-          &quot;extra&quot;: {
-            &quot;foobar&quot;: &quot;xxx&quot;
+          "extra": {
+            "foobar": "xxx"
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="macro">macro_rules! </span>should_have_mysql_pwd_as_a_default_test {
         (<span class="macro-nonterminal">$key</span>:literal) =&gt; {{
             <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
                 <span class="macro">serde_json::json!</span>({
-                    <span class="string">&quot;extra&quot;</span>: {
-                        <span class="kw-2">*</span><span class="macro-nonterminal">$key</span>: <span class="string">&quot;the one&quot;</span>,
+                    <span class="string">"extra"</span>: {
+                        <span class="kw-2">*</span><span class="macro-nonterminal">$key</span>: <span class="string">"the one"</span>,
                     }
                 })
                 .into(),
             );
 
             <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-                sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned()],
+                sensitive_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned()],
                 ..simple_enabled_config()
             });
 
@@ -2787,29 +2788,29 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_should_have_mysql_pwd_as_a_default_1() {
-        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">&quot;MYSQL_PWD&quot;</span>);
+        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">"MYSQL_PWD"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_should_have_mysql_pwd_as_a_default_2() {
-        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">&quot;mysql_pwd&quot;</span>);
+        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">"mysql_pwd"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_authorization_scrubbing() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;authorization&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
-                    <span class="string">&quot;auth&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
-                    <span class="string">&quot;auXth&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"authorization"</span>: <span class="string">"foobar"</span>,
+                    <span class="string">"auth"</span>: <span class="string">"foobar"</span>,
+                    <span class="string">"auXth"</span>: <span class="string">"foobar"</span>,
                 }
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2823,17 +2824,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_doesnt_scrub_not_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;test1&quot;</span>: {
-                        <span class="string">&quot;is_authenticated&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"test1"</span>: {
+                        <span class="string">"is_authenticated"</span>: <span class="string">"foobar"</span>,
                     },
 
-                    <span class="string">&quot;test2&quot;</span>: {
-                        <span class="string">&quot;is_authenticated&quot;</span>: <span class="string">&quot;null&quot;</span>,
+                    <span class="string">"test2"</span>: {
+                        <span class="string">"is_authenticated"</span>: <span class="string">"null"</span>,
                     },
 
-                    <span class="string">&quot;test3&quot;</span>: {
-                        <span class="string">&quot;is_authenticated&quot;</span>: <span class="bool-val">true</span>,
+                    <span class="string">"test3"</span>: {
+                        <span class="string">"is_authenticated"</span>: <span class="bool-val">true</span>,
                     },
                 }
             })
@@ -2841,7 +2842,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">""</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2855,7 +2856,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_csp_blocked_uri() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;csp&quot;</span>: {<span class="string">&quot;blocked_uri&quot;</span>: <span class="string">&quot;https://example.com/?foo=4571234567890111&amp;bar=baz&quot;</span>}
+                <span class="string">"csp"</span>: {<span class="string">"blocked_uri"</span>: <span class="string">"https://example.com/?foo=4571234567890111&amp;bar=baz"</span>}
             })
             .into(),
         );
@@ -2870,10 +2871,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_breadcrumb_message() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;breadcrumbs&quot;</span>: {
-                    <span class="string">&quot;values&quot;</span>: [
+                <span class="string">"breadcrumbs"</span>: {
+                    <span class="string">"values"</span>: [
                         {
-                            <span class="string">&quot;message&quot;</span>: <span class="string">&quot;SELECT session_key FROM django_session WHERE session_key = &#39;abcdefg&#39;&quot;
+                            <span class="string">"message"</span>: <span class="string">"SELECT session_key FROM django_session WHERE session_key = 'abcdefg'"
                         </span>}
                     ]
                 }
@@ -2882,37 +2883,37 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;session_key&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"session_key"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###"
         {
-          &quot;rules&quot;: {
-            &quot;strip-fields&quot;: {
-              &quot;type&quot;: &quot;redact_pair&quot;,
-              &quot;keyPattern&quot;: &quot;session_key&quot;,
-              &quot;redaction&quot;: {
-                &quot;method&quot;: &quot;replace&quot;,
-                &quot;text&quot;: &quot;[Filtered]&quot;
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "session_key",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
               }
             }
           },
-          &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
-              &quot;@common:filter&quot;,
-              &quot;@ip:replace&quot;,
-              &quot;strip-fields&quot;
+          "applications": {
+            "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
+              "@common:filter",
+              "@ip:replace",
+              "strip-fields"
             ],
-            &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
-              &quot;@anything:remove&quot;
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+              "@anything:remove"
             ],
-            &quot;*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf&quot;: [
-              &quot;@anything:filter&quot;
+            "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
+              "@anything:filter"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
 
         <span class="kw">let </span>pii_config = pii_config.unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
@@ -2924,15 +2925,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_event_message_not_strippable() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;logentry&quot;</span>: {
-                    <span class="string">&quot;formatted&quot;</span>: <span class="string">&quot;hello world!&quot;
+                <span class="string">"logentry"</span>: {
+                    <span class="string">"formatted"</span>: <span class="string">"hello world!"
                 </span>}
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;formatted&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"formatted"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2946,12 +2947,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_debug_meta_files_not_strippable() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;debug_meta&quot;</span>: {
-                    <span class="string">&quot;images&quot;</span>: [
+                <span class="string">"debug_meta"</span>: {
+                    <span class="string">"images"</span>: [
                         {
-                            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;macho&quot;</span>,
-                            <span class="string">&quot;code_file&quot;</span>: <span class="string">&quot;foo/bar.txt&quot;</span>,
-                            <span class="string">&quot;debug_file&quot;</span>: <span class="string">&quot;foo/bar.txt&quot;</span>,
+                            <span class="string">"type"</span>: <span class="string">"macho"</span>,
+                            <span class="string">"code_file"</span>: <span class="string">"foo/bar.txt"</span>,
+                            <span class="string">"debug_file"</span>: <span class="string">"foo/bar.txt"</span>,
                         }
                     ]
                 }
@@ -2960,7 +2961,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;debug_file&quot;</span>.to_owned(), <span class="string">&quot;code_file&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"debug_file"</span>.to_owned(), <span class="string">"code_file"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -2974,11 +2975,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_stacktrace_paths_not_strippable() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;stacktrace&quot;</span>: {
-                    <span class="string">&quot;frames&quot;</span>: [
+                <span class="string">"stacktrace"</span>: {
+                    <span class="string">"frames"</span>: [
                         {
-                            <span class="string">&quot;filename&quot;</span>: <span class="string">&quot;C:\\Windows\\BogusValue\\foo.txt&quot;</span>,
-                            <span class="string">&quot;abs_path&quot;</span>: <span class="string">&quot;C:\\Windows\\BogusValue\\foo.txt&quot;
+                            <span class="string">"filename"</span>: <span class="string">"C:\\Windows\\BogusValue\\foo.txt"</span>,
+                            <span class="string">"abs_path"</span>: <span class="string">"C:\\Windows\\BogusValue\\foo.txt"
                         </span>}
                     ]
                 }
@@ -2987,7 +2988,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;filename&quot;</span>.to_owned(), <span class="string">&quot;abs_path&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"filename"</span>.to_owned(), <span class="string">"abs_path"</span>.to_owned()],
             ..simple_enabled_config()
         });
 
@@ -3001,19 +3002,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_odd_keys() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>: <span class="string">&quot;foo&quot;</span>,
-                    <span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>: <span class="string">&quot;bar&quot;</span>,
+                <span class="string">"extra"</span>: {
+                    <span class="string">"do not ,./&lt;&gt;?!@#$%^&amp;*())'ßtrip'"</span>: <span class="string">"foo"</span>,
+                    <span class="string">"special ,./&lt;&gt;?!@#$%^&amp;*())'gärbage'"</span>: <span class="string">"bar"</span>,
                 }
             })
             .into(),
         );
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"special ,./&lt;&gt;?!@#$%^&amp;*())'gärbage'"</span>.to_owned()],
             exclude_fields: <span class="macro">vec!</span>[
-                <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.to_owned(),
-                <span class="string">&quot;2abc&quot;</span>.to_owned(),
+                <span class="string">"do not ,./&lt;&gt;?!@#$%^&amp;*())'ßtrip'"</span>.to_owned(),
+                <span class="string">"2abc"</span>.to_owned(),
             ],
             ..simple_enabled_config()
         });
@@ -3029,12 +3030,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             sensitive_fields: <span class="macro">vec!</span>[],
             exclude_fields: <span class="macro">vec!</span>[
-                <span class="string">&quot;url&quot;</span>.to_owned(),
-                <span class="string">&quot;message&quot;</span>.to_owned(),
-                <span class="string">&quot;http.request.url&quot;</span>.to_owned(),
-                <span class="string">&quot;*url*&quot;</span>.to_owned(),
-                <span class="string">&quot;*message*&quot;</span>.to_owned(),
-                <span class="string">&quot;*http.request.url*&quot;</span>.to_owned(),
+                <span class="string">"url"</span>.to_owned(),
+                <span class="string">"message"</span>.to_owned(),
+                <span class="string">"http.request.url"</span>.to_owned(),
+                <span class="string">"*url*"</span>.to_owned(),
+                <span class="string">"*message*"</span>.to_owned(),
+                <span class="string">"*http.request.url*"</span>.to_owned(),
             ],
             ..simple_enabled_config()
         });
@@ -3047,14 +3048,14 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_safe_fields_for_token() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;password&quot;</span>: <span class="string">&quot;foo&quot;</span>,
-                    <span class="string">&quot;github_token&quot;</span>: <span class="string">&quot;bar&quot;</span>,
-                    <span class="string">&quot;access_token&quot;</span>: <span class="string">&quot;quz&quot;</span>,
-                    <span class="string">&quot;stripetoken&quot;</span>: <span class="string">&quot;baz&quot;</span>,
-                    <span class="string">&quot;my-token&quot;</span>: <span class="string">&quot;secret&quot;</span>,
-                    <span class="string">&quot;new_token&quot;</span>: <span class="string">&quot;hidden&quot;</span>,
-                    <span class="string">&quot;secret-token-here&quot;</span>: <span class="string">&quot;ops&quot;
+                <span class="string">"extra"</span>: {
+                    <span class="string">"password"</span>: <span class="string">"foo"</span>,
+                    <span class="string">"github_token"</span>: <span class="string">"bar"</span>,
+                    <span class="string">"access_token"</span>: <span class="string">"quz"</span>,
+                    <span class="string">"stripetoken"</span>: <span class="string">"baz"</span>,
+                    <span class="string">"my-token"</span>: <span class="string">"secret"</span>,
+                    <span class="string">"new_token"</span>: <span class="string">"hidden"</span>,
+                    <span class="string">"secret-token-here"</span>: <span class="string">"ops"
                 </span>}
             })
             .into(),
@@ -3062,9 +3063,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             sensitive_fields: <span class="macro">vec!</span>[],
             exclude_fields: <span class="macro">vec!</span>[
-                <span class="string">&quot;GITHUB_TOKEN&quot;</span>.to_owned(),
-                <span class="string">&quot;access_token&quot;</span>.to_owned(),
-                <span class="string">&quot;stripetoken&quot;</span>.to_owned(),
+                <span class="string">"GITHUB_TOKEN"</span>.to_owned(),
+                <span class="string">"access_token"</span>.to_owned(),
+                <span class="string">"stripetoken"</span>.to_owned(),
             ],
             ..simple_enabled_config()
         });
@@ -3079,18 +3080,18 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_scrub_object() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;url&quot;</span>: <span class="string">&quot;https://www.example.com/fr/testing/authenticate&quot;</span>,
-                    <span class="string">&quot;method&quot;</span>: <span class="string">&quot;POST&quot;</span>,
-                    <span class="string">&quot;data&quot;</span>: {
-                      <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
-                      <span class="string">&quot;profile&quot;</span>: {
-                        <span class="string">&quot;email&quot;</span>: <span class="string">&quot;testing@example.com&quot;</span>,
-                        <span class="string">&quot;password&quot;</span>: {
-                          <span class="string">&quot;$eq&quot;</span>: <span class="string">&quot;u{}{}{}]H[[[]]ww6KrA9F.x-F%%&quot;
+                <span class="string">"request"</span>: {
+                    <span class="string">"url"</span>: <span class="string">"https://www.example.com/fr/testing/authenticate"</span>,
+                    <span class="string">"method"</span>: <span class="string">"POST"</span>,
+                    <span class="string">"data"</span>: {
+                      <span class="string">"password"</span>: <span class="string">"test"</span>,
+                      <span class="string">"profile"</span>: {
+                        <span class="string">"email"</span>: <span class="string">"testing@example.com"</span>,
+                        <span class="string">"password"</span>: {
+                          <span class="string">"$eq"</span>: <span class="string">"u{}{}{}]H[[[]]ww6KrA9F.x-F%%"
                         </span>}
                       },
-                      <span class="string">&quot;submit&quot;</span>: <span class="string">&quot;Se connecter&quot;
+                      <span class="string">"submit"</span>: <span class="string">"Se connecter"
                     </span>}
                 }
             })
@@ -3107,16 +3108,16 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_no_scrub_object_with_safe_fields() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;url&quot;</span>: <span class="string">&quot;https://www.example.com/fr/testing/authenticate&quot;</span>,
-                    <span class="string">&quot;method&quot;</span>: <span class="string">&quot;POST&quot;</span>,
-                    <span class="string">&quot;data&quot;</span>: {
-                      <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
-                      <span class="string">&quot;credentials&quot;</span>: {
-                        <span class="string">&quot;email&quot;</span>: <span class="string">&quot;testing@example.com&quot;</span>,
-                        <span class="string">&quot;password&quot;</span>: <span class="string">&quot;test&quot;</span>,
+                <span class="string">"request"</span>: {
+                    <span class="string">"url"</span>: <span class="string">"https://www.example.com/fr/testing/authenticate"</span>,
+                    <span class="string">"method"</span>: <span class="string">"POST"</span>,
+                    <span class="string">"data"</span>: {
+                      <span class="string">"password"</span>: <span class="string">"test"</span>,
+                      <span class="string">"credentials"</span>: {
+                        <span class="string">"email"</span>: <span class="string">"testing@example.com"</span>,
+                        <span class="string">"password"</span>: <span class="string">"test"</span>,
                       },
-                      <span class="string">&quot;submit&quot;</span>: <span class="string">&quot;Se connecter&quot;
+                      <span class="string">"submit"</span>: <span class="string">"Se connecter"
                     </span>}
                 }
             })
@@ -3125,7 +3126,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             sensitive_fields: <span class="macro">vec!</span>[],
-            exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;credentials&quot;</span>.to_owned()],
+            exclude_fields: <span class="macro">vec!</span>[<span class="string">"credentials"</span>.to_owned()],
             ..simple_enabled_config()
         })
         .unwrap();
@@ -3139,13 +3140,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     </span><span class="kw">fn </span>test_exclude_expression() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;do_not_scrub_1&quot;</span>: <span class="string">&quot;password&quot;</span>,
-                    <span class="string">&quot;do_not_scrub_2&quot;</span>: [<span class="string">&quot;password&quot;</span>],
-                    <span class="string">&quot;do_not_scrub.dot&quot;</span>: [<span class="string">&quot;password&quot;</span>],
+                <span class="string">"extra"</span>: {
+                    <span class="string">"do_not_scrub_1"</span>: <span class="string">"password"</span>,
+                    <span class="string">"do_not_scrub_2"</span>: [<span class="string">"password"</span>],
+                    <span class="string">"do_not_scrub.dot"</span>: [<span class="string">"password"</span>],
                 },
-                <span class="string">&quot;user&quot;</span>: {
-                    <span class="string">&quot;id&quot;</span>: <span class="string">&quot;5355849125500546&quot;</span>,
+                <span class="string">"user"</span>: {
+                    <span class="string">"id"</span>: <span class="string">"5355849125500546"</span>,
                 }
             })
             .into(),
@@ -3153,10 +3154,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             exclude_fields: <span class="macro">vec!</span>[
-                <span class="string">&quot;do_not_scrub_1&quot;</span>.to_owned(),
-                <span class="string">&quot;do_not_scrub_2.**&quot;</span>.to_owned(),
-                <span class="string">&quot;extra.&#39;do_not_scrub.dot&#39;.**&quot;</span>.to_owned(),
-                <span class="string">&quot;$user.id&quot;</span>.to_owned(),
+                <span class="string">"do_not_scrub_1"</span>.to_owned(),
+                <span class="string">"do_not_scrub_2.**"</span>.to_owned(),
+                <span class="string">"extra.'do_not_scrub.dot'.**"</span>.to_owned(),
+                <span class="string">"$user.id"</span>.to_owned(),
             ],
             ..simple_enabled_config()
         })
@@ -3164,33 +3165,33 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###"
         {
-          &quot;user&quot;: {
-            &quot;id&quot;: &quot;5355849125500546&quot;
+          "user": {
+            "id": "5355849125500546"
           },
-          &quot;extra&quot;: {
-            &quot;do_not_scrub.dot&quot;: [
-              &quot;password&quot;
+          "extra": {
+            "do_not_scrub.dot": [
+              "password"
             ],
-            &quot;do_not_scrub_1&quot;: &quot;password&quot;,
-            &quot;do_not_scrub_2&quot;: [
-              &quot;password&quot;
+            "do_not_scrub_1": "password",
+            "do_not_scrub_2": [
+              "password"
             ]
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_safe_field_legacy_disables_all_string_parsing() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
             <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;request&quot;</span>: {
-                    <span class="string">&quot;data&quot;</span>: {
-                        <span class="string">&quot;email&quot;</span>: <span class="string">&quot;foo@bar.de&quot;</span>,
-                        <span class="string">&quot;password&quot;</span>: <span class="string">&quot;kkee&quot;</span>,
-                        <span class="string">&quot;recaptcha&quot;</span>: null,
+                <span class="string">"request"</span>: {
+                    <span class="string">"data"</span>: {
+                        <span class="string">"email"</span>: <span class="string">"foo@bar.de"</span>,
+                        <span class="string">"password"</span>: <span class="string">"kkee"</span>,
+                        <span class="string">"recaptcha"</span>: null,
                     }
                 },
             })
@@ -3199,10 +3200,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>DataScrubbingConfig {
             <span class="comment">// this triggered legacy behaviour and disabled scrubbing for all fields
-            </span>exclude_fields: <span class="macro">vec!</span>[<span class="string">&quot;email&quot;</span>.to_owned()],
+            </span>exclude_fields: <span class="macro">vec!</span>[<span class="string">"email"</span>.to_owned()],
             scrub_data: <span class="bool-val">true</span>,
             scrub_ip_addresses: <span class="bool-val">true</span>,
-            sensitive_fields: <span class="macro">vec!</span>[<span class="string">&quot;email&quot;</span>.to_owned(), <span class="string">&quot;password&quot;</span>.to_owned()],
+            sensitive_fields: <span class="macro">vec!</span>[<span class="string">"email"</span>.to_owned(), <span class="string">"password"</span>.to_owned()],
             scrub_defaults: <span class="bool-val">true</span>,
             ..Default::default()
         })
@@ -3210,36 +3211,36 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###"
         {
-          &quot;request&quot;: {
-            &quot;data&quot;: {
-              &quot;email&quot;: &quot;foo@bar.de&quot;,
-              &quot;password&quot;: &quot;[Filtered]&quot;,
-              &quot;recaptcha&quot;: null
+          "request": {
+            "data": {
+              "email": "foo@bar.de",
+              "password": "[Filtered]",
+              "recaptcha": null
             }
           },
-          &quot;_meta&quot;: {
-            &quot;request&quot;: {
-              &quot;data&quot;: {
-                &quot;password&quot;: {
-                  &quot;&quot;: {
-                    &quot;rem&quot;: [
+          "_meta": {
+            "request": {
+              "data": {
+                "password": {
+                  "": {
+                    "rem": [
                       [
-                        &quot;@password:filter&quot;,
-                        &quot;s&quot;,
+                        "@password:filter",
+                        "s",
                         0,
                         10
                       ]
                     ],
-                    &quot;len&quot;: 4
+                    "len": 4
                   }
                 }
               }
             }
           }
         }
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

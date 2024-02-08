@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/global.rs`."><title>global.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_quotas/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_quotas"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/global.rs`."><title>global.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_quotas/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_quotas"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -558,9 +559,9 @@
 <span class="doccomment">/// Default percentage of the quota limit to reserve from Redis as a local cache.
 </span><span class="kw">const </span>DEFAULT_BUDGET_RATIO: f32 = <span class="number">0.001</span>;
 
-<span class="kw">fn </span>load_global_lua_script() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>Script {
+<span class="kw">fn </span>load_global_lua_script() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Script {
     <span class="kw">static </span>SCRIPT: OnceLock&lt;Script&gt; = OnceLock::new();
-    SCRIPT.get_or_init(|| Script::new(<span class="macro">include_str!</span>(<span class="string">&quot;global_quota.lua&quot;</span>)))
+    SCRIPT.get_or_init(|| Script::new(<span class="macro">include_str!</span>(<span class="string">"global_quota.lua"</span>)))
 }
 
 <span class="doccomment">/// A rate limiter for global rate limits.
@@ -570,17 +571,17 @@
 }
 
 <span class="kw">impl </span>GlobalRateLimits {
-    <span class="doccomment">/// Returns a vector of the [`RedisQuota`]&#39;s that should be ratelimited.
+    <span class="doccomment">/// Returns a vector of the [`RedisQuota`]'s that should be ratelimited.
     ///
-    /// We don&#39;t know if an item should be ratelimited or not until we&#39;ve checked all the quotas.
+    /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
     /// Therefore we only start decrementing the budgets of the various quotas when we know
     /// that None of the quotas hit the ratelimit.
-    </span><span class="kw">pub fn </span>filter_rate_limited&lt;<span class="lifetime">&#39;a</span>&gt;(
+    </span><span class="kw">pub fn </span>filter_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         client: <span class="kw-2">&amp;mut </span>PooledClient,
-        quotas: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt;],
+        quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[RedisQuota&lt;<span class="lifetime">'a</span>&gt;],
         quantity: usize,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt;&gt;, RedisError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RedisError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.limits.lock().unwrap_or_else(PoisonError::into_inner);
 
         <span class="kw">let </span><span class="kw-2">mut </span>ratelimited = <span class="macro">vec!</span>[];
@@ -622,8 +623,8 @@
     namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">&#39;_</span>&gt;&gt; <span class="kw">for </span>Key {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Key {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
         Key {
             prefix: value.prefix.to_owned(),
             window: value.window,
@@ -636,9 +637,9 @@
 </span><span class="kw">struct </span>RedisKey(String);
 
 <span class="kw">impl </span>RedisKey {
-    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">&#39;_</span>&gt;, slot: u64) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;, slot: u64) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(<span class="macro">format!</span>(
-            <span class="string">&quot;global_quota:{id}{window}{namespace:?}:{slot}&quot;</span>,
+            <span class="string">"global_quota:{id}{window}{namespace:?}:{slot}"</span>,
             id = key.prefix,
             window = key.window,
             namespace = key.namespace,
@@ -651,14 +652,14 @@
 ///
 /// This works due to the [`hashbrown::Equivalent`] trait.
 </span><span class="attr">#[derive(Clone, Copy, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
-</span><span class="kw">struct </span>KeyRef&lt;<span class="lifetime">&#39;a</span>&gt; {
-    prefix: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+</span><span class="kw">struct </span>KeyRef&lt;<span class="lifetime">'a</span>&gt; {
+    prefix: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     window: u64,
     namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; KeyRef&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; KeyRef&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(quota: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             prefix: quota.prefix(),
             window: quota.window(),
@@ -671,7 +672,7 @@
     }
 }
 
-<span class="kw">impl </span>hashbrown::Equivalent&lt;Key&gt; <span class="kw">for </span>KeyRef&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>hashbrown::Equivalent&lt;Key&gt; <span class="kw">for </span>KeyRef&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>equivalent(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>Key) -&gt; bool {
         <span class="kw">let </span>Key {
             prefix,
@@ -687,7 +688,7 @@
 ///
 /// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
 /// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
-/// which is why we have this cache. It works by &#39;taking&#39; a certain budget from Redis, by pre-incrementing
+/// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
 /// a global counter. We put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from Redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
@@ -712,7 +713,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         client: <span class="kw-2">&amp;mut </span>PooledClient,
         quota: <span class="kw-2">&amp;</span>RedisQuota,
-        key: KeyRef&lt;<span class="lifetime">&#39;_</span>&gt;,
+        key: KeyRef&lt;<span class="lifetime">'_</span>&gt;,
         quantity: u64,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, RedisError&gt; {
         <span class="kw">let </span>quota_slot = quota.slot();
@@ -804,8 +805,8 @@
     <span class="kw">use crate</span>::{DataCategories, ItemScoping, Quota, QuotaScope, Scoping};
 
     <span class="kw">fn </span>build_redis_pool() -&gt; RedisPool {
-        <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
-            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
+        <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
+            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
         RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap()
     }
@@ -827,12 +828,12 @@
         Scoping {
             organization_id: <span class="number">69420</span>,
             project_id: ProjectId::new(<span class="number">42</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
         }
     }
 
-    <span class="kw">fn </span>build_redis_quota&lt;<span class="lifetime">&#39;a</span>&gt;(quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota, scoping: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Scoping) -&gt; RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>build_redis_quota&lt;<span class="lifetime">'a</span>&gt;(quota: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota, scoping: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Scoping) -&gt; RedisQuota&lt;<span class="lifetime">'a</span>&gt; {
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
@@ -887,8 +888,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>smaller_quota = build_quota(<span class="number">10</span>, smaller_limit);
         <span class="kw">let </span><span class="kw-2">mut </span>bigger_quota = build_quota(<span class="number">10</span>, bigger_limit);
 
-        smaller_quota.id = <span class="prelude-val">Some</span>(<span class="string">&quot;foobar&quot;</span>.into());
-        bigger_quota.id = <span class="prelude-val">Some</span>(<span class="string">&quot;foobar&quot;</span>.into());
+        smaller_quota.id = <span class="prelude-val">Some</span>(<span class="string">"foobar"</span>.into());
+        bigger_quota.id = <span class="prelude-val">Some</span>(<span class="string">"foobar"</span>.into());
 
         <span class="kw">let </span>redis_quotas = [
             build_redis_quota(<span class="kw-2">&amp;</span>smaller_quota, <span class="kw-2">&amp;</span>scoping),
@@ -925,7 +926,7 @@
 
         <span class="kw">let </span>expected_ratelimit_result = [<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>].to_vec();
 
-        <span class="comment">// The limit is 200, while we take 90 at a time. So the first two times we call, we&#39;ll
+        <span class="comment">// The limit is 200, while we take 90 at a time. So the first two times we call, we'll
         // still be under the limit. 90 &lt; 200 -&gt; 180 &lt; 200 -&gt; 270 &gt; 200 -&gt; 360 &gt; 200.
         </span><span class="kw">for </span>should_ratelimit <span class="kw">in </span>expected_ratelimit_result {
             <span class="kw">let </span>is_ratelimited = counter

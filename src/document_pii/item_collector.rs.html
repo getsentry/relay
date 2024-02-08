@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/item_collector.rs`."><title>item_collector.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-pii/src/item_collector.rs`."><title>item_collector.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../document_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -407,9 +408,9 @@
         <span class="prelude-val">Ok</span>(fields
             .into_iter()
             .filter(|pii| {
-                pii.has_attribute(<span class="string">&quot;pii&quot;</span>, <span class="prelude-val">Some</span>(pii_values))
-                    &amp;&amp; (pii.has_attribute(<span class="string">&quot;retain&quot;</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()]))
-                        || !pii.has_attribute(<span class="string">&quot;additional_properties&quot;</span>, <span class="prelude-val">None</span>))
+                pii.has_attribute(<span class="string">"pii"</span>, <span class="prelude-val">Some</span>(pii_values))
+                    &amp;&amp; (pii.has_attribute(<span class="string">"retain"</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()]))
+                        || !pii.has_attribute(<span class="string">"additional_properties"</span>, <span class="prelude-val">None</span>))
             })
             .collect())
     }
@@ -424,7 +425,7 @@
         <span class="kw">let </span>value = <span class="kw-2">&amp;</span><span class="self">self
             </span>.all_types
             .get(type_path)
-            .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">&quot;Unable to find item with following path: {}&quot;</span>, type_path))<span class="question-mark">?</span>;
+            .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"Unable to find item with following path: {}"</span>, type_path))<span class="question-mark">?</span>;
 
         <span class="kw">match </span>value {
             EnumOrStruct::Struct(itemstruct) =&gt; visitor.visit_item_struct(itemstruct),
@@ -451,7 +452,7 @@
     module_path: String,
     <span class="doccomment">/// Maps from the full path of a type to its AST node.
     </span>all_types: HashMap&lt;String, EnumOrStruct&gt;,
-    <span class="doccomment">/// Maps from a module_path to all the types that are in the module&#39;s scope.
+    <span class="doccomment">/// Maps from a module_path to all the types that are in the module's scope.
     </span>scoped_paths: BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
 }
 
@@ -492,25 +493,25 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;ast</span>&gt; Visit&lt;<span class="lifetime">&#39;ast</span>&gt; <span class="kw">for </span>AstItemCollector {
-    <span class="kw">fn </span>visit_item_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>ItemStruct) {
-        <span class="kw">let </span>struct_name = <span class="macro">format!</span>(<span class="string">&quot;{}::{}&quot;</span>, <span class="self">self</span>.module_path, node.ident);
+<span class="kw">impl</span>&lt;<span class="lifetime">'ast</span>&gt; Visit&lt;<span class="lifetime">'ast</span>&gt; <span class="kw">for </span>AstItemCollector {
+    <span class="kw">fn </span>visit_item_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>ItemStruct) {
+        <span class="kw">let </span>struct_name = <span class="macro">format!</span>(<span class="string">"{}::{}"</span>, <span class="self">self</span>.module_path, node.ident);
         <span class="self">self</span>.insert_scoped_paths(<span class="macro">vec!</span>[struct_name.clone()]);
         <span class="self">self</span>.all_types
             .insert(struct_name, EnumOrStruct::Struct(node.clone()));
     }
 
-    <span class="kw">fn </span>visit_item_enum(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>ItemEnum) {
-        <span class="kw">let </span>enum_name = <span class="macro">format!</span>(<span class="string">&quot;{}::{}&quot;</span>, <span class="self">self</span>.module_path, node.ident);
+    <span class="kw">fn </span>visit_item_enum(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>ItemEnum) {
+        <span class="kw">let </span>enum_name = <span class="macro">format!</span>(<span class="string">"{}::{}"</span>, <span class="self">self</span>.module_path, node.ident);
         <span class="self">self</span>.insert_scoped_paths(<span class="macro">vec!</span>[enum_name.clone()]);
         <span class="self">self</span>.all_types
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
 
-    <span class="kw">fn </span>visit_item_use(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast </span>syn::ItemUse) {
+    <span class="kw">fn </span>visit_item_use(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>syn::ItemUse) {
         <span class="kw">let </span>use_statements = usetree_to_paths(<span class="kw-2">&amp;</span>i.tree, <span class="kw-2">&amp;</span><span class="self">self</span>.module_path)
             .iter()
-            .filter(|s| s.contains(<span class="string">&quot;relay&quot;</span>))
+            .filter(|s| s.contains(<span class="string">"relay"</span>))
             .cloned()
             .collect();
 
@@ -520,24 +521,24 @@
 
 <span class="kw">fn </span>normalize_type_path(<span class="kw-2">mut </span>path: String, crate_root: <span class="kw-2">&amp;</span>str, module_path: <span class="kw-2">&amp;</span>str) -&gt; String {
     path = path
-        .replace(<span class="string">&#39; &#39;</span>, <span class="string">&quot;&quot;</span>)
-        .replace(<span class="string">&#39;-&#39;</span>, <span class="string">&quot;_&quot;</span>)
-        .replace(<span class="string">&quot;crate::&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}::&quot;</span>, crate_root));
+        .replace(<span class="string">' '</span>, <span class="string">""</span>)
+        .replace(<span class="string">'-'</span>, <span class="string">"_"</span>)
+        .replace(<span class="string">"crate::"</span>, <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{}::"</span>, crate_root));
 
-    <span class="kw">if </span>path.contains(<span class="string">&quot;super::&quot;</span>) {
+    <span class="kw">if </span>path.contains(<span class="string">"super::"</span>) {
         <span class="kw">let </span>parent_module = {
-            <span class="kw">let </span><span class="kw-2">mut </span>parts = module_path.split(<span class="string">&quot;::&quot;</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+            <span class="kw">let </span><span class="kw-2">mut </span>parts = module_path.split(<span class="string">"::"</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
             parts.pop();
-            parts.join(<span class="string">&quot;::&quot;</span>)
+            parts.join(<span class="string">"::"</span>)
         };
-        path = path.replace(<span class="string">&quot;super::&quot;</span>, <span class="kw-2">&amp;</span>parent_module);
+        path = path.replace(<span class="string">"super::"</span>, <span class="kw-2">&amp;</span>parent_module);
     }
     path
 }
 
 <span class="doccomment">/// First flattens the UseTree and then normalizing the paths.
 </span><span class="kw">fn </span>usetree_to_paths(use_tree: <span class="kw-2">&amp;</span>UseTree, module_path: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;String&gt; {
-    <span class="kw">let </span>crate_root = module_path.split_once(<span class="string">&quot;::&quot;</span>).map_or(module_path, |s| s.<span class="number">0</span>);
+    <span class="kw">let </span>crate_root = module_path.split_once(<span class="string">"::"</span>).map_or(module_path, |s| s.<span class="number">0</span>);
     <span class="kw">let </span>paths = flatten_use_tree(
         syn::Path {
             leading_colon: <span class="prelude-val">None</span>,
@@ -578,33 +579,33 @@
             leading_path.segments.push(use_rename.rename.clone().into());
             <span class="macro">vec!</span>[<span class="macro">quote::quote!</span>(#leading_path).to_string()]
         }
-        <span class="comment">// Currently this script can&#39;t handle glob imports, which, we shouldn&#39;t use anyway.
+        <span class="comment">// Currently this script can't handle glob imports, which, we shouldn't use anyway.
         </span>UseTree::Glob(<span class="kw">_</span>) =&gt; <span class="macro">vec!</span>[<span class="macro">quote::quote!</span>(#leading_path).to_string()],
     }
 }
 
 <span class="kw">fn </span>crate_name_from_file(file_path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;String&gt; {
     <span class="comment">// We know the crate_name is located like home/foo/bar/crate_name/src/...
-    // We therefore first find the index of the &#39;/&#39; to the left of src, then we find the index
-    // of the &#39;/&#39; to the left of that, and the crate_name will be whats between those indexes.
+    // We therefore first find the index of the '/' to the left of src, then we find the index
+    // of the '/' to the left of that, and the crate_name will be whats between those indexes.
     </span><span class="kw">let </span>file_str = file_path.to_string_lossy();
 
     <span class="kw">let </span>src_index = file_str
-        .find(<span class="string">&quot;/src/&quot;</span>)
-        .or_else(|| file_str.find(<span class="string">&quot;\\src\\&quot;</span>))
+        .find(<span class="string">"/src/"</span>)
+        .or_else(|| file_str.find(<span class="string">"\\src\\"</span>))
         .ok_or_else(|| {
             <span class="macro">anyhow!</span>(
-                <span class="string">&quot;Invalid file path (missing &#39;/src/&#39; or &#39;\\src\\&#39;): {}&quot;</span>,
+                <span class="string">"Invalid file path (missing '/src/' or '\\src\\'): {}"</span>,
                 file_path.display()
             )
         })<span class="question-mark">?</span>;
 
     <span class="kw">let </span>back_index = file_str[..src_index]
-        .rfind(<span class="string">&#39;/&#39;</span>)
-        .or_else(|| file_str[..src_index].rfind(<span class="string">&#39;\\&#39;</span>))
+        .rfind(<span class="string">'/'</span>)
+        .or_else(|| file_str[..src_index].rfind(<span class="string">'\\'</span>))
         .ok_or_else(|| {
             <span class="macro">anyhow!</span>(
-                <span class="string">&quot;Invalid file path (missing separator before &#39;/src/&#39; or &#39;\\src\\&#39;): {}&quot;</span>,
+                <span class="string">"Invalid file path (missing separator before '/src/' or '\\src\\'): {}"</span>,
                 file_path.display()
             )
         })<span class="question-mark">?
@@ -626,7 +627,7 @@
         .file_stem()
         .ok_or_else(|| {
             <span class="macro">anyhow!</span>(
-                <span class="string">&quot;Invalid file path (unable to find file stem): {}&quot;</span>,
+                <span class="string">"Invalid file path (unable to find file stem): {}"</span>,
                 file_path.display()
             )
         })<span class="question-mark">?
@@ -637,21 +638,21 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Takes in the path to a Rust file and returns the path as you&#39;d refer to it in a use-statement.
+<span class="doccomment">/// Takes in the path to a Rust file and returns the path as you'd refer to it in a use-statement.
 ///
-/// e.g. `&quot;relay/relay-event_schema/src/protocol/types.rs&quot;` -&gt; `&quot;relay_event_schema::protocol&quot;`.
+/// e.g. `"relay/relay-event_schema/src/protocol/types.rs"` -&gt; `"relay_event_schema::protocol"`.
 </span><span class="kw">fn </span>module_name_from_file(file_path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;String&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>module_path = file_path
         .parent()
         .ok_or_else(|| {
             <span class="macro">anyhow!</span>(
-                <span class="string">&quot;Invalid file path (unable to find parent directory): {}&quot;</span>,
+                <span class="string">"Invalid file path (unable to find parent directory): {}"</span>,
                 file_path.display()
             )
         })<span class="question-mark">?
         </span>.components()
         .map(|part| part.as_os_str().to_string_lossy().into_owned())
-        .filter(|part| part != <span class="string">&quot;src&quot;</span>)
+        .filter(|part| part != <span class="string">"src"</span>)
         .collect::&lt;Vec&lt;String&gt;&gt;();
 
     <span class="kw">if </span>is_file_module(file_path)<span class="question-mark">? </span>{
@@ -665,24 +666,24 @@
         .iter()
         .position(|s| s == <span class="kw-2">&amp;</span>crate_name)
         .map(|index| <span class="kw-2">&amp;</span>module_path[index..])
-        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">&quot;Couldn&#39;t find crate name {}.&quot;</span>, crate_name))<span class="question-mark">?
-        </span>.join(<span class="string">&quot;::&quot;</span>)
-        .replace(<span class="string">&#39;-&#39;</span>, <span class="string">&quot;_&quot;</span>))
+        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"Couldn't find crate name {}."</span>, crate_name))<span class="question-mark">?
+        </span>.join(<span class="string">"::"</span>)
+        .replace(<span class="string">'-'</span>, <span class="string">"_"</span>))
 }
 
 <span class="kw">fn </span>is_file_declared_from_mod_file(parent_dir: <span class="kw-2">&amp;</span>Path, file_stem: <span class="kw-2">&amp;</span>str) -&gt; anyhow::Result&lt;bool&gt; {
-    <span class="kw">let </span>mod_rs_path = parent_dir.join(<span class="string">&quot;mod.rs&quot;</span>);
+    <span class="kw">let </span>mod_rs_path = parent_dir.join(<span class="string">"mod.rs"</span>);
     <span class="kw">if </span>!mod_rs_path.exists() {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
     }
-    <span class="comment">// If &quot;mod.rs&quot; exists, we need to check if it declares the file in question as a module.
-    // The declaration line would start with &quot;pub mod&quot; and contain the file stem.
+    <span class="comment">// If "mod.rs" exists, we need to check if it declares the file in question as a module.
+    // The declaration line would start with "pub mod" and contain the file stem.
     </span><span class="kw">let </span>mod_rs_file: fs::File = fs::File::open(mod_rs_path)<span class="question-mark">?</span>;
     <span class="kw">let </span>reader = std::io::BufReader::new(mod_rs_file);
 
     <span class="kw">for </span>line <span class="kw">in </span>reader.lines() {
         <span class="kw">let </span>line = line<span class="question-mark">?</span>;
-        <span class="kw">if </span>line.trim().starts_with(<span class="string">&quot;pub mod&quot;</span>) &amp;&amp; line.contains(file_stem) {
+        <span class="kw">if </span>line.trim().starts_with(<span class="string">"pub mod"</span>) &amp;&amp; line.contains(file_stem) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
         }
     }
@@ -696,14 +697,14 @@
 ) -&gt; anyhow::Result&lt;bool&gt; {
     <span class="kw">let </span>path = entry.path();
 
-    <span class="kw">if </span>path.is_file() &amp;&amp; path.extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">&quot;rs&quot;</span>) &amp;&amp; path != <span class="kw-2">*</span>file_path {
-        <span class="comment">// Read the file and search for the same declaration pattern: &quot;pub mod&quot; and file stem.
+    <span class="kw">if </span>path.is_file() &amp;&amp; path.extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">"rs"</span>) &amp;&amp; path != <span class="kw-2">*</span>file_path {
+        <span class="comment">// Read the file and search for the same declaration pattern: "pub mod" and file stem.
         </span><span class="kw">let </span>file = fs::File::open(path)<span class="question-mark">?</span>;
         <span class="kw">let </span>reader = std::io::BufReader::new(file);
 
         <span class="kw">for </span>line <span class="kw">in </span>reader.lines() {
             <span class="kw">let </span>line = line<span class="question-mark">?</span>;
-            <span class="kw">if </span>line.trim().starts_with(<span class="string">&quot;pub mod&quot;</span>) &amp;&amp; line.contains(file_stem) {
+            <span class="kw">if </span>line.trim().starts_with(<span class="string">"pub mod"</span>) &amp;&amp; line.contains(file_stem) {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
             }
         }
@@ -715,10 +716,10 @@
 </span><span class="kw">fn </span>is_file_module(file_path: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;bool&gt; {
     <span class="kw">let </span>parent_dir = file_path
         .parent()
-        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">&quot;Invalid file path: {}&quot;</span>, file_path.display()))<span class="question-mark">?</span>;
+        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"Invalid file path: {}"</span>, file_path.display()))<span class="question-mark">?</span>;
     <span class="kw">let </span>file_stem = file_path
         .file_stem()
-        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">&quot;Invalid file path: {}&quot;</span>, file_path.display()))<span class="question-mark">?
+        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"Invalid file path: {}"</span>, file_path.display()))<span class="question-mark">?
         </span>.to_string_lossy();
 
     <span class="kw">if </span>is_file_declared_from_mod_file(parent_dir, <span class="kw-2">&amp;</span>file_stem)<span class="question-mark">? </span>{

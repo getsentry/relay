@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-config/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-config/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2327,10 +2328,10 @@
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
 
-<span class="kw">static </span>CONFIG_YAML_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">r###&quot;# Please see the relevant documentation.
+<span class="kw">static </span>CONFIG_YAML_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">r###"# Please see the relevant documentation.
 # Performance tuning: https://docs.sentry.io/product/relay/operating-guidelines/
 # All config options: https://docs.sentry.io/product/relay/options/
-&quot;###</span>;
+"###</span>;
 
 <span class="doccomment">/// Indicates config related errors.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -2352,16 +2353,16 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigErrorKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::CouldNotOpenFile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not open config file&quot;</span>),
-            <span class="self">Self</span>::CouldNotWriteFile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not write config file&quot;</span>),
-            <span class="self">Self</span>::BadYaml =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not parse yaml config file&quot;</span>),
-            <span class="self">Self</span>::BadJson =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not parse json config file&quot;</span>),
-            <span class="self">Self</span>::InvalidValue =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid config value&quot;</span>),
+            <span class="self">Self</span>::CouldNotOpenFile =&gt; <span class="macro">write!</span>(f, <span class="string">"could not open config file"</span>),
+            <span class="self">Self</span>::CouldNotWriteFile =&gt; <span class="macro">write!</span>(f, <span class="string">"could not write config file"</span>),
+            <span class="self">Self</span>::BadYaml =&gt; <span class="macro">write!</span>(f, <span class="string">"could not parse yaml config file"</span>),
+            <span class="self">Self</span>::BadJson =&gt; <span class="macro">write!</span>(f, <span class="string">"could not parse json config file"</span>),
+            <span class="self">Self</span>::InvalidValue =&gt; <span class="macro">write!</span>(f, <span class="string">"invalid config value"</span>),
             <span class="self">Self</span>::ProcessingNotAvailable =&gt; <span class="macro">write!</span>(
                 f,
-                <span class="string">&quot;was not compiled with processing, cannot enable processing&quot;
+                <span class="string">"was not compiled with processing, cannot enable processing"
             </span>),
         }
     }
@@ -2385,13 +2386,13 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigErrorSource {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             ConfigErrorSource::None =&gt; <span class="prelude-val">Ok</span>(()),
             ConfigErrorSource::File(file_name) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot; (file {})&quot;</span>, file_name.display())
+                <span class="macro">write!</span>(f, <span class="string">" (file {})"</span>, file_name.display())
             }
-            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot; (field {name})&quot;</span>),
+            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">" (field {name})"</span>),
         }
     }
 }
@@ -2413,7 +2414,7 @@
     }
 
     <span class="attr">#[inline]
-    </span><span class="kw">fn </span>field(field: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>field(field: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             source: ConfigErrorSource::FieldOverride(field.to_owned()),
             kind: ConfigErrorKind::InvalidValue,
@@ -2435,8 +2436,8 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}{}&quot;</span>, <span class="self">self</span>.kind(), <span class="self">self</span>.source)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}{}"</span>, <span class="self">self</span>.kind(), <span class="self">self</span>.source)
     }
 }
 
@@ -2448,10 +2449,10 @@
 }
 
 <span class="kw">impl </span>ConfigFormat {
-    <span class="kw">pub fn </span>extension(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">pub fn </span>extension(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            ConfigFormat::Yaml =&gt; <span class="string">&quot;yml&quot;</span>,
-            ConfigFormat::Json =&gt; <span class="string">&quot;json&quot;</span>,
+            ConfigFormat::Yaml =&gt; <span class="string">"yml"</span>,
+            ConfigFormat::Json =&gt; <span class="string">"json"</span>,
         }
     }
 }
@@ -2461,11 +2462,11 @@
     </span><span class="kw">fn </span>format() -&gt; ConfigFormat;
 
     <span class="doccomment">/// The basename of the config file.
-    </span><span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
     <span class="doccomment">/// The full filename of the config file, including the file extension.
     </span><span class="kw">fn </span>path(base: <span class="kw-2">&amp;</span>Path) -&gt; PathBuf {
-        base.join(<span class="macro">format!</span>(<span class="string">&quot;{}.{}&quot;</span>, <span class="self">Self</span>::name(), <span class="self">Self</span>::format().extension()))
+        base.join(<span class="macro">format!</span>(<span class="string">"{}.{}"</span>, <span class="self">Self</span>::name(), <span class="self">Self</span>::format().extension()))
     }
 
     <span class="doccomment">/// Loads the config file from a file within the given directory location.
@@ -2510,7 +2511,7 @@
                 .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>,
         }
 
-        f.write_all(<span class="string">b&quot;\n&quot;</span>).ok();
+        f.write_all(<span class="string">b"\n"</span>).ok();
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2532,7 +2533,7 @@
     </span><span class="kw">pub </span>host: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The port to bind for the unencrypted relay HTTP server.
     </span><span class="kw">pub </span>port: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// &quot;true&quot; if processing is enabled &quot;false&quot; otherwise
+    <span class="doccomment">/// "true" if processing is enabled "false" otherwise
     </span><span class="kw">pub </span>processing: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// the kafka bootstrap.servers configuration string
     </span><span class="kw">pub </span>kafka_url: <span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -2566,7 +2567,7 @@
 <span class="kw">impl </span>Credentials {
     <span class="doccomment">/// Generates new random credentials.
     </span><span class="kw">pub fn </span>generate() -&gt; <span class="self">Self </span>{
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;generating new relay credentials&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">"generating new relay credentials"</span>);
         <span class="kw">let </span>(sk, pk) = generate_key_pair();
         <span class="self">Self </span>{
             secret_key: sk,
@@ -2586,14 +2587,14 @@
     <span class="kw">fn </span>format() -&gt; ConfigFormat {
         ConfigFormat::Json
     }
-    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;credentials&quot;
+    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"credentials"
     </span>}
 }
 
 <span class="doccomment">/// Information on a downstream Relay.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>RelayInfo {
     <span class="doccomment">/// The public key that this Relay uses to authenticate and sign requests.
     </span><span class="kw">pub </span>public_key: PublicKey,
@@ -2615,7 +2616,7 @@
 
 <span class="doccomment">/// The operation mode of a relay.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub enum </span>RelayMode {
     <span class="doccomment">/// This relay acts as a proxy for all requests and events.
     ///
@@ -2646,10 +2647,10 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>RelayMode {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            RelayMode::Proxy =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;proxy&quot;</span>),
-            RelayMode::Static =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;static&quot;</span>),
-            RelayMode::Managed =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;managed&quot;</span>),
-            RelayMode::Capture =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;capture&quot;</span>),
+            RelayMode::Proxy =&gt; <span class="macro">write!</span>(f, <span class="string">"proxy"</span>),
+            RelayMode::Static =&gt; <span class="macro">write!</span>(f, <span class="string">"static"</span>),
+            RelayMode::Managed =&gt; <span class="macro">write!</span>(f, <span class="string">"managed"</span>),
+            RelayMode::Capture =&gt; <span class="macro">write!</span>(f, <span class="string">"capture"</span>),
         }
     }
 }
@@ -2659,10 +2660,10 @@
 </span><span class="kw">pub struct </span>ParseRelayModeError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseRelayModeError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(
             f,
-            <span class="string">&quot;Relay mode must be one of: managed, static, proxy, capture&quot;
+            <span class="string">"Relay mode must be one of: managed, static, proxy, capture"
         </span>)
     }
 }
@@ -2674,10 +2675,10 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>s {
-            <span class="string">&quot;proxy&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Proxy),
-            <span class="string">&quot;static&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Static),
-            <span class="string">&quot;managed&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Managed),
-            <span class="string">&quot;capture&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Capture),
+            <span class="string">"proxy" </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Proxy),
+            <span class="string">"static" </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Static),
+            <span class="string">"managed" </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Managed),
+            <span class="string">"capture" </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Capture),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ParseRelayModeError),
         }
     }
@@ -2690,20 +2691,20 @@
 
 <span class="doccomment">/// Checks if we are running in docker.
 </span><span class="kw">fn </span>is_docker() -&gt; bool {
-    <span class="kw">if </span>fs::metadata(<span class="string">&quot;/.dockerenv&quot;</span>).is_ok() {
+    <span class="kw">if </span>fs::metadata(<span class="string">"/.dockerenv"</span>).is_ok() {
         <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    fs::read_to_string(<span class="string">&quot;/proc/self/cgroup&quot;</span>).map_or(<span class="bool-val">false</span>, |s| s.contains(<span class="string">&quot;/docker&quot;</span>))
+    fs::read_to_string(<span class="string">"/proc/self/cgroup"</span>).map_or(<span class="bool-val">false</span>, |s| s.contains(<span class="string">"/docker"</span>))
 }
 
-<span class="doccomment">/// Default value for the &quot;bind&quot; configuration.
+<span class="doccomment">/// Default value for the "bind" configuration.
 </span><span class="kw">fn </span>default_host() -&gt; IpAddr {
     <span class="kw">if </span>is_docker() {
         <span class="comment">// Docker images rely on this service being exposed
-        </span><span class="string">&quot;0.0.0.0&quot;</span>.parse().unwrap()
+        </span><span class="string">"0.0.0.0"</span>.parse().unwrap()
     } <span class="kw">else </span>{
-        <span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()
+        <span class="string">"127.0.0.1"</span>.parse().unwrap()
     }
 }
 
@@ -2711,7 +2712,7 @@
 ///
 /// Independent of the the readiness condition, shutdown always switches Relay into unready state.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>ReadinessCondition {
     <span class="doccomment">/// (default) Relay is ready when authenticated and connected to the upstream.
     ///
@@ -2739,7 +2740,7 @@
     <span class="doccomment">/// The operation mode of this relay.
     </span><span class="kw">pub </span>mode: RelayMode,
     <span class="doccomment">/// The upstream relay or sentry instance.
-    </span><span class="kw">pub </span>upstream: UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt;,
+    </span><span class="kw">pub </span>upstream: UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;,
     <span class="doccomment">/// The host the relay should bind to (network interface).
     </span><span class="kw">pub </span>host: IpAddr,
     <span class="doccomment">/// The port to bind for the unencrypted relay HTTP server.
@@ -2757,7 +2758,7 @@
     ///
     /// Enable this setting for Relays used to redirect traffic to a migrated Sentry instance.
     /// Validation of project identifiers can be safely skipped in these cases.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_default"</span>)]
     </span><span class="kw">pub </span>override_project_ids: bool,
 }
 
@@ -2765,7 +2766,7 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Relay {
             mode: RelayMode::Managed,
-            upstream: <span class="string">&quot;https://sentry.io/&quot;</span>.parse().unwrap(),
+            upstream: <span class="string">"https://sentry.io/"</span>.parse().unwrap(),
             host: default_host(),
             port: <span class="number">3000</span>,
             tls_port: <span class="prelude-val">None</span>,
@@ -2786,7 +2787,7 @@
     </span>statsd: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Common prefix that should be added to all metrics.
     ///
-    /// Defaults to `&quot;sentry.relay&quot;`.
+    /// Defaults to `"sentry.relay"`.
     </span>prefix: String,
     <span class="doccomment">/// Default tags to apply to all metrics.
     </span>default_tags: BTreeMap&lt;String, String&gt;,
@@ -2807,7 +2808,7 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Metrics {
             statsd: <span class="prelude-val">None</span>,
-            prefix: <span class="string">&quot;sentry.relay&quot;</span>.into(),
+            prefix: <span class="string">"sentry.relay"</span>.into(),
             default_tags: BTreeMap::new(),
             hostname_tag: <span class="prelude-val">None</span>,
             buffering: <span class="bool-val">true</span>,
@@ -2884,7 +2885,7 @@
     <span class="doccomment">/// The maximum payload size for a compressed replay.
     </span>max_replay_compressed_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for an uncompressed replay.
-    </span><span class="attr">#[serde(alias = <span class="string">&quot;max_replay_size&quot;</span>)]
+    </span><span class="attr">#[serde(alias = <span class="string">"max_replay_size"</span>)]
     </span>max_replay_uncompressed_size: ByteSize,
     <span class="doccomment">/// The maximum size for a replay recording Kafka message.
     </span>max_replay_message_size: ByteSize,
@@ -2954,7 +2955,7 @@
 
 <span class="doccomment">/// Http content encoding for both incoming and outgoing web requests.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>HttpEncoding {
     <span class="doccomment">/// Identity function without no compression.
     ///
@@ -2982,11 +2983,11 @@
     <span class="doccomment">/// Parses a [`HttpEncoding`] from its `content-encoding` header value.
     </span><span class="kw">pub fn </span>parse(str: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>str = str.trim();
-        <span class="kw">if </span>str.eq_ignore_ascii_case(<span class="string">&quot;br&quot;</span>) {
+        <span class="kw">if </span>str.eq_ignore_ascii_case(<span class="string">"br"</span>) {
             <span class="self">Self</span>::Br
-        } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">&quot;gzip&quot;</span>) || str.eq_ignore_ascii_case(<span class="string">&quot;x-gzip&quot;</span>) {
+        } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">"gzip"</span>) || str.eq_ignore_ascii_case(<span class="string">"x-gzip"</span>) {
             <span class="self">Self</span>::Gzip
-        } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">&quot;deflate&quot;</span>) {
+        } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">"deflate"</span>) {
             <span class="self">Self</span>::Deflate
         } <span class="kw">else </span>{
             <span class="self">Self</span>::Identity
@@ -2996,12 +2997,12 @@
     <span class="doccomment">/// Returns the value for the `content-encoding` HTTP header.
     ///
     /// Returns `None` for [`Identity`](Self::Identity), and `Some` for other encodings.
-    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Identity =&gt; <span class="prelude-val">None</span>,
-            <span class="self">Self</span>::Deflate =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;deflate&quot;</span>),
-            <span class="self">Self</span>::Gzip =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;gzip&quot;</span>),
-            <span class="self">Self</span>::Br =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;br&quot;</span>),
+            <span class="self">Self</span>::Deflate =&gt; <span class="prelude-val">Some</span>(<span class="string">"deflate"</span>),
+            <span class="self">Self</span>::Gzip =&gt; <span class="prelude-val">Some</span>(<span class="string">"gzip"</span>),
+            <span class="self">Self</span>::Br =&gt; <span class="prelude-val">Some</span>(<span class="string">"br"</span>),
         }
     }
 }
@@ -3060,7 +3061,7 @@
     /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
     ///
     /// This setting applies to all store requests of SDK data, including events, transactions,
-    /// envelopes and sessions. At the moment, this does not apply to Relay&#39;s internal queries.
+    /// envelopes and sessions. At the moment, this does not apply to Relay's internal queries.
     ///
     /// Available options are:
     ///
@@ -3071,7 +3072,7 @@
     </span>encoding: HttpEncoding,
     <span class="doccomment">/// Submit metrics globally through a shared endpoint.
     ///
-    /// As opposed to regular envelopes which are sent to an endpoint inferred from the project&#39;s
+    /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
     /// DSN, this submits metrics to the global endpoint with Relay authentication.
     ///
     /// This option does not have any effect on processing mode.
@@ -3138,23 +3139,23 @@
     /// If set, this will enable the buffering for incoming envelopes.
     </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     <span class="doccomment">/// Maximum number of connections, which will be maintained by the pool.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_connections&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_connections"</span>)]
     </span>max_connections: u32,
     <span class="doccomment">/// Minimal number of connections, which will be maintained by the pool.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_min_connections&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_min_connections"</span>)]
     </span>min_connections: u32,
     <span class="doccomment">/// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the befault is 524288000 bytes (500MB).
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_disk_size&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_disk_size"</span>)]
     </span>max_disk_size: ByteSize,
     <span class="doccomment">/// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_memory_size&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_memory_size"</span>)]
     </span>max_memory_size: ByteSize,
     <span class="doccomment">/// The interval in milliseconds to trigger unspool.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_unspool_interval&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_unspool_interval"</span>)]
     </span>unspool_interval: u64,
 }
 
@@ -3196,10 +3197,10 @@
     /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
     /// maximum number of envelopes in the buffer. A time based configuration may be re-introduced
     /// at a later point.
-    </span><span class="attr">#[serde(alias = <span class="string">&quot;event_expiry&quot;</span>)]
+    </span><span class="attr">#[serde(alias = <span class="string">"event_expiry"</span>)]
     </span>envelope_expiry: u32,
     <span class="doccomment">/// The maximum amount of envelopes to queue before dropping them.
-    </span><span class="attr">#[serde(alias = <span class="string">&quot;event_buffer_size&quot;</span>)]
+    </span><span class="attr">#[serde(alias = <span class="string">"event_buffer_size"</span>)]
     </span>envelope_buffer_size: u32,
     <span class="doccomment">/// The cache timeout for non-existing entries.
     </span>miss_expiry: u32,
@@ -3253,7 +3254,7 @@
 }
 
 <span class="kw">fn </span>default_projectconfig_cache_prefix() -&gt; String {
-    <span class="string">&quot;relayconfig&quot;</span>.to_owned()
+    <span class="string">"relayconfig"</span>.to_owned()
 }
 
 <span class="attr">#[allow(clippy::unnecessary_wraps)]
@@ -3270,13 +3271,13 @@
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>geoip_path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     <span class="doccomment">/// Maximum future timestamp of ingested events.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_max_secs_in_future&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_max_secs_in_future"</span>)]
     </span><span class="kw">pub </span>max_secs_in_future: u32,
     <span class="doccomment">/// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_max_secs_in_past&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_max_secs_in_past"</span>)]
     </span><span class="kw">pub </span>max_secs_in_past: u32,
     <span class="doccomment">/// Maximum age of ingested sessions. Older sessions will be dropped.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_max_session_secs_in_past&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_max_session_secs_in_past"</span>)]
     </span><span class="kw">pub </span>max_session_secs_in_past: u32,
     <span class="doccomment">/// Kafka producer configurations.
     </span><span class="kw">pub </span>kafka_config: Vec&lt;KafkaConfigParam&gt;,
@@ -3288,8 +3289,8 @@
     /// ```yaml
     /// secondary_kafka_configs:
     ///   mycustomcluster:
-    ///     - name: &#39;bootstrap.servers&#39;
-    ///       value: &#39;sentry_kafka_metrics:9093&#39;
+    ///     - name: 'bootstrap.servers'
+    ///       value: 'sentry_kafka_metrics:9093'
     ///
     /// topics:
     ///   transactions: ingest-transactions
@@ -3308,13 +3309,13 @@
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>redis: <span class="prelude-ty">Option</span>&lt;RedisConfig&gt;,
     <span class="doccomment">/// Maximum chunk size of attachments for Kafka.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_chunk_size&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_chunk_size"</span>)]
     </span><span class="kw">pub </span>attachment_chunk_size: ByteSize,
-    <span class="doccomment">/// Prefix to use when looking up project configs in Redis. Defaults to &quot;relayconfig&quot;.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_projectconfig_cache_prefix&quot;</span>)]
+    <span class="doccomment">/// Prefix to use when looking up project configs in Redis. Defaults to "relayconfig".
+    </span><span class="attr">#[serde(default = <span class="string">"default_projectconfig_cache_prefix"</span>)]
     </span><span class="kw">pub </span>projectconfig_cache_prefix: String,
     <span class="doccomment">/// Maximum rate limit to report to clients.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_max_rate_limit&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_max_rate_limit"</span>)]
     </span><span class="kw">pub </span>max_rate_limit: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 }
 
@@ -3385,7 +3386,7 @@
         <span class="comment">// For compatibility, serialize None and AsOutcomes as booleans.
         </span><span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::None =&gt; serializer.serialize_bool(<span class="bool-val">false</span>),
-            <span class="self">Self</span>::AsClientReports =&gt; serializer.serialize_str(<span class="string">&quot;as_client_reports&quot;</span>),
+            <span class="self">Self</span>::AsClientReports =&gt; serializer.serialize_str(<span class="string">"as_client_reports"</span>),
             <span class="self">Self</span>::AsOutcomes =&gt; serializer.serialize_bool(<span class="bool-val">true</span>),
         }
     }
@@ -3393,11 +3394,11 @@
 
 <span class="kw">struct </span>EmitOutcomesVisitor;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>EmitOutcomesVisitor {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>EmitOutcomesVisitor {
     <span class="kw">type </span>Value = EmitOutcomes;
 
     <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        formatter.write_str(<span class="string">&quot;true, false, or &#39;as_client_reports&#39;&quot;</span>)
+        formatter.write_str(<span class="string">"true, false, or 'as_client_reports'"</span>)
     }
 
     <span class="kw">fn </span>visit_bool&lt;E&gt;(<span class="self">self</span>, v: bool) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
@@ -3415,18 +3416,18 @@
     <span class="kw">where
         </span>E: serde::de::Error,
     {
-        <span class="kw">if </span>v == <span class="string">&quot;as_client_reports&quot; </span>{
+        <span class="kw">if </span>v == <span class="string">"as_client_reports" </span>{
             <span class="prelude-val">Ok</span>(EmitOutcomes::AsClientReports)
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(E::invalid_value(Unexpected::Str(v), <span class="kw-2">&amp;</span><span class="string">&quot;as_client_reports&quot;</span>))
+            <span class="prelude-val">Err</span>(E::invalid_value(Unexpected::Str(v), <span class="kw-2">&amp;</span><span class="string">"as_client_reports"</span>))
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>EmitOutcomes {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>EmitOutcomes {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         deserializer.deserialize_any(EmitOutcomesVisitor)
     }
@@ -3438,7 +3439,7 @@
 </span><span class="kw">pub struct </span>Outcomes {
     <span class="doccomment">/// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
-    /// Can take the following values: false, &quot;as_client_reports&quot;, true
+    /// Can take the following values: false, "as_client_reports", true
     </span><span class="kw">pub </span>emit_outcomes: EmitOutcomes,
     <span class="doccomment">/// Controls wheather client reported outcomes should be emitted.
     </span><span class="kw">pub </span>emit_client_outcomes: bool,
@@ -3492,8 +3493,8 @@
         ConfigFormat::Yaml
     }
 
-    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;config&quot;
+    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"config"
     </span>}
 }
 
@@ -3529,9 +3530,9 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>deserialize&lt;<span class="lifetime">&#39;de</span>, D&gt;(des: D) -&gt; <span class="prelude-ty">Result</span>&lt;HashMap&lt;RelayId, RelayInfo&gt;, D::Error&gt;
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>deserialize&lt;<span class="lifetime">'de</span>, D&gt;(des: D) -&gt; <span class="prelude-ty">Result</span>&lt;HashMap&lt;RelayId, RelayInfo&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>map = HashMap::&lt;RelayId, RelayInfoConfig&gt;::deserialize(des)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(map.into_iter().map(|(k, v)| (k, v.into())).collect())
@@ -3555,11 +3556,11 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 </span><span class="kw">pub struct </span>AuthConfig {
     <span class="doccomment">/// Controls responses from the readiness health check endpoint based on authentication.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_default"</span>)]
     </span><span class="kw">pub </span>ready: ReadinessCondition,
 
     <span class="doccomment">/// Statically authenticated downstream relays.
-    </span><span class="attr">#[serde(default, with = <span class="string">&quot;config_relay_info&quot;</span>)]
+    </span><span class="attr">#[serde(default, with = <span class="string">"config_relay_info"</span>)]
     </span><span class="kw">pub </span>static_relays: HashMap&lt;RelayId, RelayInfo&gt;,
 }
 
@@ -3569,7 +3570,7 @@
     <span class="doccomment">/// The host and port of the AWS lambda extensions API.
     ///
     /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
-    /// Runtime and contains a socket address, usually `&quot;127.0.0.1:9001&quot;`.
+    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
     </span><span class="kw">pub </span>runtime_api: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -3645,8 +3646,8 @@
         ConfigFormat::Yaml
     }
 
-    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;config&quot;
+    <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"config"
     </span>}
 }
 
@@ -3658,10 +3659,10 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Config {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;Config&quot;</span>)
-            .field(<span class="string">&quot;path&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path)
-            .field(<span class="string">&quot;values&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.values)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"Config"</span>)
+            .field(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path)
+            .field(<span class="string">"values"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.values)
             .finish()
     }
 }
@@ -3683,7 +3684,7 @@
             path: path.clone(),
         };
 
-        <span class="kw">if </span><span class="macro">cfg!</span>(not(feature = <span class="string">&quot;processing&quot;</span>)) &amp;&amp; config.processing_enabled() {
+        <span class="kw">if </span><span class="macro">cfg!</span>(not(feature = <span class="string">"processing"</span>)) &amp;&amp; config.processing_enabled() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, <span class="kw-2">&amp;</span>path).into());
         }
 
@@ -3713,7 +3714,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(mode) = overrides.mode {
             relay.mode = mode
                 .parse::&lt;RelayMode&gt;()
-                .with_context(|| ConfigError::field(<span class="string">&quot;mode&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"mode"</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(log_level) = overrides.log_level {
@@ -3723,33 +3724,33 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::&lt;UpstreamDescriptor&gt;()
-                .with_context(|| ConfigError::field(<span class="string">&quot;upstream&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"upstream"</span>))<span class="question-mark">?</span>;
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::&lt;Dsn&gt;()
                 .map(|dsn| UpstreamDescriptor::from_dsn(<span class="kw-2">&amp;</span>dsn).into_owned())
-                .with_context(|| ConfigError::field(<span class="string">&quot;upstream_dsn&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"upstream_dsn"</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(host) = overrides.host {
             relay.host = host
                 .parse::&lt;IpAddr&gt;()
-                .with_context(|| ConfigError::field(<span class="string">&quot;host&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"host"</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = overrides.port {
             relay.port = port
                 .as_str()
                 .parse()
-                .with_context(|| ConfigError::field(<span class="string">&quot;port&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"port"</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">let </span>processing = <span class="kw-2">&amp;mut </span><span class="self">self</span>.values.processing;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(enabled) = overrides.processing {
             <span class="kw">match </span>enabled.to_lowercase().as_str() {
-                <span class="string">&quot;true&quot; </span>| <span class="string">&quot;1&quot; </span>=&gt; processing.enabled = <span class="bool-val">true</span>,
-                <span class="string">&quot;false&quot; </span>| <span class="string">&quot;0&quot; </span>| <span class="string">&quot;&quot; </span>=&gt; processing.enabled = <span class="bool-val">false</span>,
-                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">&quot;processing&quot;</span>).into()),
+                <span class="string">"true" </span>| <span class="string">"1" </span>=&gt; processing.enabled = <span class="bool-val">true</span>,
+                <span class="string">"false" </span>| <span class="string">"0" </span>| <span class="string">"" </span>=&gt; processing.enabled = <span class="bool-val">false</span>,
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">"processing"</span>).into()),
             }
         }
 
@@ -3761,20 +3762,20 @@
             <span class="kw">let </span>existing = processing
                 .kafka_config
                 .iter_mut()
-                .find(|e| e.name == <span class="string">&quot;bootstrap.servers&quot;</span>);
+                .find(|e| e.name == <span class="string">"bootstrap.servers"</span>);
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config_param) = existing {
                 config_param.value = kafka_url;
             } <span class="kw">else </span>{
                 processing.kafka_config.push(KafkaConfigParam {
-                    name: <span class="string">&quot;bootstrap.servers&quot;</span>.to_owned(),
+                    name: <span class="string">"bootstrap.servers"</span>.to_owned(),
                     value: kafka_url,
                 })
             }
         }
         <span class="comment">// credentials overrides
         </span><span class="kw">let </span>id = <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = overrides.id {
-            <span class="kw">let </span>id = Uuid::parse_str(<span class="kw-2">&amp;</span>id).with_context(|| ConfigError::field(<span class="string">&quot;id&quot;</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>id = Uuid::parse_str(<span class="kw-2">&amp;</span>id).with_context(|| ConfigError::field(<span class="string">"id"</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3782,7 +3783,7 @@
         <span class="kw">let </span>public_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(public_key) = overrides.public_key {
             <span class="kw">let </span>public_key = public_key
                 .parse::&lt;PublicKey&gt;()
-                .with_context(|| ConfigError::field(<span class="string">&quot;public_key&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"public_key"</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(public_key)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3791,7 +3792,7 @@
         <span class="kw">let </span>secret_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(secret_key) = overrides.secret_key {
             <span class="kw">let </span>secret_key = secret_key
                 .parse::&lt;SecretKey&gt;()
-                .with_context(|| ConfigError::field(<span class="string">&quot;secret_key&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">"secret_key"</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(secret_key)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3823,11 +3824,11 @@
                     })
                 }
                 (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; {
-                    <span class="comment">// nothing provided, we&#39;ll just leave the credentials None, maybe we
-                    // don&#39;t need them in the current command or we&#39;ll override them later
+                    <span class="comment">// nothing provided, we'll just leave the credentials None, maybe we
+                    // don't need them in the current command or we'll override them later
                 </span>}
                 <span class="kw">_ </span>=&gt; {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">&quot;incomplete credentials&quot;</span>).into());
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">"incomplete credentials"</span>).into());
                 }
             }
         }
@@ -3935,11 +3936,11 @@
     }
 
     <span class="doccomment">/// Returns the upstream target as descriptor.
-    </span><span class="kw">pub fn </span>upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.relay.upstream
     }
 
-    <span class="doccomment">/// Returns the custom HTTP &quot;Host&quot; header.
+    <span class="doccomment">/// Returns the custom HTTP "Host" header.
     </span><span class="kw">pub fn </span>http_host_header(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="self">self</span>.values.http.host_header.as_deref()
     }
@@ -4378,7 +4379,7 @@
 
     <span class="doccomment">/// Get filename for static project config.
     </span><span class="kw">pub fn </span>project_configs_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PathBuf {
-        <span class="self">self</span>.path.join(<span class="string">&quot;projects&quot;</span>)
+        <span class="self">self</span>.path.join(<span class="string">"projects"</span>)
     }
 
     <span class="doccomment">/// True if the Relay should do processing.
@@ -4494,7 +4495,7 @@
             .chain(std::iter::once(<span class="self">self</span>.default_aggregator_config()))
         {
             <span class="kw">if </span>agg.bucket_interval % bucket_interval != <span class="number">0 </span>{
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;buckets don&#39;t align&quot;</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">"buckets don't align"</span>);
             }
         }
 
@@ -4567,11 +4568,11 @@
     <span class="doccomment">/// Regression test for renaming the envelope buffer flags.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_buffer_size() {
-        <span class="kw">let </span>yaml = <span class="string">r###&quot;
+        <span class="kw">let </span>yaml = <span class="string">r###"
 cache:
     event_buffer_size: 1000000
     event_expiry: 1800
-&quot;###</span>;
+"###</span>;
 
         <span class="kw">let </span>values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
         <span class="macro">assert_eq!</span>(values.cache.envelope_buffer_size, <span class="number">1_000_000</span>);
@@ -4581,9 +4582,9 @@ cache:
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_emit_outcomes() {
         <span class="kw">for </span>(serialized, deserialized) <span class="kw">in </span><span class="kw-2">&amp;</span>[
-            (<span class="string">&quot;true&quot;</span>, EmitOutcomes::AsOutcomes),
-            (<span class="string">&quot;false&quot;</span>, EmitOutcomes::None),
-            (<span class="string">&quot;\&quot;as_client_reports\&quot;&quot;</span>, EmitOutcomes::AsClientReports),
+            (<span class="string">"true"</span>, EmitOutcomes::AsOutcomes),
+            (<span class="string">"false"</span>, EmitOutcomes::None),
+            (<span class="string">"\"as_client_reports\""</span>, EmitOutcomes::AsClientReports),
         ] {
             <span class="kw">let </span>value: EmitOutcomes = serde_json::from_str(serialized).unwrap();
             <span class="macro">assert_eq!</span>(value, <span class="kw-2">*</span>deserialized);
@@ -4593,7 +4594,7 @@ cache:
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_emit_outcomes_invalid() {
-        <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">&quot;asdf&quot;</span>).is_err());
+        <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">"asdf"</span>).is_err());
     }
 }
 </code></pre></div></section></main></body></html>

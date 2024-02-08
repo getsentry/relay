@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/breadcrumb.rs`."><title>breadcrumb.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/breadcrumb.rs`."><title>breadcrumb.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -220,14 +221,14 @@
 <a href="#220" id="220">220</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(test)]
 </span><span class="kw">use </span>chrono::{TimeZone, Utc};
-<span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{EventId, Level, Timestamp};
 
-<span class="doccomment">/// The Breadcrumbs Interface specifies a series of application events, or &quot;breadcrumbs&quot;, that
+<span class="doccomment">/// The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs", that
 /// occurred before an event.
 ///
 /// An event may contain one or more breadcrumbs in an attribute named `breadcrumbs`. The entries
@@ -243,23 +244,23 @@
 ///
 /// ```json
 /// {
-///   &quot;breadcrumbs&quot;: {
-///     &quot;values&quot;: [
+///   "breadcrumbs": {
+///     "values": [
 ///       {
-///         &quot;timestamp&quot;: &quot;2016-04-20T20:55:53.845Z&quot;,
-///         &quot;message&quot;: &quot;Something happened&quot;,
-///         &quot;category&quot;: &quot;log&quot;,
-///         &quot;data&quot;: {
-///           &quot;foo&quot;: &quot;bar&quot;,
-///           &quot;blub&quot;: &quot;blah&quot;
+///         "timestamp": "2016-04-20T20:55:53.845Z",
+///         "message": "Something happened",
+///         "category": "log",
+///         "data": {
+///           "foo": "bar",
+///           "blub": "blah"
 ///         }
 ///       },
 ///       {
-///         &quot;timestamp&quot;: &quot;2016-04-20T20:55:53.847Z&quot;,
-///         &quot;type&quot;: &quot;navigation&quot;,
-///         &quot;data&quot;: {
-///           &quot;from&quot;: &quot;/login&quot;,
-///           &quot;to&quot;: &quot;/dashboard&quot;
+///         "timestamp": "2016-04-20T20:55:53.847Z",
+///         "type": "navigation",
+///         "data": {
+///           "from": "/login",
+///           "to": "/dashboard"
 ///         }
 ///       }
 ///     ]
@@ -267,8 +268,8 @@
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_breadcrumb&quot;</span>, value_type = <span class="string">&quot;Breadcrumb&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_breadcrumb"</span>, value_type = <span class="string">"Breadcrumb"</span>)]
 </span><span class="kw">pub struct </span>Breadcrumb {
     <span class="doccomment">/// The timestamp of the breadcrumb. Recommended.
     ///
@@ -290,16 +291,16 @@
     /// - `navigation`: Describes a navigation breadcrumb. A navigation event can be a URL change
     ///   in a web application, or a UI transition in a mobile or desktop application, etc.
     ///
-    ///   Such a breadcrumb&#39;s `data` object has the required fields `from` and `to`, which
+    ///   Such a breadcrumb's `data` object has the required fields `from` and `to`, which
     ///   represent an application route/url each.
     ///
     /// - `http`: Describes an HTTP request breadcrumb. This represents an HTTP request transmitted
     ///   from your application. This could be an AJAX request from a web application, or a
     ///   server-to-server HTTP request to an API service provider, etc.
     ///
-    ///   Such a breadcrumb&#39;s `data` property has the fields `url`, `method`, `status_code`
+    ///   Such a breadcrumb's `data` property has the fields `url`, `method`, `status_code`
     ///   (integer) and `reason` (string).
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>, legacy_alias = <span class="string">&quot;ty&quot;</span>, max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, legacy_alias = <span class="string">"ty"</span>, max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// A dotted string indicating what the crumb is or from where it comes. _Optional._
@@ -307,7 +308,7 @@
     /// Typically it is a module name or a descriptive string. For instance, _ui.click_ could be
     /// used to indicate that a click happened in the UI or _flask_ could be used to indicate that
     /// the event originated in the Flask framework.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>category: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Severity level of the breadcrumb. _Optional._
@@ -321,22 +322,22 @@
     ///
     /// If a message is provided, it is rendered as text with all whitespace preserved. Very long
     /// text might be truncated in the UI.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;message&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"message"</span>)]
     </span><span class="kw">pub </span>message: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Arbitrary data associated with this breadcrumb.
     ///
     /// Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters
     /// that are unsupported by the type are rendered as a key/value table.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Identifier of the event this breadcrumb belongs to.
     ///
     /// Sentry events can appear as breadcrumbs in other events as long as they have occurred in the
     /// same organization. This identifier links to the original event.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>event_id: Annotated&lt;EventId&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -353,52 +354,52 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_breadcrumb_roundtrip() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;timestamp&quot;: 946684800,
-  &quot;type&quot;: &quot;mytype&quot;,
-  &quot;category&quot;: &quot;mycategory&quot;,
-  &quot;level&quot;: &quot;fatal&quot;,
-  &quot;message&quot;: &quot;my message&quot;,
-  &quot;data&quot;: {
-    &quot;a&quot;: &quot;b&quot;
+        <span class="kw">let </span>input = <span class="string">r#"{
+  "timestamp": 946684800,
+  "type": "mytype",
+  "category": "mycategory",
+  "level": "fatal",
+  "message": "my message",
+  "data": {
+    "a": "b"
   },
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;c&quot;: &quot;d&quot;
-}&quot;#</span>;
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "c": "d"
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;timestamp&quot;: 946684800.0,
-  &quot;type&quot;: &quot;mytype&quot;,
-  &quot;category&quot;: &quot;mycategory&quot;,
-  &quot;level&quot;: &quot;fatal&quot;,
-  &quot;message&quot;: &quot;my message&quot;,
-  &quot;data&quot;: {
-    &quot;a&quot;: &quot;b&quot;
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "timestamp": 946684800.0,
+  "type": "mytype",
+  "category": "mycategory",
+  "level": "fatal",
+  "message": "my message",
+  "data": {
+    "a": "b"
   },
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;c&quot;: &quot;d&quot;
-}&quot;#</span>;
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "c": "d"
+}"#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
-            ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
-            category: Annotated::new(<span class="string">&quot;mycategory&quot;</span>.to_string()),
+            ty: Annotated::new(<span class="string">"mytype"</span>.to_string()),
+            category: Annotated::new(<span class="string">"mycategory"</span>.to_string()),
             level: Annotated::new(Level::Fatal),
-            message: Annotated::new(<span class="string">&quot;my message&quot;</span>.to_string()),
+            message: Annotated::new(<span class="string">"my message"</span>.to_string()),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;a&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;b&quot;</span>.to_string())),
+                    <span class="string">"a"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"b"</span>.to_string())),
                 );
                 Annotated::new(map)
             },
-            event_id: Annotated::new(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.parse().unwrap()),
+            event_id: Annotated::new(<span class="string">"52df9022835246eeb317dbd739ccd059"</span>.parse().unwrap()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;c&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;d&quot;</span>.to_string())),
+                    <span class="string">"c"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"d"</span>.to_string())),
                 );
                 map
             },
@@ -410,8 +411,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_breadcrumb_default_values() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0}&quot;#</span>;
+        <span class="kw">let </span>input = <span class="string">r#"{"timestamp":946684800}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{"timestamp":946684800.0}"#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
@@ -424,13 +425,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_python_ty_regression() {
-        <span class="comment">// The Python SDK used to send &quot;ty&quot; instead of &quot;type&quot;. We&#39;re lenient to accept both.
-        </span><span class="kw">let </span>input = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800,&quot;ty&quot;:&quot;http&quot;}&quot;#</span>;
-        <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0,&quot;type&quot;:&quot;http&quot;}&quot;#</span>;
+        <span class="comment">// The Python SDK used to send "ty" instead of "type". We're lenient to accept both.
+        </span><span class="kw">let </span>input = <span class="string">r#"{"timestamp":946684800,"ty":"http"}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{"timestamp":946684800.0,"type":"http"}"#</span>;
 
         <span class="kw">let </span>breadcrumb = Annotated::new(Breadcrumb {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
-            ty: Annotated::new(<span class="string">&quot;http&quot;</span>.into()),
+            ty: Annotated::new(<span class="string">"http"</span>.into()),
             ..Default::default()
         });
 

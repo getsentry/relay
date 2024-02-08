@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/span.rs`."><title>span.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/span.rs`."><title>span.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -359,7 +360,7 @@
 <a href="#359" id="359">359</a>
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
@@ -370,15 +371,15 @@
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_span&quot;</span>, value_type = <span class="string">&quot;Span&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>)]
 </span><span class="kw">pub struct </span>Span {
     <span class="doccomment">/// Timestamp when the span was ended.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Timestamp when the span started.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// The amount of time in milliseconds spent in this span,
@@ -386,22 +387,22 @@
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Human readable description of a span (e.g. method URL).
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// The Span id.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the span enclosing this span.
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the trace the span belongs to.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
     <span class="doccomment">/// A unique identifier for a segment within a trace (8 byte hexadecimal string).
@@ -417,18 +418,18 @@
     </span><span class="kw">pub </span>status: Annotated&lt;SpanStatus&gt;,
 
     <span class="doccomment">/// Arbitrary tags on a span, like on the top-level event.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>tags: Annotated&lt;Object&lt;JsonLenientString&gt;&gt;,
 
     <span class="doccomment">/// The origin of the span indicates what created the span (see [OriginType] docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.&quot;</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
     <span class="doccomment">/// ID of a profile that can be associated with the span.
     </span><span class="kw">pub </span>profile_id: Annotated&lt;EventId&gt;,
 
     <span class="doccomment">/// Arbitrary additional data on a span, like `extra` on the top-level event.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Tags generated by Relay. These tags are a superset of the tags set on span metrics.
@@ -438,7 +439,7 @@
     </span><span class="kw">pub </span>received: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Measurements which holds observed values such as web vitals.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>measurements: Annotated&lt;Measurements&gt;,
 
@@ -446,12 +447,12 @@
     ///
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
     <span class="comment">// TODO remove retain when the api stabilizes
     </span><span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">"true"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -487,27 +488,27 @@
 }
 
 <span class="kw">impl </span>Getter <span class="kw">for </span>Span {
-    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
-        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">&quot;span.&quot;</span>)<span class="question-mark">? </span>{
-            <span class="string">&quot;exclusive_time&quot; </span>=&gt; <span class="self">self</span>.exclusive_time.value()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;description&quot; </span>=&gt; <span class="self">self</span>.description.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;op&quot; </span>=&gt; <span class="self">self</span>.op.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;span_id&quot; </span>=&gt; <span class="self">self</span>.span_id.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;parent_span_id&quot; </span>=&gt; <span class="self">self</span>.parent_span_id.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;trace_id&quot; </span>=&gt; <span class="self">self</span>.trace_id.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;status&quot; </span>=&gt; <span class="self">self</span>.status.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;origin&quot; </span>=&gt; <span class="self">self</span>.origin.as_str()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;duration&quot; </span>=&gt; {
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
+        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">"span."</span>)<span class="question-mark">? </span>{
+            <span class="string">"exclusive_time" </span>=&gt; <span class="self">self</span>.exclusive_time.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"description" </span>=&gt; <span class="self">self</span>.description.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"op" </span>=&gt; <span class="self">self</span>.op.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"span_id" </span>=&gt; <span class="self">self</span>.span_id.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"parent_span_id" </span>=&gt; <span class="self">self</span>.parent_span_id.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"trace_id" </span>=&gt; <span class="self">self</span>.trace_id.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"status" </span>=&gt; <span class="self">self</span>.status.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"origin" </span>=&gt; <span class="self">self</span>.origin.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"duration" </span>=&gt; {
                 <span class="kw">let </span>start_timestamp = <span class="kw-2">*</span><span class="self">self</span>.start_timestamp.value()<span class="question-mark">?</span>;
                 <span class="kw">let </span>timestamp = <span class="kw-2">*</span><span class="self">self</span>.timestamp.value()<span class="question-mark">?</span>;
                 relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
             }
             path =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;tags.&quot;</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">"tags."</span>) {
                     <span class="self">self</span>.tags.value()<span class="question-mark">?</span>.get(key)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;data.&quot;</span>) {
-                    <span class="kw">let </span>escaped = key.replace(<span class="string">&quot;\\.&quot;</span>, <span class="string">&quot;\0&quot;</span>);
-                    <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">&#39;.&#39;</span>).map(|s| s.replace(<span class="string">&#39;\0&#39;</span>, <span class="string">&quot;.&quot;</span>));
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">"data."</span>) {
+                    <span class="kw">let </span>escaped = key.replace(<span class="string">"\\."</span>, <span class="string">"\0"</span>);
+                    <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">'.'</span>).map(|s| s.replace(<span class="string">'\0'</span>, <span class="string">"."</span>));
                     <span class="kw">let </span>root = path.next()<span class="question-mark">?</span>;
 
                     <span class="kw">let </span><span class="kw-2">mut </span>val = <span class="self">self</span>.data.value()<span class="question-mark">?</span>.get(<span class="kw-2">&amp;</span>root)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
@@ -519,10 +520,10 @@
                         val = map.get(<span class="kw-2">&amp;</span>part)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
                     }
                     val.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;sentry_tags.&quot;</span>) {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">"sentry_tags."</span>) {
                     <span class="self">self</span>.sentry_tags.value()<span class="question-mark">?</span>.get(key)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>.into()
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">&quot;measurements.&quot;</span>) {
-                    <span class="kw">let </span>name = rest.strip_suffix(<span class="string">&quot;.value&quot;</span>)<span class="question-mark">?</span>;
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"measurements."</span>) {
+                    <span class="kw">let </span>name = rest.strip_suffix(<span class="string">".value"</span>)<span class="question-mark">?</span>;
                     <span class="self">self</span>.measurements
                         .value()<span class="question-mark">?
                         </span>.get(name)<span class="question-mark">?
@@ -550,26 +551,26 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_serialization() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;timestamp&quot;: 0.0,
-  &quot;start_timestamp&quot;: -63158400.0,
-  &quot;exclusive_time&quot;: 1.23,
-  &quot;description&quot;: &quot;desc&quot;,
-  &quot;op&quot;: &quot;operation&quot;,
-  &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
-  &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-  &quot;status&quot;: &quot;ok&quot;,
-  &quot;origin&quot;: &quot;auto.http&quot;,
-  &quot;measurements&quot;: {
-    &quot;memory&quot;: {
-      &quot;value&quot;: 9001.0,
-      &quot;unit&quot;: &quot;byte&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "timestamp": 0.0,
+  "start_timestamp": -63158400.0,
+  "exclusive_time": 1.23,
+  "description": "desc",
+  "op": "operation",
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "status": "ok",
+  "origin": "auto.http",
+  "measurements": {
+    "memory": {
+      "value": 9001.0,
+      "unit": "byte"
     }
   }
-}&quot;#</span>;
+}"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>measurements = Object::new();
         measurements.insert(
-            <span class="string">&quot;memory&quot;</span>.into(),
+            <span class="string">"memory"</span>.into(),
             Annotated::new(Measurement {
                 value: Annotated::new(<span class="number">9001.0</span>),
                 unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
@@ -581,12 +582,12 @@
                 Utc.with_ymd_and_hms(<span class="number">1968</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
             exclusive_time: Annotated::new(<span class="number">1.23</span>),
-            description: Annotated::new(<span class="string">&quot;desc&quot;</span>.to_owned()),
-            op: Annotated::new(<span class="string">&quot;operation&quot;</span>.to_owned()),
-            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
+            description: Annotated::new(<span class="string">"desc"</span>.to_owned()),
+            op: Annotated::new(<span class="string">"operation"</span>.to_owned()),
+            trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+            span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
             status: Annotated::new(SpanStatus::Ok),
-            origin: Annotated::new(<span class="string">&quot;auto.http&quot;</span>.to_owned()),
+            origin: Annotated::new(<span class="string">"auto.http"</span>.to_owned()),
             measurements: Annotated::new(Measurements(measurements)),
             ..Default::default()
         });
@@ -599,29 +600,29 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_getter_span_data() {
         <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
-            <span class="string">r#&quot;{
-                &quot;data&quot;: {
-                    &quot;foo&quot;: {&quot;bar&quot;: 1},
-                    &quot;foo.bar&quot;: 2
+            <span class="string">r#"{
+                "data": {
+                    "foo": {"bar": 1},
+                    "foo.bar": 2
                 },
-                &quot;measurements&quot;: {
-                    &quot;some&quot;: {&quot;value&quot;: 100.0}
+                "measurements": {
+                    "some": {"value": 100.0}
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap()
         .into_value()
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.foo.bar&quot;</span>), <span class="prelude-val">Some</span>(Val::I64(<span class="number">1</span>)));
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">r&quot;span.data.foo\.bar&quot;</span>), <span class="prelude-val">Some</span>(Val::I64(<span class="number">2</span>)));
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.data.foo.bar"</span>), <span class="prelude-val">Some</span>(Val::I64(<span class="number">1</span>)));
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">r"span.data.foo\.bar"</span>), <span class="prelude-val">Some</span>(Val::I64(<span class="number">2</span>)));
 
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.x&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.data"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.data."</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.data.x"</span>), <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(
-            span.get_value(<span class="string">&quot;span.measurements.some.value&quot;</span>),
+            span.get_value(<span class="string">"span.measurements.some.value"</span>),
             <span class="prelude-val">Some</span>(Val::F64(<span class="number">100.0</span>))
         );
     }
@@ -629,35 +630,35 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>span_from_event() {
         <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r#&quot;{
-                &quot;contexts&quot;: {
-                    &quot;profile&quot;: {&quot;profile_id&quot;: &quot;a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab&quot;},
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
-                        &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,
-                        &quot;type&quot;: &quot;trace&quot;
+            <span class="string">r#"{
+                "contexts": {
+                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
+                    "trace": {
+                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                        "span_id": "FA90FDEAD5F74052",
+                        "type": "trace"
                     }
                 },
-                &quot;_metrics_summary&quot;: {
-                    &quot;some_metric&quot;: [
+                "_metrics_summary": {
+                    "some_metric": [
                         {
-                            &quot;min&quot;: 1.0,
-                            &quot;max&quot;: 2.0,
-                            &quot;sum&quot;: 3.0,
-                            &quot;count&quot;: 2,
-                            &quot;tags&quot;: {
-                                &quot;environment&quot;: &quot;test&quot;
+                            "min": 1.0,
+                            "max": 2.0,
+                            "sum": 3.0,
+                            "count": 2,
+                            "tags": {
+                                "environment": "test"
                             }
                         }
                     ]
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap()
         .into_value()
         .unwrap();
 
-        <span class="macro">assert_debug_snapshot!</span>(Span::from(<span class="kw-2">&amp;</span>event), @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(Span::from(<span class="kw-2">&amp;</span>event), @<span class="string">r###"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -665,14 +666,14 @@
             description: ~,
             op: ~,
             span_id: SpanId(
-                &quot;fa90fdead5f74052&quot;,
+                "fa90fdead5f74052",
             ),
             parent_span_id: ~,
             trace_id: TraceId(
-                &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+                "4c79f60c11214eb38604f4ae0781bfb2",
             ),
             segment_id: SpanId(
-                &quot;fa90fdead5f74052&quot;,
+                "fa90fdead5f74052",
             ),
             is_segment: true,
             status: ~,
@@ -687,14 +688,14 @@
             measurements: ~,
             _metrics_summary: MetricsSummary(
                 {
-                    &quot;some_metric&quot;: [
+                    "some_metric": [
                         MetricSummary {
                             min: 1.0,
                             max: 2.0,
                             sum: 3.0,
                             count: 2,
                             tags: {
-                                &quot;environment&quot;: &quot;test&quot;,
+                                "environment": "test",
                             },
                         },
                     ],
@@ -702,22 +703,22 @@
             ),
             other: {},
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_duration() {
         <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
-            <span class="string">r#&quot;{
-                &quot;start_timestamp&quot;: 1694732407.8367,
-                &quot;timestamp&quot;: 1694732408.3145
-            }&quot;#</span>,
+            <span class="string">r#"{
+                "start_timestamp": 1694732407.8367,
+                "timestamp": 1694732408.3145
+            }"#</span>,
         )
         .unwrap()
         .into_value()
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.duration&quot;</span>), <span class="prelude-val">Some</span>(Val::F64(<span class="number">477.800131</span>)));
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.duration"</span>), <span class="prelude-val">Some</span>(Val::F64(<span class="number">477.800131</span>)));
     }
 }
 </code></pre></div></section></main></body></html>

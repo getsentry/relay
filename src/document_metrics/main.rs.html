@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-metrics/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../document_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tools/document-metrics/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="document_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../document_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="document_metrics"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -326,8 +327,8 @@
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
 
 </span><span class="kw">use </span>std::collections::HashMap;
@@ -359,14 +360,14 @@
 
 <span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>Metric {
-    <span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"type"</span>)]
     </span>ty: MetricType,
     name: String,
     description: String,
     features: Vec&lt;String&gt;,
 }
 
-<span class="doccomment">/// Returns the value of a matching attribute in form `#[name = &quot;value&quot;]`.
+<span class="doccomment">/// Returns the value of a matching attribute in form `#[name = "value"]`.
 </span><span class="kw">fn </span>get_attr(name: <span class="kw-2">&amp;</span>str, nv: syn::MetaNameValue) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">match </span>nv.lit {
         syn::Lit::Str(lit_string) <span class="kw">if </span>nv.path.is_ident(name) =&gt; <span class="prelude-val">Some</span>(lit_string.value()),
@@ -376,9 +377,9 @@
 
 <span class="doccomment">/// Adds a line to the string if the attribute is a doc attribute.
 </span><span class="kw">fn </span>add_doc_line(docs: <span class="kw-2">&amp;mut </span>String, nv: syn::MetaNameValue) {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(line) = get_attr(<span class="string">&quot;doc&quot;</span>, nv) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(line) = get_attr(<span class="string">"doc"</span>, nv) {
         <span class="kw">if </span>!docs.is_empty() {
-            docs.push(<span class="string">&#39;\n&#39;</span>);
+            docs.push(<span class="string">'\n'</span>);
         }
         docs.push_str(line.trim());
     }
@@ -386,10 +387,10 @@
 
 <span class="doccomment">/// Adds the name of the feature if the given attribute is a `cfg(feature)` attribute.
 </span><span class="kw">fn </span>add_feature(features: <span class="kw-2">&amp;mut </span>Vec&lt;String&gt;, l: syn::MetaList) {
-    <span class="kw">if </span>l.path.is_ident(<span class="string">&quot;cfg&quot;</span>) {
+    <span class="kw">if </span>l.path.is_ident(<span class="string">"cfg"</span>) {
         <span class="kw">for </span>nested <span class="kw">in </span>l.nested {
             <span class="kw">if let </span>syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) = nested {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(feature) = get_attr(<span class="string">&quot;feature&quot;</span>, nv) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(feature) = get_attr(<span class="string">"feature"</span>, nv) {
                     features.push(feature);
                 }
             }
@@ -419,7 +420,7 @@
     <span class="prelude-val">Some</span>(last_segment.into_value().ident)
 }
 
-<span class="doccomment">/// Returns the variant name and string value of a match arm in format `Type::Variant =&gt; &quot;value&quot;`.
+<span class="doccomment">/// Returns the variant name and string value of a match arm in format `Type::Variant =&gt; "value"`.
 </span><span class="kw">fn </span>get_match_pair(arm: syn::Arm) -&gt; <span class="prelude-ty">Option</span>&lt;(syn::Ident, String)&gt; {
     <span class="kw">let </span>variant = <span class="kw">match </span>arm.pat {
         syn::Pat::Path(path) =&gt; get_path_type(path.path)<span class="question-mark">?</span>,
@@ -440,15 +441,15 @@
     <span class="kw">let </span>(<span class="kw">_</span>, path, <span class="kw">_</span>) = imp.trait_.take()<span class="question-mark">?</span>;
     <span class="kw">let </span>trait_name = get_path_type(path)<span class="question-mark">?</span>;
 
-    <span class="kw">if </span>trait_name == <span class="string">&quot;TimerMetric&quot; </span>{
+    <span class="kw">if </span>trait_name == <span class="string">"TimerMetric" </span>{
         <span class="prelude-val">Some</span>(MetricType::Timer)
-    } <span class="kw">else if </span>trait_name == <span class="string">&quot;CounterMetric&quot; </span>{
+    } <span class="kw">else if </span>trait_name == <span class="string">"CounterMetric" </span>{
         <span class="prelude-val">Some</span>(MetricType::Counter)
-    } <span class="kw">else if </span>trait_name == <span class="string">&quot;HistogramMetric&quot; </span>{
+    } <span class="kw">else if </span>trait_name == <span class="string">"HistogramMetric" </span>{
         <span class="prelude-val">Some</span>(MetricType::Histogram)
-    } <span class="kw">else if </span>trait_name == <span class="string">&quot;SetMetric&quot; </span>{
+    } <span class="kw">else if </span>trait_name == <span class="string">"SetMetric" </span>{
         <span class="prelude-val">Some</span>(MetricType::Set)
-    } <span class="kw">else if </span>trait_name == <span class="string">&quot;GaugeMetric&quot; </span>{
+    } <span class="kw">else if </span>trait_name == <span class="string">"GaugeMetric" </span>{
         <span class="prelude-val">Some</span>(MetricType::Gauge)
     } <span class="kw">else </span>{
         <span class="prelude-val">None
@@ -467,7 +468,7 @@
 </span><span class="kw">fn </span>find_name_arms(items: Vec&lt;syn::ImplItem&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;syn::Arm&gt;&gt; {
     <span class="kw">for </span>item <span class="kw">in </span>items {
         <span class="kw">let </span>method = <span class="kw">match </span>item {
-            syn::ImplItem::Method(method) <span class="kw">if </span>method.sig.ident == <span class="string">&quot;name&quot; </span>=&gt; method,
+            syn::ImplItem::Method(method) <span class="kw">if </span>method.sig.ident == <span class="string">"name" </span>=&gt; method,
             <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
         };
 
@@ -495,7 +496,7 @@
 
 <span class="doccomment">/// Parses metrics from the given source code.
 </span><span class="kw">fn </span>parse_metrics(source: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;&gt; {
-    <span class="kw">let </span>ast = syn::parse_file(source).with_context(|| <span class="string">&quot;failed to parse metrics file&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>ast = syn::parse_file(source).with_context(|| <span class="string">"failed to parse metrics file"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>variant_parts = HashMap::new();
     <span class="kw">let </span><span class="kw-2">mut </span>impl_parts = HashMap::new();
@@ -542,7 +543,7 @@
 #[command(verbatim_doc_comment)]
 </span><span class="kw">struct </span>Cli {
     <span class="doccomment">/// The format to output the documentation in.
-    </span><span class="attr">#[arg(value_enum, short, long, default_value = <span class="string">&quot;json&quot;</span>)]
+    </span><span class="attr">#[arg(value_enum, short, long, default_value = <span class="string">"json"</span>)]
     </span>format: SchemaFormat,
 
     <span class="doccomment">/// Optional output path. By default, documentation is printed on stdout.
@@ -581,11 +582,11 @@
 }
 
 <span class="kw">fn </span>print_error(error: <span class="kw-2">&amp;</span>anyhow::Error) {
-    <span class="macro">eprintln!</span>(<span class="string">&quot;Error: {error}&quot;</span>);
+    <span class="macro">eprintln!</span>(<span class="string">"Error: {error}"</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>cause = error.source();
     <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>e) = cause {
-        <span class="macro">eprintln!</span>(<span class="string">&quot;  caused by: {e}&quot;</span>);
+        <span class="macro">eprintln!</span>(<span class="string">"  caused by: {e}"</span>);
         cause = e.source();
     }
 }
@@ -608,46 +609,46 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_metrics() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-        <span class="kw">let </span>source = <span class="string">r#&quot;
+        <span class="kw">let </span>source = <span class="string">r#"
             /// A metric collection used for testing.
             pub enum TestSets {
                 /// The metric we test.
                 UniqueSet,
                 /// The metric we test.
-                #[cfg(feature = &quot;conditional&quot;)]
+                #[cfg(feature = "conditional")]
                 ConditionalSet,
             }
 
             impl SetMetric for TestSets {
-                fn name(&amp;self) -&gt; &amp;&#39;static str {
+                fn name(&amp;self) -&gt; &amp;'static str {
                     match self {
-                        Self::UniqueSet =&gt; &quot;test.unique&quot;,
-                        #[cfg(feature = &quot;conditional&quot;)]
-                        Self::ConditionalSet =&gt; &quot;test.conditional&quot;,
+                        Self::UniqueSet =&gt; "test.unique",
+                        #[cfg(feature = "conditional")]
+                        Self::ConditionalSet =&gt; "test.conditional",
                     }
                 }
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>metrics = parse_metrics(source)<span class="question-mark">?</span>;
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#"
         [
             Metric {
                 ty: Set,
-                name: &quot;test.conditional&quot;,
-                description: &quot;The metric we test.&quot;,
+                name: "test.conditional",
+                description: "The metric we test.",
                 features: [
-                    &quot;conditional&quot;,
+                    "conditional",
                 ],
             },
             Metric {
                 ty: Set,
-                name: &quot;test.unique&quot;,
-                description: &quot;The metric we test.&quot;,
+                name: "test.unique",
+                description: "The metric we test.",
                 features: [],
             },
         ]
-        &quot;#</span>);
+        "#</span>);
 
         <span class="prelude-val">Ok</span>(())
     }

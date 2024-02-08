@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/tag_extraction.rs`."><title>tag_extraction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/tag_extraction.rs`."><title>tag_extraction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1452,7 +1453,7 @@
     TransactionMethod,
     TransactionOp,
     BrowserName,
-    <span class="comment">// `&quot;true&quot;` if the transaction was sent by a mobile SDK.
+    <span class="comment">// `"true"` if the transaction was sent by a mobile SDK.
     </span>Mobile,
     DeviceClass,
     <span class="comment">// Mobile OS the transaction originated from.
@@ -1490,35 +1491,35 @@
     /// This key corresponds to the tag key in the snuba span dataset.
     </span><span class="kw">pub fn </span>sentry_tag_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            SpanTagKey::Release =&gt; <span class="string">&quot;release&quot;</span>,
-            SpanTagKey::User =&gt; <span class="string">&quot;user&quot;</span>,
-            SpanTagKey::Environment =&gt; <span class="string">&quot;environment&quot;</span>,
-            SpanTagKey::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
-            SpanTagKey::TransactionMethod =&gt; <span class="string">&quot;transaction.method&quot;</span>,
-            SpanTagKey::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
-            SpanTagKey::Mobile =&gt; <span class="string">&quot;mobile&quot;</span>,
-            SpanTagKey::DeviceClass =&gt; <span class="string">&quot;device.class&quot;</span>,
-            SpanTagKey::BrowserName =&gt; <span class="string">&quot;browser.name&quot;</span>,
+            SpanTagKey::Release =&gt; <span class="string">"release"</span>,
+            SpanTagKey::User =&gt; <span class="string">"user"</span>,
+            SpanTagKey::Environment =&gt; <span class="string">"environment"</span>,
+            SpanTagKey::Transaction =&gt; <span class="string">"transaction"</span>,
+            SpanTagKey::TransactionMethod =&gt; <span class="string">"transaction.method"</span>,
+            SpanTagKey::TransactionOp =&gt; <span class="string">"transaction.op"</span>,
+            SpanTagKey::Mobile =&gt; <span class="string">"mobile"</span>,
+            SpanTagKey::DeviceClass =&gt; <span class="string">"device.class"</span>,
+            SpanTagKey::BrowserName =&gt; <span class="string">"browser.name"</span>,
 
-            SpanTagKey::Action =&gt; <span class="string">&quot;action&quot;</span>,
-            SpanTagKey::Category =&gt; <span class="string">&quot;category&quot;</span>,
-            SpanTagKey::Description =&gt; <span class="string">&quot;description&quot;</span>,
-            SpanTagKey::Domain =&gt; <span class="string">&quot;domain&quot;</span>,
-            SpanTagKey::RawDomain =&gt; <span class="string">&quot;raw_domain&quot;</span>,
-            SpanTagKey::Group =&gt; <span class="string">&quot;group&quot;</span>,
-            SpanTagKey::HttpDecodedResponseContentLength =&gt; <span class="string">&quot;http.decoded_response_content_length&quot;</span>,
-            SpanTagKey::HttpResponseContentLength =&gt; <span class="string">&quot;http.response_content_length&quot;</span>,
-            SpanTagKey::HttpResponseTransferSize =&gt; <span class="string">&quot;http.response_transfer_size&quot;</span>,
-            SpanTagKey::ResourceRenderBlockingStatus =&gt; <span class="string">&quot;resource.render_blocking_status&quot;</span>,
-            SpanTagKey::SpanOp =&gt; <span class="string">&quot;op&quot;</span>,
-            SpanTagKey::StatusCode =&gt; <span class="string">&quot;status_code&quot;</span>,
-            SpanTagKey::System =&gt; <span class="string">&quot;system&quot;</span>,
-            SpanTagKey::TimeToFullDisplay =&gt; <span class="string">&quot;ttfd&quot;</span>,
-            SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">&quot;ttid&quot;</span>,
-            SpanTagKey::FileExtension =&gt; <span class="string">&quot;file_extension&quot;</span>,
-            SpanTagKey::MainTread =&gt; <span class="string">&quot;main_thread&quot;</span>,
-            SpanTagKey::OsName =&gt; <span class="string">&quot;os.name&quot;</span>,
-            SpanTagKey::AppStartType =&gt; <span class="string">&quot;app_start_type&quot;</span>,
+            SpanTagKey::Action =&gt; <span class="string">"action"</span>,
+            SpanTagKey::Category =&gt; <span class="string">"category"</span>,
+            SpanTagKey::Description =&gt; <span class="string">"description"</span>,
+            SpanTagKey::Domain =&gt; <span class="string">"domain"</span>,
+            SpanTagKey::RawDomain =&gt; <span class="string">"raw_domain"</span>,
+            SpanTagKey::Group =&gt; <span class="string">"group"</span>,
+            SpanTagKey::HttpDecodedResponseContentLength =&gt; <span class="string">"http.decoded_response_content_length"</span>,
+            SpanTagKey::HttpResponseContentLength =&gt; <span class="string">"http.response_content_length"</span>,
+            SpanTagKey::HttpResponseTransferSize =&gt; <span class="string">"http.response_transfer_size"</span>,
+            SpanTagKey::ResourceRenderBlockingStatus =&gt; <span class="string">"resource.render_blocking_status"</span>,
+            SpanTagKey::SpanOp =&gt; <span class="string">"op"</span>,
+            SpanTagKey::StatusCode =&gt; <span class="string">"status_code"</span>,
+            SpanTagKey::System =&gt; <span class="string">"system"</span>,
+            SpanTagKey::TimeToFullDisplay =&gt; <span class="string">"ttfd"</span>,
+            SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">"ttid"</span>,
+            SpanTagKey::FileExtension =&gt; <span class="string">"file_extension"</span>,
+            SpanTagKey::MainTread =&gt; <span class="string">"main_thread"</span>,
+            SpanTagKey::OsName =&gt; <span class="string">"os.name"</span>,
+            SpanTagKey::AppStartType =&gt; <span class="string">"app_start_type"</span>,
         }
     }
 }
@@ -1532,23 +1533,23 @@
     NonBlocking,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>RenderBlockingStatus {
-    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>RenderBlockingStatus {
+    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str;
 
-    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>value {
-            <span class="string">&quot;blocking&quot; </span>=&gt; <span class="self">Self</span>::Blocking,
-            <span class="string">&quot;non-blocking&quot; </span>=&gt; <span class="self">Self</span>::NonBlocking,
+            <span class="string">"blocking" </span>=&gt; <span class="self">Self</span>::Blocking,
+            <span class="string">"non-blocking" </span>=&gt; <span class="self">Self</span>::NonBlocking,
             other =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(other),
         })
     }
 }
 
 <span class="kw">impl </span>std::fmt::Display <span class="kw">for </span>RenderBlockingStatus {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
         f.write_str(<span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Blocking =&gt; <span class="string">&quot;blocking&quot;</span>,
-            <span class="self">Self</span>::NonBlocking =&gt; <span class="string">&quot;non-blocking&quot;</span>,
+            <span class="self">Self</span>::Blocking =&gt; <span class="string">"blocking"</span>,
+            <span class="self">Self</span>::NonBlocking =&gt; <span class="string">"non-blocking"</span>,
         })
     }
 }
@@ -1566,15 +1567,15 @@
     </span><span class="kw">let </span>shared_tags = extract_shared_tags(event);
     <span class="kw">let </span>is_mobile = shared_tags
         .get(<span class="kw-2">&amp;</span>SpanTagKey::Mobile)
-        .is_some_and(|v| v.as_str() == <span class="string">&quot;true&quot;</span>);
+        .is_some_and(|v| v.as_str() == <span class="string">"true"</span>);
     <span class="kw">let </span>start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
 
-    <span class="kw">let </span>ttid = timestamp_by_op(spans, <span class="string">&quot;ui.load.initial_display&quot;</span>);
-    <span class="kw">let </span>ttfd = timestamp_by_op(spans, <span class="string">&quot;ui.load.full_display&quot;</span>);
+    <span class="kw">let </span>ttid = timestamp_by_op(spans, <span class="string">"ui.load.initial_display"</span>);
+    <span class="kw">let </span>ttfd = timestamp_by_op(spans, <span class="string">"ui.load.full_display"</span>);
 
     <span class="kw">for </span>span <span class="kw">in </span>spans {
         <span class="kw">let </span><span class="prelude-val">Some</span>(span) = span.value_mut().as_mut() <span class="kw">else </span>{
@@ -1635,7 +1636,7 @@
     }
 
     <span class="kw">if </span>MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name()) {
-        tags.insert(SpanTagKey::Mobile, <span class="string">&quot;true&quot;</span>.to_owned());
+        tags.insert(SpanTagKey::Mobile, <span class="string">"true"</span>.to_owned());
 
         <span class="comment">// Check if app context exists. This tells us if the span originated from
         // an app (as opposed to mobile browser) since we are currently focused on
@@ -1649,7 +1650,7 @@
         }
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">&quot;device.class&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">"device.class"</span>) {
         tags.insert(SpanTagKey::DeviceClass, device_class.into());
     }
 
@@ -1682,7 +1683,7 @@
     <span class="kw">let </span>system = span
         .data
         .value()
-        .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
+        .and_then(|v| v.get(<span class="string">"db.system"</span>))
         .and_then(|system| system.as_str());
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase());
@@ -1701,30 +1702,30 @@
         <span class="kw">let </span>scrubbed_description = scrub_span_description(span);
 
         <span class="kw">let </span>action = <span class="kw">match </span>(category, span_op.as_str(), <span class="kw-2">&amp;</span>scrubbed_description) {
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
+            (<span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
                 .data
                 .value()
                 .and_then(|v| {
-                    v.get(<span class="string">&quot;http.request.method&quot;</span>)
-                        .or(v.get(<span class="string">&quot;http.method&quot;</span>))
-                        .or(v.get(<span class="string">&quot;method&quot;</span>))
+                    v.get(<span class="string">"http.request.method"</span>)
+                        .or(v.get(<span class="string">"http.method"</span>))
+                        .or(v.get(<span class="string">"method"</span>))
                 })
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
-            (<span class="kw">_</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="prelude-val">Some</span>(desc)) =&gt; {
-                <span class="comment">// This only works as long as redis span descriptions contain the command + &quot; *&quot;
-                </span><span class="kw">let </span>command = desc.replace(<span class="string">&quot; *&quot;</span>, <span class="string">&quot;&quot;</span>);
+            (<span class="kw">_</span>, <span class="string">"db.redis"</span>, <span class="prelude-val">Some</span>(desc)) =&gt; {
+                <span class="comment">// This only works as long as redis span descriptions contain the command + " *"
+                </span><span class="kw">let </span>command = desc.replace(<span class="string">" *"</span>, <span class="string">""</span>);
                 <span class="kw">if </span>command.is_empty() {
                     <span class="prelude-val">None
                 </span>} <span class="kw">else </span>{
                     <span class="prelude-val">Some</span>(command)
                 }
             }
-            (<span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+            (<span class="prelude-val">Some</span>(<span class="string">"db"</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="kw">let </span>action_from_data = span
                     .data
                     .value()
-                    .and_then(|v| v.get(<span class="string">&quot;db.operation&quot;</span>))
+                    .and_then(|v| v.get(<span class="string">"db.operation"</span>))
                     .and_then(|db_op| db_op.as_str())
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
@@ -1741,10 +1742,10 @@
             span_tags.insert(SpanTagKey::Action, act);
         }
 
-        <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>|| span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
+        <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">"http.client" </span>|| span_op.starts_with(<span class="string">"resource."</span>) {
             <span class="comment">// HACK: Parse the normalized description to get the normalized domain.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed) = scrubbed_description.as_deref() {
-                <span class="kw">let </span>url = <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, url)) = scrubbed.split_once(<span class="string">&#39; &#39;</span>) {
+                <span class="kw">let </span>url = <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, url)) = scrubbed.split_once(<span class="string">' '</span>) {
                     url
                 } <span class="kw">else </span>{
                     scrubbed
@@ -1753,7 +1754,7 @@
                     url.domain().map(|d| {
                         <span class="kw">let </span><span class="kw-2">mut </span>domain = d.to_lowercase();
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = url.port() {
-                            domain = <span class="macro">format!</span>(<span class="string">&quot;{domain}:{port}&quot;</span>);
+                            domain = <span class="macro">format!</span>(<span class="string">"{domain}:{port}"</span>);
                         }
                         domain
                     })
@@ -1762,11 +1763,11 @@
                 } <span class="kw">else if let </span><span class="prelude-val">Some</span>(server_host) = span
                     .data
                     .value()
-                    .and_then(|data| data.get(<span class="string">&quot;server.address&quot;</span>))
+                    .and_then(|data| data.get(<span class="string">"server.address"</span>))
                     .and_then(|value| value.as_str())
                 {
                     <span class="kw">let </span>lowercase_host = server_host.to_lowercase();
-                    <span class="kw">let </span>(domain, port) = <span class="kw">match </span>lowercase_host.split_once(<span class="string">&#39;:&#39;</span>) {
+                    <span class="kw">let </span>(domain, port) = <span class="kw">match </span>lowercase_host.split_once(<span class="string">':'</span>) {
                         <span class="prelude-val">Some</span>((domain, port)) =&gt; (domain, port.parse::&lt;u16&gt;().ok()),
                         <span class="prelude-val">None </span>=&gt; (server_host, <span class="prelude-val">None</span>),
                     };
@@ -1774,12 +1775,12 @@
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(url_scheme) = span
                         .data
                         .value()
-                        .and_then(|data| data.get(<span class="string">&quot;url.scheme&quot;</span>))
+                        .and_then(|data| data.get(<span class="string">"url.scheme"</span>))
                         .and_then(|value| value.as_str())
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            <span class="macro">format!</span>(<span class="string">&quot;{url_scheme}://{lowercase_host}&quot;</span>),
+                            <span class="macro">format!</span>(<span class="string">"{url_scheme}://{lowercase_host}"</span>),
                         );
                     }
                     normalize_domain(domain, port)
@@ -1789,7 +1790,7 @@
             } <span class="kw">else </span>{
                 <span class="prelude-val">None
             </span>}
-        } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
+        } <span class="kw">else if </span>span_op.starts_with(<span class="string">"db"</span>) {
             span.description
                 .value()
                 .and_then(|query| sql_tables_from_query(system, query))
@@ -1797,28 +1798,28 @@
             <span class="prelude-val">None
         </span>};
 
-        <span class="kw">if </span>!span_op.starts_with(<span class="string">&quot;db.redis&quot;</span>) {
+        <span class="kw">if </span>!span_op.starts_with(<span class="string">"db.redis"</span>) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain {
                 span_tags.insert(SpanTagKey::Domain, dom);
             }
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed_desc) = scrubbed_description {
-            <span class="comment">// Truncating the span description&#39;s tag value is, for now,
+            <span class="comment">// Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
-            // group tag mustn&#39;t be affected by this, and still be
+            // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
+            </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
             span_group.truncate(<span class="number">16</span>);
             span_tags.insert(SpanTagKey::Group, span_group);
 
             <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
-            <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
+            <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(ext) = truncated
-                    .rsplit(<span class="string">&#39;/&#39;</span>)
+                    .rsplit(<span class="string">'/'</span>)
                     .next()
-                    .and_then(|last_segment| last_segment.rsplit_once(<span class="string">&#39;.&#39;</span>))
+                    .and_then(|last_segment| last_segment.rsplit_once(<span class="string">'.'</span>))
                     .map(|(<span class="kw">_</span>, extension)| extension)
                 {
                     span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
@@ -1828,11 +1829,11 @@
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
-        <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
+        <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
             <span class="comment">// TODO: Remove response size tags once product uses measurements instead.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">&quot;http.response_content_length&quot;</span>)
+                    .get(<span class="string">"http.response_content_length"</span>)
                     .and_then(Annotated::value)
                     .and_then(|v| String::try_from(v).ok())
                 {
@@ -1840,7 +1841,7 @@
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">&quot;http.decoded_response_content_length&quot;</span>)
+                    .get(<span class="string">"http.decoded_response_content_length"</span>)
                     .and_then(Annotated::value)
                     .and_then(|v| String::try_from(v).ok())
                 {
@@ -1848,7 +1849,7 @@
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">&quot;http.response_transfer_size&quot;</span>)
+                    .get(<span class="string">"http.response_transfer_size"</span>)
                     .and_then(Annotated::value)
                     .and_then(|v| String::try_from(v).ok())
                 {
@@ -1859,10 +1860,10 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(resource_render_blocking_status) = span
                 .data
                 .value()
-                .and_then(|data| data.get(<span class="string">&quot;resource.render_blocking_status&quot;</span>))
+                .and_then(|data| data.get(<span class="string">"resource.render_blocking_status"</span>))
                 .and_then(|value| value.as_str())
             {
-                <span class="comment">// Validate that it&#39;s a valid status:
+                <span class="comment">// Validate that it's a valid status:
                 </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
                     span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
@@ -1879,11 +1880,11 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = span
             .data
             .value()
-            .and_then(|data| data.get(<span class="string">&quot;thread.name&quot;</span>))
+            .and_then(|data| data.get(<span class="string">"thread.name"</span>))
             .and_then(|value| value.as_str())
         {
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainTread, <span class="string">&quot;true&quot;</span>.to_owned());
+                span_tags.insert(SpanTagKey::MainTread, <span class="string">"true"</span>.to_owned());
             }
         }
 
@@ -1904,12 +1905,12 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(end_time) = span.timestamp.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(initial_display) = initial_display {
             <span class="kw">if </span>end_time &lt;= <span class="kw-2">&amp;</span>initial_display {
-                span_tags.insert(SpanTagKey::TimeToInitialDisplay, <span class="string">&quot;ttid&quot;</span>.to_owned());
+                span_tags.insert(SpanTagKey::TimeToInitialDisplay, <span class="string">"ttid"</span>.to_owned());
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(full_display) = full_display {
             <span class="kw">if </span>end_time &lt;= <span class="kw-2">&amp;</span>full_display {
-                span_tags.insert(SpanTagKey::TimeToFullDisplay, <span class="string">&quot;ttfd&quot;</span>.to_owned());
+                span_tags.insert(SpanTagKey::TimeToFullDisplay, <span class="string">"ttfd"</span>.to_owned());
             }
         }
     }
@@ -1917,7 +1918,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = span
         .data
         .value()
-        .and_then(|data| data.get(<span class="string">&quot;browser.name&quot;</span>))
+        .and_then(|data| data.get(<span class="string">"browser.name"</span>))
         .and_then(|browser_name| browser_name.as_str())
     {
         span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
@@ -1932,7 +1933,7 @@
         <span class="kw">return</span>;
     };
 
-    <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
+    <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
             <span class="kw">let </span><span class="kw-2">mut </span>try_measurement = |key: <span class="kw-2">&amp;</span>str| {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurement_from_data(data, key) {
@@ -1947,9 +1948,9 @@
                     );
                 }
             };
-            try_measurement(<span class="string">&quot;http.response_content_length&quot;</span>);
-            try_measurement(<span class="string">&quot;http.decoded_response_content_length&quot;</span>);
-            try_measurement(<span class="string">&quot;http.response_transfer_size&quot;</span>);
+            try_measurement(<span class="string">"http.response_content_length"</span>);
+            try_measurement(<span class="string">"http.decoded_response_content_length"</span>);
+            try_measurement(<span class="string">"http.response_transfer_size"</span>);
         }
     }
 }
@@ -1978,7 +1979,7 @@
 <span class="doccomment">/// Trims the given string with the given maximum bytes. Splitting only happens
 /// on char boundaries.
 ///
-/// If the string is short, it remains unchanged. If it&#39;s long, this method
+/// If the string is short, it remains unchanged. If it's long, this method
 /// truncates it to the maximum allowed size and sets the last character to
 /// `*`.
 </span><span class="kw">fn </span>truncate_string(<span class="kw-2">mut </span>string: String, max_bytes: usize) -&gt; String {
@@ -1997,7 +1998,7 @@
     }
 
     string.truncate(cutoff);
-    string.push(<span class="string">&#39;*&#39;</span>);
+    string.push(<span class="string">'*'</span>);
     string
 }
 
@@ -2005,7 +2006,7 @@
 ///
 /// Currently we have an explicit allow-list of database actions considered important.
 </span><span class="kw">static </span>SQL_ACTION_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(?P&lt;action&gt;(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r#"(?i)(?P&lt;action&gt;(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#</span>).unwrap()
 });
 
 <span class="kw">fn </span>sql_action_from_query(query: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
@@ -2015,7 +2016,7 @@
 <span class="doccomment">/// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
 </span><span class="kw">static </span>SQL_TABLE_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(from|into|update)(\s|&quot;)+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;)+&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r#"(?i)(from|into|update)(\s|")+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|")+"#</span>).unwrap()
 });
 
 <span class="doccomment">/// Returns a sorted, comma-separated list of SQL tables, if any.
@@ -2040,15 +2041,15 @@
                     + comma_size,
             );
             <span class="kw">if </span>!visitor.table_names.is_empty() {
-                s.push(<span class="string">&#39;,&#39;</span>);
+                s.push(<span class="string">','</span>);
             }
             <span class="kw">for </span>name <span class="kw">in </span>visitor.table_names.into_iter() {
-                <span class="macro">write!</span>(<span class="kw-2">&amp;mut </span>s, <span class="string">&quot;{name},&quot;</span>).ok();
+                <span class="macro">write!</span>(<span class="kw-2">&amp;mut </span>s, <span class="string">"{name},"</span>).ok();
             }
             (!s.is_empty()).then_some(s)
         }
         <span class="prelude-val">Err</span>(e) =&gt; {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse SQL: {e}&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse SQL: {e}"</span>);
             extract_captured_substring(query, <span class="kw-2">&amp;</span>SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
     }
@@ -2066,7 +2067,7 @@
 
     <span class="kw">fn </span>pre_visit_relation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, relation: <span class="kw-2">&amp;</span>ObjectName) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = relation.<span class="number">0</span>.last() {
-            <span class="kw">let </span>last = name.value.split(<span class="string">&#39;.&#39;</span>).last().unwrap_or(<span class="kw-2">&amp;</span>name.value);
+            <span class="kw">let </span>last = name.value.split(<span class="string">'.'</span>).last().unwrap_or(<span class="kw-2">&amp;</span>name.value);
             <span class="self">self</span>.table_names.insert(last.to_lowercase());
         }
         ControlFlow::Continue(())
@@ -2075,7 +2076,7 @@
 
 <span class="doccomment">/// Regex with a capture group to extract the HTTP method from a string.
 </span><span class="kw">pub static </span>HTTP_METHOD_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r&quot;(?i)^(?P&lt;method&gt;(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b&quot;</span>)
+    Regex::new(<span class="string">r"(?i)^(?P&lt;method&gt;(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b"</span>)
         .unwrap()
 });
 
@@ -2085,8 +2086,8 @@
 
 <span class="doccomment">/// Returns the captured substring in `string` with the capture group in `pattern`.
 ///
-/// It assumes there&#39;s only one capture group in `pattern`, and only returns the first one.
-</span><span class="kw">fn </span>extract_captured_substring&lt;<span class="lifetime">&#39;a</span>&gt;(string: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, pattern: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Lazy&lt;Regex&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; {
+/// It assumes there's only one capture group in `pattern`, and only returns the first one.
+</span><span class="kw">fn </span>extract_captured_substring&lt;<span class="lifetime">'a</span>&gt;(string: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, pattern: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Lazy&lt;Regex&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; {
     <span class="kw">let </span>capture_names: Vec&lt;<span class="kw">_</span>&gt; = pattern.capture_names().flatten().collect();
 
     <span class="kw">for </span>captures <span class="kw">in </span>pattern.captures_iter(string) {
@@ -2103,24 +2104,24 @@
 <span class="doccomment">/// Returns the category of a span from its operation. The mapping is available in:
 /// &lt;https://develop.sentry.dev/sdk/performance/span-operations/&gt;
 </span><span class="kw">fn </span>span_op_to_category(op: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>it = op.split(<span class="string">&#39;.&#39;</span>); <span class="comment">// e.g. &quot;ui.react.render&quot;
+    <span class="kw">let </span><span class="kw-2">mut </span>it = op.split(<span class="string">'.'</span>); <span class="comment">// e.g. "ui.react.render"
     </span><span class="kw">match </span>(it.next(), it.next()) {
         <span class="comment">// Known categories with prefixes:
         </span>(
-            <span class="prelude-val">Some</span>(prefix @ <span class="string">&quot;ui&quot;</span>),
-            <span class="prelude-val">Some</span>(category @ (<span class="string">&quot;react&quot; </span>| <span class="string">&quot;vue&quot; </span>| <span class="string">&quot;svelte&quot; </span>| <span class="string">&quot;angular&quot; </span>| <span class="string">&quot;ember&quot;</span>)),
+            <span class="prelude-val">Some</span>(prefix @ <span class="string">"ui"</span>),
+            <span class="prelude-val">Some</span>(category @ (<span class="string">"react" </span>| <span class="string">"vue" </span>| <span class="string">"svelte" </span>| <span class="string">"angular" </span>| <span class="string">"ember"</span>)),
         )
         | (
-            <span class="prelude-val">Some</span>(prefix @ <span class="string">&quot;function&quot;</span>),
-            <span class="prelude-val">Some</span>(category @ (<span class="string">&quot;nextjs&quot; </span>| <span class="string">&quot;remix&quot; </span>| <span class="string">&quot;gpc&quot; </span>| <span class="string">&quot;aws&quot; </span>| <span class="string">&quot;azure&quot;</span>)),
+            <span class="prelude-val">Some</span>(prefix @ <span class="string">"function"</span>),
+            <span class="prelude-val">Some</span>(category @ (<span class="string">"nextjs" </span>| <span class="string">"remix" </span>| <span class="string">"gpc" </span>| <span class="string">"aws" </span>| <span class="string">"azure"</span>)),
         ) =&gt; op.get(..prefix.len() + <span class="number">1 </span>+ category.len()),
         <span class="comment">// Main categories (only keep first part):
         </span>(
             category @ <span class="prelude-val">Some</span>(
-                <span class="string">&quot;app&quot; </span>| <span class="string">&quot;browser&quot; </span>| <span class="string">&quot;cache&quot; </span>| <span class="string">&quot;console&quot; </span>| <span class="string">&quot;db&quot; </span>| <span class="string">&quot;event&quot; </span>| <span class="string">&quot;file&quot; </span>| <span class="string">&quot;graphql&quot;
-                </span>| <span class="string">&quot;grpc&quot; </span>| <span class="string">&quot;http&quot; </span>| <span class="string">&quot;measure&quot; </span>| <span class="string">&quot;middleware&quot; </span>| <span class="string">&quot;navigation&quot; </span>| <span class="string">&quot;pageload&quot; </span>| <span class="string">&quot;queue&quot;
-                </span>| <span class="string">&quot;resource&quot; </span>| <span class="string">&quot;rpc&quot; </span>| <span class="string">&quot;serialize&quot; </span>| <span class="string">&quot;subprocess&quot; </span>| <span class="string">&quot;template&quot; </span>| <span class="string">&quot;topic&quot; </span>| <span class="string">&quot;view&quot;
-                </span>| <span class="string">&quot;websocket&quot;</span>,
+                <span class="string">"app" </span>| <span class="string">"browser" </span>| <span class="string">"cache" </span>| <span class="string">"console" </span>| <span class="string">"db" </span>| <span class="string">"event" </span>| <span class="string">"file" </span>| <span class="string">"graphql"
+                </span>| <span class="string">"grpc" </span>| <span class="string">"http" </span>| <span class="string">"measure" </span>| <span class="string">"middleware" </span>| <span class="string">"navigation" </span>| <span class="string">"pageload" </span>| <span class="string">"queue"
+                </span>| <span class="string">"resource" </span>| <span class="string">"rpc" </span>| <span class="string">"serialize" </span>| <span class="string">"subprocess" </span>| <span class="string">"template" </span>| <span class="string">"topic" </span>| <span class="string">"view"
+                </span>| <span class="string">"websocket"</span>,
             ),
             <span class="kw">_</span>,
         ) =&gt; category,
@@ -2130,12 +2131,12 @@
 }
 
 <span class="doccomment">/// Reads the event measurements to determine the start type of the event.
-</span><span class="kw">fn </span>get_event_start_type(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+</span><span class="kw">fn </span>get_event_start_type(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
     <span class="comment">// Check the measurements on the event to determine what kind of start type the event is.
-    </span><span class="kw">if </span>event.measurement(<span class="string">&quot;app_start_cold&quot;</span>).is_some() {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;cold&quot;</span>)
-    } <span class="kw">else if </span>event.measurement(<span class="string">&quot;app_start_warm&quot;</span>).is_some() {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>)
+    </span><span class="kw">if </span>event.measurement(<span class="string">"app_start_cold"</span>).is_some() {
+        <span class="prelude-val">Some</span>(<span class="string">"cold"</span>)
+    } <span class="kw">else if </span>event.measurement(<span class="string">"app_start_warm"</span>).is_some() {
+        <span class="prelude-val">Some</span>(<span class="string">"warm"</span>)
     } <span class="kw">else </span>{
         <span class="prelude-val">None
     </span>}
@@ -2152,25 +2153,25 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_truncate_string_no_panic() {
-        <span class="kw">let </span>string = <span class="string">&quot;ÆÆ&quot;</span>.to_owned();
+        <span class="kw">let </span>string = <span class="string">"ÆÆ"</span>.to_owned();
 
         <span class="kw">let </span>truncated = truncate_string(string.clone(), <span class="number">0</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">""</span>);
 
         <span class="kw">let </span>truncated = truncate_string(string.clone(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;*&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">"*"</span>);
 
         <span class="kw">let </span>truncated = truncate_string(string.clone(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;*&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">"*"</span>);
 
         <span class="kw">let </span>truncated = truncate_string(string.clone(), <span class="number">3</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;Æ*&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">"Æ*"</span>);
 
         <span class="kw">let </span>truncated = truncate_string(string.clone(), <span class="number">4</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;ÆÆ&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">"ÆÆ"</span>);
 
         <span class="kw">let </span>truncated = truncate_string(string, <span class="number">5</span>);
-        <span class="macro">assert_eq!</span>(truncated, <span class="string">&quot;ÆÆ&quot;</span>);
+        <span class="macro">assert_eq!</span>(truncated, <span class="string">"ÆÆ"</span>);
     }
 
     <span class="macro">macro_rules! </span>span_transaction_method_test {
@@ -2179,29 +2180,29 @@
             <span class="attr">#[test]
             </span><span class="kw">fn </span><span class="macro-nonterminal">$name</span>() {
                 <span class="kw">let </span>json = <span class="macro">format!</span>(
-                    <span class="string">r#&quot;
+                    <span class="string">r#"
                     {{
-                        &quot;type&quot;: &quot;transaction&quot;,
-                        &quot;platform&quot;: &quot;javascript&quot;,
-                        &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-                        &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                        &quot;transaction&quot;: &quot;{}&quot;,
-                        &quot;contexts&quot;: {{
-                            &quot;trace&quot;: {{
-                                &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                                &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                        "type": "transaction",
+                        "platform": "javascript",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "transaction": "{}",
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                                "span_id": "bd429c44b67a3eb4"
                             }}
                         }},
-                        &quot;spans&quot;: [
+                        "spans": [
                             {{
-                                &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                                &quot;start_timestamp&quot;: 1597976300.0000000,
-                                &quot;timestamp&quot;: 1597976302.0000000,
-                                &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                                "span_id": "bd429c44b67a3eb4",
+                                "start_timestamp": 1597976300.0000000,
+                                "timestamp": 1597976302.0000000,
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81"
                             }}
                         ]
                     }}
-                &quot;#</span>,
+                "#</span>,
                     <span class="macro-nonterminal">$transaction_name
                 </span>);
 
@@ -2210,7 +2211,7 @@
                 <span class="kw">if </span>!<span class="macro-nonterminal">$request_method</span>.is_empty() {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(e) = event.value_mut() {
                         e.request = Annotated::new(Request {
-                            method: Annotated::new(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="macro-nonterminal">$request_method</span>)),
+                            method: Annotated::new(<span class="macro">format!</span>(<span class="string">"{}"</span>, <span class="macro-nonterminal">$request_method</span>)),
                             ..Default::default()
                         });
                     }
@@ -2231,7 +2232,7 @@
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[<span class="number">0</span>].value())
                         .and_then(|s| s.sentry_tags.value())
-                        .and_then(|d| d.get(<span class="string">&quot;transaction.method&quot;</span>))
+                        .and_then(|d| d.get(<span class="string">"transaction.method"</span>))
                         .and_then(|v| v.as_str())
                         .unwrap()
                 );
@@ -2241,111 +2242,111 @@
 
     <span class="macro">span_transaction_method_test!</span>(
         test_http_method_txname,
-        <span class="string">&quot;get /api/:version/users/&quot;</span>,
-        <span class="string">&quot;&quot;</span>,
-        <span class="string">&quot;GET&quot;
+        <span class="string">"get /api/:version/users/"</span>,
+        <span class="string">""</span>,
+        <span class="string">"GET"
     </span>);
 
     <span class="macro">span_transaction_method_test!</span>(
         test_http_method_context,
-        <span class="string">&quot;/api/:version/users/&quot;</span>,
-        <span class="string">&quot;post&quot;</span>,
-        <span class="string">&quot;POST&quot;
+        <span class="string">"/api/:version/users/"</span>,
+        <span class="string">"post"</span>,
+        <span class="string">"POST"
     </span>);
 
     <span class="macro">span_transaction_method_test!</span>(
         test_http_method_request_prioritized,
-        <span class="string">&quot;get /api/:version/users/&quot;</span>,
-        <span class="string">&quot;post&quot;</span>,
-        <span class="string">&quot;POST&quot;
+        <span class="string">"get /api/:version/users/"</span>,
+        <span class="string">"post"</span>,
+        <span class="string">"POST"
     </span>);
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM &quot;a.b&quot; WHERE &quot;x&quot; = 1&quot;#</span>;
+        <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM "a.b" WHERE "x" = 1"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;postgresql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,b,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).unwrap(),
+            <span class="string">",b,"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select_nested() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM (SELECT * FROM &quot;a.b&quot;) s WHERE &quot;x&quot; = 1&quot;#</span>;
-        <span class="macro">assert_eq!</span>(sql_tables_from_query(<span class="prelude-val">None</span>, query).unwrap(), <span class="string">&quot;,b,&quot;</span>);
+        <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#</span>;
+        <span class="macro">assert_eq!</span>(sql_tables_from_query(<span class="prelude-val">None</span>, query).unwrap(), <span class="string">",b,"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_multiple() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id&quot;#</span>;
+        <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;postgresql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,a,b,c,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).unwrap(),
+            <span class="string">",a,b,c,"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_multiple_mysql() {
         <span class="kw">let </span>query =
-            <span class="string">r#&quot;SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id&quot;#</span>;
+            <span class="string">r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;mysql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,a,b,c,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"mysql"</span>), query).unwrap(),
+            <span class="string">",a,b,c,"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_multiple_advanced() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;
-SELECT &quot;sentry_grouprelease&quot;.&quot;id&quot;, &quot;sentry_grouprelease&quot;.&quot;project_id&quot;,
-  &quot;sentry_grouprelease&quot;.&quot;group_id&quot;, &quot;sentry_grouprelease&quot;.&quot;release_id&quot;,
-  &quot;sentry_grouprelease&quot;.&quot;environment&quot;, &quot;sentry_grouprelease&quot;.&quot;first_seen&quot;,
-  &quot;sentry_grouprelease&quot;.&quot;last_seen&quot;
-FROM &quot;sentry_grouprelease&quot;
+        <span class="kw">let </span>query = <span class="string">r#"
+SELECT "sentry_grouprelease"."id", "sentry_grouprelease"."project_id",
+  "sentry_grouprelease"."group_id", "sentry_grouprelease"."release_id",
+  "sentry_grouprelease"."environment", "sentry_grouprelease"."first_seen",
+  "sentry_grouprelease"."last_seen"
+FROM "sentry_grouprelease"
 WHERE (
-  &quot;sentry_grouprelease&quot;.&quot;group_id&quot; = %s AND &quot;sentry_grouprelease&quot;.&quot;release_id&quot; IN (
-    SELECT V0.&quot;release_id&quot;
-    FROM &quot;sentry_environmentrelease&quot; V0
+  "sentry_grouprelease"."group_id" = %s AND "sentry_grouprelease"."release_id" IN (
+    SELECT V0."release_id"
+    FROM "sentry_environmentrelease" V0
     WHERE (
-      V0.&quot;organization_id&quot; = %s AND V0.&quot;release_id&quot; IN (
-        SELECT U0.&quot;release_id&quot;
-        FROM &quot;sentry_release_project&quot; U0
-        WHERE U0.&quot;project_id&quot; = %s
+      V0."organization_id" = %s AND V0."release_id" IN (
+        SELECT U0."release_id"
+        FROM "sentry_release_project" U0
+        WHERE U0."project_id" = %s
       )
     )
-    ORDER BY V0.&quot;first_seen&quot; DESC
+    ORDER BY V0."first_seen" DESC
     LIMIT 1
   )
 )
 LIMIT 1
-            &quot;#</span>;
+            "#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;postgresql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,sentry_environmentrelease,sentry_grouprelease,sentry_release_project,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).unwrap(),
+            <span class="string">",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_delete() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;DELETE FROM &quot;a.b&quot; WHERE &quot;x&quot; = 1&quot;#</span>;
-        <span class="macro">assert_eq!</span>(sql_tables_from_query(<span class="prelude-val">None</span>, query).unwrap(), <span class="string">&quot;,b,&quot;</span>);
+        <span class="kw">let </span>query = <span class="string">r#"DELETE FROM "a.b" WHERE "x" = 1"#</span>;
+        <span class="macro">assert_eq!</span>(sql_tables_from_query(<span class="prelude-val">None</span>, query).unwrap(), <span class="string">",b,"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_insert() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;INSERT INTO &quot;a&quot; (&quot;x&quot;, &quot;y&quot;) VALUES (%s, %s)&quot;#</span>;
+        <span class="kw">let </span>query = <span class="string">r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;postgresql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,a,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).unwrap(),
+            <span class="string">",a,"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_update() {
-        <span class="kw">let </span>query = <span class="string">r#&quot;UPDATE &quot;a&quot; SET &quot;x&quot; = %s, &quot;y&quot; = %s WHERE &quot;z&quot; = %s&quot;#</span>;
+        <span class="kw">let </span>query = <span class="string">r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">&quot;postgresql&quot;</span>), query).unwrap(),
-            <span class="string">&quot;,a,&quot;
+            sql_tables_from_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).unwrap(),
+            <span class="string">",a,"
         </span>);
     }
 
@@ -2353,25 +2354,25 @@ LIMIT 1
     </span><span class="kw">fn </span>extract_sql_action() {
         <span class="kw">let </span>test_cases = <span class="macro">vec!</span>[
             (
-                <span class="string">r#&quot;SELECT &quot;sentry_organization&quot;.&quot;id&quot; FROM &quot;sentry_organization&quot; WHERE &quot;sentry_organization&quot;.&quot;id&quot; = %s&quot;#</span>,
-                <span class="string">&quot;SELECT&quot;</span>,
+                <span class="string">r#"SELECT "sentry_organization"."id" FROM "sentry_organization" WHERE "sentry_organization"."id" = %s"#</span>,
+                <span class="string">"SELECT"</span>,
             ),
             (
-                <span class="string">r#&quot;INSERT INTO &quot;sentry_groupseen&quot; (&quot;project_id&quot;, &quot;group_id&quot;, &quot;user_id&quot;, &quot;last_seen&quot;) VALUES (%s, %s, %s, %s) RETURNING &quot;sentry_groupseen&quot;.&quot;id&quot;#</span>,
-                <span class="string">&quot;INSERT&quot;</span>,
+                <span class="string">r#"INSERT INTO "sentry_groupseen" ("project_id", "group_id", "user_id", "last_seen") VALUES (%s, %s, %s, %s) RETURNING "sentry_groupseen"."id"#</span>,
+                <span class="string">"INSERT"</span>,
             ),
             (
-                <span class="string">r#&quot;UPDATE sentry_release SET date_released = %s WHERE id = %s&quot;#</span>,
-                <span class="string">&quot;UPDATE&quot;</span>,
+                <span class="string">r#"UPDATE sentry_release SET date_released = %s WHERE id = %s"#</span>,
+                <span class="string">"UPDATE"</span>,
             ),
             (
-                <span class="string">r#&quot;DELETE FROM &quot;sentry_groupinbox&quot; WHERE &quot;sentry_groupinbox&quot;.&quot;id&quot; IN (%s)&quot;#</span>,
-                <span class="string">&quot;DELETE&quot;</span>,
+                <span class="string">r#"DELETE FROM "sentry_groupinbox" WHERE "sentry_groupinbox"."id" IN (%s)"#</span>,
+                <span class="string">"DELETE"</span>,
             ),
-            (<span class="string">r#&quot;SET search_path TO my_schema, public&quot;#</span>, <span class="string">&quot;SET&quot;</span>),
-            (<span class="string">r#&quot;SAVEPOINT %s&quot;#</span>, <span class="string">&quot;SAVEPOINT&quot;</span>),
-            (<span class="string">r#&quot;RELEASE SAVEPOINT %s&quot;#</span>, <span class="string">&quot;RELEASE SAVEPOINT&quot;</span>),
-            (<span class="string">r#&quot;ROLLBACK TO SAVEPOINT %s&quot;#</span>, <span class="string">&quot;ROLLBACK TO SAVEPOINT&quot;</span>),
+            (<span class="string">r#"SET search_path TO my_schema, public"#</span>, <span class="string">"SET"</span>),
+            (<span class="string">r#"SAVEPOINT %s"#</span>, <span class="string">"SAVEPOINT"</span>),
+            (<span class="string">r#"RELEASE SAVEPOINT %s"#</span>, <span class="string">"RELEASE SAVEPOINT"</span>),
+            (<span class="string">r#"ROLLBACK TO SAVEPOINT %s"#</span>, <span class="string">"ROLLBACK TO SAVEPOINT"</span>),
         ];
 
         <span class="kw">for </span>(query, expected) <span class="kw">in </span>test_cases {
@@ -2381,57 +2382,57 @@ LIMIT 1
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_display_times() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;platform&quot;: &quot;javascript&quot;,
-                &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-                &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                &quot;transaction&quot;: &quot;foo&quot;,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
                     }
                 },
-                &quot;spans&quot;: [
+                "spans": [
                     {
-                        &quot;op&quot;: &quot;before_first_display&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     },
                     {
-                        &quot;op&quot;: &quot;ui.load.initial_display&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976303.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "ui.load.initial_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976303.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     },
                     {
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                        &quot;start_timestamp&quot;: 1597976303.0000000,
-                        &quot;timestamp&quot;: 1597976305.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976303.0000000,
+                        "timestamp": 1597976305.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     },
                     {
-                        &quot;op&quot;: &quot;ui.load.full_display&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                        &quot;start_timestamp&quot;: 1597976304.0000000,
-                        &quot;timestamp&quot;: 1597976306.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "ui.load.full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976304.0000000,
+                        "timestamp": 1597976306.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     },
                     {
-                        &quot;op&quot;: &quot;after_full_display&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                        &quot;start_timestamp&quot;: 1597976307.0000000,
-                        &quot;timestamp&quot;: 1597976308.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "after_full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976307.0000000,
+                        "timestamp": 1597976308.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     }
                 ]
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
             .unwrap()
@@ -2450,55 +2451,55 @@ LIMIT 1
         <span class="comment">// First two spans contribute to initial display &amp; full display:
         </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[..<span class="number">2</span>] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttid&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;ttid&quot;</span>));
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttfd&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;ttfd&quot;</span>));
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttid"</span>));
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
         }
 
         <span class="comment">// First four spans contribute to full display:
         </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[<span class="number">2</span>..<span class="number">4</span>] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">None</span>);
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttfd&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;ttfd&quot;</span>));
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
         }
 
         <span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[<span class="number">4</span>..] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">None</span>);
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;ttfd&quot;</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>), <span class="prelude-val">None</span>);
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_resource_sizes() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;platform&quot;: &quot;javascript&quot;,
-                &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-                &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                &quot;transaction&quot;: &quot;foo&quot;,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
                     }
                 },
-                &quot;spans&quot;: [
+                "spans": [
                     {
-                        &quot;op&quot;: &quot;resource.script&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;data&quot;: {
-                            &quot;http.response_content_length&quot;: 1,
-                            &quot;http.decoded_response_content_length&quot;: 2.0,
-                            &quot;http.response_transfer_size&quot;: 3.3
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "http.response_content_length": 1,
+                            "http.decoded_response_content_length": 2.0,
+                            "http.response_transfer_size": 3.3
                         }
                     }
                 ]
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
             .unwrap()
@@ -2516,37 +2517,37 @@ LIMIT 1
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">&quot;http.response_content_length&quot;</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;1&quot;</span>),
+            tags.get(<span class="string">"http.response_content_length"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"1"</span>),
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">&quot;http.decoded_response_content_length&quot;</span>)
+            tags.get(<span class="string">"http.decoded_response_content_length"</span>)
                 .unwrap()
                 .as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;2&quot;</span>),
+            <span class="prelude-val">Some</span>(<span class="string">"2"</span>),
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">&quot;http.response_transfer_size&quot;</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;3.3&quot;</span>),
+            tags.get(<span class="string">"http.response_transfer_size"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"3.3"</span>),
         );
 
         <span class="kw">let </span>measurements = span.value().unwrap().measurements.value().unwrap();
-        <span class="macro">assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
             {
-                &quot;http.decoded_response_content_length&quot;: Measurement {
+                "http.decoded_response_content_length": Measurement {
                     value: 2.0,
                     unit: Information(
                         Byte,
                     ),
                 },
-                &quot;http.response_content_length&quot;: Measurement {
+                "http.response_content_length": Measurement {
                     value: 1.0,
                     unit: Information(
                         Byte,
                     ),
                 },
-                &quot;http.response_transfer_size&quot;: Measurement {
+                "http.response_transfer_size": Measurement {
                     value: 3.3,
                     unit: Information(
                         Byte,
@@ -2554,74 +2555,74 @@ LIMIT 1
                 },
             },
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_resource_raw_domain() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;spans&quot;: [
+                "spans": [
                     {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;/static/myscript-v1.9.23.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;,
-                        &quot;server.address&quot;: &quot;subdomain.example.com:5688&quot;,
-                        &quot;url.same_origin&quot;: true,
-                        &quot;url.scheme&quot;: &quot;https&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3789&quot;
+                    "hash": "e2fae740cccd3789"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;/static/myscript-v1.9.23.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;,
-                        &quot;server.address&quot;: &quot;example.com&quot;,
-                        &quot;url.same_origin&quot;: true,
-                        &quot;url.scheme&quot;: &quot;http&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "example.com",
+                        "url.same_origin": true,
+                        "url.scheme": "http"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3781&quot;
+                    "hash": "e2fae740cccd3781"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;/static/myscript-v1.9.24.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.24.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3788&quot;
+                    "hash": "e2fae740cccd3788"
                 }
             ]
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
             .unwrap()
@@ -2644,80 +2645,80 @@ LIMIT 1
         <span class="kw">let </span>tags_3 = <span class="macro">get_value!</span>(span_3.sentry_tags).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            tags_1.get(<span class="string">&quot;raw_domain&quot;</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;https://subdomain.example.com:5688&quot;</span>)
+            tags_1.get(<span class="string">"raw_domain"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"https://subdomain.example.com:5688"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            tags_2.get(<span class="string">&quot;raw_domain&quot;</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com&quot;</span>)
+            tags_2.get(<span class="string">"raw_domain"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"http://example.com"</span>)
         );
-        <span class="macro">assert!</span>(!tags_3.contains_key(<span class="string">&quot;raw_domain&quot;</span>));
+        <span class="macro">assert!</span>(!tags_3.contains_key(<span class="string">"raw_domain"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mobile_specific_tags() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;platform&quot;: &quot;android&quot;,
-                &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-                &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                &quot;transaction&quot;: &quot;foo&quot;,
-                &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.java.android&quot;},
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                "type": "transaction",
+                "platform": "android",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "sdk": {"name": "sentry.java.android"},
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
                     },
-                    &quot;app&quot;: {
-                        &quot;app_identifier&quot;: &quot;io.sentry.samples.android&quot;,
-                        &quot;app_name&quot;: &quot;sentry_android_example&quot;
+                    "app": {
+                        "app_identifier": "io.sentry.samples.android",
+                        "app_name": "sentry_android_example"
                     },
-                    &quot;os&quot;: {
-                        &quot;name&quot;: &quot;Android&quot;,
-                        &quot;version&quot;: &quot;8.1.0&quot;
+                    "os": {
+                        "name": "Android",
+                        "version": "8.1.0"
                     }
                 },
-                &quot;measurements&quot;: {
-                    &quot;app_start_warm&quot;: {
-                        &quot;value&quot;: 1.0,
-                        &quot;unit&quot;: &quot;millisecond&quot;
+                "measurements": {
+                    "app_start_warm": {
+                        "value": 1.0,
+                        "unit": "millisecond"
                     }
                 },
-                &quot;spans&quot;: [
+                "spans": [
                     {
-                        &quot;op&quot;: &quot;ui.load&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;data&quot;: {
-                            &quot;thread.id&quot;: 1,
-                            &quot;thread.name&quot;: &quot;main&quot;,
-                            &quot;app_start_type&quot;: &quot;cold&quot;
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 1,
+                            "thread.name": "main",
+                            "app_start_type": "cold"
                         }
                     },
                     {
-                        &quot;op&quot;: &quot;ui.load&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;data&quot;: {
-                            &quot;thread.id&quot;: 2,
-                            &quot;thread.name&quot;: &quot;not main&quot;
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 2,
+                            "thread.name": "not main"
                         }
                     },
                     {
-                        &quot;op&quot;: &quot;file.write&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "file.write",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     }
                 ]
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
             .unwrap()
@@ -2734,52 +2735,52 @@ LIMIT 1
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>));
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;os.name&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>));
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;cold&quot;</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"true"</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"os.name"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"Android"</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"cold"</span>));
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"warm"</span>));
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">2</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"warm"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_tags_extraction_from_event_browser_name() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;platform&quot;: &quot;javascript&quot;,
-                &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-                &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                &quot;transaction&quot;: &quot;foo&quot;,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
                     },
-                    &quot;browser&quot;: {
-                        &quot;name&quot;: &quot;Chrome&quot;
+                    "browser": {
+                        "name": "Chrome"
                     }
                 },
-                &quot;spans&quot;: [
+                "spans": [
                     {
-                        &quot;op&quot;: &quot;resource.script&quot;,
-                        &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                        &quot;start_timestamp&quot;: 1597976300.0000000,
-                        &quot;timestamp&quot;: 1597976302.0000000,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
                     }
                 ]
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
             .unwrap()
@@ -2796,25 +2797,25 @@ LIMIT 1
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">&quot;browser.name&quot;</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">&quot;Chrome&quot;</span>.to_string()))
+            tags.get(<span class="string">"browser.name"</span>),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"Chrome"</span>.to_string()))
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_tags_extraction_from_span_browser_name() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;op&quot;: &quot;resource.script&quot;,
-                &quot;span_id&quot;: &quot;bd429c44b67a3eb1&quot;,
-                &quot;start_timestamp&quot;: 1597976300.0000000,
-                &quot;timestamp&quot;: 1597976302.0000000,
-                &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                &quot;data&quot;: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;
+                "op": "resource.script",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "browser.name": "Chrome"
                 }
             }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(json)
             .unwrap()
             .into_value()
@@ -2832,7 +2833,7 @@ LIMIT 1
 
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::BrowserName),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;Chrome&quot;</span>.to_string())
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_string())
         );
     }
 }

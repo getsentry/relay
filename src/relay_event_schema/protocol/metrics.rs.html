@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/metrics.rs`."><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/metrics.rs`."><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -170,14 +171,14 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 
 <span class="attr">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>SampleRate {
     <span class="doccomment">/// The unique identifier of the sampling rule or mechanism.
     ///
@@ -202,7 +203,7 @@
 /// These values are collected in Relay and Sentry and finally persisted into the event payload. A
 /// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
 </span><span class="attr">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Metrics {
     <span class="doccomment">/// The size of the original event payload ingested into Sentry.
     ///
@@ -211,10 +212,10 @@
     ///
     /// For security reports, this is the size of the JSON request sent by the browser and not of
     /// the event payload we extract from it. For ingested envelopes, this is only the size of the
-    /// &quot;event&quot; item.
+    /// "event" item.
     ///
     /// This metric is measured in Relay during ingestion.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.ingested.event&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.ingested.event"</span>)]
     </span><span class="kw">pub </span>bytes_ingested_event: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The size of the minidump ingested into Sentry.
@@ -223,7 +224,7 @@
     /// independent of compression over the wire.
     ///
     /// This metric is measured in Relay during ingestion.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.minidump&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.ingested.event.minidump"</span>)]
     </span><span class="kw">pub </span>bytes_ingested_event_minidump: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The size of an apple crash report ingested into Sentry.
@@ -232,7 +233,7 @@
     /// independent of compression over the wire.
     ///
     /// This metric is measured in Relay during ingestion.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.applecrashreport&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.ingested.event.applecrashreport"</span>)]
     </span><span class="kw">pub </span>bytes_ingested_event_applecrashreport: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The cumulative size of all additional attachments ingested into Sentry.
@@ -242,7 +243,7 @@
     /// counted separately in their respective metrics.
     ///
     /// This metric is measured in Relay during ingestion.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.attachment&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.ingested.event.attachment"</span>)]
     </span><span class="kw">pub </span>bytes_ingested_event_attachment: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The size of the event payload as it is saved in node store.
@@ -253,18 +254,18 @@
     ///
     /// This metric is measured in Sentry after all processing has completed and when it is posted
     /// into node store.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.stored.event&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.stored.event"</span>)]
     </span><span class="kw">pub </span>bytes_stored_event: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The size of the minidump as it is saved in blob store.
     ///
     /// Minidumps are not saved in two conditions. In this case, this number will be zero (missing):
     ///  1. The attachment feature is not enabled for an organization.
-    ///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).
+    ///  2. The option "Store Native Crash Reports" is disabled (default).
     ///
     /// This metric is measured in Sentry after all processing has completed and when it is posted
     /// into node store.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.stored.event.minidump&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.stored.event.minidump"</span>)]
     </span><span class="kw">pub </span>bytes_stored_event_minidump: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The size of the apple crash report as it is saved in blob store.
@@ -272,11 +273,11 @@
     /// Apple crash reports are not saved in two conditions. In this case, this number will be zero
     /// (missing):
     ///  1. The attachment feature is not enabled for an organization.
-    ///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).
+    ///  2. The option "Store Native Crash Reports" is disabled (default).
     ///
     /// This metric is measured in Sentry after all processing has completed and when it is posted
     /// into node store.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.stored.event.applecrashreport&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.stored.event.applecrashreport"</span>)]
     </span><span class="kw">pub </span>bytes_stored_event_applecrashreport: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The cumulative size of all additional attachments as saved in blob store.
@@ -286,7 +287,7 @@
     ///
     /// This metric is measured in Sentry after all processing has completed and when it is posted
     /// into node store.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;bytes.stored.event.attachment&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"bytes.stored.event.attachment"</span>)]
     </span><span class="kw">pub </span>bytes_stored_event_attachment: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The number of milliseconds Symbolicator spent processing the native event.
@@ -294,25 +295,25 @@
     /// This metric is measured in Symbolicator and reported in the native processing task. There
     /// are additional overheads polling symbolicator for the response, but the time reported from
     /// symbolicator reflects used resources most accurately.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;ms.processing.symbolicator&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"ms.processing.symbolicator"</span>)]
     </span><span class="kw">pub </span>ms_processing_symbolicator: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The number of milliseconds Sentry spent resolving proguard mappings for a java event.
     ///
     /// This metric is measured in Sentry and reported in the java processing task.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;ms.processing.proguard&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"ms.processing.proguard"</span>)]
     </span><span class="kw">pub </span>ms_processing_proguard: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The number of milliseconds Sentry spent resolving sources for a java event.
     ///
     /// This metric is measured in Sentry and reported in the java processing task.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;ms.processing.jvm&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"ms.processing.jvm"</span>)]
     </span><span class="kw">pub </span>ms_processing_jvm: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// The number of milliseconds sentry spent resolving minified stack traces for a javascript event.
     ///
     /// This metric is measured in Sentry and reported in the javascript processing task.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;ms.processing.sourcemaps&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"ms.processing.sourcemaps"</span>)]
     </span><span class="kw">pub </span>ms_processing_sourcemaps: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Whether there has been a processing error that likely impacts the usefulness of an event.
@@ -320,7 +321,7 @@
     /// Example: malformed/unparseable debug information files.
     ///
     /// This metric is measured in Sentry and should be reported in all processing tasks.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;flag.processing.error&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"flag.processing.error"</span>)]
     </span><span class="kw">pub </span>flag_processing_error: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Whether there has been a processing error that almost certainly renders the event
@@ -330,7 +331,7 @@
     /// context data and attachments, and we already billed the user anyway.
     ///
     /// This metric is measured in Sentry and should be reported in all processing tasks.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;flag.processing.fatal&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"flag.processing.fatal"</span>)]
     </span><span class="kw">pub </span>flag_processing_fatal: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// A list of cumulative sample rates applied to this event.

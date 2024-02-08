@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/clock_drift.rs`."><title>clock_drift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/clock_drift.rs`."><title>clock_drift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -301,7 +302,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Timestamp};
 <span class="kw">use </span>relay_protocol::{Error, ErrorKind, Meta};
 
-<span class="doccomment">/// A signed correction that contains the sender&#39;s timestamp as well as the drift to the receiver.
+<span class="doccomment">/// A signed correction that contains the sender's timestamp as well as the drift to the receiver.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">struct </span>ClockCorrection {
     sent_at: DateTime&lt;Utc&gt;,
@@ -323,24 +324,24 @@
     }
 }
 
-<span class="doccomment">/// Corrects clock drift based on the sender&#39;s and receivers timestamps.
+<span class="doccomment">/// Corrects clock drift based on the sender's and receivers timestamps.
 ///
 /// Clock drift correction applies to all timestamps in the event protocol. This includes especially
-/// the event&#39;s timestamp, breadcrumbs and spans.
+/// the event's timestamp, breadcrumbs and spans.
 ///
 /// There is a minimum clock drift of _55 minutes_ to compensate for network latency and small clock
-/// drift on the sender&#39;s machine, but allow to detect timezone differences. For differences lower
+/// drift on the sender's machine, but allow to detect timezone differences. For differences lower
 /// than that, no correction is performed.
 ///
 /// Clock drift is corrected in both ways:
 ///
 /// - The drift is added to timestamps if the received time is after the send time. This indicates
-///   that the sender&#39;s clock was lagging behind. For instance, if an event was received with
-///   yesterday&#39;s timestamp, one day is added to all timestamps.
+///   that the sender's clock was lagging behind. For instance, if an event was received with
+///   yesterday's timestamp, one day is added to all timestamps.
 ///
 /// - The drift is subtracted from timestamps if the received time is before the send time. This
-///   indicates that the sender&#39;s clock was running ahead. For instance, if an event was received
-///   with tomorrow&#39;s timestamp, one day is subtracted from all timestamps.
+///   indicates that the sender's clock was running ahead. For instance, if an event was received
+///   with tomorrow's timestamp, one day is subtracted from all timestamps.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ClockDriftProcessor {
     received_at: DateTime&lt;Utc&gt;,
@@ -352,7 +353,7 @@
     <span class="doccomment">/// Creates a new `ClockDriftProcessor`.
     ///
     /// If no `sent_at` timestamp is provided, then clock drift correction is disabled. The drift is
-    /// calculated from the signed difference between the receiver&#39;s and the sender&#39;s timestamp.
+    /// calculated from the signed difference between the receiver's and the sender's timestamp.
     </span><span class="kw">pub fn </span>new(sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, received_at: DateTime&lt;Utc&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>correction = sent_at.map(|sent_at| ClockCorrection::new(sent_at, received_at));
 
@@ -410,15 +411,15 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         event: <span class="kw-2">&amp;mut </span>Event,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(correction) = <span class="self">self</span>.correction {
             event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>timestamp_meta = event.timestamp.meta_mut();
             timestamp_meta.add_error(Error::with(<span class="self">self</span>.kind.clone(), |e| {
-                e.insert(<span class="string">&quot;sdk_time&quot;</span>, correction.sent_at.to_rfc3339());
-                e.insert(<span class="string">&quot;server_time&quot;</span>, <span class="self">self</span>.received_at.to_rfc3339());
+                e.insert(<span class="string">"sdk_time"</span>, correction.sent_at.to_rfc3339());
+                e.insert(<span class="string">"server_time"</span>, <span class="self">self</span>.received_at.to_rfc3339());
             }));
         }
 
@@ -429,11 +430,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         timestamp: <span class="kw-2">&amp;mut </span>Timestamp,
         _meta: <span class="kw-2">&amp;mut </span>Meta,
-        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(correction) = <span class="self">self</span>.correction {
-            <span class="comment">// NB: We&#39;re not setting the original value here, as this could considerably increase
-            // the event&#39;s size. Instead, attach an error message to the top-level event.
+            <span class="comment">// NB: We're not setting the original value here, as this could considerably increase
+            // the event's size. Instead, attach an error message to the top-level event.
             </span><span class="kw-2">*</span>timestamp = <span class="kw-2">*</span>timestamp + correction.drift;
         }
 
@@ -459,9 +460,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)

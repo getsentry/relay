@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/client_report.rs`."><title>client_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/client_report.rs`."><title>client_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -127,14 +128,14 @@
     <span class="doccomment">/// Counters for events discarded by the client.
     </span><span class="kw">pub </span>discarded_events: Vec&lt;DiscardedEvent&gt;,
     <span class="doccomment">/// Counters for events rate limited by a relay configured to emit outcomes as client reports
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>rate_limited_events: Vec&lt;DiscardedEvent&gt;,
     <span class="doccomment">/// Counters for events filtered by a relay configured to emit outcomes as client reports
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>filtered_events: Vec&lt;DiscardedEvent&gt;,
     <span class="doccomment">/// Counters for events filtered by a sampling rule,
     /// by a relay configured to emit outcomes as client reports
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>filtered_sampling_events: Vec&lt;DiscardedEvent&gt;,
 }
 
@@ -158,56 +159,56 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_client_report_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;timestamp&quot;: &quot;2020-02-07T15:17:00Z&quot;,
-  &quot;discarded_events&quot;: [
-    {&quot;reason&quot;: &quot;foo_reason&quot;, &quot;category&quot;: &quot;error&quot;, &quot;quantity&quot;: 42},
-    {&quot;reason&quot;: &quot;foo_reason&quot;, &quot;category&quot;: &quot;transaction&quot;, &quot;quantity&quot;: 23}
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "timestamp": "2020-02-07T15:17:00Z",
+  "discarded_events": [
+    {"reason": "foo_reason", "category": "error", "quantity": 42},
+    {"reason": "foo_reason", "category": "transaction", "quantity": 23}
   ],
-  &quot;rate_limited_events&quot; : [
-      {&quot;reason&quot;: &quot;bar_reason&quot;, &quot;category&quot;: &quot;session&quot;, &quot;quantity&quot;: 456}
+  "rate_limited_events" : [
+      {"reason": "bar_reason", "category": "session", "quantity": 456}
   ]
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;timestamp&quot;: 1581088620,
-  &quot;discarded_events&quot;: [
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "timestamp": 1581088620,
+  "discarded_events": [
     {
-      &quot;reason&quot;: &quot;foo_reason&quot;,
-      &quot;category&quot;: &quot;error&quot;,
-      &quot;quantity&quot;: 42
+      "reason": "foo_reason",
+      "category": "error",
+      "quantity": 42
     },
     {
-      &quot;reason&quot;: &quot;foo_reason&quot;,
-      &quot;category&quot;: &quot;transaction&quot;,
-      &quot;quantity&quot;: 23
+      "reason": "foo_reason",
+      "category": "transaction",
+      "quantity": 23
     }
   ],
-  &quot;rate_limited_events&quot;: [
+  "rate_limited_events": [
     {
-      &quot;reason&quot;: &quot;bar_reason&quot;,
-      &quot;category&quot;: &quot;session&quot;,
-      &quot;quantity&quot;: 456
+      "reason": "bar_reason",
+      "category": "session",
+      "quantity": 456
     }
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>update = ClientReport {
-            timestamp: <span class="prelude-val">Some</span>(<span class="string">&quot;2020-02-07T15:17:00Z&quot;</span>.parse().unwrap()),
+            timestamp: <span class="prelude-val">Some</span>(<span class="string">"2020-02-07T15:17:00Z"</span>.parse().unwrap()),
             discarded_events: <span class="macro">vec!</span>[
                 DiscardedEvent {
-                    reason: <span class="string">&quot;foo_reason&quot;</span>.into(),
+                    reason: <span class="string">"foo_reason"</span>.into(),
                     category: DataCategory::Error,
                     quantity: <span class="number">42</span>,
                 },
                 DiscardedEvent {
-                    reason: <span class="string">&quot;foo_reason&quot;</span>.into(),
+                    reason: <span class="string">"foo_reason"</span>.into(),
                     category: DataCategory::Transaction,
                     quantity: <span class="number">23</span>,
                 },
             ],
             rate_limited_events: <span class="macro">vec!</span>[DiscardedEvent {
-                reason: <span class="string">&quot;bar_reason&quot;</span>.into(),
+                reason: <span class="string">"bar_reason"</span>.into(),
                 category: DataCategory::Session,
                 quantity: <span class="number">456</span>,
             }],

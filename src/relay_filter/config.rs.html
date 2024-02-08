@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_filter" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_filter/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_filter"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -557,7 +558,7 @@
 
 <span class="doccomment">/// Common configuration for event filters.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>FilterConfig {
     <span class="doccomment">/// Specifies whether this filter is enabled.
     </span><span class="kw">pub </span>is_enabled: bool,
@@ -618,34 +619,34 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">let </span>v = <span class="kw">match </span>s {
-            <span class="string">&quot;default&quot; </span>=&gt; LegacyBrowser::Default,
-            <span class="string">&quot;ie_pre_9&quot; </span>=&gt; LegacyBrowser::IePre9,
-            <span class="string">&quot;ie9&quot; </span>=&gt; LegacyBrowser::Ie9,
-            <span class="string">&quot;ie10&quot; </span>=&gt; LegacyBrowser::Ie10,
-            <span class="string">&quot;ie11&quot; </span>=&gt; LegacyBrowser::Ie11,
-            <span class="string">&quot;opera_pre_15&quot; </span>=&gt; LegacyBrowser::OperaPre15,
-            <span class="string">&quot;opera_mini_pre_8&quot; </span>=&gt; LegacyBrowser::OperaMiniPre8,
-            <span class="string">&quot;android_pre_4&quot; </span>=&gt; LegacyBrowser::AndroidPre4,
-            <span class="string">&quot;safari_pre_6&quot; </span>=&gt; LegacyBrowser::SafariPre6,
-            <span class="string">&quot;edge_pre_79&quot; </span>=&gt; LegacyBrowser::EdgePre79,
-            <span class="string">&quot;ie&quot; </span>=&gt; LegacyBrowser::Ie,
-            <span class="string">&quot;safari&quot; </span>=&gt; LegacyBrowser::Safari,
-            <span class="string">&quot;opera&quot; </span>=&gt; LegacyBrowser::Opera,
-            <span class="string">&quot;opera_mini&quot; </span>=&gt; LegacyBrowser::OperaMini,
-            <span class="string">&quot;android&quot; </span>=&gt; LegacyBrowser::Android,
-            <span class="string">&quot;firefox&quot; </span>=&gt; LegacyBrowser::Firefox,
-            <span class="string">&quot;chrome&quot; </span>=&gt; LegacyBrowser::Chrome,
-            <span class="string">&quot;edge&quot; </span>=&gt; LegacyBrowser::Edge,
+            <span class="string">"default" </span>=&gt; LegacyBrowser::Default,
+            <span class="string">"ie_pre_9" </span>=&gt; LegacyBrowser::IePre9,
+            <span class="string">"ie9" </span>=&gt; LegacyBrowser::Ie9,
+            <span class="string">"ie10" </span>=&gt; LegacyBrowser::Ie10,
+            <span class="string">"ie11" </span>=&gt; LegacyBrowser::Ie11,
+            <span class="string">"opera_pre_15" </span>=&gt; LegacyBrowser::OperaPre15,
+            <span class="string">"opera_mini_pre_8" </span>=&gt; LegacyBrowser::OperaMiniPre8,
+            <span class="string">"android_pre_4" </span>=&gt; LegacyBrowser::AndroidPre4,
+            <span class="string">"safari_pre_6" </span>=&gt; LegacyBrowser::SafariPre6,
+            <span class="string">"edge_pre_79" </span>=&gt; LegacyBrowser::EdgePre79,
+            <span class="string">"ie" </span>=&gt; LegacyBrowser::Ie,
+            <span class="string">"safari" </span>=&gt; LegacyBrowser::Safari,
+            <span class="string">"opera" </span>=&gt; LegacyBrowser::Opera,
+            <span class="string">"opera_mini" </span>=&gt; LegacyBrowser::OperaMini,
+            <span class="string">"android" </span>=&gt; LegacyBrowser::Android,
+            <span class="string">"firefox" </span>=&gt; LegacyBrowser::Firefox,
+            <span class="string">"chrome" </span>=&gt; LegacyBrowser::Chrome,
+            <span class="string">"edge" </span>=&gt; LegacyBrowser::Edge,
             <span class="kw">_ </span>=&gt; LegacyBrowser::Unknown(s.to_owned()),
         };
         <span class="prelude-val">Ok</span>(v)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>LegacyBrowser {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>LegacyBrowser {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::de::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>s = Cow::&lt;str&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(LegacyBrowser::from_str(s.as_ref()).unwrap())
@@ -658,24 +659,24 @@
         </span>S: serde::ser::Serializer,
     {
         serializer.serialize_str(<span class="kw">match </span><span class="self">self </span>{
-            LegacyBrowser::Default =&gt; <span class="string">&quot;default&quot;</span>,
-            LegacyBrowser::IePre9 =&gt; <span class="string">&quot;ie_pre_9&quot;</span>,
-            LegacyBrowser::Ie9 =&gt; <span class="string">&quot;ie9&quot;</span>,
-            LegacyBrowser::Ie10 =&gt; <span class="string">&quot;ie10&quot;</span>,
-            LegacyBrowser::Ie11 =&gt; <span class="string">&quot;ie11&quot;</span>,
-            LegacyBrowser::OperaPre15 =&gt; <span class="string">&quot;opera_pre_15&quot;</span>,
-            LegacyBrowser::OperaMiniPre8 =&gt; <span class="string">&quot;opera_mini_pre_8&quot;</span>,
-            LegacyBrowser::AndroidPre4 =&gt; <span class="string">&quot;android_pre_4&quot;</span>,
-            LegacyBrowser::SafariPre6 =&gt; <span class="string">&quot;safari_pre_6&quot;</span>,
-            LegacyBrowser::EdgePre79 =&gt; <span class="string">&quot;edge_pre_79&quot;</span>,
-            LegacyBrowser::Ie =&gt; <span class="string">&quot;ie&quot;</span>,
-            LegacyBrowser::Safari =&gt; <span class="string">&quot;safari&quot;</span>,
-            LegacyBrowser::Opera =&gt; <span class="string">&quot;opera&quot;</span>,
-            LegacyBrowser::OperaMini =&gt; <span class="string">&quot;opera_mini&quot;</span>,
-            LegacyBrowser::Android =&gt; <span class="string">&quot;android&quot;</span>,
-            LegacyBrowser::Firefox =&gt; <span class="string">&quot;firefox&quot;</span>,
-            LegacyBrowser::Chrome =&gt; <span class="string">&quot;chrome&quot;</span>,
-            LegacyBrowser::Edge =&gt; <span class="string">&quot;edge&quot;</span>,
+            LegacyBrowser::Default =&gt; <span class="string">"default"</span>,
+            LegacyBrowser::IePre9 =&gt; <span class="string">"ie_pre_9"</span>,
+            LegacyBrowser::Ie9 =&gt; <span class="string">"ie9"</span>,
+            LegacyBrowser::Ie10 =&gt; <span class="string">"ie10"</span>,
+            LegacyBrowser::Ie11 =&gt; <span class="string">"ie11"</span>,
+            LegacyBrowser::OperaPre15 =&gt; <span class="string">"opera_pre_15"</span>,
+            LegacyBrowser::OperaMiniPre8 =&gt; <span class="string">"opera_mini_pre_8"</span>,
+            LegacyBrowser::AndroidPre4 =&gt; <span class="string">"android_pre_4"</span>,
+            LegacyBrowser::SafariPre6 =&gt; <span class="string">"safari_pre_6"</span>,
+            LegacyBrowser::EdgePre79 =&gt; <span class="string">"edge_pre_79"</span>,
+            LegacyBrowser::Ie =&gt; <span class="string">"ie"</span>,
+            LegacyBrowser::Safari =&gt; <span class="string">"safari"</span>,
+            LegacyBrowser::Opera =&gt; <span class="string">"opera"</span>,
+            LegacyBrowser::OperaMini =&gt; <span class="string">"opera_mini"</span>,
+            LegacyBrowser::Android =&gt; <span class="string">"android"</span>,
+            LegacyBrowser::Firefox =&gt; <span class="string">"firefox"</span>,
+            LegacyBrowser::Chrome =&gt; <span class="string">"chrome"</span>,
+            LegacyBrowser::Edge =&gt; <span class="string">"edge"</span>,
             LegacyBrowser::Unknown(string) =&gt; string,
         })
     }
@@ -683,7 +684,7 @@
 
 <span class="doccomment">/// Configuration for the client ips filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>ClientIpsFilterConfig {
     <span class="doccomment">/// Blacklisted client ip addresses.
     </span><span class="kw">pub </span>blacklisted_ips: Vec&lt;String&gt;,
@@ -698,7 +699,7 @@
 
 <span class="doccomment">/// Configuration for the CSP filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>CspFilterConfig {
     <span class="doccomment">/// Disallowed sources for CSP reports.
     </span><span class="kw">pub </span>disallowed_sources: Vec&lt;String&gt;,
@@ -720,7 +721,7 @@
 
 <span class="doccomment">/// Configuration for transaction name filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>IgnoreTransactionsFilterConfig {
     <span class="doccomment">/// List of patterns for ignored transactions that should be filtered.
     </span><span class="kw">pub </span>patterns: GlobPatterns,
@@ -759,12 +760,12 @@
 
 <span class="doccomment">/// Configuration for the legacy browsers filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>LegacyBrowsersFilterConfig {
     <span class="doccomment">/// Specifies whether this filter is enabled.
     </span><span class="kw">pub </span>is_enabled: bool,
     <span class="doccomment">/// The browsers to filter.
-    </span><span class="attr">#[serde(default, rename = <span class="string">&quot;options&quot;</span>)]
+    </span><span class="attr">#[serde(default, rename = <span class="string">"options"</span>)]
     </span><span class="kw">pub </span>browsers: BTreeSet&lt;LegacyBrowser&gt;,
 }
 
@@ -777,7 +778,7 @@
 
 <span class="doccomment">/// Configuration for a generic filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GenericFilterConfig {
     <span class="doccomment">/// Unique identifier of the generic filter.
     </span><span class="kw">pub </span>id: String,
@@ -812,49 +813,49 @@
 
 <span class="doccomment">/// Configuration for all event filters.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>FiltersConfig {
     <span class="doccomment">/// Configuration for the Browser Extensions filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"FilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>browser_extensions: FilterConfig,
 
     <span class="doccomment">/// Configuration for the Client IPs filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;ClientIpsFilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"ClientIpsFilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>client_ips: ClientIpsFilterConfig,
 
     <span class="doccomment">/// Configuration for the Web Crawlers filter
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"FilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>web_crawlers: FilterConfig,
 
     <span class="doccomment">/// Configuration for the CSP filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;CspFilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"CspFilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>csp: CspFilterConfig,
 
     <span class="doccomment">/// Configuration for the Error Messages filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;ErrorMessagesFilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"ErrorMessagesFilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>error_messages: ErrorMessagesFilterConfig,
 
     <span class="doccomment">/// Configuration for the Legacy Browsers filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;LegacyBrowsersFilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"LegacyBrowsersFilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>legacy_browsers: LegacyBrowsersFilterConfig,
 
     <span class="doccomment">/// Configuration for the Localhost filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"FilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>localhost: FilterConfig,
 
     <span class="doccomment">/// Configuration for the releases filter.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;ReleasesFilterConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"ReleasesFilterConfig::is_empty"</span>)]
     </span><span class="kw">pub </span>releases: ReleasesFilterConfig,
 
     <span class="doccomment">/// Configuration for ignore transactions filter.
     </span><span class="attr">#[serde(
         default,
-        skip_serializing_if = <span class="string">&quot;IgnoreTransactionsFilterConfig::is_empty&quot;
+        skip_serializing_if = <span class="string">"IgnoreTransactionsFilterConfig::is_empty"
     </span>)]
     </span><span class="kw">pub </span>ignore_transactions: IgnoreTransactionsFilterConfig,
 
     <span class="doccomment">/// Configuration for generic filters.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;GenericFiltersConfig::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"GenericFiltersConfig::is_empty"</span>)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) generic: GenericFiltersConfig,
 }
 
@@ -880,8 +881,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_config() -&gt; <span class="prelude-ty">Result</span>&lt;(), serde_json::Error&gt; {
-        <span class="kw">let </span>filters_config = serde_json::from_str::&lt;FiltersConfig&gt;(<span class="string">&quot;{}&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">insta::assert_debug_snapshot!</span>(filters_config, @<span class="string">r###&quot;
+        <span class="kw">let </span>filters_config = serde_json::from_str::&lt;FiltersConfig&gt;(<span class="string">"{}"</span>)<span class="question-mark">?</span>;
+        <span class="macro">insta::assert_debug_snapshot!</span>(filters_config, @<span class="string">r###"
         FiltersConfig {
             browser_extensions: FilterConfig {
                 is_enabled: false,
@@ -917,14 +918,14 @@
                 filters: [],
             },
         }
-        &quot;###</span>);
+        "###</span>);
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_serialize_empty() {
         <span class="kw">let </span>filters_config = FiltersConfig::default();
-        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">&quot;{}&quot;</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">"{}"</span>);
     }
 
     <span class="attr">#[test]
@@ -932,14 +933,14 @@
         <span class="kw">let </span>filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: <span class="bool-val">true </span>},
             client_ips: ClientIpsFilterConfig {
-                blacklisted_ips: <span class="macro">vec!</span>[<span class="string">&quot;127.0.0.1&quot;</span>.to_string()],
+                blacklisted_ips: <span class="macro">vec!</span>[<span class="string">"127.0.0.1"</span>.to_string()],
             },
             web_crawlers: FilterConfig { is_enabled: <span class="bool-val">true </span>},
             csp: CspFilterConfig {
-                disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;https://*&quot;</span>.to_string()],
+                disallowed_sources: <span class="macro">vec!</span>[<span class="string">"https://*"</span>.to_string()],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;Panic&quot;</span>.to_string()]),
+                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"Panic"</span>.to_string()]),
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: <span class="bool-val">false</span>,
@@ -950,129 +951,129 @@
             },
             localhost: FilterConfig { is_enabled: <span class="bool-val">true </span>},
             releases: ReleasesFilterConfig {
-                releases: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;1.2.3&quot;</span>.to_string()]),
+                releases: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"1.2.3"</span>.to_string()]),
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;*health*&quot;</span>.to_string()]),
+                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"*health*"</span>.to_string()]),
                 is_enabled: <span class="bool-val">true</span>,
             },
             generic: GenericFiltersConfig {
                 version: <span class="number">1</span>,
                 filters: <span class="macro">vec!</span>[GenericFilterConfig {
-                    id: <span class="string">&quot;hydrationError&quot;</span>.to_string(),
+                    id: <span class="string">"hydrationError"</span>.to_string(),
                     is_enabled: <span class="bool-val">true</span>,
-                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;event.exceptions&quot;</span>, <span class="string">&quot;HydrationError&quot;</span>)),
+                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">"event.exceptions"</span>, <span class="string">"HydrationError"</span>)),
                 }],
             },
         };
 
-        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">r#"
         {
-          &quot;browserExtensions&quot;: {
-            &quot;isEnabled&quot;: true
+          "browserExtensions": {
+            "isEnabled": true
           },
-          &quot;clientIps&quot;: {
-            &quot;blacklistedIps&quot;: [
-              &quot;127.0.0.1&quot;
+          "clientIps": {
+            "blacklistedIps": [
+              "127.0.0.1"
             ]
           },
-          &quot;webCrawlers&quot;: {
-            &quot;isEnabled&quot;: true
+          "webCrawlers": {
+            "isEnabled": true
           },
-          &quot;csp&quot;: {
-            &quot;disallowedSources&quot;: [
-              &quot;https://*&quot;
+          "csp": {
+            "disallowedSources": [
+              "https://*"
             ]
           },
-          &quot;errorMessages&quot;: {
-            &quot;patterns&quot;: [
-              &quot;Panic&quot;
+          "errorMessages": {
+            "patterns": [
+              "Panic"
             ]
           },
-          &quot;legacyBrowsers&quot;: {
-            &quot;isEnabled&quot;: false,
-            &quot;options&quot;: [
-              &quot;ie9&quot;,
-              &quot;edge_pre_79&quot;
+          "legacyBrowsers": {
+            "isEnabled": false,
+            "options": [
+              "ie9",
+              "edge_pre_79"
             ]
           },
-          &quot;localhost&quot;: {
-            &quot;isEnabled&quot;: true
+          "localhost": {
+            "isEnabled": true
           },
-          &quot;releases&quot;: {
-            &quot;releases&quot;: [
-              &quot;1.2.3&quot;
+          "releases": {
+            "releases": [
+              "1.2.3"
             ]
           },
-          &quot;ignoreTransactions&quot;: {
-            &quot;patterns&quot;: [
-              &quot;*health*&quot;
+          "ignoreTransactions": {
+            "patterns": [
+              "*health*"
             ],
-            &quot;isEnabled&quot;: true
+            "isEnabled": true
           },
-          &quot;generic&quot;: {
-            &quot;version&quot;: 1,
-            &quot;filters&quot;: [
+          "generic": {
+            "version": 1,
+            "filters": [
               {
-                &quot;id&quot;: &quot;hydrationError&quot;,
-                &quot;isEnabled&quot;: true,
-                &quot;condition&quot;: {
-                  &quot;op&quot;: &quot;eq&quot;,
-                  &quot;name&quot;: &quot;event.exceptions&quot;,
-                  &quot;value&quot;: &quot;HydrationError&quot;
+                "id": "hydrationError",
+                "isEnabled": true,
+                "condition": {
+                  "op": "eq",
+                  "name": "event.exceptions",
+                  "value": "HydrationError"
                 }
               }
             ]
           }
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_regression_legacy_browser_missing_options() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;isEnabled&quot;:false}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"isEnabled":false}"#</span>;
         <span class="kw">let </span>config = serde_json::from_str::&lt;LegacyBrowsersFilterConfig&gt;(json).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(config, @<span class="string">r###"
         LegacyBrowsersFilterConfig {
             is_enabled: false,
             browsers: {},
         }
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_generic_filters() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;version&quot;: 1,
-            &quot;filters&quot;: [
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "version": 1,
+            "filters": [
                 {
-                  &quot;id&quot;: &quot;hydrationError&quot;,
-                  &quot;isEnabled&quot;: true,
-                  &quot;condition&quot;: {
-                    &quot;op&quot;: &quot;eq&quot;,
-                    &quot;name&quot;: &quot;event.exceptions&quot;,
-                    &quot;value&quot;: &quot;HydrationError&quot;
+                  "id": "hydrationError",
+                  "isEnabled": true,
+                  "condition": {
+                    "op": "eq",
+                    "name": "event.exceptions",
+                    "value": "HydrationError"
                   }
                 },
                 {
-                  &quot;id&quot;: &quot;chunkLoadError&quot;,
-                  &quot;isEnabled&quot;: false
+                  "id": "chunkLoadError",
+                  "isEnabled": false
                 }
            ]
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>config = serde_json::from_str::&lt;GenericFiltersConfig&gt;(json).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(config, @<span class="string">r###"
         GenericFiltersConfig {
             version: 1,
             filters: [
                 GenericFilterConfig {
-                    id: &quot;hydrationError&quot;,
+                    id: "hydrationError",
                     is_enabled: true,
                     condition: Some(
                         Eq(
                             EqCondition {
-                                name: &quot;event.exceptions&quot;,
-                                value: String(&quot;HydrationError&quot;),
+                                name: "event.exceptions",
+                                value: String("HydrationError"),
                                 options: EqCondOptions {
                                     ignore_case: false,
                                 },
@@ -1081,13 +1082,13 @@
                     ),
                 },
                 GenericFilterConfig {
-                    id: &quot;chunkLoadError&quot;,
+                    id: "chunkLoadError",
                     is_enabled: false,
                     condition: None,
                 },
             ],
         }
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

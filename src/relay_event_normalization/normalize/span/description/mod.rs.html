@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1024,7 +1025,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 <span class="doccomment">/// Dummy URL used to parse relative URLs.
-</span><span class="kw">static </span>DUMMY_BASE_URL: Lazy&lt;Url&gt; = Lazy::new(|| <span class="string">&quot;http://replace_me&quot;</span>.parse().unwrap());
+</span><span class="kw">static </span>DUMMY_BASE_URL: Lazy&lt;Url&gt; = Lazy::new(|| <span class="string">"http://replace_me"</span>.parse().unwrap());
 
 <span class="doccomment">/// Maximum length of a resource URL segment.
 ///
@@ -1043,106 +1044,106 @@
     <span class="kw">let </span>data = span.data.value();
 
     <span class="kw">let </span>db_system = data
-        .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
+        .and_then(|v| v.get(<span class="string">"db.system"</span>))
         .and_then(|system| system.as_str());
     <span class="kw">let </span>span_origin = span.origin.as_str();
 
     span.op
         .as_str()
-        .map(|op| op.split_once(<span class="string">&#39;.&#39;</span>).unwrap_or((op, <span class="string">&quot;&quot;</span>)))
+        .map(|op| op.split_once(<span class="string">'.'</span>).unwrap_or((op, <span class="string">""</span>)))
         .and_then(|(op, sub)| <span class="kw">match </span>(op, sub) {
-            (<span class="string">&quot;http&quot;</span>, <span class="kw">_</span>) =&gt; scrub_http(description),
-            (<span class="string">&quot;cache&quot;</span>, <span class="kw">_</span>) | (<span class="string">&quot;db&quot;</span>, <span class="string">&quot;redis&quot;</span>) =&gt; scrub_redis_keys(description),
-            (<span class="string">&quot;db&quot;</span>, sub) =&gt; {
-                <span class="kw">if </span>sub.contains(<span class="string">&quot;clickhouse&quot;</span>)
-                    || sub.contains(<span class="string">&quot;mongodb&quot;</span>)
-                    || sub.contains(<span class="string">&quot;redis&quot;</span>)
+            (<span class="string">"http"</span>, <span class="kw">_</span>) =&gt; scrub_http(description),
+            (<span class="string">"cache"</span>, <span class="kw">_</span>) | (<span class="string">"db"</span>, <span class="string">"redis"</span>) =&gt; scrub_redis_keys(description),
+            (<span class="string">"db"</span>, sub) =&gt; {
+                <span class="kw">if </span>sub.contains(<span class="string">"clickhouse"</span>)
+                    || sub.contains(<span class="string">"mongodb"</span>)
+                    || sub.contains(<span class="string">"redis"</span>)
                     || is_legacy_activerecord(sub, db_system)
                     || is_sql_mongodb(description, db_system)
                 {
                     <span class="prelude-val">None
                 </span><span class="comment">// spans coming from CoreData need to be scrubbed differently.
-                </span>} <span class="kw">else if </span>span_origin == <span class="prelude-val">Some</span>(<span class="string">&quot;auto.db.core_data&quot;</span>) {
+                </span>} <span class="kw">else if </span>span_origin == <span class="prelude-val">Some</span>(<span class="string">"auto.db.core_data"</span>) {
                     scrub_core_data(description)
-                } <span class="kw">else if </span>sub.contains(<span class="string">&quot;prisma&quot;</span>) {
-                    <span class="comment">// We&#39;re not able to extract the exact query ran.
+                } <span class="kw">else if </span>sub.contains(<span class="string">"prisma"</span>) {
+                    <span class="comment">// We're not able to extract the exact query ran.
                     // The description will only contain the entity queried and
-                    // the query type (&quot;User find&quot; for example).
+                    // the query type ("User find" for example).
                     </span><span class="prelude-val">Some</span>(description.to_owned())
                 } <span class="kw">else </span>{
                     sql::scrub_queries(db_system, description)
                 }
             }
-            (<span class="string">&quot;resource&quot;</span>, ty) =&gt; scrub_resource(ty, description),
-            (<span class="string">&quot;ui&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+            (<span class="string">"resource"</span>, ty) =&gt; scrub_resource(ty, description),
+            (<span class="string">"ui"</span>, <span class="string">"load"</span>) =&gt; {
                 <span class="comment">// `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
-            (<span class="string">&quot;ui&quot;</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">&quot;interaction.&quot;</span>) || sub.starts_with(<span class="string">&quot;react.&quot;</span>) =&gt; data
-                .and_then(|data| data.get(<span class="string">&quot;ui.component_name&quot;</span>))
+            (<span class="string">"ui"</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">"interaction."</span>) || sub.starts_with(<span class="string">"react."</span>) =&gt; data
+                .and_then(|data| data.get(<span class="string">"ui.component_name"</span>))
                 .and_then(|value| value.as_str())
                 .map(String::from),
-            (<span class="string">&quot;app&quot;</span>, <span class="kw">_</span>) =&gt; {
+            (<span class="string">"app"</span>, <span class="kw">_</span>) =&gt; {
                 <span class="comment">// `app.*` has static descriptions, like `Cold Start`
                 // or `Pre Runtime Init`.
                 // They are low-cardinality.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
-            (<span class="string">&quot;contentprovider&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+            (<span class="string">"contentprovider"</span>, <span class="string">"load"</span>) =&gt; {
                 <span class="comment">// `contentprovider.load` spans contain paths of third party framework components
                 // and their onCreate method such as
                 // `io.sentry.android.core.SentryPerformanceProvider.onCreate`, which
                 // _should_ be low-cardinality, on the order of 10s per project.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
-            (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+            (<span class="string">"application"</span>, <span class="string">"load"</span>) =&gt; {
                 <span class="comment">// `application.load` spans contain paths of app components and their
                 // onCreate method such as
                 // `io.sentry.samples.android.MyApplication.onCreate`, which _should_ be
                 // low-cardinality.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
-            (<span class="string">&quot;activity&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+            (<span class="string">"activity"</span>, <span class="string">"load"</span>) =&gt; {
                 <span class="comment">// `activity.load` spans contain paths of app components and their onCreate/onStart
                 // method such as `io.sentry.samples.android.MainActivity.onCreate`, which
                 // _should_ be low-cardinality, less than 10 per project.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
-            (<span class="string">&quot;file&quot;</span>, <span class="kw">_</span>) =&gt; scrub_file(description),
+            (<span class="string">"file"</span>, <span class="kw">_</span>) =&gt; scrub_file(description),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         })
 }
 
 <span class="doccomment">/// A span declares `op: db.sql.query`, but contains mongodb.
 </span><span class="kw">fn </span>is_sql_mongodb(description: <span class="kw-2">&amp;</span>str, db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
-    description.contains(<span class="string">&quot;\&quot;$&quot;</span>)
-        || description.contains(<span class="string">&quot;({&quot;</span>)
-        || description.contains(<span class="string">&quot;[{&quot;</span>)
-        || description.starts_with(<span class="string">&#39;{&#39;</span>)
-        || db_system == <span class="prelude-val">Some</span>(<span class="string">&quot;mongodb&quot;</span>)
+    description.contains(<span class="string">"\"$"</span>)
+        || description.contains(<span class="string">"({"</span>)
+        || description.contains(<span class="string">"[{"</span>)
+        || description.starts_with(<span class="string">'{'</span>)
+        || db_system == <span class="prelude-val">Some</span>(<span class="string">"mongodb"</span>)
 }
 
 <span class="doccomment">/// We are unable to parse active record when we do not know which database is being used.
 </span><span class="kw">fn </span>is_legacy_activerecord(sub_op: <span class="kw-2">&amp;</span>str, db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
-    db_system.is_none() &amp;&amp; (sub_op.contains(<span class="string">&quot;active_record&quot;</span>) || sub_op.contains(<span class="string">&quot;activerecord&quot;</span>))
+    db_system.is_none() &amp;&amp; (sub_op.contains(<span class="string">"active_record"</span>) || sub_op.contains(<span class="string">"activerecord"</span>))
 }
 
 <span class="kw">fn </span>scrub_core_data(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">match </span>DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, <span class="string">&quot;*&quot;</span>) {
+    <span class="kw">match </span>DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, <span class="string">"*"</span>) {
         Cow::Owned(scrubbed) =&gt; <span class="prelude-val">Some</span>(scrubbed),
         Cow::Borrowed(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
 }
 
 <span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">let </span>(method, url) = string.split_once(<span class="string">&#39; &#39;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>(method, url) = string.split_once(<span class="string">' '</span>)<span class="question-mark">?</span>;
     <span class="kw">if </span>!HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         <span class="kw">return </span><span class="prelude-val">None</span>;
     };
 
-    <span class="kw">if </span>url.starts_with(<span class="string">&quot;data:image/&quot;</span>) {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;{method} data:image/*&quot;</span>));
+    <span class="kw">if </span>url.starts_with(<span class="string">"data:image/"</span>) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{method} data:image/*"</span>));
     }
 
     <span class="kw">let </span>scrubbed = <span class="kw">match </span>Url::parse(url) {
@@ -1151,10 +1152,10 @@
             <span class="kw">let </span>domain = normalize_domain(host.as_str(), url.port())<span class="question-mark">?</span>;
             <span class="kw">let </span>scheme = url.scheme();
 
-            <span class="macro">format!</span>(<span class="string">&quot;{method} {scheme}://{domain}&quot;</span>)
+            <span class="macro">format!</span>(<span class="string">"{method} {scheme}://{domain}"</span>)
         }
         <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-            <span class="macro">format!</span>(<span class="string">&quot;{method} *&quot;</span>)
+            <span class="macro">format!</span>(<span class="string">"{method} *"</span>)
         }
     };
 
@@ -1162,16 +1163,16 @@
 }
 
 <span class="kw">fn </span>scrub_file(description: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">let </span>filename = <span class="kw">match </span>description.split_once(<span class="string">&#39; &#39;</span>) {
+    <span class="kw">let </span>filename = <span class="kw">match </span>description.split_once(<span class="string">' '</span>) {
         <span class="prelude-val">Some</span>((filename, <span class="kw">_</span>)) =&gt; filename,
         <span class="kw">_ </span>=&gt; description,
     };
     <span class="kw">match </span>Path::new(filename).extension() {
         <span class="prelude-val">Some</span>(extension) =&gt; {
             <span class="kw">let </span>ext = extension.to_str()<span class="question-mark">?</span>;
-            <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;*.{ext}&quot;</span>))
+            <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"*.{ext}"</span>))
         }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;*&quot;</span>.to_owned()),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"*"</span>.to_owned()),
     }
 }
 
@@ -1190,19 +1191,19 @@
         <span class="kw">return </span><span class="prelude-val">Some</span>(allow_listed);
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>tokens = domain.rsplitn(<span class="number">3</span>, <span class="string">&#39;.&#39;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>tokens = domain.rsplitn(<span class="number">3</span>, <span class="string">'.'</span>);
     <span class="kw">let </span>tld = tokens.next();
     <span class="kw">let </span>domain = tokens.next();
-    <span class="kw">let </span>prefix = tokens.next().map(|<span class="kw">_</span>| <span class="string">&quot;*&quot;</span>);
+    <span class="kw">let </span>prefix = tokens.next().map(|<span class="kw">_</span>| <span class="string">"*"</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>replaced = prefix
         .iter()
         .chain(domain.iter())
         .chain(tld.iter())
-        .join(<span class="string">&quot;.&quot;</span>);
+        .join(<span class="string">"."</span>);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = port {
-        replaced = <span class="macro">format!</span>(<span class="string">&quot;{replaced}:{port}&quot;</span>);
+        replaced = <span class="macro">format!</span>(<span class="string">"{replaced}:{port}"</span>);
     }
 
     <span class="kw">if </span>replaced.is_empty() {
@@ -1212,11 +1213,11 @@
 }
 
 <span class="doccomment">/// Allow list of domains to not get subdomains scrubbed.
-</span><span class="kw">const </span>DOMAIN_ALLOW_LIST: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>];
+</span><span class="kw">const </span>DOMAIN_ALLOW_LIST: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"127.0.0.1"</span>, <span class="string">"localhost"</span>];
 
 <span class="kw">fn </span>normalized_domain_from_allowlist(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| <span class="kw-2">**</span>allowed == domain) {
-        <span class="kw">let </span>with_port = port.map_or_else(|| (<span class="kw-2">*</span>domain).to_owned(), |p| <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, domain, p));
+        <span class="kw">let </span>with_port = port.map_or_else(|| (<span class="kw-2">*</span>domain).to_owned(), |p| <span class="macro">format!</span>(<span class="string">"{}:{}"</span>, domain, p));
         <span class="kw">return </span><span class="prelude-val">Some</span>(with_port);
     }
     <span class="prelude-val">None
@@ -1225,11 +1226,11 @@
 <span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>parts = REDIS_COMMAND_REGEX
         .captures(string)
-        .map(|caps| (caps.name(<span class="string">&quot;command&quot;</span>), caps.name(<span class="string">&quot;args&quot;</span>)));
+        .map(|caps| (caps.name(<span class="string">"command"</span>), caps.name(<span class="string">"args"</span>)));
     <span class="kw">let </span>scrubbed = <span class="kw">match </span>parts {
-        <span class="prelude-val">Some</span>((<span class="prelude-val">Some</span>(command), <span class="prelude-val">Some</span>(_args))) =&gt; command.as_str().to_owned() + <span class="string">&quot; *&quot;</span>,
+        <span class="prelude-val">Some</span>((<span class="prelude-val">Some</span>(command), <span class="prelude-val">Some</span>(_args))) =&gt; command.as_str().to_owned() + <span class="string">" *"</span>,
         <span class="prelude-val">Some</span>((<span class="prelude-val">Some</span>(command), <span class="prelude-val">None</span>)) =&gt; command.as_str().into(),
-        <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>((<span class="prelude-val">None</span>, <span class="kw">_</span>)) =&gt; <span class="string">&quot;*&quot;</span>.into(),
+        <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>((<span class="prelude-val">None</span>, <span class="kw">_</span>)) =&gt; <span class="string">"*"</span>.into(),
     };
     <span class="prelude-val">Some</span>(scrubbed)
 }
@@ -1243,7 +1244,7 @@
     </span>Relative,
 }
 
-<span class="doccomment">/// Scrubber for spans with `span.op` &quot;resource.*&quot;.
+<span class="doccomment">/// Scrubber for spans with `span.op` "resource.*".
 </span><span class="kw">fn </span>scrub_resource(resource_type: <span class="kw-2">&amp;</span>str, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>(url, ty) = <span class="kw">match </span>Url::parse(string) {
         <span class="prelude-val">Ok</span>(url) =&gt; (url, UrlType::Full),
@@ -1252,7 +1253,7 @@
             </span><span class="kw">match </span>Url::options().base_url(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>DUMMY_BASE_URL)).parse(string) {
                 <span class="prelude-val">Ok</span>(url) =&gt; (
                     url,
-                    <span class="kw">if </span>string.starts_with(<span class="string">&#39;/&#39;</span>) {
+                    <span class="kw">if </span>string.starts_with(<span class="string">'/'</span>) {
                         UrlType::Absolute
                     } <span class="kw">else </span>{
                         UrlType::Relative
@@ -1267,18 +1268,18 @@
     };
 
     <span class="kw">let </span>formatted = <span class="kw">match </span>url.scheme() {
-        <span class="string">&quot;data&quot; </span>=&gt; <span class="kw">match </span>url.path().split_once(<span class="string">&#39;;&#39;</span>) {
-            <span class="prelude-val">Some</span>((ty, _data)) =&gt; <span class="macro">format!</span>(<span class="string">&quot;data:{ty}&quot;</span>),
-            <span class="prelude-val">None </span>=&gt; <span class="string">&quot;data:*/*&quot;</span>.to_owned(),
+        <span class="string">"data" </span>=&gt; <span class="kw">match </span>url.path().split_once(<span class="string">';'</span>) {
+            <span class="prelude-val">Some</span>((ty, _data)) =&gt; <span class="macro">format!</span>(<span class="string">"data:{ty}"</span>),
+            <span class="prelude-val">None </span>=&gt; <span class="string">"data:*/*"</span>.to_owned(),
         },
-        <span class="string">&quot;chrome-extension&quot; </span>| <span class="string">&quot;moz-extension&quot; </span>| <span class="string">&quot;ms-browser-extension&quot; </span>=&gt; {
-            <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="string">&quot;browser-extension://*&quot;</span>.to_owned());
+        <span class="string">"chrome-extension" </span>| <span class="string">"moz-extension" </span>| <span class="string">"ms-browser-extension" </span>=&gt; {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="string">"browser-extension://*"</span>.to_owned());
         }
         scheme =&gt; {
             <span class="kw">let </span>domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
-                .unwrap_or(<span class="string">&quot;&quot;</span>.into());
+                .unwrap_or(<span class="string">""</span>.into());
             <span class="kw">let </span>segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             <span class="kw">let </span><span class="kw-2">mut </span>output_segments = <span class="macro">vec!</span>[];
             <span class="kw">for </span>(i, segment) <span class="kw">in </span>url.path_segments().into_iter().flatten().enumerate() {
@@ -1287,13 +1288,13 @@
                 }
                 <span class="kw">if </span>COMMON_PATH_SEGMENTS.contains(segment) {
                     output_segments.push(segment);
-                } <span class="kw">else if </span>!output_segments.last().is_some_and(|s| <span class="kw-2">*</span>s == <span class="string">&quot;*&quot;</span>) {
+                } <span class="kw">else if </span>!output_segments.last().is_some_and(|s| <span class="kw-2">*</span>s == <span class="string">"*"</span>) {
                     <span class="comment">// only one asterisk
-                    </span>output_segments.push(<span class="string">&quot;*&quot;</span>);
+                    </span>output_segments.push(<span class="string">"*"</span>);
                 }
             }
 
-            <span class="kw">let </span>segments = output_segments.join(<span class="string">&quot;/&quot;</span>);
+            <span class="kw">let </span>segments = output_segments.join(<span class="string">"/"</span>);
 
             <span class="kw">let </span>last_segment = url
                 .path_segments()
@@ -1302,9 +1303,9 @@
             <span class="kw">let </span>last_segment = scrub_resource_filename(resource_type, last_segment);
 
             <span class="kw">if </span>segments.is_empty() {
-                <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{last_segment}&quot;</span>)
+                <span class="macro">format!</span>(<span class="string">"{scheme}://{domain}/{last_segment}"</span>)
             } <span class="kw">else </span>{
-                <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{segments}/{last_segment}&quot;</span>)
+                <span class="macro">format!</span>(<span class="string">"{scheme}://{domain}/{segments}/{last_segment}"</span>)
             }
         }
     };
@@ -1312,28 +1313,28 @@
     <span class="comment">// Remove previously inserted dummy URL if necessary:
     </span><span class="kw">let </span>formatted = <span class="kw">match </span>ty {
         UrlType::Full =&gt; formatted,
-        UrlType::Absolute =&gt; formatted.replace(<span class="string">&quot;http://replace_me&quot;</span>, <span class="string">&quot;&quot;</span>),
-        UrlType::Relative =&gt; formatted.replace(<span class="string">&quot;http://replace_me/&quot;</span>, <span class="string">&quot;&quot;</span>),
+        UrlType::Absolute =&gt; formatted.replace(<span class="string">"http://replace_me"</span>, <span class="string">""</span>),
+        UrlType::Relative =&gt; formatted.replace(<span class="string">"http://replace_me/"</span>, <span class="string">""</span>),
     };
 
     <span class="prelude-val">Some</span>(formatted)
 }
 
-<span class="kw">fn </span>scrub_resource_filename&lt;<span class="lifetime">&#39;a</span>&gt;(ty: <span class="kw-2">&amp;</span>str, path: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
+<span class="kw">fn </span>scrub_resource_filename&lt;<span class="lifetime">'a</span>&gt;(ty: <span class="kw-2">&amp;</span>str, path: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; Cow&lt;<span class="lifetime">'a</span>, str&gt; {
     <span class="kw">if </span>path.is_empty() {
-        <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&quot;</span>);
+        <span class="kw">return </span>Cow::Borrowed(<span class="string">""</span>);
     }
-    <span class="kw">let </span>(<span class="kw-2">mut </span>basename, <span class="kw-2">mut </span>extension) = path.rsplit_once(<span class="string">&#39;.&#39;</span>).unwrap_or((path, <span class="string">&quot;&quot;</span>));
-    <span class="kw">if </span>extension.contains(<span class="string">&#39;/&#39;</span>) {
+    <span class="kw">let </span>(<span class="kw-2">mut </span>basename, <span class="kw-2">mut </span>extension) = path.rsplit_once(<span class="string">'.'</span>).unwrap_or((path, <span class="string">""</span>));
+    <span class="kw">if </span>extension.contains(<span class="string">'/'</span>) {
         <span class="comment">// Not really an extension
         </span>basename = path;
-        extension = <span class="string">&quot;&quot;</span>;
+        extension = <span class="string">""</span>;
     }
 
     <span class="kw">let </span>extension = scrub_resource_file_extension(extension);
 
-    <span class="kw">let </span>basename = <span class="kw">if </span>ty == <span class="string">&quot;img&quot; </span>{
-        Cow::Borrowed(<span class="string">&quot;*&quot;</span>)
+    <span class="kw">let </span>basename = <span class="kw">if </span>ty == <span class="string">"img" </span>{
+        Cow::Borrowed(<span class="string">"*"</span>)
     } <span class="kw">else </span>{
         scrub_resource_segment(basename)
     };
@@ -1342,18 +1343,18 @@
         basename
     } <span class="kw">else </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>filename = basename.to_string();
-        filename.push(<span class="string">&#39;.&#39;</span>);
+        filename.push(<span class="string">'.'</span>);
         filename.push_str(extension);
         Cow::Owned(filename)
     }
 }
 
 <span class="kw">fn </span>scrub_resource_segment(segment: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;str&gt; {
-    <span class="kw">let </span>segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, <span class="string">&quot;$pre*$post&quot;</span>);
+    <span class="kw">let </span>segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, <span class="string">"$pre*$post"</span>);
 
     <span class="comment">// Crude heuristic: treat long segments as idendifiers.
     </span><span class="kw">if </span>segment.len() &gt; MAX_SEGMENT_LENGTH {
-        <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;*&quot;</span>);
+        <span class="kw">return </span>Cow::Borrowed(<span class="string">"*"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>all_alphabetic = <span class="bool-val">true</span>;
@@ -1367,14 +1368,14 @@
         <span class="kw">if </span>char.is_ascii_uppercase() {
             found_uppercase = <span class="bool-val">true</span>;
         }
-        <span class="kw">if </span>char.is_numeric() || <span class="string">&quot;&amp;%#=+@&quot;</span>.contains(char) {
-            <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;*&quot;</span>);
+        <span class="kw">if </span>char.is_numeric() || <span class="string">"&amp;%#=+@"</span>.contains(char) {
+            <span class="kw">return </span>Cow::Borrowed(<span class="string">"*"</span>);
         };
     }
 
     <span class="kw">if </span>all_alphabetic &amp;&amp; found_uppercase {
         <span class="comment">// Assume random string identifier.
-        </span><span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;*&quot;</span>);
+        </span><span class="kw">return </span>Cow::Borrowed(<span class="string">"*"</span>);
     }
 
     segment
@@ -1389,7 +1390,7 @@
         }
         <span class="kw">if </span>digits &gt; <span class="number">1 </span>{
             <span class="comment">// Allow extensions like `.mp4`
-            </span><span class="kw">return </span><span class="string">&quot;*&quot;</span>;
+            </span><span class="kw">return </span><span class="string">"*"</span>;
         }
         <span class="kw">if </span>!byte.is_ascii_alphanumeric() {
             extension = <span class="kw-2">&amp;</span>extension[..i];
@@ -1398,7 +1399,7 @@
     }
 
     <span class="kw">if </span>extension.len() &gt; MAX_EXTENSION_LENGTH {
-        extension = <span class="string">&quot;*&quot;</span>;
+        extension = <span class="string">"*"</span>;
     }
 
     extension
@@ -1415,21 +1416,21 @@
         <span class="comment">// Tests the scrubbed span description for the given op.
 
         // Same output and input means the input was already scrubbed.
-        // An empty output `&quot;&quot;` means the input wasn&#39;t scrubbed and Relay didn&#39;t scrub it.
+        // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
         </span>(<span class="macro-nonterminal">$name</span>:ident, <span class="macro-nonterminal">$description_in</span>:literal, <span class="macro-nonterminal">$op_in</span>:literal, <span class="macro-nonterminal">$expected</span>:literal) =&gt; {
             <span class="attr">#[test]
             </span><span class="kw">fn </span><span class="macro-nonterminal">$name</span>() {
                 <span class="kw">let </span>json = <span class="macro">format!</span>(
-                    <span class="string">r#&quot;
+                    <span class="string">r#"
                     {{
-                        &quot;description&quot;: &quot;&quot;,
-                        &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                        &quot;start_timestamp&quot;: 1597976393.4619668,
-                        &quot;timestamp&quot;: 1597976393.4718769,
-                        &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                        &quot;op&quot;: &quot;{}&quot;
+                        "description": "",
+                        "span_id": "bd2eb23da2beb459",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "op": "{}"
                     }}
-                &quot;#</span>,
+                "#</span>,
                     <span class="macro-nonterminal">$op_in
                 </span>);
 
@@ -1442,7 +1443,7 @@
 
                 <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-                <span class="kw">if </span><span class="macro-nonterminal">$expected </span>== <span class="string">&quot;&quot; </span>{
+                <span class="kw">if </span><span class="macro-nonterminal">$expected </span>== <span class="string">"" </span>{
                     <span class="macro">assert!</span>(scrubbed.is_none());
                 } <span class="kw">else </span>{
                     <span class="macro">assert_eq!</span>(<span class="macro-nonterminal">$expected</span>, scrubbed.unwrap());
@@ -1451,487 +1452,487 @@
         };
     }
 
-    <span class="macro">span_description_test!</span>(empty, <span class="string">&quot;&quot;</span>, <span class="string">&quot;http.client&quot;</span>, <span class="string">&quot;&quot;</span>);
+    <span class="macro">span_description_test!</span>(empty, <span class="string">""</span>, <span class="string">"http.client"</span>, <span class="string">""</span>);
 
     <span class="macro">span_description_test!</span>(
         only_domain,
-        <span class="string">&quot;GET http://service.io&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET http://service.io&quot;
+        <span class="string">"GET http://service.io"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET http://service.io"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         only_urllike_on_http_ops,
-        <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://*.service.io&quot;
+        <span class="string">"GET https://www.service.io/resources/01234"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET https://*.service.io"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_ids_end,
-        <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://*.service.io&quot;
+        <span class="string">"GET https://www.service.io/resources/01234"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET https://*.service.io"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_ids_middle,
-        <span class="string">&quot;GET https://www.service.io/resources/01234/details&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://*.service.io&quot;
+        <span class="string">"GET https://www.service.io/resources/01234/details"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET https://*.service.io"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_multiple_ids,
-        <span class="string">&quot;GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://*.service.io&quot;
+        <span class="string">"GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET https://*.service.io"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_md5_hashes,
-        <span class="string">&quot;GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET *&quot;
+        <span class="string">"GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET *"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_sha_hashes,
-        <span class="string">&quot;GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET *&quot;
+        <span class="string">"GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET *"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         hex,
-        <span class="string">&quot;GET /shop/de/f43/beef/3D6/my-beef&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET *&quot;
+        <span class="string">"GET /shop/de/f43/beef/3D6/my-beef"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET *"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         path_uuids,
-        <span class="string">&quot;GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET *&quot;
+        <span class="string">"GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET *"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         data_images,
-        <span class="string">&quot;GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET data:image/*&quot;
+        <span class="string">"GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">"GET data:image/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         only_dblike_on_db_ops,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s)&quot;</span>,
-        <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">"SELECT count() FROM table WHERE id IN (%s, %s)"</span>,
+        <span class="string">"http.client"</span>,
+        <span class="string">""
     </span>);
 
     <span class="macro">span_description_test!</span>(
         cache,
-        <span class="string">&quot;GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper&quot;</span>,
-        <span class="string">&quot;cache.get_item&quot;</span>,
-        <span class="string">&quot;GET *&quot;
+        <span class="string">"GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper"</span>,
+        <span class="string">"cache.get_item"</span>,
+        <span class="string">"GET *"
     </span>);
 
-    <span class="macro">span_description_test!</span>(redis_set, <span class="string">&quot;SET mykey myvalue&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;SET *&quot;</span>);
+    <span class="macro">span_description_test!</span>(redis_set, <span class="string">"SET mykey myvalue"</span>, <span class="string">"db.redis"</span>, <span class="string">"SET *"</span>);
 
     <span class="macro">span_description_test!</span>(
         redis_set_quoted,
-        <span class="string">r#&quot;SET mykey &#39;multi: part, value&#39;&quot;#</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;SET *&quot;
+        <span class="string">r#"SET mykey 'multi: part, value'"#</span>,
+        <span class="string">"db.redis"</span>,
+        <span class="string">"SET *"
     </span>);
 
-    <span class="macro">span_description_test!</span>(redis_whitespace, <span class="string">&quot; GET  asdf:123&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;GET *&quot;</span>);
+    <span class="macro">span_description_test!</span>(redis_whitespace, <span class="string">" GET  asdf:123"</span>, <span class="string">"db.redis"</span>, <span class="string">"GET *"</span>);
 
-    <span class="macro">span_description_test!</span>(redis_no_args, <span class="string">&quot;EXEC&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;EXEC&quot;</span>);
+    <span class="macro">span_description_test!</span>(redis_no_args, <span class="string">"EXEC"</span>, <span class="string">"db.redis"</span>, <span class="string">"EXEC"</span>);
 
-    <span class="macro">span_description_test!</span>(redis_invalid, <span class="string">&quot;What a beautiful day!&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;*&quot;</span>);
+    <span class="macro">span_description_test!</span>(redis_invalid, <span class="string">"What a beautiful day!"</span>, <span class="string">"db.redis"</span>, <span class="string">"*"</span>);
 
     <span class="macro">span_description_test!</span>(
         redis_long_command,
-        <span class="string">&quot;ACL SETUSER jane&quot;</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;ACL SETUSER *&quot;
+        <span class="string">"ACL SETUSER jane"</span>,
+        <span class="string">"db.redis"</span>,
+        <span class="string">"ACL SETUSER *"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         nothing_cache,
-        <span class="string">&quot;abc-dontscrubme-meneither:stillno:ohplsstop&quot;</span>,
-        <span class="string">&quot;cache.get_item&quot;</span>,
-        <span class="string">&quot;*&quot;
+        <span class="string">"abc-dontscrubme-meneither:stillno:ohplsstop"</span>,
+        <span class="string">"cache.get_item"</span>,
+        <span class="string">"*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script,
-        <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/static/chunks/*.map&quot;
+        <span class="string">"https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://example.com/static/chunks/*.map"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_numeric_filename,
-        <span class="string">&quot;https://example.com/static/chunks/09876543211234567890&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/static/chunks/*&quot;
+        <span class="string">"https://example.com/static/chunks/09876543211234567890"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://example.com/static/chunks/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_next_chunks,
-        <span class="string">&quot;/_next/static/chunks/12345-abcdef0123456789.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/_next/static/chunks/*-*.js&quot;
+        <span class="string">"/_next/static/chunks/12345-abcdef0123456789.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/_next/static/chunks/*-*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_next_media,
-        <span class="string">&quot;/_next/static/media/Some_Font-Bold.0123abcd.woff2&quot;</span>,
-        <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;/_next/static/media/Some_Font-Bold.*.woff2&quot;
+        <span class="string">"/_next/static/media/Some_Font-Bold.0123abcd.woff2"</span>,
+        <span class="string">"resource.css"</span>,
+        <span class="string">"/_next/static/media/Some_Font-Bold.*.woff2"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_css,
-        <span class="string">&quot;https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css&quot;</span>,
-        <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/assets/dark_high_contrast-*.css&quot;
+        <span class="string">"https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css"</span>,
+        <span class="string">"resource.css"</span>,
+        <span class="string">"https://example.com/assets/dark_high_contrast-*.css"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         integer_in_resource,
-        <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-scrub_me.js&quot;</span>,
-        <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/assets/*.js&quot;
+        <span class="string">"https://example.com/assets/this_is-a_good_resource-123-scrub_me.js"</span>,
+        <span class="string">"resource.css"</span>,
+        <span class="string">"https://example.com/assets/*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_query_params,
-        <span class="string">&quot;/organization-avatar/123/?s=120&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;/*/&quot;
+        <span class="string">"/organization-avatar/123/?s=120"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"/*/"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_query_params2,
-        <span class="string">&quot;https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
+        <span class="string">"https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://*.domain.com/data/*.gif"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_query_params2_script,
-        <span class="string">&quot;https://data.domain.com/data/guide123.js?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide*.js&quot;
+        <span class="string">"https://data.domain.com/data/guide123.js?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://*.domain.com/data/guide*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids,
-        <span class="string">&quot;https://data.domain.com/js/guide.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/js/guide.js&quot;
+        <span class="string">"https://data.domain.com/js/guide.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://*.domain.com/js/guide.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids_img_known_segment,
-        <span class="string">&quot;https://data.domain.com/data/guide.gif&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
+        <span class="string">"https://data.domain.com/data/guide.gif"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://*.domain.com/data/*.gif"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids_img,
-        <span class="string">&quot;https://data.domain.com/something/guide.gif&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/*.gif&quot;
+        <span class="string">"https://data.domain.com/something/guide.gif"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://*.domain.com/*/*.gif"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_webpack,
-        <span class="string">&quot;https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js&quot;</span>,
-        <span class="string">&quot;resource.js&quot;</span>,
-        <span class="string">&quot;https://domain.com/*/app-*.*.js&quot;
+        <span class="string">"https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js"</span>,
+        <span class="string">"resource.js"</span>,
+        <span class="string">"https://domain.com/*/app-*.*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_vite,
-        <span class="string">&quot;webroot/assets/Profile-73f6525d.js&quot;</span>,
-        <span class="string">&quot;resource.js&quot;</span>,
-        <span class="string">&quot;*/assets/Profile-*.js&quot;
+        <span class="string">"webroot/assets/Profile-73f6525d.js"</span>,
+        <span class="string">"resource.js"</span>,
+        <span class="string">"*/assets/Profile-*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_vite_css,
-        <span class="string">&quot;webroot/assets/Shop-1aff80f7.css&quot;</span>,
-        <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;*/assets/Shop-*.css&quot;
+        <span class="string">"webroot/assets/Shop-1aff80f7.css"</span>,
+        <span class="string">"resource.css"</span>,
+        <span class="string">"*/assets/Shop-*.css"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         chrome_extension,
-        <span class="string">&quot;chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg&quot;</span>,
-        <span class="string">&quot;resource.other&quot;</span>,
-        <span class="string">&quot;browser-extension://*&quot;
+        <span class="string">"chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg"</span>,
+        <span class="string">"resource.other"</span>,
+        <span class="string">"browser-extension://*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         urlencoded_path_segments,
-        <span class="string">&quot;https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue&quot;</span>,
-        <span class="string">&quot;resource.iframe&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/*&quot;
+        <span class="string">"https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue"</span>,
+        <span class="string">"resource.iframe"</span>,
+        <span class="string">"https://*.domain.com/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         random_string1,
-        <span class="string">&quot;https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/*&quot;
+        <span class="string">"https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://*.domain.com/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         random_string1_script,
-        <span class="string">&quot;https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/foo-*&quot;
+        <span class="string">"https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://*.domain.com/*/foo-*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         random_string2,
-        <span class="string">&quot;http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;http://domain.com/*/*.jsonp&quot;
+        <span class="string">"http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"http://domain.com/*/*.jsonp"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         random_string3,
-        <span class="string">&quot;jkhdkkncnoglghljlkmcimlnlhkeamab/123.css&quot;</span>,
-        <span class="string">&quot;resource.link&quot;</span>,
-        <span class="string">&quot;*/*.css&quot;
+        <span class="string">"jkhdkkncnoglghljlkmcimlnlhkeamab/123.css"</span>,
+        <span class="string">"resource.link"</span>,
+        <span class="string">"*/*.css"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         ui_load,
-        <span class="string">&quot;ListAppViewController&quot;</span>,
-        <span class="string">&quot;ui.load&quot;</span>,
-        <span class="string">&quot;ListAppViewController&quot;
+        <span class="string">"ListAppViewController"</span>,
+        <span class="string">"ui.load"</span>,
+        <span class="string">"ListAppViewController"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         contentprovider_load,
-        <span class="string">&quot;io.sentry.android.core.SentryPerformanceProvider.onCreate&quot;</span>,
-        <span class="string">&quot;contentprovider.load&quot;</span>,
-        <span class="string">&quot;io.sentry.android.core.SentryPerformanceProvider.onCreate&quot;
+        <span class="string">"io.sentry.android.core.SentryPerformanceProvider.onCreate"</span>,
+        <span class="string">"contentprovider.load"</span>,
+        <span class="string">"io.sentry.android.core.SentryPerformanceProvider.onCreate"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         application_load,
-        <span class="string">&quot;io.sentry.samples.android.MyApplication.onCreate&quot;</span>,
-        <span class="string">&quot;application.load&quot;</span>,
-        <span class="string">&quot;io.sentry.samples.android.MyApplication.onCreate&quot;
+        <span class="string">"io.sentry.samples.android.MyApplication.onCreate"</span>,
+        <span class="string">"application.load"</span>,
+        <span class="string">"io.sentry.samples.android.MyApplication.onCreate"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         activity_load,
-        <span class="string">&quot;io.sentry.samples.android.MainActivity.onCreate&quot;</span>,
-        <span class="string">&quot;activity.load&quot;</span>,
-        <span class="string">&quot;io.sentry.samples.android.MainActivity.onCreate&quot;
+        <span class="string">"io.sentry.samples.android.MainActivity.onCreate"</span>,
+        <span class="string">"activity.load"</span>,
+        <span class="string">"io.sentry.samples.android.MainActivity.onCreate"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_file_write_keep_extension_only,
-        <span class="string">&quot;data.data (42 KB)&quot;</span>,
-        <span class="string">&quot;file.write&quot;</span>,
-        <span class="string">&quot;*.data&quot;
+        <span class="string">"data.data (42 KB)"</span>,
+        <span class="string">"file.write"</span>,
+        <span class="string">"*.data"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_file_read_keep_extension_only,
-        <span class="string">&quot;Info.plist&quot;</span>,
-        <span class="string">&quot;file.read&quot;</span>,
-        <span class="string">&quot;*.plist&quot;
+        <span class="string">"Info.plist"</span>,
+        <span class="string">"file.read"</span>,
+        <span class="string">"*.plist"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_file_with_no_extension,
-        <span class="string">&quot;somefilenamewithnoextension&quot;</span>,
-        <span class="string">&quot;file.read&quot;</span>,
-        <span class="string">&quot;*&quot;
+        <span class="string">"somefilenamewithnoextension"</span>,
+        <span class="string">"file.read"</span>,
+        <span class="string">"*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_url_with_fragment,
-        <span class="string">&quot;https://data.domain.com/data/guide123.gif#url=someotherurl&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
+        <span class="string">"https://data.domain.com/data/guide123.gif#url=someotherurl"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://*.domain.com/data/*.gif"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_no_extension,
-        <span class="string">&quot;https://www.domain.com/page?id=1234567890&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/page&quot;
+        <span class="string">"https://www.domain.com/page?id=1234567890"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://*.domain.com/page"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_no_domain,
-        <span class="string">&quot;/page.js?action=name&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/page.js&quot;
+        <span class="string">"/page.js?action=name"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/page.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_no_domain_no_extension,
-        <span class="string">&quot;/page?action=name&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/page&quot;
+        <span class="string">"/page?action=name"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/page"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_long_extension,
-        <span class="string">&quot;/path/to/file.thisismycustomfileextension2000&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/file.*&quot;
+        <span class="string">"/path/to/file.thisismycustomfileextension2000"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/*/file.*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_long_suffix,
-        <span class="string">&quot;/path/to/file.js~ri~some-_-1,,thing-_-words%2Fhere~ri~&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/file.js&quot;
+        <span class="string">"/path/to/file.js~ri~some-_-1,,thing-_-words%2Fhere~ri~"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/*/file.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_with_tilde_extension,
-        <span class="string">&quot;/path/to/file.~~&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/file&quot;
+        <span class="string">"/path/to/file.~~"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/*/file"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_extension,
-        <span class="string">&quot;http://domain.com/something.123&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;http://domain.com/*.*&quot;
+        <span class="string">"http://domain.com/something.123"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"http://domain.com/*.*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_embedded,
-        <span class="string">&quot;data:image/svg+xml;base64,PHN2ZyB4bW&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;data:image/svg+xml&quot;
+        <span class="string">"data:image/svg+xml;base64,PHN2ZyB4bW"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"data:image/svg+xml"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         db_category_with_mongodb_query,
-        <span class="string">&quot;find({some_id:1234567890},{limit:100})&quot;</span>,
-        <span class="string">&quot;db&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">"find({some_id:1234567890},{limit:100})"</span>,
+        <span class="string">"db"</span>,
+        <span class="string">""
     </span>);
 
-    <span class="macro">span_description_test!</span>(db_category_with_not_sql, <span class="string">&quot;{someField:someValue}&quot;</span>, <span class="string">&quot;db&quot;</span>, <span class="string">&quot;&quot;</span>);
+    <span class="macro">span_description_test!</span>(db_category_with_not_sql, <span class="string">"{someField:someValue}"</span>, <span class="string">"db"</span>, <span class="string">""</span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_semi_colon,
-        <span class="string">&quot;http://www.foo.com/path/to/resource;param1=test;param2=ing&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;http://*.foo.com/*/*&quot;
+        <span class="string">"http://www.foo.com/path/to/resource;param1=test;param2=ing"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"http://*.foo.com/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_comma_with_extension,
-        <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://example.org/*/media/*/*.jpg&quot;
+        <span class="string">"https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"https://example.org/*/media/*/*.jpg"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_comma_with_extension,
-        <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.org/*/media/*/weird-stuff-*-*-*.js&quot;
+        <span class="string">"https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://example.org/*/media/*/weird-stuff-*-*-*.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_path_with_comma,
-        <span class="string">&quot;/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*&quot;</span>,
-        <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;/*/*&quot;
+        <span class="string">"/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*"</span>,
+        <span class="string">"resource.img"</span>,
+        <span class="string">"/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_path_with_comma,
-        <span class="string">&quot;/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/*&quot;
+        <span class="string">"/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_random_path_only,
-        <span class="string">&quot;/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/*&quot;
+        <span class="string">"/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"/*/*"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_normalize_domain,
-        <span class="string">&quot;https://sub.sub.sub.domain.com/resource.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/resource.js&quot;
+        <span class="string">"https://sub.sub.sub.domain.com/resource.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://*.domain.com/resource.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_extension_in_segment,
-        <span class="string">&quot;https://domain.com/foo.bar/resource.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://domain.com/*/resource.js&quot;
+        <span class="string">"https://domain.com/foo.bar/resource.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"https://domain.com/*/resource.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_missing_scheme,
-        <span class="string">&quot;domain.com/foo.bar/resource.js&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;*/resource.js&quot;
+        <span class="string">"domain.com/foo.bar/resource.js"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"*/resource.js"
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_missing_scheme_integer_id,
-        <span class="string">&quot;domain.com/zero-length-00&quot;</span>,
-        <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;*/zero-length-*&quot;
+        <span class="string">"domain.com/zero-length-00"</span>,
+        <span class="string">"resource.script"</span>,
+        <span class="string">"*/zero-length-*"
     </span>);
 
-    <span class="macro">span_description_test!</span>(db_prisma, <span class="string">&quot;User find&quot;</span>, <span class="string">&quot;db.sql.prisma&quot;</span>, <span class="string">&quot;User find&quot;</span>);
+    <span class="macro">span_description_test!</span>(db_prisma, <span class="string">"User find"</span>, <span class="string">"db.sql.prisma"</span>, <span class="string">"User find"</span>);
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>informed_sql_parser() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;description&quot;: &quot;SELECT \&quot;not an identifier\&quot;&quot;,
-                &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                &quot;start_timestamp&quot;: 1597976393.4619668,
-                &quot;timestamp&quot;: 1597976393.4718769,
-                &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                &quot;op&quot;: &quot;db&quot;,
-                &quot;data&quot;: {&quot;db.system&quot;: &quot;mysql&quot;}
+                "description": "SELECT \"not an identifier\"",
+                "span_id": "bd2eb23da2beb459",
+                "start_timestamp": 1597976393.4619668,
+                "timestamp": 1597976393.4718769,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "op": "db",
+                "data": {"db.system": "mysql"}
             }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
         <span class="kw">let </span>span = span.value_mut().as_mut().unwrap();
         <span class="kw">let </span>scrubbed = scrub_span_description(span);
-        <span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;SELECT %s&quot;</span>));
+        <span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"SELECT %s"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>active_record() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;description&quot;: &quot;/*some comment `my_function&#39;*/ SELECT `a` FROM `b`&quot;,
-            &quot;op&quot;: &quot;db.sql.activerecord&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord"
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
@@ -1943,44 +1944,44 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>active_record_with_db_system() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;description&quot;: &quot;/*some comment `my_function&#39;*/ SELECT `a` FROM `b`&quot;,
-            &quot;op&quot;: &quot;db.sql.activerecord&quot;,
-            &quot;data&quot;: {
-                &quot;db.system&quot;: &quot;mysql&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord",
+            "data": {
+                "db.system": "mysql"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         <span class="comment">// Can be scrubbed with db system.
-        </span><span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;SELECT a FROM b&quot;</span>));
+        </span><span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"SELECT a FROM b"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>core_data() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;description&quot;: &quot;INSERTED 1 &#39;UAEventData&#39;&quot;,
-            &quot;op&quot;: &quot;db.sql.transaction&quot;,
-            &quot;origin&quot;: &quot;auto.db.core_data&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "INSERTED 1 'UAEventData'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-        <span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;INSERTED * &#39;UAEventData&#39;&quot;</span>));
+        <span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"INSERTED * 'UAEventData'"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>multiple_core_data() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;description&quot;: &quot;UPDATED 1 &#39;QueuedRequest&#39;, DELETED 1 &#39;QueuedRequest&#39;&quot;,
-            &quot;op&quot;: &quot;db.sql.transaction&quot;,
-            &quot;origin&quot;: &quot;auto.db.core_data&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "UPDATED 1 'QueuedRequest', DELETED 1 'QueuedRequest'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
@@ -1988,26 +1989,26 @@
 
         <span class="macro">assert_eq!</span>(
             scrubbed.as_deref(),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;UPDATED * &#39;QueuedRequest&#39;, DELETED * &#39;QueuedRequest&#39;&quot;</span>)
+            <span class="prelude-val">Some</span>(<span class="string">"UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'"</span>)
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>ui_interaction_with_component_name() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;description&quot;: &quot;input.app-asdfasfg.asdfasdf[type=\&quot;range\&quot;][name=\&quot;replay-timeline\&quot;]&quot;,
-            &quot;op&quot;: &quot;ui.interaction.click&quot;,
-            &quot;data&quot;: {
-                &quot;ui.component_name&quot;: &quot;my-component-name&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "input.app-asdfasfg.asdfasdf[type=\"range\"][name=\"replay-timeline\"]",
+            "op": "ui.interaction.click",
+            "data": {
+                "ui.component_name": "my-component-name"
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         <span class="comment">// Can be scrubbed with db system.
-        </span><span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;my-component-name&quot;</span>));
+        </span><span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"my-component-name"</span>));
     }
 }
 </code></pre></div></section></main></body></html>

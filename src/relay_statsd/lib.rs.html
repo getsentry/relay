@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-statsd/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_statsd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-statsd/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_statsd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -689,7 +690,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init(&quot;myprefix&quot;, &quot;localhost:8125&quot;, BTreeMap::new(), true, 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -703,8 +704,8 @@
 //! struct MyCounter;
 //!
 //! impl CounterMetric for MyCounter {
-//!     fn name(&amp;self) -&gt; &amp;&#39;static str {
-//!         &quot;counter&quot;
+//!     fn name(&amp;self) -&gt; &amp;'static str {
+//!         "counter"
 //!     }
 //! }
 //!
@@ -717,7 +718,7 @@
 //! use relay_statsd::prelude::*;
 //!
 //! relay_statsd::with_client(|client| {
-//!     client.count(&quot;mymetric&quot;, 1).ok();
+//!     client.count("mymetric", 1).ok();
 //! });
 //! ```
 //!
@@ -768,7 +769,7 @@
 <span class="kw">impl </span>MetricsClient {
     <span class="doccomment">/// Send a metric with the default tags defined on this `MetricsClient`.
     </span><span class="attr">#[inline(always)]
-    </span><span class="kw">pub fn </span>send_metric&lt;<span class="lifetime">&#39;a</span>, T&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, <span class="kw-2">mut </span>metric: MetricBuilder&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;_</span>, T&gt;)
+    </span><span class="kw">pub fn </span>send_metric&lt;<span class="lifetime">'a</span>, T&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, <span class="kw-2">mut </span>metric: MetricBuilder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'_</span>, T&gt;)
     <span class="kw">where
         </span>T: Metric + From&lt;String&gt;,
     {
@@ -784,7 +785,7 @@
             <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 maximum_capacity = METRICS_MAX_QUEUE_SIZE,
-                <span class="string">&quot;Error sending a metric&quot;</span>,
+                <span class="string">"Error sending a metric"</span>,
             );
         }
     }
@@ -796,7 +797,7 @@
             <span class="bool-val">true
         </span>} <span class="kw">else </span>{
             <span class="comment">// Using thread local RNG and uniform distribution here because Rng::gen_range is
-            // &quot;optimized for the case that only a single sample is made from the given range&quot;.
+            // "optimized for the case that only a single sample is made from the given range".
             // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
             // details.
             </span><span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
@@ -835,7 +836,7 @@
 </span><span class="kw">pub fn </span>with_capturing_test_client(f: <span class="kw">impl </span>FnOnce()) -&gt; Vec&lt;String&gt; {
     <span class="kw">let </span>(rx, sink) = cadence::SpyMetricSink::new();
     <span class="kw">let </span>test_client = MetricsClient {
-        statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
+        statsd_client: StatsdClient::from_sink(<span class="string">""</span>, sink),
         default_tags: Default::default(),
         sample_rate: <span class="number">1.0</span>,
         rx: <span class="prelude-val">None</span>,
@@ -859,7 +860,7 @@
             <span class="comment">// Setup basic observable metrics sink.
             </span><span class="kw">let </span>(receiver, sink) = cadence::SpyMetricSink::new();
             <span class="kw">let </span>test_client = MetricsClient {
-                statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
+                statsd_client: StatsdClient::from_sink(<span class="string">""</span>, sink),
                 default_tags: Default::default(),
                 sample_rate: <span class="number">1.0</span>,
                 rx: <span class="prelude-val">Some</span>(receiver.clone()),
@@ -874,7 +875,7 @@
             .and_then(|client| <span class="kw">match </span><span class="kw-2">&amp;</span>client.rx {
                 <span class="prelude-val">Some</span>(rx) =&gt; <span class="prelude-val">Some</span>(rx.clone()),
                 <span class="prelude-val">None </span>=&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Metrics client was already set up.&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">"Metrics client was already set up."</span>);
                     <span class="prelude-val">None
                 </span>}
             })
@@ -896,21 +897,21 @@
 ) {
     <span class="kw">let </span>addrs: Vec&lt;<span class="kw">_</span>&gt; = host.to_socket_addrs().unwrap().collect();
     <span class="kw">if </span>!addrs.is_empty() {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, addrs[<span class="number">0</span>]);
+        <span class="macro">relay_log::info!</span>(<span class="string">"reporting metrics to statsd at {}"</span>, addrs[<span class="number">0</span>]);
     }
 
     <span class="comment">// Normalize sample_rate
     </span><span class="kw">let </span>sample_rate = sample_rate.clamp(<span class="number">0.</span>, <span class="number">1.</span>);
     <span class="macro">relay_log::debug!</span>(
-        <span class="string">&quot;metrics sample rate is set to {sample_rate}{}&quot;</span>,
+        <span class="string">"metrics sample rate is set to {sample_rate}{}"</span>,
         <span class="kw">if </span>sample_rate == <span class="number">0.0 </span>{
-            <span class="string">&quot;, no metrics will be reported&quot;
+            <span class="string">", no metrics will be reported"
         </span>} <span class="kw">else </span>{
-            <span class="string">&quot;&quot;
+            <span class="string">""
         </span>}
     );
 
-    <span class="kw">let </span>socket = UdpSocket::bind(<span class="string">&quot;0.0.0.0:0&quot;</span>).unwrap();
+    <span class="kw">let </span>socket = UdpSocket::bind(<span class="string">"0.0.0.0:0"</span>).unwrap();
     socket.set_nonblocking(<span class="bool-val">true</span>).unwrap();
 
     <span class="kw">let </span>statsd_client = <span class="kw">if </span>buffering {
@@ -922,8 +923,8 @@
         StatsdClient::from_sink(prefix, simple_sink)
     };
     <span class="macro">relay_log::debug!</span>(
-        <span class="string">&quot;metrics buffering is {}&quot;</span>,
-        <span class="kw">if </span>buffering { <span class="string">&quot;enabled&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;disabled&quot; </span>}
+        <span class="string">"metrics buffering is {}"</span>,
+        <span class="kw">if </span>buffering { <span class="string">"enabled" </span>} <span class="kw">else </span>{ <span class="string">"disabled" </span>}
     );
 
     set_client(MetricsClient {
@@ -969,10 +970,10 @@
 /// }
 ///
 /// impl TimerMetric for MyTimer {
-///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///     fn name(&amp;self) -&gt; &amp;'static str {
 ///         match self {
-///             Self::ProcessA =&gt; &quot;process_a&quot;,
-///             Self::ProcessB =&gt; &quot;process_b&quot;,
+///             Self::ProcessA =&gt; "process_a",
+///             Self::ProcessB =&gt; "process_b",
 ///         }
 ///     }
 /// }
@@ -988,8 +989,8 @@
 /// // provide tags to a timer
 /// metric!(
 ///     timer(MyTimer::ProcessA) = start_time.elapsed(),
-///     server = &quot;server1&quot;,
-///     host = &quot;host1&quot;,
+///     server = "server1",
+///     host = "host1",
 /// );
 ///
 /// // measure time implicitly by enclosing a code block in a metric
@@ -1000,8 +1001,8 @@
 /// // measure block and also provide tags
 /// metric!(
 ///     timer(MyTimer::ProcessB),
-///     server = &quot;server1&quot;,
-///     host = &quot;host1&quot;,
+///     server = "server1",
+///     host = "host1",
 ///     {
 ///         process_a();
 ///     }
@@ -1010,7 +1011,7 @@
 /// ```
 </span><span class="kw">pub trait </span>TimerMetric {
     <span class="doccomment">/// Returns the timer metric name that will be sent to statsd.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// A metric for capturing counters.
@@ -1030,10 +1031,10 @@
 /// }
 ///
 /// impl CounterMetric for MyCounter {
-///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///     fn name(&amp;self) -&gt; &amp;'static str {
 ///         match self {
-///             Self::TotalRequests =&gt; &quot;total_requests&quot;,
-///             Self::TotalBytes =&gt; &quot;total_bytes&quot;,
+///             Self::TotalRequests =&gt; "total_requests",
+///             Self::TotalBytes =&gt; "total_bytes",
 ///         }
 ///     }
 /// }
@@ -1047,8 +1048,8 @@
 /// // add to the counter and provide tags
 /// metric!(
 ///     counter(MyCounter::TotalRequests) += 1,
-///     server = &quot;s1&quot;,
-///     host = &quot;h1&quot;
+///     server = "s1",
+///     host = "h1"
 /// );
 ///
 /// // subtract from the counter
@@ -1057,13 +1058,13 @@
 /// // subtract from the counter and provide tags
 /// metric!(
 ///     counter(MyCounter::TotalRequests) -= 1,
-///     server = &quot;s1&quot;,
-///     host = &quot;h1&quot;
+///     server = "s1",
+///     host = "h1"
 /// );
 /// ```
 </span><span class="kw">pub trait </span>CounterMetric {
     <span class="doccomment">/// Returns the counter metric name that will be sent to statsd.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// A metric for capturing histograms.
@@ -1080,8 +1081,8 @@
 /// struct QueueSize;
 ///
 /// impl HistogramMetric for QueueSize {
-///     fn name(&amp;self) -&gt; &amp;&#39;static str {
-///         &quot;queue_size&quot;
+///     fn name(&amp;self) -&gt; &amp;'static str {
+///         "queue_size"
 ///     }
 /// }
 ///
@@ -1095,13 +1096,13 @@
 /// // record with tags
 /// metric!(
 ///     histogram(QueueSize) = queue.len() as u64,
-///     server = &quot;server1&quot;,
-///     host = &quot;host1&quot;,
+///     server = "server1",
+///     host = "host1",
 /// );
 /// ```
 </span><span class="kw">pub trait </span>HistogramMetric {
     <span class="doccomment">/// Returns the histogram metric name that will be sent to statsd.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// A metric for capturing sets.
@@ -1120,10 +1121,10 @@
 /// }
 ///
 /// impl SetMetric for MySet {
-///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///     fn name(&amp;self) -&gt; &amp;'static str {
 ///         match self {
-///             MySet::UniqueProjects =&gt; &quot;unique_projects&quot;,
-///             MySet::UniqueUsers =&gt; &quot;unique_users&quot;,
+///             MySet::UniqueProjects =&gt; "unique_projects",
+///             MySet::UniqueUsers =&gt; "unique_users",
 ///         }
 ///     }
 /// }
@@ -1138,13 +1139,13 @@
 /// // use a set metric with tags
 /// metric!(
 ///     set(MySet::UniqueUsers) = users.len() as i64,
-///     server = &quot;server1&quot;,
-///     host = &quot;host1&quot;,
+///     server = "server1",
+///     host = "host1",
 /// );
 /// ```
 </span><span class="kw">pub trait </span>SetMetric {
     <span class="doccomment">/// Returns the set metric name that will be sent to statsd.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// A metric for capturing gauges.
@@ -1161,8 +1162,8 @@
 /// struct QueueSize;
 ///
 /// impl GaugeMetric for QueueSize {
-///     fn name(&amp;self) -&gt; &amp;&#39;static str {
-///         &quot;queue_size&quot;
+///     fn name(&amp;self) -&gt; &amp;'static str {
+///         "queue_size"
 ///     }
 /// }
 ///
@@ -1176,13 +1177,13 @@
 /// // a gauge with tags
 /// metric!(
 ///     gauge(QueueSize) = queue.len() as u64,
-///     server = &quot;server1&quot;,
-///     host = &quot;host1&quot;
+///     server = "server1",
+///     host = "host1"
 /// );
 /// ```
 </span><span class="kw">pub trait </span>GaugeMetric {
     <span class="doccomment">/// Returns the gauge metric name that will be sent to statsd.
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// Emits a metric.
@@ -1283,10 +1284,10 @@
     }
 
     <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>TestGauges {
-        <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
             <span class="kw">match </span><span class="self">self </span>{
-                <span class="self">Self</span>::Foo =&gt; <span class="string">&quot;foo&quot;</span>,
-                <span class="self">Self</span>::Bar =&gt; <span class="string">&quot;bar&quot;</span>,
+                <span class="self">Self</span>::Foo =&gt; <span class="string">"foo"</span>,
+                <span class="self">Self</span>::Bar =&gt; <span class="string">"bar"</span>,
             }
         }
     }
@@ -1296,35 +1297,35 @@
         <span class="kw">let </span>captures = with_capturing_test_client(|| {
             <span class="macro">metric!</span>(
                 gauge(TestGauges::Foo) = <span class="number">123</span>,
-                server = <span class="string">&quot;server1&quot;</span>,
-                host = <span class="string">&quot;host1&quot;
+                server = <span class="string">"server1"</span>,
+                host = <span class="string">"host1"
             </span>);
             <span class="macro">metric!</span>(
                 gauge(TestGauges::Bar) = <span class="number">456</span>,
-                server = <span class="string">&quot;server2&quot;</span>,
-                host = <span class="string">&quot;host2&quot;
+                server = <span class="string">"server2"</span>,
+                host = <span class="string">"host2"
             </span>);
         });
 
         <span class="macro">assert_eq!</span>(
             captures,
             [
-                <span class="string">&quot;foo:123|g|#server:server1,host:host1&quot;</span>,
-                <span class="string">&quot;bar:456|g|#server:server2,host:host2&quot;
+                <span class="string">"foo:123|g|#server:server1,host:host1"</span>,
+                <span class="string">"bar:456|g|#server:server2,host:host2"
             </span>]
         )
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>current_client_is_global_client() {
-        <span class="kw">let </span>client1 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{c:?}&quot;</span>));
+        <span class="kw">let </span>client1 = with_client(|c| <span class="macro">format!</span>(<span class="string">"{c:?}"</span>));
         set_client(MetricsClient {
-            statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, NopMetricSink),
+            statsd_client: StatsdClient::from_sink(<span class="string">""</span>, NopMetricSink),
             default_tags: Default::default(),
             sample_rate: <span class="number">1.0</span>,
             rx: <span class="prelude-val">None</span>,
         });
-        <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{c:?}&quot;</span>));
+        <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">"{c:?}"</span>));
 
         <span class="comment">// After setting the global client,the current client must change:
         </span><span class="macro">assert_ne!</span>(client1, client2);

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-dynamic-config/src/metrics.rs`."><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_dynamic_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_dynamic_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_dynamic_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-dynamic-config/src/metrics.rs`."><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_dynamic_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_dynamic_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_dynamic_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -569,18 +570,18 @@
 
 <span class="doccomment">/// Configuration for metrics filtering.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Metrics {
     <span class="doccomment">/// List of cardinality limits to enforce for this project.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>cardinality_limits: Vec&lt;CardinalityLimit&gt;,
     <span class="doccomment">/// List of patterns for blocking metrics based on their name.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;GlobPatterns::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"GlobPatterns::is_empty"</span>)]
     </span><span class="kw">pub </span>denied_names: GlobPatterns,
     <span class="doccomment">/// Configuration for removing tags from a bucket.
     ///
     /// Note that removing tags does not drop the overall metric bucket.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>denied_tags: Vec&lt;TagBlock&gt;,
 }
 
@@ -604,7 +605,7 @@
 
 <span class="doccomment">/// Rule defining when a target tag should be set on a metric.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>TaggingRule {
     <span class="comment">// note: could add relay_sampling::RuleType here, but right now we only support transaction
     // events
@@ -624,7 +625,7 @@
 
 <span class="doccomment">/// Configuration for metric extraction from sessions.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>SessionMetricsConfig {
     <span class="doccomment">/// The revision of the extraction algorithm.
     ///
@@ -663,7 +664,7 @@
 
 <span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.
 </span><span class="attr">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>CustomMeasurementConfig {
     <span class="doccomment">/// The maximum number of custom measurements to extract. Defaults to zero.
     </span>limit: usize,
@@ -682,7 +683,7 @@
 
 <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub enum </span>AcceptTransactionNames {
     <span class="doccomment">/// Only accept transaction names with a low-cardinality source.
     </span>Strict,
@@ -700,7 +701,7 @@
 
 <span class="doccomment">/// Configuration for extracting metrics from transaction payloads.
 </span><span class="attr">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>TransactionMetricsConfig {
     <span class="doccomment">/// The required version to extract transaction metrics.
     </span><span class="kw">pub </span>version: u16,
@@ -710,7 +711,7 @@
     </span><span class="kw">pub </span>custom_measurements: CustomMeasurementConfig,
     <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
     /// Keep this around for external Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;acceptTransactionNames&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"acceptTransactionNames"</span>)]
     </span><span class="kw">pub </span>deprecated1: AcceptTransactionNames,
 }
 
@@ -736,20 +737,20 @@
 
 <span class="doccomment">/// Configuration for generic extraction of metrics from all data categories.
 </span><span class="attr">#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>MetricExtractionConfig {
     <span class="doccomment">/// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
     </span><span class="kw">pub </span>version: u16,
 
     <span class="doccomment">/// A list of metric specifications to extract.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>metrics: Vec&lt;MetricSpec&gt;,
 
     <span class="doccomment">/// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagMapping&gt;,
 
     <span class="doccomment">/// This config has been extended with fields from `conditional_tagging`.
@@ -808,7 +809,7 @@
 
 <span class="doccomment">/// Specification for a metric to extract from some data.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>MetricSpec {
     <span class="doccomment">/// Category of data to extract this metric for.
     </span><span class="kw">pub </span>category: DataCategory,
@@ -834,14 +835,14 @@
     ///   value. Insertion of numbers and other types is undefined.
     ///
     /// If the field does not exist, extraction is skipped.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>field: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the metric is extracted unconditionally.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
 
     <span class="doccomment">/// A list of tags to add to the metric.
@@ -849,13 +850,13 @@
     /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
     /// possible to list tag keys multiple times, each with different conditions. The first matching
     /// condition will be applied.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagSpec&gt;,
 }
 
 <span class="doccomment">/// Mapping between extracted metrics and additional tags to extract.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>TagMapping {
     <span class="doccomment">/// A list of Metric Resource Identifiers (MRI) to apply tags to.
     ///
@@ -888,36 +889,36 @@
 /// defined through `field`. These two options are mutually exclusive, behavior is undefined if both
 /// are specified.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>TagSpec {
     <span class="doccomment">/// The key of the tag to extract.
     </span><span class="kw">pub </span>key: String,
 
-    <span class="doccomment">/// Path to a field containing the tag&#39;s value.
+    <span class="doccomment">/// Path to a field containing the tag's value.
     ///
     /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>field: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// Literal value of the tag.
     ///
     /// Mutually exclusive with `field`.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>value: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the tag is added unconditionally, provided it is not already there.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
 }
 
 <span class="kw">impl </span>TagSpec {
     <span class="doccomment">/// Returns the source of tag values, either literal or a field.
-    </span><span class="kw">pub fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TagSource&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TagSource&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>field) = <span class="self">self</span>.field {
             TagSource::Field(field)
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>value) = <span class="self">self</span>.value {
@@ -995,11 +996,11 @@
 
 <span class="doccomment">/// Specifies how to obtain the value of a tag in [`TagSpec`].
 </span><span class="attr">#[derive(Clone, Debug, PartialEq)]
-</span><span class="kw">pub enum </span>TagSource&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub enum </span>TagSource&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// A literal value.
-    </span>Literal(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str),
+    </span>Literal(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str),
     <span class="doccomment">/// Path to a field to evaluate.
-    </span>Field(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str),
+    </span>Field(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str),
     <span class="doccomment">/// An unsupported or unknown source.
     </span>Unknown,
 }
@@ -1077,37 +1078,37 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_metrics_deserialize() {
-        <span class="kw">let </span>m: Metrics = serde_json::from_str(<span class="string">&quot;{}&quot;</span>).unwrap();
+        <span class="kw">let </span>m: Metrics = serde_json::from_str(<span class="string">"{}"</span>).unwrap();
         <span class="macro">assert!</span>(m.is_empty());
         <span class="macro">assert_eq!</span>(m, Metrics::default());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_tag_spec_value() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;value&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"key":"foo","value":"bar"}"#</span>;
         <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
-        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Literal(<span class="string">&quot;bar&quot;</span>));
+        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Literal(<span class="string">"bar"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_tag_spec_field() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"key":"foo","field":"bar"}"#</span>;
         <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
-        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Field(<span class="string">&quot;bar&quot;</span>));
+        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Field(<span class="string">"bar"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_tag_spec_unsupported() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;somethingNew&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"key":"foo","somethingNew":"bar"}"#</span>;
         <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
         <span class="macro">assert_eq!</span>(spec.source(), TagSource::Unknown);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_tag_mapping() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;metrics&quot;: [&quot;d:spans/*&quot;], &quot;tags&quot;: [{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}]}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#</span>;
         <span class="kw">let </span>mapping: TagMapping = serde_json::from_str(json).unwrap();
-        <span class="macro">assert!</span>(mapping.metrics[<span class="number">0</span>].compiled().is_match(<span class="string">&quot;d:spans/foo&quot;</span>));
+        <span class="macro">assert!</span>(mapping.metrics[<span class="number">0</span>].compiled().is_match(<span class="string">"d:spans/foo"</span>));
     }
 }
 </code></pre></div></section></main></body></html>

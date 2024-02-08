@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/store.rs`."><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/store.rs`."><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1571,20 +1572,20 @@
 </span><span class="kw">const </span>MAX_EXPLODED_SESSIONS: usize = <span class="number">100</span>;
 
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
-</span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Unnamed Attachment&quot;</span>;
+</span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">"Unnamed Attachment"</span>;
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>StoreError {
-    <span class="attr">#[error(<span class="string">&quot;failed to send the message to kafka&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to send the message to kafka"</span>)]
     </span>SendFailed(<span class="attr">#[from] </span>ClientError),
-    <span class="attr">#[error(<span class="string">&quot;failed to store event because event id was missing&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to store event because event id was missing"</span>)]
     </span>NoEventId,
 }
 
 <span class="kw">fn </span>make_distinct_id(s: <span class="kw-2">&amp;</span>str) -&gt; Uuid {
     <span class="kw">static </span>NAMESPACE: OnceCell&lt;Uuid&gt; = OnceCell::new();
     <span class="kw">let </span>namespace =
-        NAMESPACE.get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b&quot;https://sentry.io/#did&quot;</span>));
+        NAMESPACE.get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b"https://sentry.io/#did"</span>));
 
     s.parse()
         .unwrap_or_else(|<span class="kw">_</span>| Uuid::new_v5(namespace, s.as_bytes()))
@@ -1693,7 +1694,7 @@
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                     tags.project_key = %scoping.project_key,
-                    <span class="string">&quot;failed to store envelope&quot;
+                    <span class="string">"failed to store envelope"
                 </span>);
             }
         }
@@ -1751,7 +1752,7 @@
                     )<span class="question-mark">?</span>;
                     <span class="macro">metric!</span>(
                         counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                        event_type = <span class="string">&quot;user_report&quot;
+                        event_type = <span class="string">"user_report"
                     </span>);
                 }
                 ItemType::Session | ItemType::Sessions =&gt; {
@@ -1826,7 +1827,7 @@
             <span class="kw">if </span>is_attachment {
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                    event_type = <span class="string">&quot;attachment&quot;
+                    event_type = <span class="string">"attachment"
                 </span>);
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(event_item) = event_item {
                 <span class="macro">metric!</span>(
@@ -1874,7 +1875,7 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = error {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce metric buckets: {error}&quot;</span>);
+            <span class="macro">relay_log::error!</span>(<span class="string">"failed to produce metric buckets: {error}"</span>);
 
             utils::reject_metrics(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
@@ -1939,7 +1940,7 @@
         <span class="comment">// Takes message by value to ensure it is not being produced twice.
         </span>message: KafkaMessage,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending kafka message of type {}&quot;</span>, message.variant());
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Sending kafka message of type {}"</span>, message.variant());
 
         <span class="self">self</span>.producer
             .client
@@ -2031,7 +2032,7 @@
                     <span class="prelude-val">Err</span>(error) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                            <span class="string">&quot;failed to store session&quot;
+                            <span class="string">"failed to store session"
                         </span>);
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                     }
@@ -2092,7 +2093,7 @@
         };
 
         <span class="kw">if </span>aggregates.len() &gt; MAX_EXPLODED_SESSIONS {
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;aggregated session items exceed threshold&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="string">"aggregated session items exceed threshold"</span>);
         }
 
         <span class="kw">for </span>item <span class="kw">in </span>aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
@@ -2178,14 +2179,14 @@
             <span class="prelude-val">Ok</span>(namespace @ MetricNamespace::Sessions) =&gt; (KafkaTopic::MetricsSessions, namespace),
             <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 relay_log::with_scope(
-                    |scope| scope.set_extra(<span class="string">&quot;metric_message.name&quot;</span>, message.name.into()),
-                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;store service dropping unknown metric usecase&quot;</span>),
+                    |scope| scope.set_extra(<span class="string">"metric_message.name"</span>, message.name.into()),
+                    || <span class="macro">relay_log::error!</span>(<span class="string">"store service dropping unknown metric usecase"</span>),
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
             <span class="prelude-val">Ok</span>(namespace) =&gt; (KafkaTopic::MetricsGeneric, namespace),
         };
-        <span class="kw">let </span>headers = BTreeMap::from([(<span class="string">&quot;namespace&quot;</span>.to_string(), namespace.to_string())]);
+        <span class="kw">let </span>headers = BTreeMap::from([(<span class="string">"namespace"</span>.to_string(), namespace.to_string())]);
 
         <span class="self">self</span>.produce(
             topic,
@@ -2194,7 +2195,7 @@
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;metric&quot;
+            event_type = <span class="string">"metric"
         </span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -2238,7 +2239,7 @@
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;session&quot;
+            event_type = <span class="string">"session"
         </span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -2257,8 +2258,8 @@
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             headers: BTreeMap::from([(
-                <span class="string">&quot;sampled&quot;</span>.to_string(),
-                <span class="kw">if </span>item.sampled() { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>}.to_owned(),
+                <span class="string">"sampled"</span>.to_string(),
+                <span class="kw">if </span>item.sampled() { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}.to_owned(),
             )]),
             payload: item.payload(),
         };
@@ -2269,7 +2270,7 @@
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;profile&quot;
+            event_type = <span class="string">"profile"
         </span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -2297,7 +2298,7 @@
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;replay_event&quot;
+            event_type = <span class="string">"replay_event"
         </span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -2336,10 +2337,10 @@
 
             <span class="macro">metric!</span>(
                 counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                event_type = <span class="string">&quot;replay_recording_not_chunked&quot;
+                event_type = <span class="string">"replay_recording_not_chunked"
             </span>);
         } <span class="kw">else </span>{
-            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;replay_recording over maximum size.&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="string">"replay_recording over maximum size."</span>);
         };
 
         <span class="prelude-val">Ok</span>(())
@@ -2368,7 +2369,7 @@
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;check_in&quot;
+            event_type = <span class="string">"check_in"
         </span>);
 
         <span class="prelude-val">Ok</span>(())
@@ -2389,7 +2390,7 @@
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    <span class="string">&quot;failed to parse span&quot;
+                    <span class="string">"failed to parse span"
                 </span>);
                 <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
                     category: DataCategory::SpanIndexed,
@@ -2455,7 +2456,7 @@
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">&quot;span&quot;
+            event_type = <span class="string">"span"
         </span>);
 
         <span class="prelude-val">Ok</span>(())
@@ -2467,13 +2468,13 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder started"</span>);
 
             <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
                 <span class="self">self</span>.handle_message(message);
             }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder stopped"</span>);
         });
     }
 }
@@ -2493,14 +2494,14 @@
     </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// The Sentry-internal attachment type used in the processing pipeline.
-    </span><span class="attr">#[serde(serialize_with = <span class="string">&quot;serialize_attachment_type&quot;</span>)]
+    </span><span class="attr">#[serde(serialize_with = <span class="string">"serialize_attachment_type"</span>)]
     </span>attachment_type: AttachmentType,
 
     <span class="doccomment">/// Number of chunks. Must be greater than zero.
     </span>chunks: usize,
 
     <span class="doccomment">/// The size of the attachment in bytes.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 
     <span class="doccomment">/// Whether this attachment was rate limited and should be removed after processing.
@@ -2509,7 +2510,7 @@
     /// native crash reports still need to be retained. These attachments are marked with the
     /// `rate_limited` header, which signals to the processing pipeline that the attachment should
     /// not be persisted after processing.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>rate_limited: <span class="prelude-ty">Option</span>&lt;bool&gt;,
 }
 
@@ -2576,7 +2577,7 @@
     </span>chunk_index: usize,
 }
 
-<span class="doccomment">/// A &quot;standalone&quot; attachment.
+<span class="doccomment">/// A "standalone" attachment.
 ///
 /// Still belongs to an event but can be sent independently (like UserReport) and is not
 /// considered in processing.
@@ -2617,7 +2618,7 @@
     </span>chunks: usize,
 
     <span class="doccomment">/// The size of the attachment in bytes.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
@@ -2684,14 +2685,14 @@
 }
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
-</span><span class="kw">struct </span>MetricKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
     org_id: u64,
     project_id: ProjectId,
-    name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="attr">#[serde(flatten)]
-    </span>value: BucketViewValue&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span>value: BucketViewValue&lt;<span class="lifetime">'a</span>&gt;,
     timestamp: UnixTimestamp,
-    tags: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, String&gt;,
+    tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, String&gt;,
     retention_days: u16,
 }
 
@@ -2708,12 +2709,12 @@
 
 <span class="doccomment">/// Used to discriminate cron monitor ingestion messages.
 ///
-/// There are two types of messages that end up in the ingest-monitors kafka topic, &quot;check_in&quot; (the
-/// ones produced here in relay) and &quot;clock_pulse&quot; messages, which are produced externally and are
+/// There are two types of messages that end up in the ingest-monitors kafka topic, "check_in" (the
+/// ones produced here in relay) and "clock_pulse" messages, which are produced externally and are
 /// intended to ensure the clock continues to run even when ingestion volume drops.
 </span><span class="attr">#[allow(dead_code)]
 #[derive(Debug, Serialize)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
 </span><span class="kw">enum </span>CheckInMessageType {
     ClockPulse,
     CheckIn,
@@ -2740,57 +2741,57 @@
 
 <span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>SpanMeasurement {
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>value: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 }
 
 <span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>SpanMetricsSummary {
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>count: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>max: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>min: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>sum: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>tags: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;String, String&gt;&gt;,
 }
 
 <span class="kw">type </span>SpanMetricsSummaries = Vec&lt;<span class="prelude-ty">Option</span>&lt;SpanMetricsSummary&gt;&gt;;
 
 <span class="attr">#[derive(Debug, Deserialize, Serialize)]
-</span><span class="kw">struct </span>SpanKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
     <span class="attr">#[serde(skip_serializing)]
     </span>start_timestamp: f64,
-    <span class="attr">#[serde(rename(deserialize = <span class="string">&quot;timestamp&quot;</span>), skip_serializing)]
+    <span class="attr">#[serde(rename(deserialize = <span class="string">"timestamp"</span>), skip_serializing)]
     </span>end_timestamp: f64,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>description: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>description: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
     <span class="attr">#[serde(default)]
     </span>duration_ms: u32,
     <span class="doccomment">/// The ID of the transaction event associated to this span, if any.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
-    <span class="attr">#[serde(rename(deserialize = <span class="string">&quot;exclusive_time&quot;</span>))]
+    <span class="attr">#[serde(rename(deserialize = <span class="string">"exclusive_time"</span>))]
     </span>exclusive_time_ms: f64,
     is_segment: bool,
 
-    <span class="attr">#[serde(borrow, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>measurements: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMeasurement&gt;&gt;&gt;,
+    <span class="attr">#[serde(borrow, default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>measurements: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMeasurement&gt;&gt;&gt;,
     <span class="attr">#[serde(
         borrow,
         default,
-        rename = <span class="string">&quot;_metrics_summary&quot;</span>,
-        skip_serializing_if = <span class="string">&quot;Option::is_none&quot;
+        rename = <span class="string">"_metrics_summary"</span>,
+        skip_serializing_if = <span class="string">"Option::is_none"
     </span>)]
-    </span>metrics_summary: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMetricsSummaries&gt;&gt;&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>parent_span_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>profile_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    </span>metrics_summary: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMetricsSummaries&gt;&gt;&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>parent_span_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>profile_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="doccomment">/// The numeric ID of the project.
     </span><span class="attr">#[serde(default)]
     </span>project_id: u64,
@@ -2799,23 +2800,23 @@
     <span class="doccomment">/// Number of days until these data should be deleted.
     </span><span class="attr">#[serde(default)]
     </span>retention_days: u16,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>segment_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
-    span_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>segment_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
+    span_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="attr">#[serde(default)]
     </span>start_timestamp_ms: u64,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
-    trace_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
+    trace_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
 }
 
 <span class="doccomment">/// An enum over all possible ingest messages.
 </span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(tag = <span class="string">"type"</span>, rename_all = <span class="string">"snake_case"</span>)]
 #[allow(clippy::large_enum_variant)]
-</span><span class="kw">enum </span>KafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">enum </span>KafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -2825,29 +2826,29 @@
         <span class="attr">#[serde(skip)]
         </span>headers: BTreeMap&lt;String, String&gt;,
         <span class="attr">#[serde(flatten)]
-        </span>message: MetricKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt;,
+        </span>message: MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
     },
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt;),
+    Span(SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
 }
 
-<span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+<span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">&quot;event&quot;</span>,
-            KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment&quot;</span>,
-            KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment_chunk&quot;</span>,
-            KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">&quot;user_report&quot;</span>,
-            KafkaMessage::Session(<span class="kw">_</span>) =&gt; <span class="string">&quot;session&quot;</span>,
-            KafkaMessage::Metric { .. } =&gt; <span class="string">&quot;metric&quot;</span>,
-            KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">&quot;profile&quot;</span>,
-            KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_event&quot;</span>,
-            KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_not_chunked&quot;</span>,
-            KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">&quot;check_in&quot;</span>,
-            KafkaMessage::Span(<span class="kw">_</span>) =&gt; <span class="string">&quot;span&quot;</span>,
+            KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">"event"</span>,
+            KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">"attachment"</span>,
+            KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">"attachment_chunk"</span>,
+            KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">"user_report"</span>,
+            KafkaMessage::Session(<span class="kw">_</span>) =&gt; <span class="string">"session"</span>,
+            KafkaMessage::Metric { .. } =&gt; <span class="string">"metric"</span>,
+            KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">"profile"</span>,
+            KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">"replay_event"</span>,
+            KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">"replay_recording_not_chunked"</span>,
+            KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
+            KafkaMessage::Span(<span class="kw">_</span>) =&gt; <span class="string">"span"</span>,
         }
     }
 
@@ -2862,7 +2863,7 @@
 
             <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
-            // XXX(epurkhiser): In the future it would be better if all KafkaMessage&#39;s would
+            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
             // recieve the routing_key_hint form their envelopes.
             </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint.unwrap_or_else(Uuid::nil),
 
@@ -2941,7 +2942,7 @@
         <span class="kw">let </span>scoping = Scoping {
             organization_id: <span class="number">42</span>,
             project_id: ProjectId::new(<span class="number">21</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         };
 
@@ -3009,7 +3010,7 @@
             kafka_messages.partition(|item| <span class="kw">match </span>item {
                 KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
                 KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;only expected events or attachment type&quot;</span>),
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"only expected events or attachment type"</span>),
             });
 
         <span class="comment">// Tests that the event does not contain any attachments.
@@ -3017,7 +3018,7 @@
         <span class="kw">if let </span>KafkaMessage::Event(event) = event {
             <span class="macro">assert!</span>(event.attachments.is_empty());
         } <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;No event found&quot;</span>)
+            <span class="macro">panic!</span>(<span class="string">"No event found"</span>)
         }
 
         <span class="comment">// Tests that the attachment we sent to `extract_kafka_messages_for_event` is in the
@@ -3048,10 +3049,10 @@
             kafka_messages.partition(|item| <span class="kw">match </span>item {
                 KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
                 KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;only expected events or attachment type&quot;</span>),
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"only expected events or attachment type"</span>),
             });
 
-        <span class="comment">// Because it&#39;s not a transaction event, the attachment should be part of the event,
+        <span class="comment">// Because it's not a transaction event, the attachment should be part of the event,
         // and therefore the standalone_attachments vec should be empty.
         </span><span class="macro">assert!</span>(standalone_attachments.is_empty());
 
@@ -3060,7 +3061,7 @@
         <span class="kw">if let </span>KafkaMessage::Event(event) = event {
             <span class="macro">assert!</span>(event.attachments.len() == number_of_attachments);
         } <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;No event found&quot;</span>)
+            <span class="macro">panic!</span>(<span class="string">"No event found"</span>)
         }
     }
 }

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-spans/src/span.rs`."><title>span.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_spans" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_spans/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_spans"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-spans/src/span.rs`."><title>span.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_spans" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_spans/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_spans"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -571,7 +572,7 @@
 <span class="doccomment">/// This is a serde implementation of &lt;https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto&gt;.
 /// A Span represents a single operation performed by a single component of the system.
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>OtelSpan {
     <span class="doccomment">/// A unique identifier for a trace. All spans from the same trace share
     /// the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
@@ -588,7 +589,7 @@
     /// See also &lt;https://github.com/w3c/distributed-tracing&gt; for more details about this field.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>trace_state: String,
-    <span class="doccomment">/// The `span_id` of this span&#39;s parent span. If this is a root span, then this
+    <span class="doccomment">/// The `span_id` of this span's parent span. If this is a root span, then this
     /// field must be empty. The ID is an 8-byte array.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>parent_span_id: String,
@@ -606,7 +607,7 @@
     /// See &lt;https://www.w3.org/TR/trace-context-2/#trace-flags&gt; for the flag definitions.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>flags: u32,
-    <span class="doccomment">/// A description of the span&#39;s operation.
+    <span class="doccomment">/// A description of the span's operation.
     ///
     /// For example, the name can be a qualified method name or a file name
     /// and a line number where the operation is called. A best practice is to use
@@ -623,11 +624,11 @@
     </span><span class="kw">pub </span>kind: SpanKind,
     <span class="doccomment">/// start_time_unix_nano is the start time of the span. On the client side, this is the time
     /// kept by the local machine where the span execution starts. On the server side, this
-    /// is the time when the server&#39;s application handler starts running.
+    /// is the time when the server's application handler starts running.
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time &gt;= start_time.
-    </span><span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span><span class="kw">pub </span>start_time_unix_nano: i64,
     <span class="doccomment">/// end_time_unix_nano is the end time of the span. On the client side, this is the time
     /// kept by the local machine where the span execution ends. On the server side, this
@@ -635,7 +636,7 @@
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time &gt;= start_time.
-    </span><span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span><span class="kw">pub </span>end_time_unix_nano: i64,
     <span class="doccomment">/// attributes is a collection of key/value pairs. Note, global attributes
     /// like server name can be set using the resource API.
@@ -666,8 +667,8 @@
     /// in the same or different trace.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>dropped_links_count: u32,
-    <span class="doccomment">/// An optional final status for this span. Semantically when Status isn&#39;t set, it means
-    /// span&#39;s status code is unset, i.e. assume STATUS_CODE_UNSET (code = 0).
+    <span class="doccomment">/// An optional final status for this span. Semantically when Status isn't set, it means
+    /// span's status code is unset, i.e. assume STATUS_CODE_UNSET (code = 0).
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>status: Status,
 }
@@ -731,9 +732,9 @@
             } <span class="kw">else </span>{
                 attribute.key
             };
-            <span class="kw">if </span>key == <span class="string">&quot;sentry.op&quot; </span>{
+            <span class="kw">if </span>key == <span class="string">"sentry.op" </span>{
                 op = attribute.value.to_string();
-            } <span class="kw">else if </span>key.contains(<span class="string">&quot;exclusive_time_ns&quot;</span>) {
+            } <span class="kw">else if </span>key.contains(<span class="string">"exclusive_time_ns"</span>) {
                 <span class="kw">let </span>value = <span class="kw">match </span>attribute.value {
                     AnyValue::Int(v) =&gt; v <span class="kw">as </span>f64,
                     AnyValue::Double(v) =&gt; v,
@@ -741,9 +742,9 @@
                     <span class="kw">_ </span>=&gt; <span class="number">0f64</span>,
                 };
                 exclusive_time_ms = value / <span class="number">1e6f64</span>;
-            } <span class="kw">else if </span>key == <span class="string">&quot;http.status_code&quot; </span>{
+            } <span class="kw">else if </span>key == <span class="string">"http.status_code" </span>{
                 http_status_code = attribute.value.to_i64();
-            } <span class="kw">else if </span>key == <span class="string">&quot;rpc.grpc.status_code&quot; </span>{
+            } <span class="kw">else if </span>key == <span class="string">"rpc.grpc.status_code" </span>{
                 grpc_status_code = attribute.value.to_i64();
             } <span class="kw">else </span>{
                 <span class="kw">match </span>attribute.value {
@@ -801,7 +802,7 @@
 <span class="doccomment">/// Event is a time-stamped annotation of the span, consisting of user-supplied
 /// text description and key-value pairs.
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Event {
     <span class="doccomment">/// attributes is a collection of attribute key/value pairs on the event.
     /// Attribute keys MUST be unique (it is not allowed to have more than one
@@ -816,12 +817,12 @@
     /// This field is semantically required to be set to non-empty string.
     </span><span class="kw">pub </span>name: String,
     <span class="doccomment">/// time_unix_nano is the time the event occurred.
-    </span><span class="attr">#[serde(default, deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="attr">#[serde(default, deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span><span class="kw">pub </span>time_unix_nano: u64,
 }
 
 <span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Link {
     <span class="doccomment">/// attributes is a collection of attribute key/value pairs on the link.
     /// Attribute keys MUST be unique (it is not allowed to have more than one
@@ -871,7 +872,7 @@
 }
 
 <span class="attr">#[derive(Clone, Debug, Deserialize, Default, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Status {
     <span class="doccomment">/// A developer-facing human readable error message.
     </span><span class="attr">#[serde(default)]
@@ -898,22 +899,22 @@
 /// primitive value such as a string or integer or it may contain an arbitrary nested
 /// object containing arrays, key-value lists and primitives.
 /// The value is one of the listed fields. It is valid for all values to be unspecified
-/// in which case this AnyValue is considered to be &quot;empty&quot;.
+/// in which case this AnyValue is considered to be "empty".
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 </span><span class="kw">pub enum </span>AnyValue {
-    <span class="attr">#[serde(rename = <span class="string">&quot;arrayValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"arrayValue"</span>)]
     </span>Array(ArrayValue),
-    <span class="attr">#[serde(rename = <span class="string">&quot;boolValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"boolValue"</span>)]
     </span>Bool(bool),
-    <span class="attr">#[serde(rename = <span class="string">&quot;bytesValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"bytesValue"</span>)]
     </span>Bytes(Vec&lt;u8&gt;),
-    <span class="attr">#[serde(rename = <span class="string">&quot;doubleValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"doubleValue"</span>)]
     </span>Double(f64),
-    <span class="attr">#[serde(rename = <span class="string">&quot;intValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"intValue"</span>)]
     </span>Int(i64),
-    <span class="attr">#[serde(rename = <span class="string">&quot;kvlistValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"kvlistValue"</span>)]
     </span>Kvlist(KeyValueList),
-    <span class="attr">#[serde(rename = <span class="string">&quot;stringValue&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"stringValue"</span>)]
     </span>String(String),
 }
 
@@ -980,96 +981,96 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_span() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;traceId&quot;: &quot;89143b0763095bd9c9955e8175d1fb23&quot;,
-            &quot;spanId&quot;: &quot;e342abb1214ca181&quot;,
-            &quot;parentSpanId&quot;: &quot;0c7a7dea069bf5a6&quot;,
-            &quot;name&quot;: &quot;middleware - fastify -&gt; @fastify/multipart&quot;,
-            &quot;kind&quot;: 1,
-            &quot;startTimeUnixNano&quot;: 1697620454980000000,
-            &quot;endTimeUnixNano&quot;: 1697620454980078800,
-            &quot;attributes&quot;: [
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -&gt; @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
                 {
-                    &quot;key&quot;: &quot;sentry.environment&quot;,
-                    &quot;value&quot;: {
-                        &quot;stringValue&quot;: &quot;test&quot;
+                    "key": "sentry.environment",
+                    "value": {
+                        "stringValue": "test"
                     }
                 },
                 {
-                &quot;key&quot;: &quot;fastify.type&quot;,
-                    &quot;value&quot;: {
-                        &quot;stringValue&quot;: &quot;middleware&quot;
+                "key": "fastify.type",
+                    "value": {
+                        "stringValue": "middleware"
                     }
                 },
                 {
-                    &quot;key&quot;: &quot;plugin.name&quot;,
-                    &quot;value&quot;: {
-                        &quot;stringValue&quot;: &quot;fastify -&gt; @fastify/multipart&quot;
+                    "key": "plugin.name",
+                    "value": {
+                        "stringValue": "fastify -&gt; @fastify/multipart"
                     }
                 },
                 {
-                    &quot;key&quot;: &quot;hook.name&quot;,
-                    &quot;value&quot;: {
-                        &quot;stringValue&quot;: &quot;onResponse&quot;
+                    "key": "hook.name",
+                    "value": {
+                        "stringValue": "onResponse"
                     }
                 },
                 {
-                    &quot;key&quot;: &quot;sentry.sample_rate&quot;,
-                    &quot;value&quot;: {
-                        &quot;intValue&quot;: 1
+                    "key": "sentry.sample_rate",
+                    "value": {
+                        "intValue": 1
                     }
                 },
                 {
-                    &quot;key&quot;: &quot;sentry.parentSampled&quot;,
-                    &quot;value&quot;: {
-                        &quot;boolValue&quot;: true
+                    "key": "sentry.parentSampled",
+                    "value": {
+                        "boolValue": true
                     }
                 },
                 {
-                    &quot;key&quot;: &quot;sentry.exclusive_time_ns&quot;,
-                    &quot;value&quot;: {
-                        &quot;intValue&quot;: 1000000000
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "intValue": 1000000000
                     }
                 }
             ],
-            &quot;droppedAttributesCount&quot;: 0,
-            &quot;events&quot;: [],
-            &quot;droppedEventsCount&quot;: 0,
-            &quot;status&quot;: {
-                &quot;code&quot;: 0
+            "droppedAttributesCount": 0,
+            "events": [],
+            "droppedEventsCount": 0,
+            "status": {
+                "code": 0
             },
-            &quot;links&quot;: [],
-            &quot;droppedLinksCount&quot;: 0
-        }&quot;#</span>;
+            "links": [],
+            "droppedLinksCount": 0
+        }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_span.into();
         <span class="macro">assert_eq!</span>(event_span.exclusive_time, Annotated::new(<span class="number">1000.0</span>));
         <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
         <span class="macro">assert_eq!</span>(
-            <span class="macro">get_path!</span>(annotated_span.data[<span class="string">&quot;environment&quot;</span>]),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">&quot;test&quot;</span>.into()))
+            <span class="macro">get_path!</span>(annotated_span.data[<span class="string">"environment"</span>]),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"test"</span>.into()))
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_span_with_exclusive_time_ns_attribute() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;traceId&quot;: &quot;89143b0763095bd9c9955e8175d1fb23&quot;,
-            &quot;spanId&quot;: &quot;e342abb1214ca181&quot;,
-            &quot;parentSpanId&quot;: &quot;0c7a7dea069bf5a6&quot;,
-            &quot;name&quot;: &quot;middleware - fastify -&gt; @fastify/multipart&quot;,
-            &quot;kind&quot;: 1,
-            &quot;startTimeUnixNano&quot;: 1697620454980000000,
-            &quot;endTimeUnixNano&quot;: 1697620454980078800,
-            &quot;attributes&quot;: [
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -&gt; @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
                 {
-                    &quot;key&quot;: &quot;sentry.exclusive_time_ns&quot;,
-                    &quot;value&quot;: {
-                        &quot;intValue&quot;: 3200000000
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "intValue": 3200000000
                     }
                 }
             ]
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_span.into();
         <span class="macro">assert_eq!</span>(event_span.exclusive_time, Annotated::new(<span class="number">3200.0</span>));
@@ -1077,15 +1078,15 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_span_no_exclusive_time_ns_attribute() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;traceId&quot;: &quot;89143b0763095bd9c9955e8175d1fb23&quot;,
-            &quot;spanId&quot;: &quot;e342abb1214ca181&quot;,
-            &quot;parentSpanId&quot;: &quot;0c7a7dea069bf5a6&quot;,
-            &quot;name&quot;: &quot;middleware - fastify -&gt; @fastify/multipart&quot;,
-            &quot;kind&quot;: 1,
-            &quot;startTimeUnixNano&quot;: 1697620454980000000,
-            &quot;endTimeUnixNano&quot;: 1697620454980078800
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -&gt; @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800
+        }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_span.into();
         <span class="macro">assert_eq!</span>(event_span.exclusive_time, Annotated::new(<span class="number">0.0788</span>));
@@ -1093,15 +1094,15 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_span_with_timestamps_as_strings() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;traceId&quot;: &quot;89143b0763095bd9c9955e8175d1fb23&quot;,
-            &quot;spanId&quot;: &quot;e342abb1214ca181&quot;,
-            &quot;parentSpanId&quot;: &quot;0c7a7dea069bf5a6&quot;,
-            &quot;name&quot;: &quot;middleware - fastify -&gt; @fastify/multipart&quot;,
-            &quot;kind&quot;: 1,
-            &quot;startTimeUnixNano&quot;: &quot;1697620454980000000&quot;,
-            &quot;endTimeUnixNano&quot;: &quot;1697620454980078800&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -&gt; @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800"
+        }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_span.into();
         <span class="macro">assert_eq!</span>(

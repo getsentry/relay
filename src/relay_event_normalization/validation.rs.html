@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/validation.rs`."><title>validation.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/validation.rs`."><title>validation.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -769,7 +770,7 @@
 /// The returned [`ProcessingResult`] indicates whether the passed transaction
 /// is invalid and thus should be dropped.
 ///
-/// Note: this function does not validate a transaction&#39;s timestamp values are
+/// Note: this function does not validate a transaction's timestamp values are
 /// up-to-date, [`validate_event_timestamps`] should be used for that.
 </span><span class="kw">pub fn </span>validate_transaction(
     event: <span class="kw-2">&amp;</span>Annotated&lt;Event&gt;,
@@ -791,7 +792,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Returns whether the transacion&#39;s start and end timestamps are both set and start &lt;= end.
+<span class="doccomment">/// Returns whether the transacion's start and end timestamps are both set and start &lt;= end.
 </span><span class="kw">fn </span>validate_transaction_timestamps(
     transaction_event: <span class="kw-2">&amp;</span>Event,
     config: <span class="kw-2">&amp;</span>TransactionValidationConfig,
@@ -805,11 +806,11 @@
             <span class="prelude-val">Ok</span>(())
         }
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>,
+            <span class="string">"timestamp hard-required for transaction events"</span>,
         )),
         <span class="comment">// XXX: Maybe copy timestamp over?
         </span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
+            <span class="string">"start_timestamp hard-required for transaction events"</span>,
         )),
     }
 }
@@ -822,7 +823,7 @@
 ) -&gt; ProcessingResult {
     <span class="kw">if </span>end &lt; start {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
+            <span class="string">"end timestamp is smaller than start timestamp"</span>,
         ));
     }
 
@@ -832,12 +833,12 @@
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;invalid unix timestamp&quot;</span>,
+            <span class="string">"invalid unix timestamp"</span>,
         ));
     };
     <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
+            <span class="string">"timestamp is out of the valid range for metrics"</span>,
         ));
     }
 
@@ -854,19 +855,19 @@
 </span><span class="kw">fn </span>validate_trace_context(transaction: <span class="kw-2">&amp;</span>Event) -&gt; ProcessingResult {
     <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = transaction.context::&lt;TraceContext&gt;() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;missing valid trace context&quot;</span>,
+            <span class="string">"missing valid trace context"</span>,
         ));
     };
 
     <span class="kw">if </span>trace_context.trace_id.value().is_none() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;trace context is missing trace_id&quot;</span>,
+            <span class="string">"trace context is missing trace_id"</span>,
         ));
     }
 
     <span class="kw">if </span>trace_context.span_id.value().is_none() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;trace context is missing span_id&quot;</span>,
+            <span class="string">"trace context is missing span_id"</span>,
         ));
     }
 
@@ -875,7 +876,7 @@
 
 <span class="doccomment">/// Validates the spans in the transaction.
 ///
-/// A [`ProcessingResult`] error is returned if there&#39;s an invalid span. For
+/// A [`ProcessingResult`] error is returned if there's an invalid span. For
 /// span validity, see [`validate_span`].
 </span><span class="kw">fn </span>validate_spans(
     transaction: <span class="kw-2">&amp;</span>Event,
@@ -890,7 +891,7 @@
             validate_span(span, timestamp_range)<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;spans must be valid in transaction event&quot;</span>,
+                <span class="string">"spans must be valid in transaction event"</span>,
             ));
         }
     }
@@ -918,26 +919,26 @@
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; {
             <span class="comment">// XXX: Maybe do the same as event.timestamp?
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;span is missing timestamp&quot;</span>,
+                <span class="string">"span is missing timestamp"</span>,
             ));
         }
         (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; {
             <span class="comment">// XXX: Maybe copy timestamp over?
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;span is missing start_timestamp&quot;</span>,
+                <span class="string">"span is missing start_timestamp"</span>,
             ));
         }
     }
 
     <span class="kw">if </span>span.trace_id.value().is_none() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;span is missing trace_id&quot;</span>,
+            <span class="string">"span is missing trace_id"</span>,
         ));
     }
 
     <span class="kw">if </span>span.span_id.value().is_none() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;span is missing span_id&quot;</span>,
+            <span class="string">"span is missing span_id"</span>,
         ));
     }
 
@@ -954,18 +955,18 @@
 
     <span class="doccomment">/// The maximum amount of seconds an event can be dated in the past.
     ///
-    /// If the event&#39;s timestamp is older, the received timestamp is assumed.
+    /// If the event's timestamp is older, the received timestamp is assumed.
     </span><span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 
     <span class="doccomment">/// The maximum amount of seconds an event can be predated into the future.
     ///
-    /// If the event&#39;s timestamp lies further into the future, the received timestamp is assumed.
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
     </span><span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 }
 
 <span class="doccomment">/// Validates the timestamp values of an event, after performing minimal timestamp normalization.
 ///
-/// A minimal normalization is performed on an event&#39;s timestamps before
+/// A minimal normalization is performed on an event's timestamps before
 /// checking for validity, like clock drift correction. This normalization
 /// depends on the given configuration.
 ///
@@ -1070,15 +1071,15 @@
         <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap();
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
+            transaction: Annotated::new(<span class="string">"/"</span>.to_owned()),
             start_timestamp: Annotated::new(start.into()),
             timestamp: Annotated::new(end.into()),
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1086,9 +1087,9 @@
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 start_timestamp: Annotated::new(start.into()),
                 timestamp: Annotated::new(end.into()),
-                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                op: Annotated::new(<span class="string">&quot;db.statement&quot;</span>.to_owned()),
+                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                op: Annotated::new(<span class="string">"db.statement"</span>.to_owned()),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -1105,7 +1106,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;timestamp hard-required for transaction events&quot;
+                <span class="string">"timestamp hard-required for transaction events"
             </span>))
         );
     }
@@ -1122,7 +1123,7 @@
                 }
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;timestamp is out of the valid range for metrics&quot;
+                <span class="string">"timestamp is out of the valid range for metrics"
             </span>))
         ));
     }
@@ -1138,7 +1139,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;start_timestamp hard-required for transaction events&quot;
+                <span class="string">"start_timestamp hard-required for transaction events"
             </span>))
         );
     }
@@ -1162,7 +1163,7 @@
                 </span>}
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;missing valid trace context&quot;
+                <span class="string">"missing valid trace context"
             </span>))
         );
     }
@@ -1187,7 +1188,7 @@
                 </span>}
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;missing valid trace context&quot;
+                <span class="string">"missing valid trace context"
             </span>))
         );
     }
@@ -1202,7 +1203,7 @@
             ),
             contexts: Annotated::new(Contexts({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(<span class="string">&quot;trace&quot;</span>.to_owned(), Annotated::empty());
+                contexts.insert(<span class="string">"trace"</span>.to_owned(), Annotated::empty());
                 contexts
             })),
             ..Default::default()
@@ -1211,7 +1212,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;missing valid trace context&quot;
+                <span class="string">"missing valid trace context"
             </span>))
         );
     }
@@ -1235,7 +1236,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context is missing trace_id&quot;
+                <span class="string">"trace context is missing trace_id"
             </span>))
         );
     }
@@ -1251,7 +1252,7 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1262,7 +1263,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context is missing span_id&quot;
+                <span class="string">"trace context is missing span_id"
             </span>))
         );
     }
@@ -1278,9 +1279,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1292,7 +1293,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;spans must be valid in transaction event&quot;
+                <span class="string">"spans must be valid in transaction event"
             </span>))
         );
     }
@@ -1308,9 +1309,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1327,7 +1328,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;span is missing start_timestamp&quot;
+                <span class="string">"span is missing start_timestamp"
             </span>))
         );
     }
@@ -1343,9 +1344,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1365,7 +1366,7 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;span is missing trace_id&quot;
+                <span class="string">"span is missing trace_id"
             </span>))
         );
     }
@@ -1381,9 +1382,9 @@
             contexts: {
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1395,7 +1396,7 @@
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
                 ),
-                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -1404,27 +1405,27 @@
         <span class="macro">assert_eq!</span>(
             validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;span is missing span_id&quot;
+                <span class="string">"span is missing span_id"
             </span>))
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_reject_stale_transaction() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;start_timestamp&quot;: -2,
-  &quot;timestamp&quot;: -1
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>transaction = Annotated::&lt;Event&gt;::from_json(json).unwrap();
         <span class="kw">let </span>res = validate_event_timestamps(<span class="kw-2">&amp;mut </span>transaction, <span class="kw-2">&amp;</span>EventValidationConfig::default());
         <span class="macro">assert_eq!</span>(
             res.unwrap_err().to_string(),
-            <span class="string">&quot;invalid transaction event: timestamp is too stale&quot;
+            <span class="string">"invalid transaction event: timestamp is too stale"
         </span>);
     }
 
-    <span class="doccomment">/// Test that timestamp normalization updates a transaction&#39;s timestamps to
+    <span class="doccomment">/// Test that timestamp normalization updates a transaction's timestamps to
     /// be acceptable, when both timestamps are similarly stale.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_accept_recent_transactions_with_stale_timestamps() {
@@ -1434,18 +1435,18 @@
             max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
         };
 
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;transaction&quot;: &quot;I have a stale timestamp, but I&#39;m recent!&quot;,
-  &quot;start_timestamp&quot;: -2,
-  &quot;timestamp&quot;: -1
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         <span class="macro">assert!</span>(validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).is_ok());
     }
 
-    <span class="doccomment">/// Test that transactions are rejected as invalid when timestamp normalization isn&#39;t enough.
+    <span class="doccomment">/// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
     ///
     /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
     /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
@@ -1460,12 +1461,12 @@
         };
 
         <span class="kw">let </span>json = <span class="macro">format!</span>(
-            <span class="string">r#&quot;{{
-          &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-          &quot;transaction&quot;: &quot;clockdrift is not enough to accept me :(&quot;,
-          &quot;start_timestamp&quot;: -62135811111,
-          &quot;timestamp&quot;: {}
-        }}&quot;#</span>,
+            <span class="string">r#"{{
+          "event_id": "52df9022835246eeb317dbd739ccd059",
+          "transaction": "clockdrift is not enough to accept me :(",
+          "start_timestamp": -62135811111,
+          "timestamp": {}
+        }}"#</span>,
             now.timestamp()
         );
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json.as_str()).unwrap();
@@ -1474,7 +1475,7 @@
             validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config)
                 .unwrap_err()
                 .to_string(),
-            <span class="string">&quot;invalid transaction event: timestamp is too stale&quot;
+            <span class="string">"invalid transaction event: timestamp is too stale"
         </span>);
     }
 }

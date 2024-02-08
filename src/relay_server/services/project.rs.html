@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project.rs`."><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project.rs`."><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1726,7 +1727,7 @@
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_cardinality::CardinalityLimit;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
@@ -1746,7 +1747,7 @@
 <span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::processor::RateLimitBuckets;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
@@ -1786,7 +1787,7 @@
 
 <span class="doccomment">/// The project state is a cached server state of a project.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>ProjectState {
     <span class="doccomment">/// Unique identifier of this project.
     </span><span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
@@ -1805,10 +1806,10 @@
     /// only a single key can occur in this list.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
-    <span class="doccomment">/// The project&#39;s slug if available.
+    <span class="doccomment">/// The project's slug if available.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// The project&#39;s current config.
+    <span class="doccomment">/// The project's current config.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>config: ProjectConfig,
     <span class="doccomment">/// The organization id.
@@ -1816,7 +1817,7 @@
     </span><span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
     <span class="doccomment">/// The time at which this project state was last updated.
-    </span><span class="attr">#[serde(skip, default = <span class="string">&quot;Instant::now&quot;</span>)]
+    </span><span class="attr">#[serde(skip, default = <span class="string">"Instant::now"</span>)]
     </span><span class="kw">pub </span>last_fetch: Instant,
 
     <span class="doccomment">/// True if this project state failed fetching or was incompatible with this Relay.
@@ -1826,14 +1827,14 @@
 
 <span class="doccomment">/// Controls how we serialize a ProjectState for an external Relay
 </span><span class="attr">#[derive(Debug, Serialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>, remote = <span class="string">&quot;ProjectState&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>, remote = <span class="string">"ProjectState"</span>)]
 </span><span class="kw">pub struct </span>LimitedProjectState {
     <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
     <span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     <span class="kw">pub </span>disabled: bool,
     <span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
     <span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(with = <span class="string">&quot;LimitedProjectConfig&quot;</span>)]
+    <span class="attr">#[serde(with = <span class="string">"LimitedProjectConfig"</span>)]
     </span><span class="kw">pub </span>config: ProjectConfig,
     <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
@@ -1991,7 +1992,7 @@
         //     organization rate limits yet.
         //  2. The state has been loaded, but the organization_id is not available. This is only
         //     the case for legacy Sentry servers that do not reply with organization rate
-        //     limits. Thus, the organization_id doesn&#39;t matter.
+        //     limits. Thus, the organization_id doesn't matter.
         //  3. An organization id is available and can be matched against rate limits. In this
         //     project, all organizations will match automatically, unless the organization id
         //     has changed since the last fetch.
@@ -2014,7 +2015,7 @@
     }
 
     <span class="doccomment">/// Returns cardinality limits declared in this project state.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>get_cardinality_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[CardinalityLimit] {
         <span class="kw">match </span><span class="self">self</span>.config.metrics {
             ErrorBoundary::Ok(<span class="kw-2">ref </span>m) =&gt; m.cardinality_limits.as_slice(),
@@ -2069,7 +2070,7 @@
 
         <span class="comment">// sanity-check that the state has a matching public key loaded.
         </span><span class="kw">if </span>!<span class="self">self</span>.is_matching_key(meta.public_key()) {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, meta.public_key());
+            <span class="macro">relay_log::error!</span>(<span class="string">"public key mismatch on state {}"</span>, meta.public_key());
             <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectId);
         }
 
@@ -2093,13 +2094,13 @@
 
 <span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>PublicKeyConfig {
     <span class="doccomment">/// Public part of key (random hash).
     </span><span class="kw">pub </span>public_key: ProjectKey,
 
-    <span class="doccomment">/// The primary key of the DSN in Sentry&#39;s main database.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
@@ -2123,15 +2124,15 @@
     </span>}
 }
 
-<span class="kw">enum </span>GetOrFetch&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">enum </span>GetOrFetch&lt;<span class="lifetime">'a</span>&gt; {
     Cached(Arc&lt;ProjectState&gt;),
-    Scheduled(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>StateChannel),
+    Scheduled(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>StateChannel),
 }
 
 <span class="doccomment">/// Represents either the project state or an aggregation of metrics.
 ///
 /// We have to delay rate limiting on metrics until we have a valid project state,
-/// So when we don&#39;t have one yet, we hold them in this aggregator until the project state arrives.
+/// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
 ///
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 </span><span class="attr">#[derive(Debug)]
@@ -2159,7 +2160,7 @@
 
     <span class="kw">fn </span>new(config: AggregatorConfig) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Pending(Box::new(aggregator::Aggregator::named(
-            <span class="string">&quot;metrics-buffer&quot;</span>.to_string(),
+            <span class="string">"metrics-buffer"</span>.to_string(),
             config,
         )))
     }
@@ -2244,7 +2245,7 @@
     }
 
     <span class="doccomment">/// Returns the current [`ExpiryState`] for this project.
-    /// If the project state&#39;s [`Expiry`] is `Expired`, do not return it.
+    /// If the project state's [`Expiry`] is `Expired`, do not return it.
     </span><span class="kw">pub fn </span>expiry_state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ExpiryState {
         <span class="kw">match </span><span class="self">self</span>.state_value() {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) =&gt; <span class="kw">match </span>state.check_expiry(<span class="self">self</span>.config.as_ref()) {
@@ -2323,18 +2324,18 @@
     </span><span class="kw">fn </span>filter_metrics(state: <span class="kw-2">&amp;</span>ProjectState, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;) {
         metrics.retain_mut(|bucket| {
             <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>bucket.name) <span class="kw">else </span>{
-                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">&quot;dropping metrics with invalid MRI&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metrics with invalid MRI"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
             <span class="kw">if </span>!is_metric_namespace_valid(state, <span class="kw-2">&amp;</span>mri.namespace) {
-                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">&quot;dropping metric in disabled namespace&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metric in disabled namespace"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
             <span class="kw">if let </span>ErrorBoundary::Ok(metric_config) = <span class="kw-2">&amp;</span>state.config.metrics {
                 <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;</span>bucket.name) {
-                    <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">&quot;dropping metrics due to block list&quot;</span>);
+                    <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metrics due to block list"</span>);
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
@@ -2355,7 +2356,7 @@
     ) {
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
-                <span class="string">&quot;there is no scoping due to missing project id: dropping {} buckets&quot;</span>,
+                <span class="string">"there is no scoping due to missing project id: dropping {} buckets"</span>,
                 buckets.len()
             );
             <span class="kw">return</span>;
@@ -2363,7 +2364,7 @@
 
         <span class="comment">// Only send if the project state is valid, otherwise drop the buckets.
         </span><span class="kw">if </span>project_state.check_disabled(<span class="self">self</span>.config.as_ref()).is_err() {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project state invalid: dropping {} buckets&quot;</span>, buckets.len());
+            <span class="macro">relay_log::trace!</span>(<span class="string">"project state invalid: dropping {} buckets"</span>, buckets.len());
             <span class="kw">return</span>;
         }
 
@@ -2385,7 +2386,7 @@
                 </span><span class="kw">let </span>was_rate_limited =
                     bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits), outcome_aggregator);
 
-                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span><span class="kw">if </span>!was_rate_limited &amp;&amp; <span class="self">self</span>.config.processing_enabled() {
                     <span class="comment">// If there were no cached rate limits active, let the processor check redis:
                     </span>envelope_processor.send(RateLimitBuckets { bucket_limiter });
@@ -2425,7 +2426,7 @@
 
                     <span class="kw">if </span>!buckets.is_empty() {
                         <span class="comment">// We can send metrics straight to the aggregator.
-                        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics straight to aggregator&quot;</span>);
+                        </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics straight to aggregator"</span>);
 
                         <span class="comment">// TODO: When the state is present but expired, we should send buckets
                         // to the metrics buffer instead. In practice, the project state should be
@@ -2442,12 +2443,12 @@
                 }
                 State::Pending(inner_agg) =&gt; {
                     <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                    </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics to metrics-buffer&quot;</span>);
+                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics to metrics-buffer"</span>);
                     inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
                 }
             }
         } <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping metric buckets, project disabled&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">"dropping metric buckets, project disabled"</span>);
         }
     }
 
@@ -2458,10 +2459,10 @@
     ) {
         <span class="kw">let </span>state = <span class="self">self</span>.state_value();
 
-        <span class="comment">// Only track metadata if the feature is enabled or we don&#39;t know yet whether it is enabled.
+        <span class="comment">// Only track metadata if the feature is enabled or we don't know yet whether it is enabled.
         </span><span class="kw">if </span>!state.map_or(<span class="bool-val">true</span>, |state| state.has_feature(Feature::MetricMeta)) {
             <span class="macro">relay_log::trace!</span>(
-                <span class="string">&quot;metric meta feature flag not enabled for project {}&quot;</span>,
+                <span class="string">"metric meta feature flag not enabled for project {}"</span>,
                 <span class="self">self</span>.project_key
             );
             <span class="kw">return</span>;
@@ -2469,7 +2470,7 @@
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(meta) = <span class="self">self</span>.metric_meta_aggregator.add(<span class="self">self</span>.project_key, meta) <span class="kw">else </span>{
             <span class="comment">// Nothing to do. Which means there is also no pending data.
-            </span><span class="macro">relay_log::trace!</span>(<span class="string">&quot;metric meta aggregator already has data, nothing to send upstream&quot;</span>);
+            </span><span class="macro">relay_log::trace!</span>(<span class="string">"metric meta aggregator already has data, nothing to send upstream"</span>);
             <span class="kw">return</span>;
         };
 
@@ -2500,7 +2501,7 @@
 
         <span class="kw">if </span>!state.has_feature(Feature::MetricMeta) {
             <span class="macro">relay_log::debug!</span>(
-                <span class="string">&quot;clearing metric meta aggregator, because project {} does not have feature flag enabled&quot;</span>,
+                <span class="string">"clearing metric meta aggregator, because project {} does not have feature flag enabled"</span>,
                 <span class="self">self</span>.project_key,
             );
             <span class="comment">// Project/Org does not have the feature, forget everything.
@@ -2520,7 +2521,7 @@
             .get_all_relevant(<span class="self">self</span>.project_key)
         {
             <span class="macro">relay_log::debug!</span>(
-                <span class="string">&quot;flushing aggregated metric meta for project {}&quot;</span>,
+                <span class="string">"flushing aggregated metric meta for project {}"</span>,
                 <span class="self">self</span>.project_key
             );
             <span class="macro">metric!</span>(counter(RelayCounters::ProjectStateFlushAllMetricMeta) += <span class="number">1</span>);
@@ -2556,7 +2557,7 @@
             channel.no_cache(no_cache);
             <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
             <span class="macro">relay_log::debug!</span>(
-                <span class="string">&quot;project {} state requested {attempts} times&quot;</span>,
+                <span class="string">"project {} state requested {attempts} times"</span>,
                 <span class="self">self</span>.project_key
             );
             project_cache.send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
@@ -2569,7 +2570,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         project_cache: Addr&lt;ProjectCache&gt;,
         <span class="kw-2">mut </span>no_cache: bool,
-    ) -&gt; GetOrFetch&lt;<span class="lifetime">&#39;_</span>&gt; {
+    ) -&gt; GetOrFetch&lt;<span class="lifetime">'_</span>&gt; {
         <span class="comment">// count number of times we are looking for the project state
         </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateGet) += <span class="number">1</span>);
 
@@ -2665,7 +2666,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(buckets) = buckets {
             <span class="kw">if </span>project_enabled &amp;&amp; !buckets.is_empty() {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics from metricsbuffer to aggregator&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics from metricsbuffer to aggregator"</span>);
                 <span class="self">self</span>.rate_limit_and_merge_buckets(
                     state,
                     buckets,
@@ -2718,7 +2719,7 @@
         }
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(channel) = <span class="self">self</span>.state_channel.take() <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(tags.project_key = %<span class="self">self</span>.project_key, <span class="string">&quot;channel is missing for the state update&quot;</span>);
+            <span class="macro">relay_log::error!</span>(tags.project_key = %<span class="self">self</span>.project_key, <span class="string">"channel is missing for the state update"</span>);
             <span class="kw">return</span>;
         };
 
@@ -2746,7 +2747,7 @@
             <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
             <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
             <span class="macro">relay_log::debug!</span>(
-                <span class="string">&quot;project {} state requested {attempts} times&quot;</span>,
+                <span class="string">"project {} state requested {attempts} times"</span>,
                 <span class="self">self</span>.project_key
             );
 
@@ -2755,7 +2756,7 @@
         }
 
         <span class="comment">// Flush all waiting recipients.
-        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="self">self</span>.project_key);
+        </span><span class="macro">relay_log::debug!</span>(<span class="string">"project state {} updated"</span>, <span class="self">self</span>.project_key);
         channel.inner.send(state);
 
         <span class="self">self</span>.after_state_updated(<span class="kw-2">&amp;</span>envelope_processor);
@@ -2858,21 +2859,21 @@
             CheckedBuckets::ProjectExpired(len) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     tags.project_key = <span class="self">self</span>.project_key.as_str(),
-                    <span class="string">&quot;there is no project state: dropping {len} buckets&quot;
+                    <span class="string">"there is no project state: dropping {len} buckets"
                 </span>);
             }
             CheckedBuckets::ProjectDisabled(len) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets for disabled project&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping {len} buckets for disabled project"</span>);
             }
 
             CheckedBuckets::NoScoping(len) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     tags.project_key = <span class="self">self</span>.project_key.as_str(),
-                    <span class="string">&quot;there is no scoping: dropping {len} buckets&quot;
+                    <span class="string">"there is no scoping: dropping {len} buckets"
                 </span>);
             }
             CheckedBuckets::RateLimited(len) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping {len} buckets due to rate limit"</span>);
             }
         };
 
@@ -2991,10 +2992,10 @@
             <span class="kw">let </span>config = Arc::new(
                 Config::from_json_value(<span class="macro">json!</span>(
                     {
-                        <span class="string">&quot;cache&quot;</span>: {
-                            <span class="string">&quot;project_expiry&quot;</span>: expiry,
-                            <span class="string">&quot;project_grace_period&quot;</span>: <span class="number">0</span>,
-                            <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999 </span><span class="comment">// do not evict
+                        <span class="string">"cache"</span>: {
+                            <span class="string">"project_expiry"</span>: expiry,
+                            <span class="string">"project_grace_period"</span>: <span class="number">0</span>,
+                            <span class="string">"eviction_interval"</span>: <span class="number">9999 </span><span class="comment">// do not evict
                         </span>}
                     }
                 ))
@@ -3002,7 +3003,7 @@
             );
 
             <span class="comment">// Initialize project with a state
-            </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+            </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
             project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">123</span>));
             <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, config.clone());
@@ -3023,7 +3024,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>no_error_on_disabled_project() {
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, Arc::new(Config::default()));
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.disabled = <span class="bool-val">true</span>;
@@ -3035,17 +3036,17 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_stale_cache() {
-        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">"project_cache"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggreggator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>config = Arc::new(
             Config::from_json_value(<span class="macro">json!</span>(
                 {
-                    <span class="string">&quot;cache&quot;</span>: {
-                        <span class="string">&quot;project_expiry&quot;</span>: <span class="number">100</span>,
-                        <span class="string">&quot;project_grace_period&quot;</span>: <span class="number">0</span>,
-                        <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999 </span><span class="comment">// do not evict
+                    <span class="string">"cache"</span>: {
+                        <span class="string">"project_expiry"</span>: <span class="number">100</span>,
+                        <span class="string">"project_grace_period"</span>: <span class="number">0</span>,
+                        <span class="string">"eviction_interval"</span>: <span class="number">9999 </span><span class="comment">// do not evict
                     </span>}
                 }
             ))
@@ -3055,7 +3056,7 @@
         <span class="kw">let </span>channel = StateChannel::new();
 
         <span class="comment">// Initialize project with a state.
-        </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">123</span>));
         <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, config);
@@ -3081,10 +3082,10 @@
 
         <span class="comment">// This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it&#39;s the first attemt, we get Duration of 0.
+        //   it's the first attemt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
-        // * and now, by calling `fetch_state` we test that it&#39;s a noop, since if backoff is active
+        // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
         //   we should never fetch
         // * without backoff it would just panic, not able to call the ProjectCache service
         </span><span class="kw">let </span>channel = StateChannel::new();
@@ -3101,7 +3102,7 @@
     }
 
     <span class="kw">fn </span>create_project(config: <span class="prelude-ty">Option</span>&lt;serde_json::Value&gt;) -&gt; Project {
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, Arc::new(Config::default()));
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">42</span>));
@@ -3114,7 +3115,7 @@
 
     <span class="kw">fn </span>create_transaction_metric() -&gt; Bucket {
         Bucket {
-            name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
+            name: <span class="string">"d:transactions/foo"</span>.to_string(),
             width: <span class="number">0</span>,
             value: BucketValue::counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
@@ -3124,7 +3125,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics() {
-        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">"track-outcome"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
         <span class="kw">let </span>metrics = project.rate_limit_metrics(
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
@@ -3135,8 +3136,8 @@
         <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
 
-    <span class="doccomment">/// Checks that the project doesn&#39;t send buckets to the aggregator from its metricsbuffer
-    /// if it haven&#39;t received a project state.
+    <span class="doccomment">/// Checks that the project doesn't send buckets to the aggregator from its metricsbuffer
+    /// if it haven't received a project state.
     </span><span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_metrics_buffer_no_flush_without_state() {
         <span class="comment">// Project without project state.
@@ -3146,13 +3147,13 @@
         };
 
         <span class="kw">let </span>bucket_state = Arc::new(Mutex::new(<span class="bool-val">false</span>));
-        <span class="kw">let </span>(aggregator, handle) = mock_service(<span class="string">&quot;aggregator&quot;</span>, bucket_state.clone(), |state, <span class="kw">_</span>| {
+        <span class="kw">let </span>(aggregator, handle) = mock_service(<span class="string">"aggregator"</span>, bucket_state.clone(), |state, <span class="kw">_</span>| {
             <span class="kw-2">*</span>state.lock().unwrap() = <span class="bool-val">true</span>;
         });
 
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggreggator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         project.merge_buckets(aggregator, outcome_aggregator, envelope_processor, buckets);
         handle.<span class="kw">await</span>.unwrap();
 
@@ -3171,13 +3172,13 @@
         };
 
         <span class="kw">let </span>bucket_state = Arc::new(Mutex::new(<span class="bool-val">false</span>));
-        <span class="kw">let </span>(aggregator, handle) = mock_service(<span class="string">&quot;aggregator&quot;</span>, bucket_state.clone(), |state, <span class="kw">_</span>| {
+        <span class="kw">let </span>(aggregator, handle) = mock_service(<span class="string">"aggregator"</span>, bucket_state.clone(), |state, <span class="kw">_</span>| {
             <span class="kw-2">*</span>state.lock().unwrap() = <span class="bool-val">true</span>;
         });
 
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggreggator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         project.merge_buckets(
             aggregator.clone(),
             outcome_aggregator.clone(),
@@ -3201,14 +3202,14 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics_no_quota() {
-        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">"track-outcome"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
-            <span class="string">&quot;quotas&quot;</span>: [{
-               <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
-               <span class="string">&quot;categories&quot;</span>: [<span class="string">&quot;transaction&quot;</span>],
-               <span class="string">&quot;window&quot;</span>: <span class="number">3600</span>,
-               <span class="string">&quot;limit&quot;</span>: <span class="number">0</span>,
-               <span class="string">&quot;reasonCode&quot;</span>: <span class="string">&quot;foo&quot;</span>,
+            <span class="string">"quotas"</span>: [{
+               <span class="string">"id"</span>: <span class="string">"foo"</span>,
+               <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
+               <span class="string">"window"</span>: <span class="number">3600</span>,
+               <span class="string">"limit"</span>: <span class="number">0</span>,
+               <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
            }]
         })));
 
@@ -3223,7 +3224,7 @@
 
     <span class="kw">fn </span>create_transaction_bucket() -&gt; Bucket {
         Bucket {
-            name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
+            name: <span class="string">"d:transactions/foo"</span>.to_string(),
             value: BucketValue::Counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
@@ -3233,7 +3234,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets() {
-        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">"track-outcome"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
         <span class="kw">let </span>metrics = project.rate_limit_metrics(
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
@@ -3246,14 +3247,14 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets_no_quota() {
-        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">"track-outcome"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
-            <span class="string">&quot;quotas&quot;</span>: [{
-               <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
-               <span class="string">&quot;categories&quot;</span>: [<span class="string">&quot;transaction&quot;</span>],
-               <span class="string">&quot;window&quot;</span>: <span class="number">3600</span>,
-               <span class="string">&quot;limit&quot;</span>: <span class="number">0</span>,
-               <span class="string">&quot;reasonCode&quot;</span>: <span class="string">&quot;foo&quot;</span>,
+            <span class="string">"quotas"</span>: [{
+               <span class="string">"id"</span>: <span class="string">"foo"</span>,
+               <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
+               <span class="string">"window"</span>: <span class="number">3600</span>,
+               <span class="string">"limit"</span>: <span class="number">0</span>,
+               <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
            }]
         })));
 
@@ -3268,12 +3269,12 @@
 
     <span class="kw">fn </span>get_test_bucket(name: <span class="kw-2">&amp;</span>str, tags: BTreeMap&lt;String, String&gt;) -&gt; Bucket {
         <span class="kw">let </span>json = <span class="macro">json!</span>({
-                    <span class="string">&quot;timestamp&quot;</span>: <span class="number">1615889440</span>,
-                    <span class="string">&quot;width&quot;</span>: <span class="number">10</span>,
-                    <span class="string">&quot;name&quot;</span>: name,
-                    <span class="string">&quot;type&quot;</span>: <span class="string">&quot;c&quot;</span>,
-                    <span class="string">&quot;value&quot;</span>: <span class="number">4.0</span>,
-                    <span class="string">&quot;tags&quot;</span>: tags,
+                    <span class="string">"timestamp"</span>: <span class="number">1615889440</span>,
+                    <span class="string">"width"</span>: <span class="number">10</span>,
+                    <span class="string">"name"</span>: name,
+                    <span class="string">"type"</span>: <span class="string">"c"</span>,
+                    <span class="string">"value"</span>: <span class="number">4.0</span>,
+                    <span class="string">"tags"</span>: tags,
         });
 
         serde_json::from_value(json).unwrap()
@@ -3281,24 +3282,24 @@
 
     <span class="kw">fn </span>get_test_buckets() -&gt; Vec&lt;Bucket&gt; {
         [
-            <span class="string">&quot;g:transactions/foo@none&quot;</span>,
-            <span class="string">&quot;c:custom/foo@none&quot;</span>,
-            <span class="string">&quot;transactions/foo@second&quot;</span>,
-            <span class="string">&quot;transactions/foo&quot;</span>,
-            <span class="string">&quot;c:custom/foo_bar@none&quot;</span>,
-            <span class="string">&quot;endpoint.response_time&quot;</span>,
-            <span class="string">&quot;endpoint.hits&quot;</span>,
-            <span class="string">&quot;endpoint.parallel_requests&quot;</span>,
-            <span class="string">&quot;endpoint.users&quot;</span>,
+            <span class="string">"g:transactions/foo@none"</span>,
+            <span class="string">"c:custom/foo@none"</span>,
+            <span class="string">"transactions/foo@second"</span>,
+            <span class="string">"transactions/foo"</span>,
+            <span class="string">"c:custom/foo_bar@none"</span>,
+            <span class="string">"endpoint.response_time"</span>,
+            <span class="string">"endpoint.hits"</span>,
+            <span class="string">"endpoint.parallel_requests"</span>,
+            <span class="string">"endpoint.users"</span>,
         ]
         .iter()
         .map(|name| get_test_bucket(name, BTreeMap::default()))
         .collect()
     }
 
-    <span class="kw">fn </span>apply_denied_names_to_buckets&lt;<span class="lifetime">&#39;a</span>&gt;(
+    <span class="kw">fn </span>apply_denied_names_to_buckets&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
-        patterns: <span class="kw">impl </span>AsRef&lt;[<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str]&gt;,
+        patterns: <span class="kw">impl </span>AsRef&lt;[<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str]&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span>patterns: Vec&lt;String&gt; = patterns.as_ref().iter().map(|s| (<span class="kw-2">*</span>s).to_owned()).collect();
         <span class="kw">let </span>deny_list = Metrics {
@@ -3313,17 +3314,17 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_tags() {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::default();
-        tags.insert(<span class="string">&quot;foobazbar&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
-        tags.insert(<span class="string">&quot;foobaz&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
-        tags.insert(<span class="string">&quot;bazbar&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
+        tags.insert(<span class="string">"foobazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
+        tags.insert(<span class="string">"foobaz"</span>.to_string(), <span class="string">"val"</span>.to_string());
+        tags.insert(<span class="string">"bazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>bucket = get_test_bucket(<span class="string">&quot;foobar&quot;</span>, tags);
+        <span class="kw">let </span><span class="kw-2">mut </span>bucket = get_test_bucket(<span class="string">"foobar"</span>, tags);
 
-        <span class="kw">let </span>tag_block_pattern = <span class="string">&quot;foobaz*&quot;</span>;
+        <span class="kw">let </span>tag_block_pattern = <span class="string">"foobaz*"</span>;
 
         <span class="kw">let </span>metric_config = Metrics {
             denied_tags: <span class="macro">vec!</span>[TagBlock {
-                name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.to_string()]),
+                name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"foobar"</span>.to_string()]),
                 tags: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
             }],
             ..Default::default()
@@ -3338,18 +3339,18 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_dont_remove_tags_if_bucket_name_not_matching() {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::default();
-        tags.insert(<span class="string">&quot;foobazbar&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
-        tags.insert(<span class="string">&quot;foobaz&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
-        tags.insert(<span class="string">&quot;bazbar&quot;</span>.to_string(), <span class="string">&quot;val&quot;</span>.to_string());
+        tags.insert(<span class="string">"foobazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
+        tags.insert(<span class="string">"foobaz"</span>.to_string(), <span class="string">"val"</span>.to_string());
+        tags.insert(<span class="string">"bazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>bucket = get_test_bucket(<span class="string">&quot;foobar&quot;</span>, tags);
+        <span class="kw">let </span><span class="kw-2">mut </span>bucket = get_test_bucket(<span class="string">"foobar"</span>, tags);
 
-        <span class="kw">let </span>tag_block_pattern = <span class="string">&quot;foobaz*&quot;</span>;
+        <span class="kw">let </span>tag_block_pattern = <span class="string">"foobaz*"</span>;
 
         <span class="kw">let </span>metric_config = Metrics {
             denied_tags: <span class="macro">vec!</span>[TagBlock {
-                <span class="comment">// barfoo doesn&#39;t batch the &#39;foobar&#39; bucket
-                </span>name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;barfoo&quot;</span>.to_string()]),
+                <span class="comment">// barfoo doesn't batch the 'foobar' bucket
+                </span>name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"barfoo"</span>.to_string()]),
                 tags: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
             }],
             ..Default::default()
@@ -3365,9 +3366,9 @@
         <span class="kw">let </span>buckets = get_test_buckets();
         <span class="kw">let </span>input_qty = buckets.len();
         <span class="kw">let </span>remaining_names =
-            apply_denied_names_to_buckets(buckets, [<span class="string">&quot;endpoint.parallel_requests&quot;</span>]);
+            apply_denied_names_to_buckets(buckets, [<span class="string">"endpoint.parallel_requests"</span>]);
 
-        <span class="comment">// There&#39;s 1 bucket with that exact name.
+        <span class="comment">// There's 1 bucket with that exact name.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">1</span>;
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), input_qty - buckets_to_remove);
@@ -3377,9 +3378,9 @@
     </span><span class="kw">fn </span>test_metric_deny_list_end_glob() {
         <span class="kw">let </span>buckets = get_test_buckets();
         <span class="kw">let </span>input_qty = buckets.len();
-        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">&quot;*foo&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">"*foo"</span>]);
 
-        <span class="comment">// There&#39;s 1 bucket name with &#39;foo&#39; in the end.
+        <span class="comment">// There's 1 bucket name with 'foo' in the end.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">1</span>;
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), input_qty - buckets_to_remove);
@@ -3389,9 +3390,9 @@
     </span><span class="kw">fn </span>test_metric_deny_list_middle_glob() {
         <span class="kw">let </span>buckets = get_test_buckets();
         <span class="kw">let </span>input_qty = buckets.len();
-        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">&quot;*foo*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">"*foo*"</span>]);
 
-        <span class="comment">// There&#39;s 4 bucket names with &#39;foo&#39; in the middle, and one with foo in the end.
+        <span class="comment">// There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">5</span>;
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), input_qty - buckets_to_remove);
@@ -3401,9 +3402,9 @@
     </span><span class="kw">fn </span>test_metric_deny_list_beginning_glob() {
         <span class="kw">let </span>buckets = get_test_buckets();
         <span class="kw">let </span>input_qty = buckets.len();
-        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">&quot;endpoint*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">"endpoint*"</span>]);
 
-        <span class="comment">// There&#39;s 4 buckets starting with &quot;endpoint&quot;.
+        <span class="comment">// There's 4 buckets starting with "endpoint".
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">4</span>;
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), input_qty - buckets_to_remove);
@@ -3412,7 +3413,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_metric_deny_list_everything() {
         <span class="kw">let </span>buckets = get_test_buckets();
-        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">&quot;*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_denied_names_to_buckets(buckets, [<span class="string">"*"</span>]);
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), <span class="number">0</span>);
     }
@@ -3422,7 +3423,7 @@
         <span class="kw">let </span>buckets = get_test_buckets();
         <span class="kw">let </span>input_qty = buckets.len();
         <span class="kw">let </span>remaining_names =
-            apply_denied_names_to_buckets(buckets, [<span class="string">&quot;endpoint*&quot;</span>, <span class="string">&quot;*transactions*&quot;</span>]);
+            apply_denied_names_to_buckets(buckets, [<span class="string">"endpoint*"</span>, <span class="string">"*transactions*"</span>]);
 
         <span class="kw">let </span>endpoint_buckets = <span class="number">4</span>;
         <span class="kw">let </span>transaction_buckets = <span class="number">3</span>;
@@ -3435,7 +3436,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_serialize_metrics_config() {
-        <span class="kw">let </span>input_str = <span class="string">r#&quot;{&quot;deniedNames&quot;:[&quot;foo&quot;,&quot;bar&quot;]}&quot;#</span>;
+        <span class="kw">let </span>input_str = <span class="string">r#"{"deniedNames":["foo","bar"]}"#</span>;
 
         <span class="kw">let </span>deny_list: Metrics = serde_json::from_str(input_str).unwrap();
 

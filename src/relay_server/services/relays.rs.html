@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/relays.rs`."><title>relays.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/relays.rs`."><title>relays.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -370,7 +371,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, SleepHandle};
 
-<span class="doccomment">/// Resolves [`RelayInfo`] by it&#39;s [identifier](RelayId).
+<span class="doccomment">/// Resolves [`RelayInfo`] by it's [identifier](RelayId).
 ///
 /// This message may fail if the upstream is not reachable repeatedly and Relay information cannot
 /// be resolved.
@@ -403,13 +404,13 @@
 
 <span class="doccomment">/// Compatibility format for deserializing [`GetRelaysResponse`] from the legacy endpoint.
 </span><span class="attr">#[derive(Debug, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>PublicKeysResultCompatibility {
     <span class="doccomment">/// DEPRECATED. Legacy format only public key info.
-    </span><span class="attr">#[serde(default, rename = <span class="string">&quot;public_keys&quot;</span>)]
+    </span><span class="attr">#[serde(default, rename = <span class="string">"public_keys"</span>)]
     </span><span class="kw">pub </span>public_keys: HashMap&lt;RelayId, <span class="prelude-ty">Option</span>&lt;PublicKey&gt;&gt;,
 
-    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.
+    <span class="doccomment">/// A map from Relay's identifier to its information.
     ///
     /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
     /// the upstream and should not be authenticated.
@@ -420,11 +421,11 @@
 <span class="doccomment">/// Response of the [`GetRelays`] upstream query.
 ///
 /// Former versions of the endpoint returned a different response containing only public keys,
-/// defined by [`PublicKeysResultCompatibility`]. Relay&#39;s own endpoint is allowed to skip this field
+/// defined by [`PublicKeysResultCompatibility`]. Relay's own endpoint is allowed to skip this field
 /// and return just the new information.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>GetRelaysResponse {
-    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.
+    <span class="doccomment">/// A map from Relay's identifier to its information.
     ///
     /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
     /// the upstream and should not be authenticated.
@@ -460,8 +461,8 @@
         Method::POST
     }
 
-    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
-        Cow::Borrowed(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">'static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">"/api/0/relays/publickeys/"</span>)
     }
 
     <span class="kw">fn </span>priority() -&gt; RequestPriority {
@@ -472,8 +473,8 @@
         <span class="bool-val">false
     </span>}
 
-    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;public_keys&quot;
+    <span class="kw">fn </span>route(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"public_keys"
     </span>}
 }
 
@@ -587,7 +588,7 @@
     </span><span class="kw">fn </span>fetch_relays(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>channels = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.channels);
         <span class="macro">relay_log::debug!</span>(
-            <span class="string">&quot;updating public keys for {} relays (attempt {})&quot;</span>,
+            <span class="string">"updating public keys for {} relays (attempt {})"</span>,
             channels.len(),
             <span class="self">self</span>.backoff.attempt(),
         );
@@ -610,7 +611,7 @@
                     <span class="kw">let </span>response = GetRelaysResponse::from(response);
 
                     <span class="kw">for </span>(id, channel) <span class="kw">in </span>channels {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {id} public key updated&quot;</span>);
+                        <span class="macro">relay_log::debug!</span>(<span class="string">"relay {id} public key updated"</span>);
                         <span class="kw">let </span>info = response.relays.get(<span class="kw-2">&amp;</span>id).unwrap_or(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
                         channel.send(info.clone());
                     }
@@ -620,7 +621,7 @@
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;error fetching public keys&quot;
+                        <span class="string">"error fetching public keys"
                     </span>);
                     <span class="prelude-val">Err</span>(channels)
                 }
@@ -672,13 +673,13 @@
 
         <span class="kw">if </span><span class="self">self</span>.config.credentials().is_none() {
             <span class="macro">relay_log::error!</span>(
-                <span class="string">&quot;no credentials configured. relay {relay_id} cannot send requests to this relay&quot;</span>,
+                <span class="string">"no credentials configured. relay {relay_id} cannot send requests to this relay"</span>,
             );
             sender.send(<span class="prelude-val">None</span>);
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {relay_id} public key requested&quot;</span>);
+        <span class="macro">relay_log::debug!</span>(<span class="string">"relay {relay_id} public key requested"</span>);
         <span class="self">self</span>.channels.entry(relay_id).or_default().attach(sender);
 
         <span class="kw">if </span>!<span class="self">self</span>.backoff.started() {
@@ -692,7 +693,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;key cache started&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"key cache started"</span>);
 
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select! </span>{
@@ -706,7 +707,7 @@
                 }
             }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;key cache stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"key cache stopped"</span>);
         });
     }
 }

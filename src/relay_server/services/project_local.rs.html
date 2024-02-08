@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project_local.rs`."><title>project_local.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project_local.rs`."><title>project_local.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -361,19 +362,19 @@
     };
 
     <span class="comment">// only printed when directory even exists.
-    </span><span class="macro">relay_log::debug!</span>(directory = <span class="question-mark">?</span>projects_path, <span class="string">&quot;loading local states from file system&quot;</span>);
+    </span><span class="macro">relay_log::debug!</span>(directory = <span class="question-mark">?</span>projects_path, <span class="string">"loading local states from file system"</span>);
 
     <span class="kw">while let </span><span class="prelude-val">Some</span>(entry) = directory.next_entry().<span class="kw">await</span><span class="question-mark">? </span>{
         <span class="kw">let </span>path = entry.path();
 
         <span class="kw">let </span>metadata = entry.metadata().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">if </span>!(metadata.is_file() || metadata.is_symlink()) {
-            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, not a file&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">"skipping file, not a file"</span>);
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">if </span>path.extension().map(|x| x != <span class="string">&quot;json&quot;</span>).unwrap_or(<span class="bool-val">true</span>) {
-            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, file extension must be .json&quot;</span>);
+        <span class="kw">if </span>path.extension().map(|x| x != <span class="string">"json"</span>).unwrap_or(<span class="bool-val">true</span>) {
+            <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">"skipping file, file extension must be .json"</span>);
             <span class="kw">continue</span>;
         }
 
@@ -385,7 +386,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = get_project_id(<span class="kw-2">&amp;</span>path) {
                 sanitized.project_id = <span class="prelude-val">Some</span>(project_id);
             } <span class="kw">else </span>{
-                <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">&quot;skipping file, filename is not a valid project id&quot;</span>);
+                <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">"skipping file, filename is not a valid project id"</span>);
                 <span class="kw">continue</span>;
             }
         }
@@ -407,12 +408,12 @@
         <span class="prelude-val">Ok</span>(states) =&gt; {
             <span class="kw">let </span>res = tx.send(states).<span class="kw">await</span>;
             <span class="kw">if </span>res.is_err() {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store static project configs&quot;</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">"failed to store static project configs"</span>);
             }
         }
         <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::error!</span>(
             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-            <span class="string">&quot;failed to load static project configs&quot;</span>,
+            <span class="string">"failed to load static project configs"</span>,
         ),
     };
 }
@@ -450,7 +451,7 @@
         </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::channel(<span class="number">1</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache started&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"project local cache started"</span>);
 
             <span class="comment">// Start the background task that periodically reloads projects from disk:
             </span>spawn_poll_local_states(<span class="kw-2">&amp;</span><span class="self">self</span>.config, state_tx).<span class="kw">await</span>;
@@ -464,13 +465,13 @@
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache stopped&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"project local cache stopped"</span>);
         });
     }
 }
 
 <span class="doccomment">/// This works only on Unix systems.
-</span><span class="attr">#[cfg(not(target_os = <span class="string">&quot;windows&quot;</span>))]
+</span><span class="attr">#[cfg(not(target_os = <span class="string">"windows"</span>))]
 #[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::str::FromStr;
@@ -484,8 +485,8 @@
         <span class="kw">let </span>temp1 = tempfile::tempdir().unwrap();
         <span class="kw">let </span>temp2 = tempfile::tempdir().unwrap();
 
-        <span class="kw">let </span>tmp_project_file = <span class="string">&quot;111111.json&quot;</span>;
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;55f6b2d962564e99832a39890ee4573e&quot;</span>).unwrap();
+        <span class="kw">let </span>tmp_project_file = <span class="string">"111111.json"</span>;
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"55f6b2d962564e99832a39890ee4573e"</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectState::allowed();
         tmp_project_state.public_keys.push(PublicKeyConfig {
@@ -516,7 +517,7 @@
                 .get(<span class="kw-2">&amp;</span>project_key)
                 .unwrap()
                 .project_id,
-            <span class="prelude-val">Some</span>(ProjectId::from_str(<span class="string">&quot;111111&quot;</span>).unwrap())
+            <span class="prelude-val">Some</span>(ProjectId::from_str(<span class="string">"111111"</span>).unwrap())
         );
 
         <span class="macro">assert_eq!</span>(
@@ -535,9 +536,9 @@
     </span><span class="kw">async fn </span>test_multi_pub_static_config() {
         <span class="kw">let </span>temp = tempfile::tempdir().unwrap();
 
-        <span class="kw">let </span>tmp_project_file = <span class="string">&quot;111111.json&quot;</span>;
-        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">&quot;55f6b2d962564e99832a39890ee4573e&quot;</span>).unwrap();
-        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">&quot;55bbb2d96256bb9983bb39890bb457bb&quot;</span>).unwrap();
+        <span class="kw">let </span>tmp_project_file = <span class="string">"111111.json"</span>;
+        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"55f6b2d962564e99832a39890ee4573e"</span>).unwrap();
+        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"55bbb2d96256bb9983bb39890bb457bb"</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectState::allowed();
         tmp_project_state.public_keys.extend(<span class="macro">vec!</span>[

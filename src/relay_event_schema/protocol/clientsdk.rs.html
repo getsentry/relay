@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/clientsdk.rs`."><title>clientsdk.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/clientsdk.rs`."><title>clientsdk.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -158,7 +159,7 @@
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
 <a href="#160" id="160">160</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
@@ -167,7 +168,7 @@
 
 <span class="doccomment">/// An installed and loaded package as part of the Sentry SDK.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>ClientSdkPackage {
     <span class="doccomment">/// Name of the package.
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
@@ -177,8 +178,8 @@
 
 <span class="doccomment">/// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">&quot;process_client_sdk_info&quot;</span>, value_type = <span class="string">&quot;ClientSdkInfo&quot;</span>)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">"process_client_sdk_info"</span>, value_type = <span class="string">"ClientSdkInfo"</span>)]
 </span><span class="kw">pub struct </span>ClientSdkInfo {
     <span class="doccomment">/// Unique SDK name. _Required._
     ///
@@ -189,7 +190,7 @@
     ///
     /// Official Sentry SDKs use the entity `sentry`, as in `sentry.python` or
     /// `sentry.javascript.react-native`. Please use a different entity for your own SDKs.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The version of the SDK. _Required._
@@ -198,7 +199,7 @@
     /// without any prefix (no `v` or anything else in front of the major version number).
     ///
     /// Examples: `0.1.0`, `1.0.0`, `4.3.12`
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
     </span><span class="kw">pub </span>version: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// List of integrations that are enabled in the SDK. _Optional._
@@ -206,7 +207,7 @@
     /// The list should have all enabled integrations, including default integrations. Default
     /// integrations are included because different SDK releases may contain different default
     /// integrations.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>integrations: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// List of installed and loaded SDK packages. _Optional._
@@ -215,12 +216,12 @@
     /// Each package consists of a name in the format `source:identifier` and `version`. If the
     /// source is a Git repository, the `source` should be `git`, the identifier should be a
     /// checkout link and the version should be a Git reference (branch, tag or SHA).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>packages: Annotated&lt;Array&lt;ClientSdkPackage&gt;&gt;,
 
     <span class="doccomment">/// IP Address of sender??? Seems unused. Do not send, this only leads to surprises wrt PII, as
     /// the value appears nowhere in the UI.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>, omit_from_schema)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>, omit_from_schema)]
     </span><span class="kw">pub </span>client_ip: Annotated&lt;IpAddr&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -250,45 +251,45 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_client_sdk_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;name&quot;: &quot;sentry.rust&quot;,
-  &quot;version&quot;: &quot;1.0.0&quot;,
-  &quot;integrations&quot;: [
-    &quot;actix&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "name": "sentry.rust",
+  "version": "1.0.0",
+  "integrations": [
+    "actix"
   ],
-  &quot;packages&quot;: [
+  "packages": [
     {
-      &quot;name&quot;: &quot;cargo:sentry&quot;,
-      &quot;version&quot;: &quot;0.10.0&quot;
+      "name": "cargo:sentry",
+      "version": "0.10.0"
     },
     {
-      &quot;name&quot;: &quot;cargo:sentry-actix&quot;,
-      &quot;version&quot;: &quot;0.10.0&quot;
+      "name": "cargo:sentry-actix",
+      "version": "0.10.0"
     }
   ],
-  &quot;client_ip&quot;: &quot;127.0.0.1&quot;,
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "client_ip": "127.0.0.1",
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new(<span class="string">&quot;sentry.rust&quot;</span>.to_string()),
-            version: Annotated::new(<span class="string">&quot;1.0.0&quot;</span>.to_string()),
-            integrations: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;actix&quot;</span>.to_string())]),
+            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
+            version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
+            integrations: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"actix"</span>.to_string())]),
             packages: Annotated::new(<span class="macro">vec!</span>[
                 Annotated::new(ClientSdkPackage {
-                    name: Annotated::new(<span class="string">&quot;cargo:sentry&quot;</span>.to_string()),
-                    version: Annotated::new(<span class="string">&quot;0.10.0&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"cargo:sentry"</span>.to_string()),
+                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_string()),
                 }),
                 Annotated::new(ClientSdkPackage {
-                    name: Annotated::new(<span class="string">&quot;cargo:sentry-actix&quot;</span>.to_string()),
-                    version: Annotated::new(<span class="string">&quot;0.10.0&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"cargo:sentry-actix"</span>.to_string()),
+                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_string()),
                 }),
             ]),
-            client_ip: Annotated::new(IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.to_owned())),
+            client_ip: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -300,17 +301,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_client_sdk_default_values() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;name&quot;: &quot;sentry.rust&quot;,
-  &quot;version&quot;: &quot;1.0.0&quot;,
-  &quot;client_ip&quot;: &quot;127.0.0.1&quot;
-}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "name": "sentry.rust",
+  "version": "1.0.0",
+  "client_ip": "127.0.0.1"
+}"#</span>;
         <span class="kw">let </span>sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new(<span class="string">&quot;sentry.rust&quot;</span>.to_string()),
-            version: Annotated::new(<span class="string">&quot;1.0.0&quot;</span>.to_string()),
+            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
+            version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
             integrations: Annotated::empty(),
             packages: Annotated::empty(),
-            client_ip: Annotated::new(IpAddr(<span class="string">&quot;127.0.0.1&quot;</span>.to_owned())),
+            client_ip: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
             other: Default::default(),
         });
 

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/rate_limits.rs`."><title>rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/rate_limits.rs`."><title>rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1309,7 +1310,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, TrackOutcome};
 
 <span class="doccomment">/// Name of the rate limits header.
-</span><span class="kw">pub const </span>RATE_LIMITS_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;X-Sentry-Rate-Limits&quot;</span>;
+</span><span class="kw">pub const </span>RATE_LIMITS_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">"X-Sentry-Rate-Limits"</span>;
 
 <span class="doccomment">/// Formats the `X-Sentry-Rate-Limits` header.
 </span><span class="kw">pub fn </span>format_rate_limits(rate_limits: <span class="kw-2">&amp;</span>RateLimits) -&gt; String {
@@ -1317,22 +1318,22 @@
 
     <span class="kw">for </span>rate_limit <span class="kw">in </span>rate_limits {
         <span class="kw">if </span>!header.is_empty() {
-            header.push_str(<span class="string">&quot;, &quot;</span>);
+            header.push_str(<span class="string">", "</span>);
         }
 
-        <span class="macro">write!</span>(header, <span class="string">&quot;{}:&quot;</span>, rate_limit.retry_after.remaining_seconds()).ok();
+        <span class="macro">write!</span>(header, <span class="string">"{}:"</span>, rate_limit.retry_after.remaining_seconds()).ok();
 
         <span class="kw">for </span>(index, category) <span class="kw">in </span>rate_limit.categories.iter().enumerate() {
             <span class="kw">if </span>index &gt; <span class="number">0 </span>{
-                header.push(<span class="string">&#39;;&#39;</span>);
+                header.push(<span class="string">';'</span>);
             }
-            <span class="macro">write!</span>(header, <span class="string">&quot;{category}&quot;</span>).ok();
+            <span class="macro">write!</span>(header, <span class="string">"{category}"</span>).ok();
         }
 
-        <span class="macro">write!</span>(header, <span class="string">&quot;:{}&quot;</span>, rate_limit.scope.name()).ok();
+        <span class="macro">write!</span>(header, <span class="string">":{}"</span>, rate_limit.scope.name()).ok();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>reason_code) = rate_limit.reason_code {
-            <span class="macro">write!</span>(header, <span class="string">&quot;:{reason_code}&quot;</span>).ok();
+            <span class="macro">write!</span>(header, <span class="string">":{reason_code}"</span>).ok();
         }
     }
 
@@ -1343,13 +1344,13 @@
 </span><span class="kw">pub fn </span>parse_rate_limits(scoping: <span class="kw-2">&amp;</span>Scoping, string: <span class="kw-2">&amp;</span>str) -&gt; RateLimits {
     <span class="kw">let </span><span class="kw-2">mut </span>rate_limits = RateLimits::new();
 
-    <span class="kw">for </span>limit <span class="kw">in </span>string.split(<span class="string">&#39;,&#39;</span>) {
+    <span class="kw">for </span>limit <span class="kw">in </span>string.split(<span class="string">','</span>) {
         <span class="kw">let </span>limit = limit.trim();
         <span class="kw">if </span>limit.is_empty() {
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>components = limit.split(<span class="string">&#39;:&#39;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>components = limit.split(<span class="string">':'</span>);
 
         <span class="kw">let </span>retry_after = <span class="kw">match </span>components.next().and_then(|s| s.parse().ok()) {
             <span class="prelude-val">Some</span>(retry_after) =&gt; retry_after,
@@ -1357,13 +1358,13 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>categories = DataCategories::new();
-        <span class="kw">for </span>category <span class="kw">in </span>components.next().unwrap_or(<span class="string">&quot;&quot;</span>).split(<span class="string">&#39;;&#39;</span>) {
+        <span class="kw">for </span>category <span class="kw">in </span>components.next().unwrap_or(<span class="string">""</span>).split(<span class="string">';'</span>) {
             <span class="kw">if </span>!category.is_empty() {
                 categories.push(DataCategory::from_name(category));
             }
         }
 
-        <span class="kw">let </span>quota_scope = QuotaScope::from_name(components.next().unwrap_or(<span class="string">&quot;&quot;</span>));
+        <span class="kw">let </span>quota_scope = QuotaScope::from_name(components.next().unwrap_or(<span class="string">""</span>));
         <span class="kw">let </span>scope = RateLimitScope::for_quota(scoping, quota_scope);
 
         <span class="kw">let </span>reason_code = components.next().map(ReasonCode::new);
@@ -1446,7 +1447,7 @@
     /// only secondary transaction quantity should be tracked here,
     /// these are for example transaction counts extracted from metrics.
     ///
-    /// A &quot;primary&quot; transaction is contained within the envelope,
+    /// A "primary" transaction is contained within the envelope,
     /// marking the envelope data category a [`DataCategory::Transaction`].
     </span><span class="kw">pub </span>secondary_transaction_quantity: usize,
 
@@ -1596,7 +1597,7 @@
 
 <span class="kw">impl </span>Enforcement {
     <span class="doccomment">/// Returns `true` if the event should be rate limited.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>event_active(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.event.is_active()
     }
@@ -1642,7 +1643,7 @@
                 remote_addr,
                 category: limit.category,
                 <span class="comment">// XXX: on the limiter we have quantity of usize, but in the protocol
-                // and data store we&#39;re limited to u32.
+                // and data store we're limited to u32.
                 </span>quantity: limit.quantity <span class="kw">as </span>u32,
             })
     }
@@ -1673,18 +1674,18 @@
 ///  - If the event is removed, all items depending on the event are removed (e.g. attachments).
 ///  - Attachments are not removed if they create events (e.g. minidumps).
 ///  - Sessions are handled separate to all of the above.
-</span><span class="kw">pub struct </span>EnvelopeLimiter&lt;<span class="lifetime">&#39;a</span>, F&gt; {
+</span><span class="kw">pub struct </span>EnvelopeLimiter&lt;<span class="lifetime">'a</span>, F&gt; {
     check: F,
     event_category: <span class="prelude-ty">Option</span>&lt;(DataCategory, bool)&gt;,
-    config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProjectConfig&gt;,
+    config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProjectConfig&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E, F&gt; EnvelopeLimiter&lt;<span class="lifetime">&#39;a</span>, F&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, E, F&gt; EnvelopeLimiter&lt;<span class="lifetime">'a</span>, F&gt;
 <span class="kw">where
-    </span>F: FnMut(ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;, usize) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, E&gt;,
+    </span>F: FnMut(ItemScoping&lt;<span class="lifetime">'_</span>&gt;, usize) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, E&gt;,
 {
     <span class="doccomment">/// Create a new `EnvelopeLimiter` with the given `check` function.
-    </span><span class="kw">pub fn </span>new(config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProjectConfig&gt;, check: F) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProjectConfig&gt;, check: F) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             check,
             event_category: <span class="prelude-val">None</span>,
@@ -1697,7 +1698,7 @@
     /// This ensures that rate limits for the given data category are checked even if there is no
     /// matching item in the envelope. Other items are handled according to the rules as if the
     /// event item were present.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>assume_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>, category: DataCategory, metrics_extracted: bool) {
         <span class="self">self</span>.event_category = <span class="prelude-val">Some</span>((category, metrics_extracted));
     }
@@ -1718,29 +1719,29 @@
     /// **Interaction between Events and Attachments**
     ///
     /// An envelope with an `Error` event and an `Attachment`. Two quotas specify to drop all
-    /// attachments (reason `&quot;a&quot;`) and all errors (reason `&quot;e&quot;`). The result of enforcement will be:
+    /// attachments (reason `"a"`) and all errors (reason `"e"`). The result of enforcement will be:
     ///
     /// 1. All items are removed from the envelope.
-    /// 2. Enforcements report both the event and the attachment dropped with reason `&quot;e&quot;`, since
+    /// 2. Enforcements report both the event and the attachment dropped with reason `"e"`, since
     ///    dropping an event automatically drops all attachments with the same reason.
-    /// 3. Rate limits report the single event limit `&quot;e&quot;`, since attachment limits do not need to
+    /// 3. Rate limits report the single event limit `"e"`, since attachment limits do not need to
     ///    be checked in this case.
     ///
     /// **Required Attachments**
     ///
     /// An envelope with a single Minidump `Attachment`, and a single quota specifying to drop all
-    /// attachments with reason `&quot;a&quot;`:
+    /// attachments with reason `"a"`:
     ///
     /// 1. Since the minidump creates an event and is required for processing, it remains in the
     ///    envelope and is marked as `rate_limited`.
-    /// 2. Enforcements report the attachment dropped with reason `&quot;a&quot;`.
+    /// 2. Enforcements report the attachment dropped with reason `"a"`.
     /// 3. Rate limits are empty since it is allowed to send required attachments even when rate
     ///    limited.
     ///
     /// **Previously Rate Limited Attachments**
     ///
     /// An envelope with a single item marked as `rate_limited`, and a quota specifying to drop
-    /// everything with reason `&quot;d&quot;`:
+    /// everything with reason `"d"`:
     ///
     /// 1. The item remains in the envelope.
     /// 2. Enforcements are empty. Rate limiting has occurred at an earlier stage in the pipeline.
@@ -1799,14 +1800,14 @@
                 </span>event_limits = (<span class="self">self</span>.check)(scoping.item(category), <span class="number">0</span>)<span class="question-mark">?</span>;
                 longest = event_limits.longest();
 
-                <span class="comment">// Only enforce and record an outcome if metrics haven&#39;t been extracted yet.
+                <span class="comment">// Only enforce and record an outcome if metrics haven't been extracted yet.
                 // Otherwise, the outcome is logged at a different place.
                 </span><span class="kw">if </span>!summary.event_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, <span class="number">1</span>, longest);
                 }
 
                 <span class="comment">// If the main category is rate limited, we drop both the event and metrics. If
-                // there&#39;s no rate limit, check for specific indexing quota and drop just the event.
+                // there's no rate limit, check for specific indexing quota and drop just the event.
                 </span><span class="kw">if </span>summary.event_metrics_extracted &amp;&amp; longest.is_none() {
                     event_limits = (<span class="self">self</span>.check)(scoping.item(index_category), <span class="number">1</span>)<span class="question-mark">?</span>;
                     longest = event_limits.longest();
@@ -1850,8 +1851,8 @@
                 attachment_limits.longest(),
             );
 
-            <span class="comment">// Only record rate limits for plain attachments. For all other attachments, it&#39;s
-            // perfectly &quot;legal&quot; to send them. They will still be discarded in Sentry, but clients
+            <span class="comment">// Only record rate limits for plain attachments. For all other attachments, it's
+            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
             // can continue to send them.
             </span><span class="kw">if </span>summary.has_plain_attachments {
                 rate_limits.merge(attachment_limits);
@@ -1950,10 +1951,10 @@
     </span>}
 }
 
-<span class="kw">impl</span>&lt;F&gt; fmt::Debug <span class="kw">for </span>EnvelopeLimiter&lt;<span class="lifetime">&#39;_</span>, F&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;EnvelopeLimiter&quot;</span>)
-            .field(<span class="string">&quot;event_category&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.event_category)
+<span class="kw">impl</span>&lt;F&gt; fmt::Debug <span class="kw">for </span>EnvelopeLimiter&lt;<span class="lifetime">'_</span>, F&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"EnvelopeLimiter"</span>)
+            .field(<span class="string">"event_category"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.event_category)
             .finish()
     }
 }
@@ -1981,7 +1982,7 @@
         </span>rate_limits.add(RateLimit {
             categories: DataCategories::new(),
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;my_limit&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">42</span>),
             namespace: <span class="prelude-val">None</span>,
         });
@@ -1996,7 +1997,7 @@
         });
 
         <span class="kw">let </span>formatted = format_rate_limits(<span class="kw-2">&amp;</span>rate_limits);
-        <span class="kw">let </span>expected = <span class="string">&quot;42::organization:my_limit, 4711:transaction;security:project&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">"42::organization:my_limit, 4711:transaction;security:project"</span>;
         <span class="macro">assert_eq!</span>(formatted, expected);
     }
 
@@ -2005,13 +2006,13 @@
         <span class="kw">let </span>scoping = Scoping {
             organization_id: <span class="number">42</span>,
             project_id: ProjectId::new(<span class="number">21</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         };
 
-        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">&quot;&quot;</span>).is_ok());
-        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">&quot;invalid&quot;</span>).is_ok());
-        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">&quot;,,,&quot;</span>).is_ok());
+        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">""</span>).is_ok());
+        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">"invalid"</span>).is_ok());
+        <span class="macro">assert!</span>(parse_rate_limits(<span class="kw-2">&amp;</span>scoping, <span class="string">",,,"</span>).is_ok());
     }
 
     <span class="attr">#[test]
@@ -2019,13 +2020,13 @@
         <span class="kw">let </span>scoping = Scoping {
             organization_id: <span class="number">42</span>,
             project_id: ProjectId::new(<span class="number">21</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         };
 
-        <span class="comment">// contains &quot;foobar&quot;, an unknown scope that should be mapped to Unknown
+        <span class="comment">// contains "foobar", an unknown scope that should be mapped to Unknown
         </span><span class="kw">let </span>formatted =
-            <span class="string">&quot;42::organization:my_limit, invalid, 4711:foobar;transaction;security:project&quot;</span>;
+            <span class="string">"42::organization:my_limit, invalid, 4711:foobar;transaction;security:project"</span>;
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; =
             parse_rate_limits(<span class="kw-2">&amp;</span>scoping, formatted).into_iter().collect();
 
@@ -2035,7 +2036,7 @@
                 RateLimit {
                     categories: DataCategories::new(),
                     scope: RateLimitScope::Organization(<span class="number">42</span>),
-                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;my_limit&quot;</span>)),
+                    reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
                     retry_after: rate_limits[<span class="number">0</span>].retry_after,
                     namespace: <span class="prelude-val">None</span>,
                 },
@@ -2062,12 +2063,12 @@
         <span class="kw">let </span>scoping = Scoping {
             organization_id: <span class="number">42</span>,
             project_id: ProjectId::new(<span class="number">21</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         };
 
-        <span class="comment">// contains &quot;foobar&quot;, an unknown scope that should be mapped to Unknown
-        </span><span class="kw">let </span>formatted = <span class="string">&quot;42:foo;bar:organization&quot;</span>;
+        <span class="comment">// contains "foobar", an unknown scope that should be mapped to Unknown
+        </span><span class="kw">let </span>formatted = <span class="string">"42:foo;bar:organization"</span>;
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; =
             parse_rate_limits(<span class="kw-2">&amp;</span>scoping, formatted).into_iter().collect();
 
@@ -2085,12 +2086,12 @@
 
     <span class="macro">macro_rules! </span>envelope {
         ($( <span class="macro-nonterminal">$item_type</span>:ident $( :: <span class="macro-nonterminal">$attachment_type</span>:ident )<span class="question-mark">? </span>),<span class="kw-2">*</span>) =&gt; {{
-            <span class="kw">let </span>bytes = <span class="string">&quot;{\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}&quot;</span>;
+            <span class="kw">let </span>bytes = <span class="string">"{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}"</span>;
             <span class="attr">#[allow(unused_mut)]
             </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(bytes.into()).unwrap();
             $(
                 <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::<span class="macro-nonterminal">$item_type</span>);
-                item.set_payload(ContentType::OctetStream, <span class="string">&quot;0123456789&quot;</span>);
+                item.set_payload(ContentType::OctetStream, <span class="string">"0123456789"</span>);
                 $( item.set_attachment_type(AttachmentType::<span class="macro-nonterminal">$attachment_type</span>); )<span class="question-mark">?
                 </span>envelope.add_item(item);
             )*
@@ -2109,7 +2110,7 @@
         Scoping {
             organization_id: <span class="number">42</span>,
             project_id: ProjectId::new(<span class="number">21</span>),
-            project_key: ProjectKey::parse(<span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>).unwrap(),
+            project_key: ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         }
     }
@@ -2138,12 +2139,12 @@
 
         <span class="kw">pub fn </span>check(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-            scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;,
+            scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;,
             quantity: usize,
         ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, ()&gt; {
             <span class="kw">let </span>cat = scoping.category;
             <span class="kw">let </span>previous = <span class="self">self</span>.called.insert(cat, quantity);
-            <span class="macro">assert!</span>(previous.is_none(), <span class="string">&quot;rate limiter invoked twice for {cat}&quot;</span>);
+            <span class="macro">assert!</span>(previous.is_none(), <span class="string">"rate limiter invoked twice for {cat}"</span>);
 
             <span class="kw">let </span><span class="kw-2">mut </span>limits = RateLimits::new();
             <span class="kw">if </span><span class="self">self</span>.denied.contains(<span class="kw-2">&amp;</span>cat) {
@@ -2324,7 +2325,7 @@
             .enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping())
             .unwrap();
 
-        <span class="comment">// If only crash report attachments are present, we don&#39;t emit a rate limit.
+        <span class="comment">// If only crash report attachments are present, we don't emit a rate limit.
         </span><span class="macro">assert!</span>(!limits.is_limited());
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">1</span>);
         mock.assert_call(DataCategory::Error, <span class="prelude-val">Some</span>(<span class="number">1</span>));
@@ -2337,7 +2338,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[];
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::OctetStream, <span class="string">&quot;0123456789&quot;</span>);
+        item.set_payload(ContentType::OctetStream, <span class="string">"0123456789"</span>);
         item.set_rate_limited(<span class="bool-val">true</span>);
         envelope.add_item(item);
         <span class="kw">let </span>config = ProjectConfig::default();
@@ -2364,7 +2365,7 @@
             .enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping())
             .unwrap();
 
-        <span class="comment">// If only crash report attachments are present, we don&#39;t emit a rate limit.
+        <span class="comment">// If only crash report attachments are present, we don't emit a rate limit.
         </span><span class="macro">assert!</span>(!limits.is_limited());
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">3</span>);
         mock.assert_call(DataCategory::Error, <span class="prelude-val">None</span>);
@@ -2382,7 +2383,7 @@
             .enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping())
             .unwrap();
 
-        <span class="comment">// If only crash report attachments are present, we don&#39;t emit a rate limit.
+        <span class="comment">// If only crash report attachments are present, we don't emit a rate limit.
         </span><span class="macro">assert!</span>(limits.is_limited());
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">1</span>);
         mock.assert_call(DataCategory::Error, <span class="prelude-val">Some</span>(<span class="number">1</span>));
@@ -2391,7 +2392,7 @@
     }
 
     <span class="attr">#[test]
-    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>test_enforce_limit_assumed_event() {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[];
         <span class="kw">let </span>config = ProjectConfig::default();
@@ -2409,7 +2410,7 @@
     }
 
     <span class="attr">#[test]
-    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>test_enforce_limit_assumed_attachments() {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Attachment, Attachment];
         <span class="kw">let </span>config = ProjectConfig::default();
@@ -2565,7 +2566,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_source_quantity_for_total_quantity() {
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
             .unwrap();
         <span class="kw">let </span>request_meta = RequestMeta::new(dsn);

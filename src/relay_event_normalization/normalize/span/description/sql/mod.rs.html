@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/sql/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/description/sql/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -906,11 +907,11 @@
 <span class="kw">use </span>parser::normalize_parsed_queries;
 <span class="kw">use </span>regex::Regex;
 
-<span class="doccomment">/// Removes SQL comments starting with &quot;--&quot; or &quot;#&quot;.
-</span><span class="kw">static </span>COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(?:--|#).*(?P&lt;newline&gt;\n)&quot;</span>).unwrap());
+<span class="doccomment">/// Removes SQL comments starting with "--" or "#".
+</span><span class="kw">static </span>COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(?:--|#).*(?P&lt;newline&gt;\n)"</span>).unwrap());
 
 <span class="doccomment">/// Removes MySQL inline comments.
-</span><span class="kw">static </span>INLINE_COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;/\*(?:.|\n)*?\*/&quot;</span>).unwrap());
+</span><span class="kw">static </span>INLINE_COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"/\*(?:.|\n)*?\*/"</span>).unwrap());
 
 <span class="doccomment">/// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
@@ -919,22 +920,22 @@
 /// &lt;https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163&gt;
 </span><span class="kw">static </span>NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?xi)
+        <span class="string">r#"(?xi)
         # Capture `SAVEPOINT` savepoints.
-        ((?-x)(?P&lt;pre&gt;SAVEPOINT )(?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
-        # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
-        ((?-x)(?P&lt;single_quoted_strs&gt;N?&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
+        ((?-x)(?P&lt;pre&gt;SAVEPOINT )(?P&lt;savepoint&gt;(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+        # Capture single-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P&lt;single_quoted_strs&gt;N?'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
         (   (?P&lt;placeholder&gt; (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
         # Capture ODBC escape sequence.
-        ((?-x)(?P&lt;odbc_escape_sequence&gt;\{(?:ts?|d)\s+&#39;.+&#39;\})) |
+        ((?-x)(?P&lt;odbc_escape_sequence&gt;\{(?:ts?|d)\s+'.+'\})) |
         ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Hex constants
         ((?-x)(?P&lt;hex&gt;(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P&lt;bool&gt;(\b(?:true|false)\b)))
-        &quot;#</span>,
+        "#</span>,
     )
     .unwrap()
 });
@@ -942,35 +943,35 @@
 <span class="doccomment">/// For MySQL, also look for double quoted strings.
 </span><span class="kw">static </span>DOUBLE_QUOTED_STRING_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?xi)
-        # Capture double-quoted strings, including the remaining substring if `\&#39;` is found.
-        ((?-x)(?P&lt;single_quoted_strs&gt;N?&quot;(?:\\&quot;|[^&quot;])*(?:&quot;|$)(::\w+(\[\]?)?)?))
-        &quot;#</span>,
+        <span class="string">r#"(?xi)
+        # Capture double-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P&lt;single_quoted_strs&gt;N?"(?:\\"|[^"])*(?:"|$)(::\w+(\[\]?)?)?))
+        "#</span>,
     )
     .unwrap()
 });
 
 <span class="doccomment">/// Removes extra whitespace and newlines.
-</span><span class="kw">static </span>WHITESPACE: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(\s*\n\s*)|(\s\s+)&quot;</span>).unwrap());
+</span><span class="kw">static </span>WHITESPACE: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(\s*\n\s*)|(\s\s+)"</span>).unwrap());
 
 <span class="doccomment">/// Removes whitespace around parentheses.
 </span><span class="kw">static </span>PARENS: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r&quot;((?P&lt;pre&gt;\()\s+)|(\s+(?P&lt;post&gt;\)))&quot;</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r"((?P&lt;pre&gt;\()\s+)|(\s+(?P&lt;post&gt;\)))"</span>).unwrap());
 
 <span class="kw">static </span>STRIP_QUOTES: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;[&quot;`](?P&lt;entity_name&gt;\w+)($|[&quot;`])&quot;#</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r#"["`](?P&lt;entity_name&gt;\w+)($|["`])"#</span>).unwrap());
 
-<span class="doccomment">/// Regex to shorten table or column references, e.g. `&quot;table1&quot;.&quot;col1&quot;` -&gt; `col1`.
+<span class="doccomment">/// Regex to shorten table or column references, e.g. `"table1"."col1"` -&gt; `col1`.
 </span><span class="kw">static </span>COLLAPSE_ENTITIES: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r&quot;(?:\w+\.)+(?P&lt;entity_name&gt;\w+)&quot;</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r"(?:\w+\.)+(?P&lt;entity_name&gt;\w+)"</span>).unwrap());
 
 <span class="doccomment">/// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`NORMALIZER_REGEX`].
 </span><span class="kw">static </span>COLLAPSE_PLACEHOLDERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r&quot;(?xi)
+        <span class="string">r"(?xi)
         (?P&lt;pre&gt;(?:VALUES|IN) \s+\() (?P&lt;values&gt; ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P&lt;post&gt;\s*\)?)
-        &quot;</span>,
+        "</span>,
     )
     .unwrap()
 });
@@ -978,18 +979,18 @@
 <span class="doccomment">/// Collapse simple lists of column names.
 /// For example:
 ///   SELECT a, b, count(*) FROM x -&gt; SELECT .., count(*) FROM x
-///   SELECT &quot;a.b&quot; AS a__b, &quot;a.c&quot; AS a__c FROM x -&gt; SELECT .. FROM x
+///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -&gt; SELECT .. FROM x
 ///
 /// Assumes that column names have already been normalized.
 </span><span class="kw">static </span>COLLAPSE_COLUMNS: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    <span class="kw">let </span>col = <span class="string">r&quot;\w+(\s+AS\s+\w+)?&quot;</span>;
+    <span class="kw">let </span>col = <span class="string">r"\w+(\s+AS\s+\w+)?"</span>;
     Regex::new(
         <span class="macro">format!</span>(
-            <span class="string">r&quot;(?ix)
+            <span class="string">r"(?ix)
         (?P&lt;pre&gt;(SELECT(\s+(DISTINCT|ALL))?\s|,|\())
         \s*
         (?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))
-        (?P&lt;post&gt;\s*(,|\s+|\)))&quot;
+        (?P&lt;post&gt;\s*(,|\s+|\)))"
         </span>)
         .as_str(),
     )
@@ -1000,7 +1001,7 @@
 ///
 /// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
 /// Python, Ruby on Rails and PHP platforms.
-</span><span class="kw">static </span>ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;/\?|\$1|%s&quot;</span>).unwrap());
+</span><span class="kw">static </span>ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"/\?|\$1|%s"</span>).unwrap());
 
 <span class="doccomment">/// Normalizes the given SQL-query-like string.
 </span><span class="kw">pub fn </span>scrub_queries(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
@@ -1025,8 +1026,8 @@
 <span class="kw">impl </span>Mode {
     <span class="kw">fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            Mode::Parser =&gt; <span class="string">&quot;parser&quot;</span>,
-            Mode::Regex =&gt; <span class="string">&quot;regex&quot;</span>,
+            Mode::Parser =&gt; <span class="string">"parser"</span>,
+            Mode::Regex =&gt; <span class="string">"regex"</span>,
         }
     }
 }
@@ -1040,36 +1041,36 @@
 
     <span class="kw">let </span><span class="kw-2">mut </span>string = Cow::from(string.trim());
 
-    <span class="kw">if let </span>Cow::Owned(s) = COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;\n&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"\n"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = INLINE_COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = INLINE_COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">""</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = NORMALIZER_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre%s&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = NORMALIZER_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$pre%s"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if </span>db_system == <span class="prelude-val">Some</span>(<span class="string">&quot;mysql&quot;</span>) {
-        <span class="kw">if let </span>Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;%s&quot;</span>) {
+    <span class="kw">if </span>db_system == <span class="prelude-val">Some</span>(<span class="string">"mysql"</span>) {
+        <span class="kw">if let </span>Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"%s"</span>) {
             string = Cow::Owned(s);
         }
     }
-    <span class="kw">if let </span>Cow::Owned(s) = WHITESPACE.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot; &quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = WHITESPACE.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">" "</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = PARENS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre$post&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = PARENS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$pre$post"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_PLACEHOLDERS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre%s$post&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_PLACEHOLDERS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$pre%s$post"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = STRIP_QUOTES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$entity_name&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = STRIP_QUOTES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$entity_name"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_ENTITIES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$entity_name&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_ENTITIES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$entity_name"</span>) {
         string = Cow::Owned(s);
     }
-    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_COLUMNS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre..$post&quot;</span>) {
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_COLUMNS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">"$pre..$post"</span>) {
         string = Cow::Owned(s);
     }
 
@@ -1107,388 +1108,388 @@
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_ins_percentage,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)&quot;
+        <span class="string">"SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)"</span>,
+        <span class="string">"SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_ins_dollar,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN ($1, $2, $3)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (%s)&quot;
+        <span class="string">"SELECT count() FROM table1 WHERE id IN ($1, $2, $3)"</span>,
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_questionmarks,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (?, ?, ?)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (%s)&quot;
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (?, ?, ?)"</span>,
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         unparameterized_ins_uppercase,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (100, 101, 102)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (%s)&quot;
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (100, 101, 102)"</span>,
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         unparameterized_ins_nvarchar,
-        <span class="string">&quot;INSERT INTO a VALUES (123, N&#39;foo&#39;, &#39;bar&#39;)&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
+        <span class="string">"INSERT INTO a VALUES (123, N'foo', 'bar')"</span>,
+        <span class="string">"INSERT INTO a (..) VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         unparameterized_ins_odbc_escape_sequence,
         <span class="comment">// See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
-        </span><span class="string">&quot;INSERT INTO a VALUES (123, {ts &#39;2023-12-31 23:59:59.123&#39;}, &#39;foo&#39;, N&#39;bar&#39;)&quot;</span>,
-        <span class="string">&quot;INSERT INTO a VALUES (%s)&quot;
+        </span><span class="string">"INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')"</span>,
+        <span class="string">"INSERT INTO a VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         php_placeholders,
-        <span class="string">r&quot;SELECT x FROM y WHERE (z = :c0 AND w = :c1) LIMIT 1&quot;</span>,
-        <span class="string">&quot;SELECT x FROM y WHERE (z = %s AND w = %s) LIMIT %s&quot;
+        <span class="string">r"SELECT x FROM y WHERE (z = :c0 AND w = :c1) LIMIT 1"</span>,
+        <span class="string">"SELECT x FROM y WHERE (z = %s AND w = %s) LIMIT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         named_placeholders,
-        <span class="string">r#&quot;SELECT some_func(col, %(my_param1)s)&quot;#</span>,
-        <span class="string">&quot;SELECT some_func(col, %s)&quot;
+        <span class="string">r#"SELECT some_func(col, %(my_param1)s)"#</span>,
+        <span class="string">"SELECT some_func(col, %s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_ins_lowercase,
-        <span class="string">&quot;select count() from table1 where id in (100, 101, 102)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (%s)&quot;
+        <span class="string">"select count() from table1 where id in (100, 101, 102)"</span>,
+        <span class="string">"SELECT count() FROM table1 WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_strings,
-        <span class="string">&quot;select count() from table_1 where name in (&#39;foo&#39;, %s, 1)&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table_1 WHERE name IN (%s)&quot;
+        <span class="string">"select count() from table_1 where name in ('foo', %s, 1)"</span>,
+        <span class="string">"SELECT count() FROM table_1 WHERE name IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         various_parameterized_cutoff,
-        <span class="string">&quot;select count() from table1 where name in (&#39;foo&#39;, &#39;bar&#39;, &#39;ba&quot;</span>,
-        <span class="string">&quot;select count() from table1 where name in (%s&quot;
+        <span class="string">"select count() from table1 where name in ('foo', 'bar', 'ba"</span>,
+        <span class="string">"select count() from table1 where name in (%s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         update_single,
-        <span class="string">&quot;UPDATE `foo` SET a = 1 WHERE true&quot;</span>,
-        <span class="string">&quot;UPDATE foo SET a = %s WHERE %s&quot;
+        <span class="string">"UPDATE `foo` SET a = 1 WHERE true"</span>,
+        <span class="string">"UPDATE foo SET a = %s WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         update_multiple,
-        <span class="string">&quot;UPDATE foo SET a = 1, `foo`.`b` = 2 WHERE true&quot;</span>,
-        <span class="string">&quot;UPDATE foo SET .. WHERE %s&quot;
+        <span class="string">"UPDATE foo SET a = 1, `foo`.`b` = 2 WHERE true"</span>,
+        <span class="string">"UPDATE foo SET .. WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         mixed,
-        <span class="string">&quot;UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true&quot;</span>,
-        <span class="string">&quot;UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s&quot;
+        <span class="string">"UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true"</span>,
+        <span class="string">"UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         savepoint_uppercase,
-        <span class="string">&quot;SAVEPOINT unquoted_identifier&quot;</span>,
-        <span class="string">&quot;SAVEPOINT %s&quot;
+        <span class="string">"SAVEPOINT unquoted_identifier"</span>,
+        <span class="string">"SAVEPOINT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         savepoint_uppercase_semicolon,
-        <span class="string">&quot;SAVEPOINT unquoted_identifier;&quot;</span>,
-        <span class="string">&quot;SAVEPOINT %s&quot;
+        <span class="string">"SAVEPOINT unquoted_identifier;"</span>,
+        <span class="string">"SAVEPOINT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         savepoint_lowercase,
-        <span class="string">&quot;savepoint unquoted_identifier&quot;</span>,
-        <span class="string">&quot;SAVEPOINT %s&quot;
+        <span class="string">"savepoint unquoted_identifier"</span>,
+        <span class="string">"SAVEPOINT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         savepoint_quoted,
-        <span class="string">&quot;SAVEPOINT &#39;single_quoted_identifier&#39;&quot;</span>,
-        <span class="string">&quot;SAVEPOINT %s&quot;
+        <span class="string">"SAVEPOINT 'single_quoted_identifier'"</span>,
+        <span class="string">"SAVEPOINT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         declare_cursor,
-        <span class="string">&quot;DECLARE curs2 CURSOR FOR SELECT * FROM t1&quot;</span>,
-        <span class="string">&quot;DECLARE %s CURSOR FOR SELECT * FROM t1&quot;
+        <span class="string">"DECLARE curs2 CURSOR FOR SELECT * FROM t1"</span>,
+        <span class="string">"DECLARE %s CURSOR FOR SELECT * FROM t1"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         declare_cursor_advanced,
-        <span class="string">r#&quot;DECLARE c123456 NO SCROLL CURSOR FOR SELECT &quot;t&quot;.* FROM &quot;t&quot; WHERE &quot;t&quot;.x = 1 AND y = %s&quot;#</span>,
-        <span class="string">&quot;DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s&quot;
+        <span class="string">r#"DECLARE c123456 NO SCROLL CURSOR FOR SELECT "t".* FROM "t" WHERE "t".x = 1 AND y = %s"#</span>,
+        <span class="string">"DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         fetch_cursor,
-        <span class="string">&quot;FETCH LAST FROM curs3 INTO x&quot;</span>,
-        <span class="string">&quot;FETCH LAST IN %s INTO %s&quot;
+        <span class="string">"FETCH LAST FROM curs3 INTO x"</span>,
+        <span class="string">"FETCH LAST IN %s INTO %s"
     </span>);
 
-    <span class="macro">scrub_sql_test!</span>(close_cursor, <span class="string">&quot;CLOSE curs1&quot;</span>, <span class="string">&quot;CLOSE %s&quot;</span>);
+    <span class="macro">scrub_sql_test!</span>(close_cursor, <span class="string">"CLOSE curs1"</span>, <span class="string">"CLOSE %s"</span>);
 
     <span class="macro">scrub_sql_test!</span>(
         savepoint_quoted_backtick,
-        <span class="string">&quot;SAVEPOINT `backtick_quoted_identifier`&quot;</span>,
-        <span class="string">&quot;SAVEPOINT %s&quot;
+        <span class="string">"SAVEPOINT `backtick_quoted_identifier`"</span>,
+        <span class="string">"SAVEPOINT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         single_quoted_string,
-        <span class="string">&quot;SELECT * FROM table1 WHERE sku = &#39;foo&#39;&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE sku = %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE sku = 'foo'"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE sku = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         single_quoted_string_finished,
-        <span class="string">r&quot;SELECT * FROM table1 WHERE quote = &#39;it\\&#39;s a string&#39;&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE quote = %s&quot;
+        <span class="string">r"SELECT * FROM table1 WHERE quote = 'it\\'s a string'"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE quote = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         single_quoted_string_unfinished,
-        <span class="string">r&quot;SELECT * FROM table1 WHERE quote = &#39;it\\&#39;s a string&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE quote = %s&quot;
+        <span class="string">r"SELECT * FROM table1 WHERE quote = 'it\\'s a string"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE quote = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         dont_scrub_double_quoted_strings_format_postgres,
-        <span class="string">r#&quot;SELECT * from &quot;table&quot; WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT * FROM table WHERE sku = %s&quot;#
+        <span class="string">r#"SELECT * from "table" WHERE sku = %s"#</span>,
+        <span class="string">r#"SELECT * FROM table WHERE sku = %s"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         strip_prefixes,
-        <span class="string">r#&quot;SELECT table.foo, count(*) from table1 WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo, count(*) FROM table1 WHERE sku = %s&quot;#
+        <span class="string">r#"SELECT table.foo, count(*) from table1 WHERE sku = %s"#</span>,
+        <span class="string">r#"SELECT foo, count(*) FROM table1 WHERE sku = %s"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         strip_prefixes_ansi,
-        <span class="string">r#&quot;SELECT &quot;table&quot;.&quot;foo&quot;, count(*) from &quot;table&quot; WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo, count(*) FROM table WHERE sku = %s&quot;#
+        <span class="string">r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#</span>,
+        <span class="string">r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         strip_prefixes_mysql_generic,
-        <span class="string">r#&quot;SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo, count(*) FROM table WHERE sku = %s&quot;#
+        <span class="string">r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#</span>,
+        <span class="string">r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
         strip_prefixes_mysql,
-        <span class="string">&quot;mysql&quot;</span>,
-        <span class="string">r#&quot;SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo, count(*) FROM table WHERE sku = %s&quot;#
+        <span class="string">"mysql"</span>,
+        <span class="string">r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#</span>,
+        <span class="string">r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         strip_prefixes_truncated,
-        <span class="string">r#&quot;SELECT foo = %s FROM &quot;db&quot;.&quot;ba&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo = %s FROM ba&quot;#
+        <span class="string">r#"SELECT foo = %s FROM "db"."ba"#</span>,
+        <span class="string">r#"SELECT foo = %s FROM ba"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         dont_scrub_double_quoted_strings_format_mysql,
-        <span class="string">r#&quot;SELECT * from table1 WHERE sku = &quot;foo&quot;&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE sku = foo&quot;
+        <span class="string">r#"SELECT * from table1 WHERE sku = "foo""#</span>,
+        <span class="string">"SELECT * FROM table1 WHERE sku = foo"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         num_where,
-        <span class="string">&quot;SELECT * FROM table1 WHERE id = 1&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE id = %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE id = 1"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE id = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         num_limit,
-        <span class="string">&quot;SELECT * FROM table1 LIMIT 1&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 LIMIT %s&quot;
+        <span class="string">"SELECT * FROM table1 LIMIT 1"</span>,
+        <span class="string">"SELECT * FROM table1 LIMIT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         num_negative_where,
-        <span class="string">&quot;SELECT * FROM table1 WHERE temperature &gt; -100&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE temperature &gt; %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE temperature &gt; -100"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE temperature &gt; %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         num_e_where,
-        <span class="string">&quot;SELECT * FROM table1 WHERE salary &gt; 1e7&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE salary &gt; %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE salary &gt; 1e7"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE salary &gt; %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         already_scrubbed,
-        <span class="string">&quot;SELECT * FROM table123 WHERE id = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table{%s} WHERE id = %s&quot;
+        <span class="string">"SELECT * FROM table123 WHERE id = %s"</span>,
+        <span class="string">"SELECT * FROM table{%s} WHERE id = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_where_true,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = true&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE deleted = true"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_where_false,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = false&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE deleted = false"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_where_bool_insensitive,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = FaLsE&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM table1 WHERE deleted = FaLsE"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_not_in_tablename_true,
-        <span class="string">&quot;SELECT * FROM table_true WHERE deleted = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table_true WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM table_true WHERE deleted = %s"</span>,
+        <span class="string">"SELECT * FROM table_true WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_not_in_tablename_false,
-        <span class="string">&quot;SELECT * FROM table_false WHERE deleted = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table_false WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM table_false WHERE deleted = %s"</span>,
+        <span class="string">"SELECT * FROM table_false WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_not_in_mid_tablename_true,
-        <span class="string">&quot;SELECT * FROM tatrueble WHERE deleted = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM tatrueble WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM tatrueble WHERE deleted = %s"</span>,
+        <span class="string">"SELECT * FROM tatrueble WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         boolean_not_in_mid_tablename_false,
-        <span class="string">&quot;SELECT * FROM tafalseble WHERE deleted = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM tafalseble WHERE deleted = %s&quot;
+        <span class="string">"SELECT * FROM tafalseble WHERE deleted = %s"</span>,
+        <span class="string">"SELECT * FROM tafalseble WHERE deleted = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         dont_scrub_nulls,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted_at IS NULL&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table1 WHERE deleted_at IS NULL&quot;
+        <span class="string">"SELECT * FROM table1 WHERE deleted_at IS NULL"</span>,
+        <span class="string">"SELECT * FROM table1 WHERE deleted_at IS NULL"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_columns,
         <span class="comment">// Simple lists of columns will be collapsed
-        </span><span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot;, another_field FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .. FROM table1 WHERE %s&quot;
+        </span><span class="string">r#"SELECT myfield1, "a"."b", another_field FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT .. FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         do_not_collapse_single_column,
         <span class="comment">// Single columns remain intact
-        </span><span class="string">r#&quot;SELECT a FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT a FROM table1 WHERE %s&quot;
+        </span><span class="string">r#"SELECT a FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT a FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_columns_nested,
         <span class="comment">// Simple lists of columns will be collapsed
-        </span><span class="string">r#&quot;SELECT a, b FROM (SELECT c, d FROM t) AS s WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .. FROM (SELECT .. FROM t) AS s WHERE %s&quot;
+        </span><span class="string">r#"SELECT a, b FROM (SELECT c, d FROM t) AS s WHERE %s"#</span>,
+        <span class="string">"SELECT .. FROM (SELECT .. FROM t) AS s WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_partial_column_lists,
-        <span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot;, count(*) AS c, another_field, another_field2 FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .., count(*), .. FROM table1 WHERE %s&quot;
+        <span class="string">r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT .., count(*), .. FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_partial_column_lists_2,
-        <span class="string">r#&quot;SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS &quot;id&quot; FROM x&quot;#</span>,
-        <span class="string">&quot;SELECT DISTINCT .., COALESCE(foo, %s) FROM x&quot;
+        <span class="string">r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#</span>,
+        <span class="string">"SELECT DISTINCT .., COALESCE(foo, %s) FROM x"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_columns_distinct,
-        <span class="string">r#&quot;SELECT DISTINCT a, b, c FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT DISTINCT .. FROM table1 WHERE %s&quot;
+        <span class="string">r#"SELECT DISTINCT a, b, c FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT DISTINCT .. FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_columns_with_as,
         <span class="comment">// Simple lists of columns will be collapsed.
-        </span><span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot; AS a__b, another_field as bar FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .. FROM table1 WHERE %s&quot;
+        </span><span class="string">r#"SELECT myfield1, "a"."b" AS a__b, another_field as bar FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT .. FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_columns_with_as_without_quotes,
         <span class="comment">// Simple lists of columns will be collapsed.
-        </span><span class="string">r#&quot;SELECT myfield1, a.b AS a__b, another_field as bar FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .. FROM table1 WHERE %s&quot;
+        </span><span class="string">r#"SELECT myfield1, a.b AS a__b, another_field as bar FROM table1 WHERE %s"#</span>,
+        <span class="string">"SELECT .. FROM table1 WHERE %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         parameters_values,
-        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
+        <span class="string">"INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)"</span>,
+        <span class="string">"INSERT INTO a (..) VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         parameters_values_with_quotes,
-        <span class="string">r#&quot;INSERT INTO &quot;a&quot; (&quot;b&quot;) VALUES (1)&quot;#</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
+        <span class="string">r#"INSERT INTO "a" ("b") VALUES (1)"#</span>,
+        <span class="string">"INSERT INTO a (..) VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         quotes_in_join,
-        <span class="string">r#&quot;SELECT &quot;foo&quot; FROM &quot;a&quot; JOIN &quot;b&quot; ON (b_id = b.id)&quot;#</span>,
-        <span class="string">&quot;SELECT foo FROM a JOIN b ON (b_id = id)&quot;
+        <span class="string">r#"SELECT "foo" FROM "a" JOIN "b" ON (b_id = b.id)"#</span>,
+        <span class="string">"SELECT foo FROM a JOIN b ON (b_id = id)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         quotes_in_function,
-        <span class="string">r#&quot;SELECT UPPER(&quot;b&quot;.&quot;c&quot;)&quot;#</span>,
-        <span class="string">&quot;SELECT UPPER(c)&quot;
+        <span class="string">r#"SELECT UPPER("b"."c")"#</span>,
+        <span class="string">"SELECT UPPER(c)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         quotes_in_cast,
-        <span class="string">r#&quot;SELECT UPPER(&quot;b&quot;.&quot;c&quot;::text)&quot;#</span>,
-        <span class="string">&quot;SELECT UPPER(c)&quot;
+        <span class="string">r#"SELECT UPPER("b"."c"::text)"#</span>,
+        <span class="string">"SELECT UPPER(c)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         qualified_wildcard,
-        <span class="string">r#&quot;SELECT &quot;foo&quot;.* FROM &quot;foo&quot;&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM foo&quot;
+        <span class="string">r#"SELECT "foo".* FROM "foo""#</span>,
+        <span class="string">"SELECT * FROM foo"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         parameters_in,
-        <span class="string">&quot;select column FROM table1 WHERE id IN (1, 2, 3)&quot;</span>,
-        <span class="string">&quot;SELECT column FROM table1 WHERE id IN (%s)&quot;
+        <span class="string">"select column FROM table1 WHERE id IN (1, 2, 3)"</span>,
+        <span class="string">"SELECT column FROM table1 WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         values_multi,
-        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s) ON CONFLICT DO NOTHING&quot;
+        <span class="string">"INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING"</span>,
+        <span class="string">"INSERT INTO a (..) VALUES (%s) ON CONFLICT DO NOTHING"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         type_casts,
-        <span class="string">&quot;INSERT INTO a (b, c, d) VALUES (&#39;foo&#39;::date, 123::bigint[], %s::bigint[])&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
+        <span class="string">"INSERT INTO a (b, c, d) VALUES ('foo'::date, 123::bigint[], %s::bigint[])"</span>,
+        <span class="string">"INSERT INTO a (..) VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         whitespace_and_comments,
-        <span class="string">&quot;
+        <span class="string">"
             select a,  b, c, d
             from (
                 select *
@@ -1500,21 +1501,21 @@
                 where x = %s --inline comment
             ) srpe
             inner join foo on foo.id = foo_id
-        &quot;</span>,
-        <span class="string">&quot;SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id&quot;
+        "</span>,
+        <span class="string">"SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         not_a_comment,
-        <span class="string">&quot;SELECT * from comments WHERE comment LIKE &#39;-- NOTE%s&#39;
-        AND foo &gt; 0&quot;</span>,
-        <span class="string">&quot;SELECT * FROM comments WHERE comment LIKE %s AND foo &gt; %s&quot;
+        <span class="string">"SELECT * from comments WHERE comment LIKE '-- NOTE%s'
+        AND foo &gt; 0"</span>,
+        <span class="string">"SELECT * FROM comments WHERE comment LIKE %s AND foo &gt; %s"
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
         mysql_comment,
-        <span class="string">&quot;mysql&quot;</span>,
-        <span class="string">&quot;
+        <span class="string">"mysql"</span>,
+        <span class="string">"
             DELETE  # end-of-line
             FROM /* inline comment */ `some_table`
             /*
@@ -1523,13 +1524,13 @@
                 comment
             */
             WHERE `some_table`.`id` IN (%s)
-        &quot;</span>,
-        <span class="string">&quot;DELETE FROM some_table WHERE id IN (%s)&quot;
+        "</span>,
+        <span class="string">"DELETE FROM some_table WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         mysql_comment_generic,
-        <span class="string">&quot;
+        <span class="string">"
             DELETE  # end-of-line
             FROM /* inline comment */ `some_table`
             /*
@@ -1538,65 +1539,65 @@
                 comment
             */
             WHERE `some_table`.`id` IN (%s)
-        &quot;</span>,
-        <span class="string">&quot;DELETE FROM some_table WHERE id IN (%s)&quot;
+        "</span>,
+        <span class="string">"DELETE FROM some_table WHERE id IN (%s)"
     </span>);
 
-    <span class="macro">scrub_sql_test!</span>(escape_quote, <span class="string">r#&quot;SELECT &#39;Wayne\&#39;s World&#39;&quot;#</span>, <span class="string">&quot;SELECT %s&quot;</span>);
+    <span class="macro">scrub_sql_test!</span>(escape_quote, <span class="string">r#"SELECT 'Wayne\'s World'"#</span>, <span class="string">"SELECT %s"</span>);
 
     <span class="macro">scrub_sql_test!</span>(
         escape_double_quote,
-        <span class="string">r#&quot;SELECT &#39;{&quot;json&quot;: &quot;yes&quot;}&#39;&quot;#</span>,
-        <span class="string">&quot;SELECT %s&quot;
+        <span class="string">r#"SELECT '{"json": "yes"}'"#</span>,
+        <span class="string">"SELECT %s"
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
         mysql_escape_quote,
-        <span class="string">&quot;mysql&quot;</span>,
-        <span class="string">r#&quot;SELECT &quot;Wayne&#39;s World&quot;&quot;#</span>,
-        <span class="string">&quot;SELECT %s&quot;
+        <span class="string">"mysql"</span>,
+        <span class="string">r#"SELECT "Wayne's World""#</span>,
+        <span class="string">"SELECT %s"
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
         mysql_escape_double_quote,
-        <span class="string">&quot;mysql&quot;</span>,
-        <span class="string">r#&quot;SELECT &quot;{\&quot;json\&quot;: \&quot;yes\&quot;}&quot;&quot;#</span>,
-        <span class="string">&quot;SELECT %s&quot;
+        <span class="string">"mysql"</span>,
+        <span class="string">r#"SELECT "{\"json\": \"yes\"}""#</span>,
+        <span class="string">"SELECT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         bytesa,
-        <span class="string">r#&quot;SELECT &quot;t&quot;.&quot;x&quot;, &quot;t&quot;.&quot;arr&quot;::bytea, &quot;t&quot;.&quot;c&quot; WHERE &quot;t&quot;.&quot;id&quot; IN (%s, %s)&quot;#</span>,
-        <span class="string">&quot;SELECT .. WHERE id IN (%s)&quot;
+        <span class="string">r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#</span>,
+        <span class="string">"SELECT .. WHERE id IN (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         multiple_statements,
-        <span class="string">r#&quot;SELECT 1; select 2&quot;#</span>,
-        <span class="string">&quot;SELECT %s; SELECT %s&quot;
+        <span class="string">r#"SELECT 1; select 2"#</span>,
+        <span class="string">"SELECT %s; SELECT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         case_when,
-        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END&quot;</span>,
-        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN .. THEN .. END&quot;
+        <span class="string">"UPDATE tbl SET foo = CASE WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END"</span>,
+        <span class="string">"UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         case_when_nested,
-        <span class="string">r#&quot;UPDATE
+        <span class="string">r#"UPDATE
             tbl
-        SET &quot;tbl&quot;.&quot;foo&quot; = CASE
+        SET "tbl"."foo" = CASE
             WHEN 1 THEN 10
             WHEN 2 THEN (CASE WHEN 22 THEN 222 END)
             ELSE 30
-        END&quot;#</span>,
-        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN .. THEN .. END&quot;
+        END"#</span>,
+        <span class="string">"UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         duplicate_conditions,
-        <span class="string">r#&quot;SELECT *
+        <span class="string">r#"SELECT *
         FROM a
         WHERE a.status = %s
         AND (
@@ -1604,13 +1605,13 @@
             OR (a.id = %s AND a.org = %s)
             OR (a.id = %s AND a.org = %s)
             OR (a.id = %s AND a.org = %s)
-        )&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM a WHERE status = %s AND id = %s AND org = %s&quot;
+        )"#</span>,
+        <span class="string">"SELECT * FROM a WHERE status = %s AND id = %s AND org = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         duplicate_conditions_or,
-        <span class="string">r#&quot;SELECT *
+        <span class="string">r#"SELECT *
         FROM a
         WHERE a.status = %s
         OR (
@@ -1618,8 +1619,8 @@
             OR (a.id = %s OR a.org = %s)
             OR (a.id = %s OR a.org = %s)
             OR (a.id = %s OR a.org = %s)
-        )&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM a WHERE status = %s OR id = %s OR org = %s&quot;
+        )"#</span>,
+        <span class="string">"SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
@@ -1627,167 +1628,167 @@
         <span class="comment">// Repeating conditions that violate the max query depth
         // are simplified before applying the limit.
         </span>{
-            <span class="kw">let </span>repeated = [<span class="string">&quot;(a.id = %s OR a.org = %s)&quot;</span>].repeat(<span class="number">64</span>);
-            <span class="kw">let </span>repeated = itertools::join(repeated, <span class="string">&quot; OR &quot;</span>);
-            <span class="macro">format!</span>(<span class="string">&quot;SELECT * FROM a WHERE a.status = %s OR {repeated}&quot;</span>).as_str()
+            <span class="kw">let </span>repeated = [<span class="string">"(a.id = %s OR a.org = %s)"</span>].repeat(<span class="number">64</span>);
+            <span class="kw">let </span>repeated = itertools::join(repeated, <span class="string">" OR "</span>);
+            <span class="macro">format!</span>(<span class="string">"SELECT * FROM a WHERE a.status = %s OR {repeated}"</span>).as_str()
         },
-        <span class="string">&quot;SELECT * FROM a WHERE status = %s OR id = %s OR org = %s&quot;
+        <span class="string">"SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         duplicate_conditions_left,
-        <span class="string">r#&quot;SELECT * FROM t WHERE a = %s OR a = %s OR b = %s&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM t WHERE a = %s OR b = %s&quot;
+        <span class="string">r#"SELECT * FROM t WHERE a = %s OR a = %s OR b = %s"#</span>,
+        <span class="string">"SELECT * FROM t WHERE a = %s OR b = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         duplicate_conditions_right,
-        <span class="string">r#&quot;SELECT * FROM t WHERE a = %s OR b = %s OR b = %s&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM t WHERE a = %s OR b = %s&quot;
+        <span class="string">r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#</span>,
+        <span class="string">"SELECT * FROM t WHERE a = %s OR b = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         redudant_parentheses,
-        <span class="string">r#&quot;SELECT * FROM t WHERE (
+        <span class="string">r#"SELECT * FROM t WHERE (
             (a = %s AND b = %s)
             OR
             (a = %s AND b = %s)
-        ) AND c = %s&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM t WHERE a = %s AND b = %s AND c = %s&quot;
+        ) AND c = %s"#</span>,
+        <span class="string">"SELECT * FROM t WHERE a = %s AND b = %s AND c = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         not_redudant_parentheses,
-        <span class="string">&quot;SELECT * FROM t WHERE (a OR b) AND c&quot;</span>,
-        <span class="string">&quot;SELECT * FROM t WHERE (a OR b) AND c&quot;
+        <span class="string">"SELECT * FROM t WHERE (a OR b) AND c"</span>,
+        <span class="string">"SELECT * FROM t WHERE (a OR b) AND c"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         non_duplicate_conditions,
-        <span class="string">r#&quot;SELECT *
+        <span class="string">r#"SELECT *
         FROM a
         WHERE a.status = %s
         AND (
             (a.id = %s AND a.org2 = %s)
             OR (a.id = %s AND a.org = %s)
-        )&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))&quot;
+        )"#</span>,
+        <span class="string">"SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         unique_alias,
-        <span class="string">&quot;SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef&quot;</span>,
-        <span class="string">&quot;SELECT pg_advisory_unlock(%s, %s)&quot;
+        <span class="string">"SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef"</span>,
+        <span class="string">"SELECT pg_advisory_unlock(%s, %s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         activerecord,
-        <span class="string">&quot;/*some comment `my_function&#39;*/ SELECT 1&quot;</span>,
-        <span class="string">&quot;SELECT %s&quot;
+        <span class="string">"/*some comment `my_function'*/ SELECT 1"</span>,
+        <span class="string">"SELECT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         <span class="comment">// Active record comments can be parsed even if the statement is truncated.
         </span>activerecord_truncated,
-        <span class="string">&quot;/*some comment `my_function&#39;*/ SELECT * FROM foo WHERE ...&quot;</span>,
-        <span class="string">&quot;SELECT * FROM foo WHERE ...&quot;
+        <span class="string">"/*some comment `my_function'*/ SELECT * FROM foo WHERE ..."</span>,
+        <span class="string">"SELECT * FROM foo WHERE ..."
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         jsonb,
-        <span class="string">r#&quot;SELECT * FROM &quot;a&quot; WHERE &quot;a&quot;.&quot;b&quot; = $1 AND (obj-&gt;&#39;id&#39; &lt;@ &#39;[123]&#39;::jsonb) AND &quot;a&quot;.&quot;b&quot; != $2&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM a WHERE b = %s AND (obj -&gt; %s &lt;@ %s) AND b &lt;&gt; %s&quot;
+        <span class="string">r#"SELECT * FROM "a" WHERE "a"."b" = $1 AND (obj-&gt;'id' &lt;@ '[123]'::jsonb) AND "a"."b" != $2"#</span>,
+        <span class="string">"SELECT * FROM a WHERE b = %s AND (obj -&gt; %s &lt;@ %s) AND b &lt;&gt; %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_table_name,
-        <span class="string">&quot;SELECT * FROM temp_12c&quot;</span>,
-        <span class="string">&quot;SELECT * FROM temp_{%s}c&quot;
+        <span class="string">"SELECT * FROM temp_12c"</span>,
+        <span class="string">"SELECT * FROM temp_{%s}c"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         single_digit_in_table_name,
-        <span class="string">&quot;SELECT * FROM temp_1c&quot;</span>,
-        <span class="string">&quot;SELECT * FROM temp_1c&quot;
+        <span class="string">"SELECT * FROM temp_1c"</span>,
+        <span class="string">"SELECT * FROM temp_1c"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_compound_table_name,
-        <span class="string">r#&quot;SELECT * FROM &quot;foo&quot;.&quot;temp_12c&quot;&quot;#</span>,
-        <span class="string">&quot;SELECT * FROM temp_{%s}c&quot;
+        <span class="string">r#"SELECT * FROM "foo"."temp_12c""#</span>,
+        <span class="string">"SELECT * FROM temp_{%s}c"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_alter_table,
-        <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;1234_foo&quot; ADD COLUMN &quot;bar678&quot; TEXT&quot;#</span>,
-        <span class="string">r#&quot;ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT&quot;#
+        <span class="string">r#"ALTER TABLE "foo"."1234_foo" ADD COLUMN "bar678" TEXT"#</span>,
+        <span class="string">r#"ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT"#
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_create_table,
-        <span class="string">r#&quot;CREATE TABLE &quot;foo&quot;.&quot;1234_foo&quot; ()&quot;#</span>,
-        <span class="string">&quot;CREATE TABLE {%s}_foo ()&quot;
+        <span class="string">r#"CREATE TABLE "foo"."1234_foo" ()"#</span>,
+        <span class="string">"CREATE TABLE {%s}_foo ()"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_update,
-        <span class="string">r#&quot;UPDATE &quot;foo&quot;.&quot;1234_foo&quot; SET &quot;bar678&quot; = 0&quot;#</span>,
-        <span class="string">&quot;UPDATE {%s}_foo SET bar{%s} = %s&quot;
+        <span class="string">r#"UPDATE "foo"."1234_foo" SET "bar678" = 0"#</span>,
+        <span class="string">"UPDATE {%s}_foo SET bar{%s} = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         digits_in_delete,
-        <span class="string">r#&quot;DELETE FROM foo123 WHERE bar456 = 789&quot;#</span>,
-        <span class="string">&quot;DELETE FROM foo{%s} WHERE bar{%s} = %s&quot;
+        <span class="string">r#"DELETE FROM foo123 WHERE bar456 = 789"#</span>,
+        <span class="string">"DELETE FROM foo{%s} WHERE bar{%s} = %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         uuid_in_table_name,
-        <span class="string">&quot;SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix&quot;</span>,
-        <span class="string">&quot;SELECT * FROM prefix_{%s}_{%s}_suffix&quot;
+        <span class="string">"SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix"</span>,
+        <span class="string">"SELECT * FROM prefix_{%s}_{%s}_suffix"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         long_hex_in_table_name,
-        <span class="string">&quot;SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300&quot;</span>,
-        <span class="string">&quot;SELECT id FROM {%s} LIMIT %s OFFSET %s&quot;
+        <span class="string">"SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300"</span>,
+        <span class="string">"SELECT id FROM {%s} LIMIT %s OFFSET %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         rename_table,
-        <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;tmp&quot; RENAME TO &quot;foo&quot;.&quot;bar&quot;#</span>,
-        <span class="string">&quot;ALTER TABLE tmp RENAME TO bar&quot;
+        <span class="string">r#"ALTER TABLE "foo"."tmp" RENAME TO "foo"."bar"#</span>,
+        <span class="string">"ALTER TABLE tmp RENAME TO bar"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         select_with_nulls,
-        <span class="string">r#&quot;SELECT foo, NULL, &quot;bar&quot;, baz, NULL, NULL, zap FROM my_table&quot;#</span>,
-        <span class="string">&quot;SELECT .. FROM my_table&quot;
+        <span class="string">r#"SELECT foo, NULL, "bar", baz, NULL, NULL, zap FROM my_table"#</span>,
+        <span class="string">"SELECT .. FROM my_table"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         fallback_hex,
-        <span class="string">r#&quot;SELECT {ts &#39;2023-12-24 23:59&#39;}, 0x123456789AbCdEf&quot;#</span>,
-        <span class="string">&quot;SELECT %s, %s&quot;
+        <span class="string">r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#</span>,
+        <span class="string">"SELECT %s, %s"
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
         replace_into,
-        <span class="string">&quot;mysql&quot;</span>,
-        <span class="string">r#&quot;REPLACE INTO `foo` (`a`) VALUES (&quot;abcd1234&quot;)&quot;#</span>,
-        <span class="string">&quot;REPLACE INTO foo (..) VALUES (%s)&quot;
+        <span class="string">"mysql"</span>,
+        <span class="string">r#"REPLACE INTO `foo` (`a`) VALUES ("abcd1234")"#</span>,
+        <span class="string">"REPLACE INTO foo (..) VALUES (%s)"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         replace_into_set_dont_panic,
-        <span class="string">r#&quot;REPLACE INTO `foo` SET x = y&quot;#</span>,
-        <span class="string">&quot;REPLACE INTO foo SET x = y&quot;
+        <span class="string">r#"REPLACE INTO `foo` SET x = y"#</span>,
+        <span class="string">"REPLACE INTO foo SET x = y"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         clickhouse,
-        <span class="string">&quot;SELECT (toStartOfHour(finish_ts, &#39;Universal&#39;) AS _snuba_time), (uniqIf((nullIf(user, &#39;&#39;) AS _snuba_user), greater(multiIf(equals(tupleElement((&#39;duration&#39;, 300), 1), &#39;lcp&#39;), (if(has(measurements.key, &#39;lcp&#39;), arrayElement(measurements.value, indexOf(measurements.key, &#39;lcp&#39;)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((&#39;duration&#39;, 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((&#39;duration&#39;, 300), 1), &#39;lcp&#39;), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((&#39;transaction&#39; AS _snuba_type), &#39;transaction&#39;) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(&#39;2023-06-13T09:08:51&#39;, &#39;Universal&#39;)) AND less(_snuba_finish_ts, toDateTime(&#39;2023-07-11T09:08:51&#39;, &#39;Universal&#39;)) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), &#39;production&#39;) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0&quot;</span>,
-        <span class="string">&quot;SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s&quot;
+        <span class="string">"SELECT (toStartOfHour(finish_ts, 'Universal') AS _snuba_time), (uniqIf((nullIf(user, '') AS _snuba_user), greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), (if(has(measurements.key, 'lcp'), arrayElement(measurements.value, indexOf(measurements.key, 'lcp')), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement(('duration', 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals(('transaction' AS _snuba_type), 'transaction') AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime('2023-06-13T09:08:51', 'Universal')) AND less(_snuba_finish_ts, toDateTime('2023-07-11T09:08:51', 'Universal')) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), 'production') GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0"</span>,
+        <span class="string">"SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s"
     </span>);
 }
 </code></pre></div></section></main></body></html>

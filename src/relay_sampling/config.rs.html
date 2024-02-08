@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_sampling/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_sampling"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_sampling/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_sampling"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -615,12 +616,12 @@
 ///
 /// Note: This comes from the organization data
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>SamplingConfig {
     <span class="doccomment">/// The required version to run dynamic sampling.
     ///
     /// Defaults to legacy version (`1`) when missing.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;SamplingConfig::legacy_version&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"SamplingConfig::legacy_version"</span>)]
     </span><span class="kw">pub </span>version: u16,
 
     <span class="doccomment">/// The ordered sampling rules for the project.
@@ -637,7 +638,7 @@
     </span><span class="kw">pub </span>rules_v2: Vec&lt;SamplingRule&gt;,
 
     <span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_default"</span>)]
     </span><span class="kw">pub </span>mode: SamplingMode,
 }
 
@@ -649,7 +650,7 @@
 
     <span class="doccomment">/// Returns `true` if any of the rules in this configuration is unsupported.
     </span><span class="kw">pub fn </span>unsupported(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">debug_assert!</span>(<span class="self">self</span>.version &gt; <span class="number">1</span>, <span class="string">&quot;SamplingConfig not normalized&quot;</span>);
+        <span class="macro">debug_assert!</span>(<span class="self">self</span>.version &gt; <span class="number">1</span>, <span class="string">"SamplingConfig not normalized"</span>);
         <span class="self">self</span>.version &gt; SAMPLING_CONFIG_VERSION || !<span class="self">self</span>.rules.iter().all(SamplingRule::supported)
     }
 
@@ -684,7 +685,7 @@
 
 <span class="doccomment">/// A sampling rule as it is deserialized from the project configuration.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>SamplingRule {
     <span class="doccomment">/// A condition to match for this sampling rule.
     ///
@@ -695,7 +696,7 @@
     </span><span class="kw">pub </span>sampling_value: SamplingValue,
 
     <span class="doccomment">/// The rule type declares what to apply a dynamic sampling rule to and how.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>ty: RuleType,
 
     <span class="doccomment">/// The unique identifier of this rule.
@@ -705,11 +706,11 @@
     ///
     /// The time range is open on both ends by default. If a time range is
     /// closed on at least one end, the rule is considered a decaying rule.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;TimeRange::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"TimeRange::is_empty"</span>)]
     </span><span class="kw">pub </span>time_range: TimeRange,
 
     <span class="doccomment">/// Declares how to interpolate the sample rate for rules with bounded time range.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_default"</span>)]
     </span><span class="kw">pub </span>decaying_fn: DecayingFunction,
 }
 
@@ -734,8 +735,8 @@
 ///
 /// A sampling strategy refers to the strategy that we want to use for sampling a specific rule.
 </span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
+#[serde(tag = <span class="string">"type"</span>)]
 </span><span class="kw">pub enum </span>SamplingValue {
     <span class="doccomment">/// A direct sample rate to apply.
     ///
@@ -749,7 +750,7 @@
     <span class="doccomment">/// A factor to apply on a subsequently matching rule.
     ///
     /// A rule with a factor will be matched and the matching will continue onto the next rules
-    /// until a sample rate rule is found. The matched rule&#39;s factor will be multiplied with the
+    /// until a sample rate rule is found. The matched rule's factor will be multiplied with the
     /// accumulated factors before moving onto the next possible match.
     </span>Factor {
         <span class="doccomment">/// The factor to apply on another matched sample rate.
@@ -768,7 +769,7 @@
 
 <span class="doccomment">/// Defines what a dynamic sampling rule applies to.
 </span><span class="attr">#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub enum </span>RuleType {
     <span class="doccomment">/// A trace rule matches on the [`DynamicSamplingContext`](crate::DynamicSamplingContext) and
     /// applies to all transactions in a trace.
@@ -790,16 +791,16 @@
 </span><span class="kw">pub struct </span>RuleId(<span class="kw">pub </span>u32);
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>RuleId {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
 
 <span class="doccomment">/// A range of time.
 ///
 /// The time range should be applicable between the start time, inclusive, and
-/// end time, exclusive. There aren&#39;t any explicit checks to ensure the end
-/// time is equal to or greater than the start time; the time range isn&#39;t valid
+/// end time, exclusive. There aren't any explicit checks to ensure the end
+/// time is equal to or greater than the start time; the time range isn't valid
 /// in such cases.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>TimeRange {
@@ -822,7 +823,7 @@
     /// - The start time must be smaller than or equal to the given time, if provided.
     /// - The end time must be greater than the given time, if provided.
     ///
-    /// If one of the limits isn&#39;t provided, the range is considered open in
+    /// If one of the limits isn't provided, the range is considered open in
     /// that limit. A time range open on both sides matches with any given time.
     </span><span class="kw">pub fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, time: DateTime&lt;Utc&gt;) -&gt; bool {
         <span class="self">self</span>.start.map_or(<span class="bool-val">true</span>, |s| s &lt;= time) &amp;&amp; <span class="self">self</span>.end.map_or(<span class="bool-val">true</span>, |e| time &lt; e)
@@ -831,14 +832,14 @@
 
 <span class="doccomment">/// Specifies how to interpolate sample rates for rules with bounded time window.
 </span><span class="attr">#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
+#[serde(tag = <span class="string">"type"</span>)]
 </span><span class="kw">pub enum </span>DecayingFunction {
     <span class="doccomment">/// Apply linear interpolation of the sample rate in the time window.
     ///
     /// The rule will start to apply with the configured sample rate at the beginning of the time
     /// window and end with `decayed_value` at the end of the time window.
-    </span><span class="attr">#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+    </span><span class="attr">#[serde(rename_all = <span class="string">"camelCase"</span>)]
     </span>Linear {
         <span class="doccomment">/// The target value at the end of the time window.
         </span>decayed_value: f64,
@@ -889,7 +890,7 @@
 /// population of items before client-side sampling, or relative to the number received by Relay
 /// after client-side sampling.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub enum </span>SamplingMode {
     <span class="doccomment">/// The sample rate is based on the number of events received by Relay.
     ///
@@ -903,7 +904,7 @@
     /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
     /// sample rate is 10%.
     ///
-    /// In this mode, the server sampling rate is capped by the client&#39;s sampling rate. Rules with a
+    /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
     /// higher sample rate than what the client is sending are effectively inactive.
     </span>Total,
 
@@ -926,17 +927,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>config_deserialize() {
-        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/sampling_config.json&quot;</span>);
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">"../tests/fixtures/sampling_config.json"</span>);
         serde_json::from_str::&lt;SamplingConfig&gt;(json).unwrap();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_supported() {
         <span class="kw">let </span>rule: SamplingRule = serde_json::from_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;id&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;trace&quot;</span>,
-            <span class="string">&quot;samplingValue&quot;</span>: {<span class="string">&quot;type&quot;</span>: <span class="string">&quot;sampleRate&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">1.0</span>},
-            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;and&quot;</span>, <span class="string">&quot;inner&quot;</span>: []}
+            <span class="string">"id"</span>: <span class="number">1</span>,
+            <span class="string">"type"</span>: <span class="string">"trace"</span>,
+            <span class="string">"samplingValue"</span>: {<span class="string">"type"</span>: <span class="string">"sampleRate"</span>, <span class="string">"value"</span>: <span class="number">1.0</span>},
+            <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"and"</span>, <span class="string">"inner"</span>: []}
         }))
         .unwrap();
         <span class="macro">assert!</span>(rule.supported());
@@ -945,10 +946,10 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_unsupported_rule_type() {
         <span class="kw">let </span>rule: SamplingRule = serde_json::from_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;id&quot;</span>: <span class="number">1</span>,
-            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;new_rule_type_unknown_to_this_relay&quot;</span>,
-            <span class="string">&quot;samplingValue&quot;</span>: {<span class="string">&quot;type&quot;</span>: <span class="string">&quot;sampleRate&quot;</span>, <span class="string">&quot;value&quot;</span>: <span class="number">1.0</span>},
-            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;and&quot;</span>, <span class="string">&quot;inner&quot;</span>: []}
+            <span class="string">"id"</span>: <span class="number">1</span>,
+            <span class="string">"type"</span>: <span class="string">"new_rule_type_unknown_to_this_relay"</span>,
+            <span class="string">"samplingValue"</span>: {<span class="string">"type"</span>: <span class="string">"sampleRate"</span>, <span class="string">"value"</span>: <span class="number">1.0</span>},
+            <span class="string">"condition"</span>: {<span class="string">"op"</span>: <span class="string">"and"</span>, <span class="string">"inner"</span>: []}
         }))
         .unwrap();
         <span class="macro">assert!</span>(!rule.supported());
@@ -956,17 +957,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_non_decaying_sampling_rule_deserialization() {
-        <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-            &quot;condition&quot;:{
-                &quot;op&quot;:&quot;and&quot;,
-                &quot;inner&quot;: [
-                    { &quot;op&quot; : &quot;glob&quot;, &quot;name&quot;: &quot;releases&quot;, &quot;value&quot;:[&quot;1.1.1&quot;, &quot;1.1.2&quot;]}
+        <span class="kw">let </span>serialized_rule = <span class="string">r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            &quot;samplingValue&quot;: {&quot;type&quot;: &quot;sampleRate&quot;, &quot;value&quot;: 0.7},
-            &quot;type&quot;: &quot;trace&quot;,
-            &quot;id&quot;: 1
-        }&quot;#</span>;
+            "samplingValue": {"type": "sampleRate", "value": 0.7},
+            "type": "trace",
+            "id": 1
+        }"#</span>;
 
         <span class="kw">let </span>rule: SamplingRule = serde_json::from_str(serialized_rule).unwrap();
         <span class="macro">assert_eq!</span>(
@@ -978,17 +979,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_non_decaying_sampling_rule_deserialization_with_factor() {
-        <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-            &quot;condition&quot;:{
-                &quot;op&quot;:&quot;and&quot;,
-                &quot;inner&quot;: [
-                    { &quot;op&quot; : &quot;glob&quot;, &quot;name&quot;: &quot;releases&quot;, &quot;value&quot;:[&quot;1.1.1&quot;, &quot;1.1.2&quot;]}
+        <span class="kw">let </span>serialized_rule = <span class="string">r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            &quot;samplingValue&quot;: {&quot;type&quot;: &quot;factor&quot;, &quot;value&quot;: 5.0},
-            &quot;type&quot;: &quot;trace&quot;,
-            &quot;id&quot;: 1
-        }&quot;#</span>;
+            "samplingValue": {"type": "factor", "value": 5.0},
+            "type": "trace",
+            "id": 1
+        }"#</span>;
 
         <span class="kw">let </span>rule: SamplingRule = serde_json::from_str(serialized_rule).unwrap();
         <span class="macro">assert_eq!</span>(rule.sampling_value, SamplingValue::Factor { value: <span class="number">5.0 </span>});
@@ -997,21 +998,21 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sampling_rule_with_constant_decaying_function_deserialization() {
-        <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-            &quot;condition&quot;:{
-                &quot;op&quot;:&quot;and&quot;,
-                &quot;inner&quot;: [
-                    { &quot;op&quot; : &quot;glob&quot;, &quot;name&quot;: &quot;releases&quot;, &quot;value&quot;:[&quot;1.1.1&quot;, &quot;1.1.2&quot;]}
+        <span class="kw">let </span>serialized_rule = <span class="string">r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            &quot;samplingValue&quot;: {&quot;type&quot;: &quot;factor&quot;, &quot;value&quot;: 5.0},
-            &quot;type&quot;: &quot;trace&quot;,
-            &quot;id&quot;: 1,
-            &quot;timeRange&quot;: {
-                &quot;start&quot;: &quot;2022-10-10T00:00:00.000000Z&quot;,
-                &quot;end&quot;: &quot;2022-10-20T00:00:00.000000Z&quot;
+            "samplingValue": {"type": "factor", "value": 5.0},
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>rule: <span class="prelude-ty">Result</span>&lt;SamplingRule, <span class="kw">_</span>&gt; = serde_json::from_str(serialized_rule);
         <span class="kw">let </span>rule = rule.unwrap();
         <span class="kw">let </span>time_range = rule.time_range;
@@ -1030,25 +1031,25 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sampling_rule_with_linear_decaying_function_deserialization() {
-        <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-            &quot;condition&quot;:{
-                &quot;op&quot;:&quot;and&quot;,
-                &quot;inner&quot;: [
-                    { &quot;op&quot; : &quot;glob&quot;, &quot;name&quot;: &quot;releases&quot;, &quot;value&quot;:[&quot;1.1.1&quot;, &quot;1.1.2&quot;]}
+        <span class="kw">let </span>serialized_rule = <span class="string">r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },
-            &quot;samplingValue&quot;: {&quot;type&quot;: &quot;sampleRate&quot;, &quot;value&quot;: 1.0},
-            &quot;type&quot;: &quot;trace&quot;,
-            &quot;id&quot;: 1,
-            &quot;timeRange&quot;: {
-                &quot;start&quot;: &quot;2022-10-10T00:00:00.000000Z&quot;,
-                &quot;end&quot;: &quot;2022-10-20T00:00:00.000000Z&quot;
+            "samplingValue": {"type": "sampleRate", "value": 1.0},
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
             },
-            &quot;decayingFn&quot;: {
-                &quot;type&quot;: &quot;linear&quot;,
-                &quot;decayedValue&quot;: 0.9
+            "decayingFn": {
+                "type": "linear",
+                "decayedValue": 0.9
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>rule: <span class="prelude-ty">Result</span>&lt;SamplingRule, <span class="kw">_</span>&gt; = serde_json::from_str(serialized_rule);
         <span class="kw">let </span>rule = rule.unwrap();
         <span class="kw">let </span>decaying_function = rule.decaying_fn;
@@ -1061,25 +1062,25 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_legacy_deserialization() {
-        <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-               &quot;rules&quot;: [],
-               &quot;rulesV2&quot;: [
+        <span class="kw">let </span>serialized_rule = <span class="string">r#"{
+               "rules": [],
+               "rulesV2": [
                   {
-                     &quot;samplingValue&quot;:{
-                        &quot;type&quot;: &quot;sampleRate&quot;,
-                        &quot;value&quot;: 0.5
+                     "samplingValue":{
+                        "type": "sampleRate",
+                        "value": 0.5
                      },
-                     &quot;type&quot;: &quot;trace&quot;,
-                     &quot;active&quot;: true,
-                     &quot;condition&quot;: {
-                        &quot;op&quot;: &quot;and&quot;,
-                        &quot;inner&quot;: []
+                     "type": "trace",
+                     "active": true,
+                     "condition": {
+                        "op": "and",
+                        "inner": []
                      },
-                     &quot;id&quot;: 1000
+                     "id": 1000
                   }
                ],
-               &quot;mode&quot;: &quot;received&quot;
-        }&quot;#</span>;
+               "mode": "received"
+        }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
         config.normalize();
 
@@ -1108,23 +1109,23 @@
         };
 
         <span class="kw">let </span>serialized_config = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>config).unwrap();
-        <span class="kw">let </span>expected_serialized_config = <span class="string">r#&quot;{
-  &quot;version&quot;: 2,
-  &quot;rules&quot;: [
+        <span class="kw">let </span>expected_serialized_config = <span class="string">r#"{
+  "version": 2,
+  "rules": [
     {
-      &quot;condition&quot;: {
-        &quot;op&quot;: &quot;and&quot;,
-        &quot;inner&quot;: []
+      "condition": {
+        "op": "and",
+        "inner": []
       },
-      &quot;samplingValue&quot;: {
-        &quot;type&quot;: &quot;factor&quot;,
-        &quot;value&quot;: 2.0
+      "samplingValue": {
+        "type": "factor",
+        "value": 2.0
       },
-      &quot;type&quot;: &quot;transaction&quot;,
-      &quot;id&quot;: 1
+      "type": "transaction",
+      "id": 1
     }
   ]
-}&quot;#</span>;
+}"#</span>;
 
         <span class="macro">assert_eq!</span>(serialized_config, expected_serialized_config)
     }
@@ -1157,7 +1158,7 @@
         <span class="kw">let </span>halfway = Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
         <span class="kw">let </span>end = Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">23</span>, <span class="number">59</span>, <span class="number">59</span>).unwrap();
 
-        <span class="comment">// At the start of the time range, sample rate is equal to the rule&#39;s initial sampling value.
+        <span class="comment">// At the start of the time range, sample rate is equal to the rule's initial sampling value.
         </span><span class="macro">assert_eq!</span>(
             decaying_fn.adjust_sample_rate(<span class="number">1.0</span>, start, time_range),
             <span class="prelude-val">Some</span>(<span class="number">1.0</span>)
@@ -1172,11 +1173,11 @@
         <span class="comment">// Approaches 0.5 at the end.
         </span><span class="macro">assert_eq!</span>(
             decaying_fn.adjust_sample_rate(<span class="number">1.0</span>, end, time_range),
-            <span class="comment">// It won&#39;t go to exactly 0.5 because the time range is end-exclusive.
+            <span class="comment">// It won't go to exactly 0.5 because the time range is end-exclusive.
             </span><span class="prelude-val">Some</span>(<span class="number">0.5000028935185186</span>)
         );
 
-        <span class="comment">// If the end or beginning is missing, the linear decay shouldn&#39;t be run.
+        <span class="comment">// If the end or beginning is missing, the linear decay shouldn't be run.
         </span><span class="kw">let </span><span class="kw-2">mut </span>time_range_without_start = time_range;
         time_range_without_start.start = <span class="prelude-val">None</span>;
 

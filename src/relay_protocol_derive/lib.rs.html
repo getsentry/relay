@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol-derive/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol_derive/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol_derive"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-protocol-derive/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_protocol_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_protocol_derive/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_protocol_derive"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -814,13 +815,13 @@
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
 <a href="#816" id="816">816</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Derives for Relay&#39;s protocol traits.
+</pre></div><pre class="rust"><code><span class="doccomment">//! Derives for Relay's protocol traits.
 
 </span><span class="attr">#![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
-#![recursion_limit = <span class="string">&quot;256&quot;</span>]
+#![recursion_limit = <span class="string">"256"</span>]
 
 </span><span class="kw">use </span>std::str::FromStr;
 
@@ -839,7 +840,7 @@
 <span class="macro">decl_derive!</span>([IntoValue, attributes(metastructure)] =&gt; derive_to_value);
 <span class="macro">decl_derive!</span>([FromValue, attributes(metastructure)] =&gt; derive_from_value);
 
-<span class="kw">fn </span>derive_empty(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+<span class="kw">fn </span>derive_empty(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
     <span class="kw">let _ </span>= s.add_bounds(synstructure::AddBounds::Generics);
 
     <span class="kw">let </span>is_empty_arms = s.each_variant(|variant| {
@@ -909,18 +910,18 @@
     })
 }
 
-<span class="kw">fn </span>derive_to_value(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+<span class="kw">fn </span>derive_to_value(s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
     derive_metastructure(s, Trait::To)
 }
 
-<span class="kw">fn </span>derive_from_value(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+<span class="kw">fn </span>derive_from_value(s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
     derive_metastructure(s, Trait::From)
 }
 
 <span class="kw">fn </span>derive_newtype_metastructure(
-    s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;,
+    s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;,
     t: Trait,
-) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;&gt; {
     <span class="comment">// The next few blocks are for finding out whether the given type is of the form:
     // struct Foo(Bar)  (tuple struct with a single field)
 
@@ -944,7 +945,7 @@
 
     <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
     <span class="kw">if </span>type_attrs.tag_key.is_some() {
-        <span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"tag_key not supported on structs"</span>);
     }
 
     <span class="kw">let </span>field_attrs = parse_field_attributes(<span class="number">0</span>, s.variants()[<span class="number">0</span>].bindings()[<span class="number">0</span>].ast(), <span class="kw-2">&amp;mut </span><span class="bool-val">true</span>);
@@ -993,9 +994,9 @@
 }
 
 <span class="kw">fn </span>derive_enum_metastructure(
-    s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;,
+    s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;,
     t: Trait,
-) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;&gt; {
     <span class="kw">if let </span>Data::Enum(<span class="kw">_</span>) = s.ast().data {
     } <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(s);
@@ -1005,7 +1006,7 @@
 
     <span class="kw">let </span>type_name = <span class="kw-2">&amp;</span>s.ast().ident;
     <span class="kw">let </span>tag_key_str = LitStr::new(
-        <span class="kw-2">&amp;</span>type_attrs.tag_key.unwrap_or_else(|| <span class="string">&quot;type&quot;</span>.to_string()),
+        <span class="kw-2">&amp;</span>type_attrs.tag_key.unwrap_or_else(|| <span class="string">"type"</span>.to_string()),
         Span::call_site(),
     );
 
@@ -1133,7 +1134,7 @@
     })
 }
 
-<span class="kw">fn </span>derive_metastructure(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;, t: Trait) -&gt; TokenStream {
+<span class="kw">fn </span>derive_metastructure(s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;, t: Trait) -&gt; TokenStream {
     <span class="kw">let </span>s = <span class="kw">match </span>derive_newtype_metastructure(s, t) {
         <span class="prelude-val">Ok</span>(stream) =&gt; <span class="kw">return </span>stream,
         <span class="prelude-val">Err</span>(s) =&gt; s,
@@ -1148,7 +1149,7 @@
 
     <span class="kw">let </span>variants = s.variants();
     <span class="kw">if </span>variants.len() != <span class="number">1 </span>{
-        <span class="macro">panic!</span>(<span class="string">&quot;Can only derive structs&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"Can only derive structs"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>variant = variants[<span class="number">0</span>].clone();
@@ -1163,7 +1164,7 @@
 
     <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
     <span class="kw">if </span>type_attrs.tag_key.is_some() {
-        <span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"tag_key not supported on structs"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>is_tuple_struct = <span class="bool-val">false</span>;
@@ -1176,7 +1177,7 @@
 
         <span class="kw">if </span>field_attrs.additional_properties {
             <span class="kw">if </span>is_tuple_struct {
-                <span class="macro">panic!</span>(<span class="string">&quot;additional_properties not allowed in tuple struct&quot;</span>);
+                <span class="macro">panic!</span>(<span class="string">"additional_properties not allowed in tuple struct"</span>);
             }
 
             (<span class="macro">quote! </span>{
@@ -1285,7 +1286,7 @@
                 <span class="macro">quote! </span>{
                     ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(::relay_protocol::Value::Array(<span class="kw-2">mut </span>__arr)), <span class="kw-2">mut </span>__meta) =&gt; {
                         <span class="kw">if </span>__arr.len() != #bindings_count {
-                            __meta.add_error(Error::expected(<span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro">stringify!</span>(#bindings_count), <span class="string">&quot;-tuple&quot;</span>)));
+                            __meta.add_error(Error::expected(<span class="macro">concat!</span>(<span class="string">"a "</span>, <span class="macro">stringify!</span>(#bindings_count), <span class="string">"-tuple"</span>)));
                             __meta.set_original_value(<span class="prelude-val">Some</span>(__arr));
                             Annotated(<span class="prelude-val">None</span>, __meta)
                         } <span class="kw">else </span>{
@@ -1390,7 +1391,7 @@
     tag_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">fn </span>parse_type_attributes(s: <span class="kw-2">&amp;</span>synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TypeAttrs {
+<span class="kw">fn </span>parse_type_attributes(s: <span class="kw-2">&amp;</span>synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TypeAttrs {
     <span class="kw">let </span><span class="kw-2">mut </span>rv = TypeAttrs::default();
 
     <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>s.ast().attrs {
@@ -1404,18 +1405,18 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
+        <span class="kw">if </span>ident != <span class="string">"metastructure" </span>{
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if let </span>Meta::List(metalist) = meta {
             <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
                 <span class="kw">if let </span>NestedMeta::Meta(Meta::NameValue(name_value)) = nested_meta {
-                    <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
-                    <span class="kw">if </span>ident == <span class="string">&quot;tag_key&quot; </span>{
+                    <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">"Unexpected path"</span>);
+                    <span class="kw">if </span>ident == <span class="string">"tag_key" </span>{
                         <span class="kw">match </span>name_value.lit {
                             Lit::Str(litstr) =&gt; rv.tag_key = <span class="prelude-val">Some</span>(litstr.value()),
-                            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for tag_key&quot;</span>),
+                            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Got non string literal for tag_key"</span>),
                         }
                     }
                 }
@@ -1425,7 +1426,7 @@
 
     <span class="kw">if </span>rv.tag_key.is_some() &amp;&amp; s.variants().len() == <span class="number">1 </span>{
         <span class="comment">// TODO: move into parse_type_attributes
-        </span><span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
+        </span><span class="macro">panic!</span>(<span class="string">"tag_key not supported on structs"</span>);
     }
 
     rv
@@ -1466,11 +1467,11 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ()&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;never&quot; </span>=&gt; SkipSerialization::Never,
-            <span class="string">&quot;null&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">false</span>),
-            <span class="string">&quot;null_deep&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">true</span>),
-            <span class="string">&quot;empty&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">false</span>),
-            <span class="string">&quot;empty_deep&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">true</span>),
+            <span class="string">"never" </span>=&gt; SkipSerialization::Never,
+            <span class="string">"null" </span>=&gt; SkipSerialization::Null(<span class="bool-val">false</span>),
+            <span class="string">"null_deep" </span>=&gt; SkipSerialization::Null(<span class="bool-val">true</span>),
+            <span class="string">"empty" </span>=&gt; SkipSerialization::Empty(<span class="bool-val">false</span>),
+            <span class="string">"empty_deep" </span>=&gt; SkipSerialization::Empty(<span class="bool-val">true</span>),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(()),
         })
     }
@@ -1484,7 +1485,7 @@
     <span class="kw">if </span>bi_ast.ident.is_none() {
         <span class="kw-2">*</span>is_tuple_struct = <span class="bool-val">true</span>;
     } <span class="kw">else if </span><span class="kw-2">*</span>is_tuple_struct {
-        <span class="macro">panic!</span>(<span class="string">&quot;invalid tuple struct&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"invalid tuple struct"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>rv = FieldAttrs::default();
@@ -1508,50 +1509,50 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
+        <span class="kw">if </span>ident != <span class="string">"metastructure" </span>{
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if let </span>Meta::List(metalist) = meta {
             <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
                 <span class="kw">match </span>nested_meta {
-                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">"unexpected literal attribute"</span>),
                     NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
                         Meta::Path(path) =&gt; {
-                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
+                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">"Unexpected path"</span>);
 
-                            <span class="kw">if </span>ident == <span class="string">&quot;additional_properties&quot; </span>{
+                            <span class="kw">if </span>ident == <span class="string">"additional_properties" </span>{
                                 rv.additional_properties = <span class="bool-val">true</span>;
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;omit_from_schema&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"omit_from_schema" </span>{
                                 <span class="comment">// Skip
                             </span>} <span class="kw">else </span>{
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {ident}&quot;</span>);
+                                <span class="macro">panic!</span>(<span class="string">"Unknown attribute {ident}"</span>);
                             }
                         }
                         Meta::NameValue(name_value) =&gt; {
-                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
-                            <span class="kw">if </span>ident == <span class="string">&quot;field&quot; </span>{
+                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">"Unexpected path"</span>);
+                            <span class="kw">if </span>ident == <span class="string">"field" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; rv.field_name = litstr.value(),
-                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for field&quot;</span>),
+                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Got non string literal for field"</span>),
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;legacy_alias&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"legacy_alias" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; rv.legacy_aliases.push(litstr.value()),
-                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for legacy_alias&quot;</span>),
+                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Got non string literal for legacy_alias"</span>),
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;skip_serialization&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"skip_serialization" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         rv.skip_serialization = FromStr::from_str(<span class="kw-2">&amp;</span>litstr.value())
-                                            .expect(<span class="string">&quot;Unknown value for skip_serialization&quot;</span>);
+                                            .expect(<span class="string">"Unknown value for skip_serialization"</span>);
                                     }
-                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for legacy_alias&quot;</span>),
+                                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Got non string literal for legacy_alias"</span>),
                                 }
                             }
                         }
                         other =&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, other.path());
+                            <span class="macro">panic!</span>(<span class="string">"Unexpected or bad attribute {:?}"</span>, other.path());
                         }
                     },
                 }
@@ -1580,44 +1581,44 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
+        <span class="kw">if </span>ident != <span class="string">"metastructure" </span>{
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if let </span>Meta::List(metalist) = meta {
             <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
                 <span class="kw">match </span>nested_meta {
-                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">"unexpected literal attribute"</span>),
                     NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
                         Meta::Path(path) =&gt; {
-                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
+                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">"Unexpected path"</span>);
 
-                            <span class="kw">if </span>ident == <span class="string">&quot;fallback_variant&quot; </span>{
+                            <span class="kw">if </span>ident == <span class="string">"fallback_variant" </span>{
                                 rv.tag_override = <span class="prelude-val">None</span>;
                                 rv.fallback_variant = <span class="bool-val">true</span>;
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;omit_from_schema&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"omit_from_schema" </span>{
                                 rv.omit_from_schema = <span class="bool-val">true</span>;
                             } <span class="kw">else </span>{
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {ident}&quot;</span>);
+                                <span class="macro">panic!</span>(<span class="string">"Unknown attribute {ident}"</span>);
                             }
                         }
                         Meta::NameValue(name_value) =&gt; {
                             <span class="kw">let </span>ident = name_value.path.get_ident();
-                            <span class="kw">if </span>ident.map_or(<span class="bool-val">false</span>, |x| x == <span class="string">&quot;tag&quot;</span>) {
+                            <span class="kw">if </span>ident.map_or(<span class="bool-val">false</span>, |x| x == <span class="string">"tag"</span>) {
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         rv.tag_override = <span class="prelude-val">Some</span>(litstr.value());
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for tag&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for tag"</span>);
                                     }
                                 }
                             } <span class="kw">else </span>{
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown key {:?}&quot;</span>, name_value.path);
+                                <span class="macro">panic!</span>(<span class="string">"Unknown key {:?}"</span>, name_value.path);
                             }
                         }
                         other =&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, other.path());
+                            <span class="macro">panic!</span>(<span class="string">"Unexpected or bad attribute {:?}"</span>, other.path());
                         }
                     },
                 }

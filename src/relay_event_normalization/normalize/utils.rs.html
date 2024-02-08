@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/utils.rs`."><title>utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/utils.rs`."><title>utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_normalization"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -205,14 +206,14 @@
 
 <span class="doccomment">/// Used to decide when to extract mobile-specific tags.
 </span><span class="kw">pub const </span>MOBILE_SDKS: [<span class="kw-2">&amp;</span>str; <span class="number">4</span>] = [
-    <span class="string">&quot;sentry.cocoa&quot;</span>,
-    <span class="string">&quot;sentry.dart.flutter&quot;</span>,
-    <span class="string">&quot;sentry.java.android&quot;</span>,
-    <span class="string">&quot;sentry.javascript.react-native&quot;</span>,
+    <span class="string">"sentry.cocoa"</span>,
+    <span class="string">"sentry.dart.flutter"</span>,
+    <span class="string">"sentry.java.android"</span>,
+    <span class="string">"sentry.javascript.react-native"</span>,
 ];
 
 <span class="doccomment">/// Allowed value for main thread name.
-</span><span class="kw">pub const </span>MAIN_THREAD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;main&quot;</span>;
+</span><span class="kw">pub const </span>MAIN_THREAD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">"main"</span>;
 
 <span class="doccomment">/// Maximum length of a mobile span or measurement in milliseconds.
 ///
@@ -227,8 +228,8 @@
         .data
         .value()
         .and_then(|v| {
-            v.get(<span class="string">&quot;http.response.status_code&quot;</span>)
-                .or_else(|| v.get(<span class="string">&quot;status_code&quot;</span>))
+            v.get(<span class="string">"http.response.status_code"</span>)
+                .or_else(|| v.get(<span class="string">"status_code"</span>))
         })
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
@@ -240,7 +241,7 @@
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = span
         .tags
         .value()
-        .and_then(|tags| tags.get(<span class="string">&quot;http.status_code&quot;</span>))
+        .and_then(|tags| tags.get(<span class="string">"http.status_code"</span>))
         .and_then(|v| v.as_str())
         .map(|v| v.to_owned())
     {
@@ -253,7 +254,7 @@
 <span class="doccomment">/// Extracts the HTTP status code.
 </span><span class="kw">pub fn </span>extract_http_status_code(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="comment">// For SDKs which put the HTTP status code in the event tags.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = event.tag_value(<span class="string">&quot;http.status_code&quot;</span>) {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = event.tag_value(<span class="string">"http.status_code"</span>) {
         <span class="kw">return </span><span class="prelude-val">Some</span>(status_code.to_owned());
     }
 
@@ -274,10 +275,10 @@
                 <span class="comment">// We need only the `http` type.
                 </span><span class="kw">if let </span><span class="prelude-val">Some</span>(crumb) = breadcrumb
                     .value()
-                    .filter(|bc| bc.ty.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>))
+                    .filter(|bc| bc.ty.as_str() == <span class="prelude-val">Some</span>(<span class="string">"http"</span>))
                 {
                     <span class="comment">// Try to get the status code om the map.
-                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = crumb.data.value().and_then(|v| v.get(<span class="string">&quot;status_code&quot;</span>))
+                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = crumb.data.value().and_then(|v| v.get(<span class="string">"status_code"</span>))
                     {
                         <span class="kw">return </span>status_code.value().and_then(|v| v.as_str()).map(Into::into);
                     }
@@ -298,13 +299,13 @@
     <span class="prelude-val">None
 </span>}
 
-<span class="doccomment">/// Compute the transaction event&#39;s &quot;user&quot; tag as close as possible to how users are determined in
+<span class="doccomment">/// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:
 ///
-/// * imprecision caused by HLL sketching in Snuba, which we don&#39;t have in events
-/// * hash collisions in `BucketValue::set_from_display`, which we don&#39;t have in events
-/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don&#39;t have in metrics
+/// * imprecision caused by HLL sketching in Snuba, which we don't have in events
+/// * hash collisions in `BucketValue::set_from_display`, which we don't have in events
+/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
 ///
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a
 ///   collision it seems that this code will fetch an event user with potentially different values
@@ -315,13 +316,13 @@
 /// things:
 ///
 /// * `user` metric for the metrics dataset
-/// * the &quot;promoted tag&quot; column `user` in the transactions clickhouse table
+/// * the "promoted tag" column `user` in the transactions clickhouse table
 ///
 /// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
 /// `sentry:user` tag from the event payload:
 /// &lt;https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151&gt;
 ///
-/// Sentry&#39;s processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
+/// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
 /// here: &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794&gt;
 ///
 /// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
@@ -329,19 +330,19 @@
 /// If its order is changed, this function needs to be changed.
 </span><span class="kw">pub fn </span>get_eventuser_tag(user: <span class="kw-2">&amp;</span>User) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = user.id.as_str() {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;id:{id}&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"id:{id}"</span>));
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(username) = user.username.as_str() {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;username:{username}&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"username:{username}"</span>));
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(email) = user.email.as_str() {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;email:{email}&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"email:{email}"</span>));
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user.ip_address.as_str() {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;ip:{ip_address}&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"ip:{ip_address}"</span>));
     }
 
     <span class="prelude-val">None
@@ -350,12 +351,12 @@
 <span class="doccomment">/// Returns a normalized `op` from the given trace context.
 </span><span class="kw">pub fn </span>extract_transaction_op(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>op = trace_context.op.value()<span class="question-mark">?</span>;
-    <span class="kw">if </span>op == <span class="string">&quot;default&quot; </span>{
-        <span class="comment">// This was likely set by normalization, so let&#39;s treat it as None
+    <span class="kw">if </span>op == <span class="string">"default" </span>{
+        <span class="comment">// This was likely set by normalization, so let's treat it as None
         // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
 
         // Note that this is the opposite behavior of what we do for transaction.status, where
-        // we coalesce None to &quot;unknown&quot;.
+        // we coalesce None to "unknown".
         </span><span class="kw">return </span><span class="prelude-val">None</span>;
     }
     <span class="prelude-val">Some</span>(op.to_string())

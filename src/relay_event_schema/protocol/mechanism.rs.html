@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/mechanism.rs`."><title>mechanism.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/mechanism.rs`."><title>mechanism.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -522,7 +523,7 @@
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
@@ -534,7 +535,7 @@
 /// POSIX.1-2001, and POSIX.1-2008. See
 /// [`errno(3)`](https://man7.org/linux/man-pages/man3/errno.3.html) for more information.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>CError {
     <span class="doccomment">/// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     </span><span class="kw">pub </span>number: Annotated&lt;i64&gt;,
@@ -545,10 +546,10 @@
 
 <span class="doccomment">/// Mach exception information.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>MachException {
     <span class="doccomment">/// The mach exception type.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;exception&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"exception"</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;i64&gt;,
 
     <span class="doccomment">/// The mach exception code.
@@ -563,7 +564,7 @@
 
 <span class="doccomment">/// NSError informaiton.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>NsError {
     <span class="doccomment">/// The error code.
     </span><span class="kw">pub </span>code: Annotated&lt;i64&gt;,
@@ -577,7 +578,7 @@
 /// On Apple systems, signals also carry a code in addition to the signal number describing the
 /// signal in more detail. On Linux, this code does not exist.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>PosixSignal {
     <span class="doccomment">/// The POSIX signal number.
     </span><span class="kw">pub </span>number: Annotated&lt;i64&gt;,
@@ -600,7 +601,7 @@
 /// proprietary or vendor-specific error codes, adding these values will give additional
 /// information to the user.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>MechanismMeta {
     <span class="doccomment">/// Optional ISO C standard error code.
     </span><span class="kw">pub </span>errno: Annotated&lt;CError&gt;,
@@ -626,7 +627,7 @@
 /// This includes general exception values obtained from the operating system or runtime APIs, as
 /// well as mechanism-specific values.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Mechanism {
     <span class="doccomment">/// Mechanism type (required).
     ///
@@ -634,12 +635,12 @@
     /// mechanism data.
     ///
     /// In the Python SDK this is merely the name of the framework integration that produced the
-    /// exception, while for native it is e.g. `&quot;minidump&quot;` or `&quot;applecrashreport&quot;`.
+    /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
     </span><span class="attr">#[metastructure(
-        field = <span class="string">&quot;type&quot;</span>,
-        required = <span class="string">&quot;true&quot;</span>,
-        nonempty = <span class="string">&quot;true&quot;</span>,
-        max_chars = <span class="string">&quot;enumlike&quot;
+        field = <span class="string">"type"</span>,
+        required = <span class="string">"true"</span>,
+        nonempty = <span class="string">"true"</span>,
+        max_chars = <span class="string">"enumlike"
     </span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
@@ -652,11 +653,11 @@
     <span class="doccomment">/// Optional human-readable description of the error mechanism.
     ///
     /// May include a possible hint on how to solve this error.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;message&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"message"</span>)]
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Link to online resources describing this error.
-    </span><span class="attr">#[metastructure(required = <span class="string">&quot;false&quot;</span>, nonempty = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;path&quot;</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"false"</span>, nonempty = <span class="string">"true"</span>, max_chars = <span class="string">"path"</span>)]
     </span><span class="kw">pub </span>help_link: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Flag indicating whether this exception was handled.
@@ -678,16 +679,16 @@
     /// attribute (on the parent exception) that this exception was acquired from. In the case of
     /// an array, it should include the zero-based array index as well.
     ///
-    /// - Python Examples: `&quot;__context__&quot;`, `&quot;__cause__&quot;`, `&quot;exceptions[0]&quot;`, `&quot;exceptions[1]&quot;`
+    /// - Python Examples: `"__context__"`, `"__cause__"`, `"exceptions[0]"`, `"exceptions[1]"`
     ///
-    /// - .NET Examples:  `&quot;InnerException&quot;`, `&quot;InnerExceptions[0]&quot;`, `&quot;InnerExceptions[1]&quot;`
+    /// - .NET Examples:  `"InnerException"`, `"InnerExceptions[0]"`, `"InnerExceptions[1]"`
     ///
-    /// - JavaScript Examples: `&quot;cause&quot;`, `&quot;errors[0]&quot;`, `&quot;errors[1]&quot;`
+    /// - JavaScript Examples: `"cause"`, `"errors[0]"`, `"errors[1]"`
     </span><span class="attr">#[metastructure(
-        required = <span class="string">&quot;false&quot;</span>,
-        nonempty = <span class="string">&quot;true&quot;</span>,
-        max_chars = <span class="string">&quot;enumlike&quot;</span>,
-        deny_chars = <span class="string">&quot; \t\r\n&quot;
+        required = <span class="string">"false"</span>,
+        nonempty = <span class="string">"true"</span>,
+        max_chars = <span class="string">"enumlike"</span>,
+        deny_chars = <span class="string">" \t\r\n"
     </span>)]
     </span><span class="kw">pub </span>source: Annotated&lt;String&gt;,
 
@@ -695,7 +696,7 @@
     /// group type.  Defaults to `false`.
     ///
     /// For example, exceptions of type `ExceptionGroup` (Python), `AggregateException` (.NET), and
-    /// `AggregateError` (JavaScript) should have `&quot;is_exception_group&quot;: true`.  Other exceptions
+    /// `AggregateError` (JavaScript) should have `"is_exception_group": true`.  Other exceptions
     /// can omit this field.
     </span><span class="kw">pub </span>is_exception_group: Annotated&lt;bool&gt;,
 
@@ -715,12 +716,12 @@
     </span><span class="kw">pub </span>parent_id: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;medium&quot;</span>)]
-    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Operating system or runtime meta information.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>meta: Annotated&lt;MechanismMeta&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -732,7 +733,7 @@
     <span class="kw">fn </span>from_value(annotated: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="attr">#[derive(Debug, FromValue)]
         </span><span class="kw">struct </span>NewMechanism {
-            <span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>, required = <span class="string">&quot;true&quot;</span>)]
+            <span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>)]
             </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
             <span class="kw">pub </span>synthetic: Annotated&lt;bool&gt;,
             <span class="kw">pub </span>description: Annotated&lt;String&gt;,
@@ -776,7 +777,7 @@
             Annotated(<span class="prelude-val">Some</span>(Value::Object(object)), meta) =&gt; {
                 <span class="kw">if </span>object.is_empty() {
                     Annotated(<span class="prelude-val">None</span>, meta)
-                } <span class="kw">else if </span>object.contains_key(<span class="string">&quot;type&quot;</span>) {
+                } <span class="kw">else if </span>object.contains_key(<span class="string">"type"</span>) {
                     <span class="kw">let </span>annotated = Annotated(<span class="prelude-val">Some</span>(Value::Object(object)), meta);
                     NewMechanism::from_value(annotated).map_value(|mechanism| Mechanism {
                         ty: mechanism.ty,
@@ -795,7 +796,7 @@
                 } <span class="kw">else </span>{
                     <span class="kw">let </span>annotated = Annotated(<span class="prelude-val">Some</span>(Value::Object(object)), meta);
                     LegacyMechanism::from_value(annotated).map_value(|legacy| Mechanism {
-                        ty: Annotated::new(<span class="string">&quot;generic&quot;</span>.to_string()),
+                        ty: Annotated::new(<span class="string">"generic"</span>.to_string()),
                         synthetic: Annotated::empty(),
                         description: Annotated::empty(),
                         help_link: Annotated::empty(),
@@ -829,7 +830,7 @@
                 }
             }
             Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
-                meta.add_error(Error::expected(<span class="string">&quot;exception mechanism&quot;</span>));
+                meta.add_error(Error::expected(<span class="string">"exception mechanism"</span>));
                 meta.set_original_value(<span class="prelude-val">Some</span>(value));
                 Annotated(<span class="prelude-val">None</span>, meta)
             }
@@ -847,89 +848,89 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mechanism_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;type&quot;: &quot;mytype&quot;,
-  &quot;description&quot;: &quot;mydescription&quot;,
-  &quot;help_link&quot;: &quot;https://developer.apple.com/library/content/qa/qa1367/_index.html&quot;,
-  &quot;handled&quot;: false,
-  &quot;source&quot;: &quot;errors[0]&quot;,
-  &quot;is_exception_group&quot;: false,
-  &quot;exception_id&quot;: 1,
-  &quot;parent_id&quot;: 0,
-  &quot;data&quot;: {
-    &quot;relevant_address&quot;: &quot;0x1&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "type": "mytype",
+  "description": "mydescription",
+  "help_link": "https://developer.apple.com/library/content/qa/qa1367/_index.html",
+  "handled": false,
+  "source": "errors[0]",
+  "is_exception_group": false,
+  "exception_id": 1,
+  "parent_id": 0,
+  "data": {
+    "relevant_address": "0x1"
   },
-  &quot;meta&quot;: {
-    &quot;errno&quot;: {
-      &quot;number&quot;: 2,
-      &quot;name&quot;: &quot;ENOENT&quot;
+  "meta": {
+    "errno": {
+      "number": 2,
+      "name": "ENOENT"
     },
-    &quot;signal&quot;: {
-      &quot;number&quot;: 11,
-      &quot;code&quot;: 0,
-      &quot;name&quot;: &quot;SIGSEGV&quot;,
-      &quot;code_name&quot;: &quot;SEGV_NOOP&quot;
+    "signal": {
+      "number": 11,
+      "code": 0,
+      "name": "SIGSEGV",
+      "code_name": "SEGV_NOOP"
     },
-    &quot;mach_exception&quot;: {
-      &quot;exception&quot;: 1,
-      &quot;code&quot;: 1,
-      &quot;subcode&quot;: 8,
-      &quot;name&quot;: &quot;EXC_BAD_ACCESS&quot;
+    "mach_exception": {
+      "exception": 1,
+      "code": 1,
+      "subcode": 8,
+      "name": "EXC_BAD_ACCESS"
     },
-    &quot;ns_error&quot;: {
-      &quot;code&quot;: -42,
-      &quot;domain&quot;: &quot;SqlException&quot;
+    "ns_error": {
+      "code": -42,
+      "domain": "SqlException"
     },
-    &quot;other&quot;: &quot;value&quot;
+    "other": "value"
   },
-  &quot;other&quot;: &quot;value&quot;
-}&quot;#</span>;
+  "other": "value"
+}"#</span>;
         <span class="kw">let </span>mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
+            ty: Annotated::new(<span class="string">"mytype"</span>.to_string()),
             synthetic: Annotated::empty(),
-            description: Annotated::new(<span class="string">&quot;mydescription&quot;</span>.to_string()),
+            description: Annotated::new(<span class="string">"mydescription"</span>.to_string()),
             help_link: Annotated::new(
-                <span class="string">&quot;https://developer.apple.com/library/content/qa/qa1367/_index.html&quot;</span>.to_string(),
+                <span class="string">"https://developer.apple.com/library/content/qa/qa1367/_index.html"</span>.to_string(),
             ),
             handled: Annotated::new(<span class="bool-val">false</span>),
-            source: Annotated::new(<span class="string">&quot;errors[0]&quot;</span>.to_string()),
+            source: Annotated::new(<span class="string">"errors[0]"</span>.to_string()),
             is_exception_group: Annotated::new(<span class="bool-val">false</span>),
             exception_id: Annotated::new(<span class="number">1</span>),
             parent_id: Annotated::new(<span class="number">0</span>),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;relevant_address&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;0x1&quot;</span>.to_string())),
+                    <span class="string">"relevant_address"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"0x1"</span>.to_string())),
                 );
                 Annotated::new(map)
             },
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::new(<span class="number">2</span>),
-                    name: Annotated::new(<span class="string">&quot;ENOENT&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"ENOENT"</span>.to_string()),
                 }),
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::new(<span class="number">1</span>),
                     code: Annotated::new(<span class="number">1</span>),
                     subcode: Annotated::new(<span class="number">8</span>),
-                    name: Annotated::new(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"EXC_BAD_ACCESS"</span>.to_string()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(<span class="number">11</span>),
                     code: Annotated::new(<span class="number">0</span>),
-                    name: Annotated::new(<span class="string">&quot;SIGSEGV&quot;</span>.to_string()),
-                    code_name: Annotated::new(<span class="string">&quot;SEGV_NOOP&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"SIGSEGV"</span>.to_string()),
+                    code_name: Annotated::new(<span class="string">"SEGV_NOOP"</span>.to_string()),
                 }),
                 ns_error: Annotated::new(NsError {
                     code: Annotated::new(-<span class="number">42</span>),
-                    domain: Annotated::new(<span class="string">&quot;SqlException&quot;</span>.to_string()),
+                    domain: Annotated::new(<span class="string">"SqlException"</span>.to_string()),
                 }),
                 other: {
                     <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                     map.insert(
-                        <span class="string">&quot;other&quot;</span>.to_string(),
-                        Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                        <span class="string">"other"</span>.to_string(),
+                        Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                     );
                     map
                 },
@@ -937,8 +938,8 @@
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
-                    <span class="string">&quot;other&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
+                    <span class="string">"other"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
                 );
                 map
             },
@@ -950,9 +951,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mechanism_default_values() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"type":"mytype"}"#</span>;
         <span class="kw">let </span>mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
+            ty: Annotated::new(<span class="string">"mytype"</span>.to_string()),
             ..Default::default()
         });
 
@@ -963,49 +964,49 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mechanism_empty() {
         <span class="kw">let </span>mechanism = Annotated::&lt;Mechanism&gt;::empty();
-        <span class="macro">assert_eq!</span>(mechanism, Annotated::from_json(<span class="string">&quot;{}&quot;</span>).unwrap());
+        <span class="macro">assert_eq!</span>(mechanism, Annotated::from_json(<span class="string">"{}"</span>).unwrap());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_mechanism_legacy_conversion() {
-        <span class="kw">let </span>input = <span class="string">r#&quot;{
-  &quot;posix_signal&quot;: {
-    &quot;name&quot;: &quot;SIGSEGV&quot;,
-    &quot;code_name&quot;: &quot;SEGV_NOOP&quot;,
-    &quot;signal&quot;: 11,
-    &quot;code&quot;: 0
+        <span class="kw">let </span>input = <span class="string">r#"{
+  "posix_signal": {
+    "name": "SIGSEGV",
+    "code_name": "SEGV_NOOP",
+    "signal": 11,
+    "code": 0
   },
-  &quot;relevant_address&quot;: &quot;0x1&quot;,
-  &quot;mach_exception&quot;: {
-    &quot;exception&quot;: 1,
-    &quot;exception_name&quot;: &quot;EXC_BAD_ACCESS&quot;,
-    &quot;subcode&quot;: 8,
-    &quot;code&quot;: 1
+  "relevant_address": "0x1",
+  "mach_exception": {
+    "exception": 1,
+    "exception_name": "EXC_BAD_ACCESS",
+    "subcode": 8,
+    "code": 1
   }
-}&quot;#</span>;
+}"#</span>;
 
-        <span class="kw">let </span>output = <span class="string">r#&quot;{
-  &quot;type&quot;: &quot;generic&quot;,
-  &quot;data&quot;: {
-    &quot;relevant_address&quot;: &quot;0x1&quot;
+        <span class="kw">let </span>output = <span class="string">r#"{
+  "type": "generic",
+  "data": {
+    "relevant_address": "0x1"
   },
-  &quot;meta&quot;: {
-    &quot;signal&quot;: {
-      &quot;number&quot;: 11,
-      &quot;code&quot;: 0,
-      &quot;name&quot;: &quot;SIGSEGV&quot;,
-      &quot;code_name&quot;: &quot;SEGV_NOOP&quot;
+  "meta": {
+    "signal": {
+      "number": 11,
+      "code": 0,
+      "name": "SIGSEGV",
+      "code_name": "SEGV_NOOP"
     },
-    &quot;mach_exception&quot;: {
-      &quot;exception&quot;: 1,
-      &quot;code&quot;: 1,
-      &quot;subcode&quot;: 8,
-      &quot;name&quot;: &quot;EXC_BAD_ACCESS&quot;
+    "mach_exception": {
+      "exception": 1,
+      "code": 1,
+      "subcode": 8,
+      "name": "EXC_BAD_ACCESS"
     }
   }
-}&quot;#</span>;
+}"#</span>;
         <span class="kw">let </span>mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new(<span class="string">&quot;generic&quot;</span>.to_string()),
+            ty: Annotated::new(<span class="string">"generic"</span>.to_string()),
             synthetic: Annotated::empty(),
             description: Annotated::empty(),
             help_link: Annotated::empty(),
@@ -1017,8 +1018,8 @@
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(
-                    <span class="string">&quot;relevant_address&quot;</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">&quot;0x1&quot;</span>.to_string())),
+                    <span class="string">"relevant_address"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"0x1"</span>.to_string())),
                 );
                 Annotated::new(map)
             },
@@ -1028,13 +1029,13 @@
                     ty: Annotated::new(<span class="number">1</span>),
                     code: Annotated::new(<span class="number">1</span>),
                     subcode: Annotated::new(<span class="number">8</span>),
-                    name: Annotated::new(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"EXC_BAD_ACCESS"</span>.to_string()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(<span class="number">11</span>),
                     code: Annotated::new(<span class="number">0</span>),
-                    name: Annotated::new(<span class="string">&quot;SIGSEGV&quot;</span>.to_string()),
-                    code_name: Annotated::new(<span class="string">&quot;SEGV_NOOP&quot;</span>.to_string()),
+                    name: Annotated::new(<span class="string">"SIGSEGV"</span>.to_string()),
+                    code_name: Annotated::new(<span class="string">"SEGV_NOOP"</span>.to_string()),
                 }),
                 ns_error: Annotated::empty(),
                 other: Object::default(),

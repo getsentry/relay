@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2030,11 +2031,11 @@
 
 <span class="doccomment">/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
 /// cardinality data such as raw URLs.
-</span><span class="kw">const </span>PLACEHOLDER_UNPARAMETERIZED: <span class="kw-2">&amp;</span>str = <span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>;
+</span><span class="kw">const </span>PLACEHOLDER_UNPARAMETERIZED: <span class="kw-2">&amp;</span>str = <span class="string">"&lt;&lt; unparameterized &gt;&gt;"</span>;
 
 <span class="doccomment">/// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
 ///
-/// These are a subset of &quot;universal&quot; tags.
+/// These are a subset of "universal" tags.
 </span><span class="kw">const </span>PERFORMANCE_SCORE_TAGS: [CommonTag; <span class="number">6</span>] = [
     CommonTag::BrowserName,
     CommonTag::Environment,
@@ -2076,7 +2077,7 @@
         <span class="comment">// For now, we hope that custom transaction names set by users are low-cardinality.
         </span>TransactionSource::Custom =&gt; <span class="bool-val">true</span>,
 
-        <span class="comment">// &quot;url&quot; are raw URLs, potentially containing identifiers.
+        <span class="comment">// "url" are raw URLs, potentially containing identifiers.
         </span>TransactionSource::Url =&gt; <span class="bool-val">false</span>,
 
         <span class="comment">// These four are names of software components, which we assume to be low-cardinality.
@@ -2119,9 +2120,9 @@
 
 <span class="kw">fn </span>track_transaction_name_stats(event: <span class="kw-2">&amp;</span>Event) {
     <span class="kw">let </span>name_used = <span class="kw">match </span>get_transaction_name(event).as_deref() {
-        <span class="prelude-val">Some</span>(<span class="self">self</span>::PLACEHOLDER_UNPARAMETERIZED) =&gt; <span class="string">&quot;placeholder&quot;</span>,
-        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;original&quot;</span>,
-        <span class="prelude-val">None </span>=&gt; <span class="string">&quot;none&quot;</span>,
+        <span class="prelude-val">Some</span>(<span class="self">self</span>::PLACEHOLDER_UNPARAMETERIZED) =&gt; <span class="string">"placeholder"</span>,
+        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">"original"</span>,
+        <span class="prelude-val">None </span>=&gt; <span class="string">"none"</span>,
     };
 
     <span class="macro">relay_statsd::metric!</span>(
@@ -2166,7 +2167,7 @@
     // `relay_event_normalization::is_valid_platform` into light normalization.
     </span><span class="kw">let </span>platform = <span class="kw">match </span>event.platform.as_str() {
         <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>relay_event_normalization::is_valid_platform(platform) =&gt; platform,
-        <span class="kw">_ </span>=&gt; <span class="string">&quot;other&quot;</span>,
+        <span class="kw">_ </span>=&gt; <span class="string">"other"</span>,
     };
 
     tags.insert(CommonTag::Platform, platform.to_string());
@@ -2204,7 +2205,7 @@
     }
 
     <span class="kw">if </span>normalize_utils::MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name()) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">&quot;device.class&quot;</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">"device.class"</span>) {
             tags.insert(CommonTag::DeviceClass, device_class.to_owned());
         }
     }
@@ -2252,15 +2253,15 @@
 }
 
 <span class="doccomment">/// A utility that extracts metrics from transactions.
-</span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>TransactionMetricsConfig,
-    <span class="kw">pub </span>generic_tags: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[TagMapping],
-    <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
-    <span class="kw">pub </span>sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingResult,
+</span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TransactionMetricsConfig,
+    <span class="kw">pub </span>generic_tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[TagMapping],
+    <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+    <span class="kw">pub </span>sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SamplingResult,
     <span class="kw">pub </span>has_profile: bool,
 }
 
-<span class="kw">impl </span>TransactionExtractor&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>TransactionExtractor&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>extract(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractedMetrics, ExtractMetricsError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = ExtractedMetrics::default();
 
@@ -2270,12 +2271,12 @@
 
         <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value())
         <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">"failed to extract the start and the end timestamps from the event"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::MissingTimestamp);
         };
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is not a valid unix timestamp&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">"event timestamp is not a valid unix timestamp"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
         };
 
@@ -2303,18 +2304,18 @@
 
                 <span class="kw">let </span><span class="prelude-val">Some</span>(value) = FiniteF64::new(value) <span class="kw">else </span>{
                     <span class="macro">relay_log::error!</span>(
-                        tags.field = <span class="macro">format_args!</span>(<span class="string">&quot;measurements.{name}&quot;</span>),
-                        <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+                        tags.field = <span class="macro">format_args!</span>(<span class="string">"measurements.{name}"</span>),
+                        <span class="string">"non-finite float value in transaction metric extraction"
                     </span>);
                     <span class="kw">continue</span>;
                 };
 
-                <span class="comment">// We treat a measurement as &quot;performance score&quot; if its name is the name of another
+                <span class="comment">// We treat a measurement as "performance score" if its name is the name of another
                 // measurement prefixed by `score.`.
-                </span><span class="kw">let </span>is_performance_score = name == <span class="string">&quot;score.total&quot;
+                </span><span class="kw">let </span>is_performance_score = name == <span class="string">"score.total"
                     </span>|| name
-                        .strip_prefix(<span class="string">&quot;score.weight.&quot;</span>)
-                        .or_else(|| name.strip_prefix(<span class="string">&quot;score.&quot;</span>))
+                        .strip_prefix(<span class="string">"score.weight."</span>)
+                        .or_else(|| name.strip_prefix(<span class="string">"score."</span>))
                         .map_or(<span class="bool-val">false</span>, |suffix| measurement_names.contains(suffix));
 
                 <span class="kw">let </span>measurement_tags = TransactionMeasurementTags {
@@ -2349,7 +2350,7 @@
             <span class="kw">for </span>(breakdown, measurements) <span class="kw">in </span>breakdowns.iter() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = measurements.value() {
                     <span class="kw">for </span>(measurement_name, annotated) <span class="kw">in </span>measurements.iter() {
-                        <span class="kw">if </span>measurement_name == <span class="string">&quot;total.time&quot; </span>{
+                        <span class="kw">if </span>measurement_name == <span class="string">"total.time" </span>{
                             <span class="comment">// The only reason we do not emit total.time as a metric is that is was not
                             // on the allowlist in sentry before, and nobody seems to be missing it.
                             </span><span class="kw">continue</span>;
@@ -2366,15 +2367,15 @@
                         <span class="kw">let </span><span class="prelude-val">Some</span>(value) = FiniteF64::new(value) <span class="kw">else </span>{
                             <span class="macro">relay_log::error!</span>(
                                 tags.field =
-                                    <span class="macro">format_args!</span>(<span class="string">&quot;breakdowns.{breakdown}.{measurement_name}&quot;</span>),
-                                <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+                                    <span class="macro">format_args!</span>(<span class="string">"breakdowns.{breakdown}.{measurement_name}"</span>),
+                                <span class="string">"non-finite float value in transaction metric extraction"
                             </span>);
                             <span class="kw">continue</span>;
                         };
 
                         metrics.project_metrics.push(
                             TransactionMetric::Breakdown {
-                                name: <span class="macro">format!</span>(<span class="string">&quot;{breakdown}.{measurement_name}&quot;</span>),
+                                name: <span class="macro">format!</span>(<span class="string">"{breakdown}.{measurement_name}"</span>),
                                 value,
                                 tags: tags.clone(),
                             }
@@ -2427,8 +2428,8 @@
             );
         } <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
-                tags.field = <span class="string">&quot;duration&quot;</span>,
-                <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+                tags.field = <span class="string">"duration"</span>,
+                <span class="string">"non-finite float value in transaction metric extraction"
             </span>);
         }
 
@@ -2440,9 +2441,9 @@
                     </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
             <span class="kw">let </span>decision = <span class="kw">if </span><span class="self">self</span>.sampling_result.should_keep() {
-                <span class="string">&quot;keep&quot;
+                <span class="string">"keep"
             </span>} <span class="kw">else </span>{
-                <span class="string">&quot;drop&quot;
+                <span class="string">"drop"
             </span>};
 
             TransactionCPRTags {
@@ -2480,20 +2481,20 @@
     <span class="kw">let </span>rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         <span class="macro">debug_assert!</span>(meh_ceiling &lt; poor_ceiling);
         <span class="prelude-val">Some</span>(<span class="kw">if </span>value &lt; meh_ceiling {
-            <span class="string">&quot;good&quot;</span>.to_owned()
+            <span class="string">"good"</span>.to_owned()
         } <span class="kw">else if </span>value &lt; poor_ceiling {
-            <span class="string">&quot;meh&quot;</span>.to_owned()
+            <span class="string">"meh"</span>.to_owned()
         } <span class="kw">else </span>{
-            <span class="string">&quot;poor&quot;</span>.to_owned()
+            <span class="string">"poor"</span>.to_owned()
         })
     };
 
     <span class="kw">match </span>name {
-        <span class="string">&quot;lcp&quot; </span>=&gt; rate_range(<span class="number">2500.0</span>, <span class="number">4000.0</span>),
-        <span class="string">&quot;fcp&quot; </span>=&gt; rate_range(<span class="number">1000.0</span>, <span class="number">3000.0</span>),
-        <span class="string">&quot;fid&quot; </span>=&gt; rate_range(<span class="number">100.0</span>, <span class="number">300.0</span>),
-        <span class="string">&quot;inp&quot; </span>=&gt; rate_range(<span class="number">200.0</span>, <span class="number">500.0</span>),
-        <span class="string">&quot;cls&quot; </span>=&gt; rate_range(<span class="number">0.1</span>, <span class="number">0.25</span>),
+        <span class="string">"lcp" </span>=&gt; rate_range(<span class="number">2500.0</span>, <span class="number">4000.0</span>),
+        <span class="string">"fcp" </span>=&gt; rate_range(<span class="number">1000.0</span>, <span class="number">3000.0</span>),
+        <span class="string">"fid" </span>=&gt; rate_range(<span class="number">100.0</span>, <span class="number">300.0</span>),
+        <span class="string">"inp" </span>=&gt; rate_range(<span class="number">200.0</span>, <span class="number">500.0</span>),
+        <span class="string">"cls" </span>=&gt; rate_range(<span class="number">0.1</span>, <span class="number">0.25</span>),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
 }
@@ -2515,72 +2516,72 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_transaction_metrics() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;platform&quot;: &quot;javascript&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;release&quot;: &quot;1.2.3&quot;,
-            &quot;dist&quot;: &quot;foo &quot;,
-            &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
-            &quot;user&quot;: {
-                &quot;id&quot;: &quot;user123&quot;,
-                &quot;geo&quot;: {
-                    &quot;country_code&quot;: &quot;US&quot;
+            "type": "transaction",
+            "platform": "javascript",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "dist": "foo ",
+            "environment": "fake_environment",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "user": {
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
                 }
             },
-            &quot;tags&quot;: {
-                &quot;fOO&quot;: &quot;bar&quot;,
-                &quot;bogus&quot;: &quot;absolutely&quot;,
-                &quot;device.class&quot;: &quot;1&quot;
+            "tags": {
+                "fOO": "bar",
+                "bogus": "absolutely",
+                "device.class": "1"
             },
-            &quot;measurements&quot;: {
-                &quot;foo&quot;: {&quot;value&quot;: 420.69},
-                &quot;lcp&quot;: {&quot;value&quot;: 3000.0, &quot;unit&quot;: &quot;millisecond&quot;}
+            "measurements": {
+                "foo": {"value": 420.69},
+                "lcp": {"value": 3000.0, "unit": "millisecond"}
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;op&quot;: &quot;mYOp&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "mYOp",
+                    "status": "ok"
                 },
-                &quot;browser&quot;: {
-                    &quot;name&quot;: &quot;Chrome&quot;
+                "browser": {
+                    "name": "Chrome"
                 },
-                &quot;os&quot;: {
-                    &quot;name&quot;: &quot;Windows&quot;
+                "os": {
+                    "name": "Windows"
                 }
             },
-            &quot;request&quot;: {
-                &quot;method&quot;: &quot;post&quot;
+            "request": {
+                "method": "post"
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;description&quot;: &quot;&lt;OrganizationContext&gt;&quot;,
-                    &quot;op&quot;: &quot;react.mount&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "description": "&lt;OrganizationContext&gt;",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
              ]
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            <span class="string">r#&quot;{
-                &quot;span_ops&quot;: {
-                    &quot;type&quot;: &quot;spanOperations&quot;,
-                    &quot;matches&quot;: [&quot;react.mount&quot;]
+            <span class="string">r#"{
+                "span_ops": {
+                    "type": "spanOperations",
+                    "matches": ["react.mount"]
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
@@ -2595,9 +2596,9 @@
                 enrich_spans: <span class="bool-val">false</span>,
                 performance_score: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>PerformanceScoreConfig {
                     profiles: <span class="macro">vec!</span>[PerformanceScoreProfile {
-                        name: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.into()),
+                        name: <span class="prelude-val">Some</span>(<span class="string">""</span>.into()),
                         score_components: <span class="macro">vec!</span>[PerformanceScoreWeightedComponent {
-                            measurement: <span class="string">&quot;lcp&quot;</span>.into(),
+                            measurement: <span class="string">"lcp"</span>.into(),
                             weight: <span class="number">0.5</span>,
                             p10: <span class="number">2.0</span>,
                             p50: <span class="number">3.0</span>,
@@ -2611,23 +2612,23 @@
         );
 
         <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
-            <span class="string">r#&quot;{
-                &quot;version&quot;: 1,
-                &quot;extractCustomTags&quot;: [&quot;fOO&quot;]
-            }&quot;#</span>,
+            <span class="string">r#"{
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }"#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r###"
         [
             Span {
                 timestamp: Timestamp(
@@ -2637,16 +2638,16 @@
                     2020-08-21T02:18:20Z,
                 ),
                 exclusive_time: 2000.0,
-                description: &quot;&lt;OrganizationContext&gt;&quot;,
-                op: &quot;react.mount&quot;,
+                description: "&lt;OrganizationContext&gt;",
+                op: "react.mount",
                 span_id: SpanId(
-                    &quot;bd429c44b67a3eb4&quot;,
+                    "bd429c44b67a3eb4",
                 ),
                 parent_span_id: SpanId(
-                    &quot;8f5a2b8768cafb4e&quot;,
+                    "8f5a2b8768cafb4e",
                 ),
                 trace_id: TraceId(
-                    &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    "ff62a8b040f340bda5d830223def1d81",
                 ),
                 segment_id: ~,
                 is_segment: ~,
@@ -2662,141 +2663,141 @@
                 other: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.foo@none&quot;,
+                name: "d:transactions/measurements.foo@none",
                 value: Distribution(
                     [
                         420.69,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;dist&quot;: &quot;foo&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;fOO&quot;: &quot;bar&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;http.method&quot;: &quot;POST&quot;,
-                    &quot;os.name&quot;: &quot;Windows&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
+                name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
                     [
                         3000.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;dist&quot;: &quot;foo&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;fOO&quot;: &quot;bar&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;http.method&quot;: &quot;POST&quot;,
-                    &quot;measurement_rating&quot;: &quot;meh&quot;,
-                    &quot;os.name&quot;: &quot;Windows&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "measurement_rating": "meh",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.score.lcp@ratio&quot;,
+                name: "d:transactions/measurements.score.lcp@ratio",
                 value: Distribution(
                     [
                         0.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.score.total@ratio&quot;,
+                name: "d:transactions/measurements.score.total@ratio",
                 value: Distribution(
                     [
                         0.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.score.weight.lcp@ratio&quot;,
+                name: "d:transactions/measurements.score.weight.lcp@ratio",
                 value: Distribution(
                     [
                         1.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/breakdowns.span_ops.ops.react.mount@millisecond&quot;,
+                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;dist&quot;: &quot;foo&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;fOO&quot;: &quot;bar&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;http.method&quot;: &quot;POST&quot;,
-                    &quot;os.name&quot;: &quot;Windows&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -2805,89 +2806,89 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;dist&quot;: &quot;foo&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;fOO&quot;: &quot;bar&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;http.method&quot;: &quot;POST&quot;,
-                    &quot;os.name&quot;: &quot;Windows&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;s:transactions/user@none&quot;,
+                name: "s:transactions/user@none",
                 value: Set(
                     {
                         933084975,
                     },
                 ),
                 tags: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;dist&quot;: &quot;foo&quot;,
-                    &quot;environment&quot;: &quot;fake_environment&quot;,
-                    &quot;fOO&quot;: &quot;bar&quot;,
-                    &quot;geo.country_code&quot;: &quot;US&quot;,
-                    &quot;http.method&quot;: &quot;POST&quot;,
-                    &quot;os.name&quot;: &quot;Windows&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_metric_measurement_units() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;fcp&quot;: {&quot;value&quot;: 1.1},
-                &quot;stall_count&quot;: {&quot;value&quot;: 3.3},
-                &quot;foo&quot;: {&quot;value&quot;: 8.8}
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
@@ -2897,64 +2898,64 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.fcp@millisecond&quot;,
+                name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
                     [
                         1.1,
                     ],
                 ),
                 tags: {
-                    &quot;measurement_rating&quot;: &quot;good&quot;,
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.foo@none&quot;,
+                name: "d:transactions/measurements.foo@none",
                 value: Distribution(
                     [
                         8.8,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.stall_count@none&quot;,
+                name: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
                     [
                         3.3,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -2963,52 +2964,52 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
+                    "transaction": "&lt;unlabeled transaction&gt;",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_metric_measurement_unit_overrides() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;fcp&quot;: {&quot;value&quot;: 1.1, &quot;unit&quot;: &quot;second&quot;},
-                &quot;lcp&quot;: {&quot;value&quot;: 2.2, &quot;unit&quot;: &quot;none&quot;}
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1, "unit": "second"},
+                "lcp": {"value": 2.2, "unit": "none"}
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
                 }
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
@@ -3018,50 +3019,50 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.fcp@second&quot;,
+                name: "d:transactions/measurements.fcp@second",
                 value: Distribution(
                     [
                         1.1,
                     ],
                 ),
                 tags: {
-                    &quot;measurement_rating&quot;: &quot;good&quot;,
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/measurements.lcp@none&quot;,
+                name: "d:transactions/measurements.lcp@none",
                 value: Distribution(
                     [
                         2.2,
                     ],
                 ),
                 tags: {
-                    &quot;measurement_rating&quot;: &quot;good&quot;,
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -3070,53 +3071,53 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "&lt;unlabeled transaction&gt;",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
+                    "transaction": "&lt;unlabeled transaction&gt;",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_transaction_duration() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;platform&quot;: &quot;bogus&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;release&quot;: &quot;1.2.3&quot;,
-            &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;mytransaction&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;status&quot;: &quot;ok&quot;
+            "type": "transaction",
+            "platform": "bogus",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "transaction": "mytransaction",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
@@ -3124,7 +3125,7 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3133,51 +3134,51 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>)
+            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
-        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">"d:transactions/duration@millisecond"</span>);
         <span class="macro">assert_eq!</span>(
             duration_metric.value,
             BucketValue::distribution(<span class="number">59000</span>.into())
         );
 
         <span class="macro">assert_eq!</span>(duration_metric.tags.len(), <span class="number">4</span>);
-        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.2.3&quot;</span>);
-        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;transaction.status&quot;</span>], <span class="string">&quot;ok&quot;</span>);
-        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;environment&quot;</span>], <span class="string">&quot;fake_environment&quot;</span>);
-        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;platform&quot;</span>], <span class="string">&quot;other&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">"release"</span>], <span class="string">"1.2.3"</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">"transaction.status"</span>], <span class="string">"ok"</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">"environment"</span>], <span class="string">"fake_environment"</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">"platform"</span>], <span class="string">"other"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_custom_measurements() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:02+0100&quot;,
-            &quot;measurements&quot;: {
-                &quot;a_custom1&quot;: {&quot;value&quot;: 41},
-                &quot;fcp&quot;: {&quot;value&quot;: 0.123, &quot;unit&quot;: &quot;millisecond&quot;},
-                &quot;g_custom2&quot;: {&quot;value&quot;: 42, &quot;unit&quot;: &quot;second&quot;},
-                &quot;h_custom3&quot;: {&quot;value&quot;: 43}
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "a_custom1": {"value": 41},
+                "fcp": {"value": 0.123, "unit": "millisecond"},
+                "g_custom2": {"value": 42, "unit": "second"},
+                "h_custom3": {"value": 43}
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
                 }}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span>measurements_config: MeasurementsConfig = serde_json::from_value(<span class="macro">serde_json::json!</span>(
             {
-                <span class="string">&quot;builtinMeasurements&quot;</span>: [{<span class="string">&quot;name&quot;</span>: <span class="string">&quot;fcp&quot;</span>, <span class="string">&quot;unit&quot;</span>: <span class="string">&quot;millisecond&quot;</span>}],
-                <span class="string">&quot;maxCustomMeasurements&quot;</span>: <span class="number">2
+                <span class="string">"builtinMeasurements"</span>: [{<span class="string">"name"</span>: <span class="string">"fcp"</span>, <span class="string">"unit"</span>: <span class="string">"millisecond"</span>}],
+                <span class="string">"maxCustomMeasurements"</span>: <span class="number">2
             </span>}
         ))
         .unwrap();
@@ -3196,64 +3197,64 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/measurements.a_custom1@none&quot;,
+                name: "d:transactions/measurements.a_custom1@none",
                 value: Distribution(
                     [
                         41.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;foo&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/measurements.fcp@millisecond&quot;,
+                name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
                     [
                         0.123,
                     ],
                 ),
                 tags: {
-                    &quot;measurement_rating&quot;: &quot;good&quot;,
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;foo&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/measurements.g_custom2@second&quot;,
+                name: "d:transactions/measurements.g_custom2@second",
                 value: Distribution(
                     [
                         42.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;foo&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -3262,44 +3263,44 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction&quot;: &quot;foo&quot;,
-                    &quot;transaction.status&quot;: &quot;unknown&quot;,
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {
-                    &quot;transaction&quot;: &quot;foo&quot;,
+                    "transaction": "foo",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_unknown_transaction_status_no_trace_context() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100"
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
@@ -3307,7 +3308,7 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3316,29 +3317,29 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>)
+            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
         <span class="macro">assert_eq!</span>(
             duration_metric.tags,
-            BTreeMap::from([(<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string())])
+            BTreeMap::from([(<span class="string">"platform"</span>.to_string(), <span class="string">"other"</span>.to_string())])
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_unknown_transaction_status() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;status&quot;: &quot;ok&quot;
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
@@ -3346,7 +3347,7 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3355,14 +3356,14 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>)
+            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
         <span class="macro">assert_eq!</span>(
             duration_metric.tags,
             BTreeMap::from([
-                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;ok&quot;</span>.to_string()),
-                (<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string())
+                (<span class="string">"transaction.status"</span>.to_string(), <span class="string">"ok"</span>.to_string()),
+                (<span class="string">"platform"</span>.to_string(), <span class="string">"other"</span>.to_string())
             ])
         );
     }
@@ -3370,43 +3371,43 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_tags() {
         <span class="comment">// Status is normalized upstream in the light normalization step.
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;
+        </span><span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;status&quot;: &quot;ok&quot;
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
                 }
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;description&quot;: &quot;&lt;OrganizationContext&gt;&quot;,
-                    &quot;op&quot;: &quot;react.mount&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "description": "&lt;OrganizationContext&gt;",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:targetport/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;http.response.status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "http.response.status_code": "200"
                     }
                 }
             ]
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
@@ -3414,18 +3415,18 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -3434,22 +3435,22 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {
-                    &quot;http.status_code&quot;: &quot;200&quot;,
-                    &quot;platform&quot;: &quot;other&quot;,
-                    &quot;transaction.status&quot;: &quot;ok&quot;,
+                    "http.status_code": "200",
+                    "platform": "other",
+                    "transaction.status": "ok",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         59000.0,
@@ -3458,42 +3459,42 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_device_class_mobile() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
                 }
             },
-            &quot;measurements&quot;: {
-                &quot;frames_frozen&quot;: {
-                    &quot;value&quot;: 3
+            "measurements": {
+                "frames_frozen": {
+                    "value": 3
                 }
             },
-            &quot;tags&quot;: {
-                &quot;device.class&quot;: &quot;2&quot;
+            "tags": {
+                "device.class": "2"
             },
-            &quot;sdk&quot;: {
-                &quot;name&quot;: &quot;sentry.cocoa&quot;
+            "sdk": {
+                "name": "sentry.cocoa"
             }
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3505,12 +3506,12 @@
             .map(|Bucket { name, tags, .. }| (name, tags))
             .collect::&lt;BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(
-            buckets_by_name[<span class="string">&quot;d:transactions/measurements.frames_frozen@none&quot;</span>][<span class="string">&quot;device.class&quot;</span>],
-            <span class="string">&quot;2&quot;
+            buckets_by_name[<span class="string">"d:transactions/measurements.frames_frozen@none"</span>][<span class="string">"device.class"</span>],
+            <span class="string">"2"
         </span>);
         <span class="macro">assert_eq!</span>(
-            buckets_by_name[<span class="string">&quot;d:transactions/duration@millisecond&quot;</span>][<span class="string">&quot;device.class&quot;</span>],
-            <span class="string">&quot;2&quot;
+            buckets_by_name[<span class="string">"d:transactions/duration@millisecond"</span>][<span class="string">"device.class"</span>],
+            <span class="string">"2"
         </span>);
     }
 
@@ -3526,7 +3527,7 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3535,27 +3536,27 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>)
+            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
-        duration_metric.tags.get(<span class="string">&quot;transaction&quot;</span>).cloned()
+        duration_metric.tags.get(<span class="string">"transaction"</span>).cloned()
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_root_counter_keep() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;transaction&quot;: &quot;ignored&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;status&quot;: &quot;ok&quot;
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "transaction": "ignored",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
                 }
             }
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
@@ -3563,42 +3564,42 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;root_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"root_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.sampling_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.sampling_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: &quot;c:transactions/count_per_root_project@none&quot;,
+                name: "c:transactions/count_per_root_project@none",
                 value: Counter(
                     1.0,
                 ),
                 tags: {
-                    &quot;decision&quot;: &quot;keep&quot;,
-                    &quot;transaction&quot;: &quot;root_transaction&quot;,
+                    "decision": "keep",
+                    "transaction": "root_transaction",
                 },
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_legacy_js_looks_like_url() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.browser&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
         <span class="macro">assert!</span>(name.is_none());
@@ -3606,52 +3607,52 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_legacy_js_does_not_look_like_url() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.browser&quot;}
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>));
+        <span class="macro">assert_eq!</span>(name.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"foo"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_js_url_strict() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.browser&quot;},
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;url&quot;}
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"},
+            "transaction_info": {"source": "url"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"&lt;&lt; unparameterized &gt;&gt;"</span>.to_owned()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_python_404() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.python&quot;, &quot;integrations&quot;:[&quot;django&quot;]},
-            &quot;tags&quot;: {&quot;http.status_code&quot;: &quot;404&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "404"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
         <span class="macro">assert!</span>(name.is_none());
@@ -3659,35 +3660,35 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_python_200() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.python&quot;, &quot;integrations&quot;:[&quot;django&quot;]},
-            &quot;tags&quot;: {&quot;http.status_code&quot;: &quot;200&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "200"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo/&quot;</span>.to_owned()));
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"foo/"</span>.to_owned()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_express_options() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.node&quot;, &quot;integrations&quot;:[&quot;Express&quot;]},
-            &quot;request&quot;: {&quot;method&quot;: &quot;OPTIONS&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "request": {"method": "OPTIONS"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
         <span class="macro">assert!</span>(name.is_none());
@@ -3695,125 +3696,125 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_express() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.node&quot;, &quot;integrations&quot;:[&quot;Express&quot;]},
-            &quot;request&quot;: {&quot;method&quot;: &quot;GET&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "request": {"method": "GET"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo/&quot;</span>.to_owned()));
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"foo/"</span>.to_owned()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_other_client_unknown() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo/&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;some_client&quot;}
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;foo/&quot;</span>));
+        <span class="macro">assert_eq!</span>(name.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"foo/"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_other_client_url() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;some_client&quot;},
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;url&quot;}
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "url"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"&lt;&lt; unparameterized &gt;&gt;"</span>.to_owned()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_any_client_route() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;transaction&quot;: &quot;foo&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;some_client&quot;},
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;route&quot;}
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "route"}
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span>name = extract_transaction_name(json);
-        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"foo"</span>.to_owned()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_transaction_name_strategy() {
         <span class="kw">for </span>(config_str, expected_strategy) <span class="kw">in </span>[
-            (<span class="string">r#&quot;{}&quot;#</span>, AcceptTransactionNames::ClientBased),
+            (<span class="string">r#"{}"#</span>, AcceptTransactionNames::ClientBased),
             (
-                <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;unknown-strategy&quot;}&quot;#</span>,
+                <span class="string">r#"{"acceptTransactionNames": "unknown-strategy"}"#</span>,
                 AcceptTransactionNames::ClientBased,
             ),
             (
-                <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;strict&quot;}&quot;#</span>,
+                <span class="string">r#"{"acceptTransactionNames": "strict"}"#</span>,
                 AcceptTransactionNames::Strict,
             ),
             (
-                <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;clientBased&quot;}&quot;#</span>,
+                <span class="string">r#"{"acceptTransactionNames": "clientBased"}"#</span>,
                 AcceptTransactionNames::ClientBased,
             ),
         ] {
             <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(config_str).unwrap();
-            <span class="macro">assert_eq!</span>(config.deprecated1, expected_strategy, <span class="string">&quot;{}&quot;</span>, config_str);
+            <span class="macro">assert_eq!</span>(config.deprecated1, expected_strategy, <span class="string">"{}"</span>, config_str);
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_computed_metrics() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;timestamp&quot;: 1619420520,
-            &quot;start_timestamp&quot;: 1619420400,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "type": "transaction",
+            "timestamp": 1619420520,
+            "start_timestamp": 1619420400,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
                 }
             },
-            &quot;measurements&quot;: {
-                &quot;frames_frozen&quot;: {
-                    &quot;value&quot;: 2
+            "measurements": {
+                "frames_frozen": {
+                    "value": 2
                 },
-                &quot;frames_slow&quot;: {
-                    &quot;value&quot;: 1
+                "frames_slow": {
+                    "value": 1
                 },
-                &quot;frames_total&quot;: {
-                    &quot;value&quot;: 4
+                "frames_total": {
+                    "value": 4
                 },
-                &quot;stall_total_time&quot;: {
-                    &quot;value&quot;: 4,
-                    &quot;unit&quot;: &quot;millisecond&quot;
+                "stall_total_time": {
+                    "value": 4,
+                    "unit": "millisecond"
                 }
             }
-        }&quot;#</span>;
+        }"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="comment">// Normalize first, to make sure that the metrics were computed:
@@ -3823,7 +3824,7 @@
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
@@ -3836,20 +3837,20 @@
             .map(|m| m.name)
             .collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r###"
         [
-            &quot;d:transactions/measurements.frames_frozen@none&quot;,
-            &quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;,
-            &quot;d:transactions/measurements.frames_slow@none&quot;,
-            &quot;d:transactions/measurements.frames_slow_rate@ratio&quot;,
-            &quot;d:transactions/measurements.frames_total@none&quot;,
-            &quot;d:transactions/measurements.stall_percentage@ratio&quot;,
-            &quot;d:transactions/measurements.stall_total_time@millisecond&quot;,
-            &quot;c:transactions/usage@none&quot;,
-            &quot;d:transactions/duration@millisecond&quot;,
-            &quot;d:transactions/duration_light@millisecond&quot;,
+            "d:transactions/measurements.frames_frozen@none",
+            "d:transactions/measurements.frames_frozen_rate@ratio",
+            "d:transactions/measurements.frames_slow@none",
+            "d:transactions/measurements.frames_slow_rate@ratio",
+            "d:transactions/measurements.frames_total@none",
+            "d:transactions/measurements.stall_percentage@ratio",
+            "d:transactions/measurements.stall_total_time@millisecond",
+            "c:transactions/usage@none",
+            "d:transactions/duration@millisecond",
+            "d:transactions/duration_light@millisecond",
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -3858,49 +3859,49 @@
         // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
         // has to be changed. Though it is probably not a good idea!
         </span><span class="kw">let </span>user = User {
-            id: Annotated::new(<span class="string">&quot;ident&quot;</span>.to_owned().into()),
-            username: Annotated::new(<span class="string">&quot;username&quot;</span>.to_owned()),
-            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
-            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            id: Annotated::new(<span class="string">"ident"</span>.to_owned().into()),
+            username: Annotated::new(<span class="string">"username"</span>.to_owned()),
+            email: Annotated::new(<span class="string">"email"</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">"127.0.0.1"</span>.parse().unwrap()),
             ..User::default()
         };
 
         <span class="macro">assert_eq!</span>(
             normalize_utils::get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(),
-            <span class="string">&quot;id:ident&quot;
+            <span class="string">"id:ident"
         </span>);
 
         <span class="kw">let </span>user = User {
-            username: Annotated::new(<span class="string">&quot;username&quot;</span>.to_owned()),
-            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
-            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            username: Annotated::new(<span class="string">"username"</span>.to_owned()),
+            email: Annotated::new(<span class="string">"email"</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">"127.0.0.1"</span>.parse().unwrap()),
             ..User::default()
         };
 
         <span class="macro">assert_eq!</span>(
             normalize_utils::get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(),
-            <span class="string">&quot;username:username&quot;
+            <span class="string">"username:username"
         </span>);
 
         <span class="kw">let </span>user = User {
-            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
-            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            email: Annotated::new(<span class="string">"email"</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">"127.0.0.1"</span>.parse().unwrap()),
             ..User::default()
         };
 
         <span class="macro">assert_eq!</span>(
             normalize_utils::get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(),
-            <span class="string">&quot;email:email&quot;
+            <span class="string">"email:email"
         </span>);
 
         <span class="kw">let </span>user = User {
-            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            ip_address: Annotated::new(<span class="string">"127.0.0.1"</span>.parse().unwrap()),
             ..User::default()
         };
 
         <span class="macro">assert_eq!</span>(
             normalize_utils::get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(),
-            <span class="string">&quot;ip:127.0.0.1&quot;
+            <span class="string">"ip:127.0.0.1"
         </span>);
 
         <span class="kw">let </span>user = User::default();
@@ -3911,75 +3912,75 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_conditional_tagging() {
         <span class="kw">let </span>event = Annotated::from_json(
-            <span class="string">r#&quot;{
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;platform&quot;: &quot;javascript&quot;,
-                &quot;transaction&quot;: &quot;foo&quot;,
-                &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-                &quot;timestamp&quot;: &quot;2021-04-26T08:00:02+0100&quot;,
-                &quot;measurements&quot;: {
-                    &quot;lcp&quot;: {&quot;value&quot;: 41, &quot;unit&quot;: &quot;millisecond&quot;}
+            <span class="string">r#"{
+                "type": "transaction",
+                "platform": "javascript",
+                "transaction": "foo",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "timestamp": "2021-04-26T08:00:02+0100",
+                "measurements": {
+                    "lcp": {"value": 41, "unit": "millisecond"}
                 }
-            }&quot;#</span>,
+            }"#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::new();
         <span class="kw">let </span>generic_tags: Vec&lt;TagMapping&gt; = serde_json::from_str(
-            <span class="string">r#&quot;[
+            <span class="string">r#"[
                 {
-                    &quot;metrics&quot;: [&quot;d:transactions/duration@millisecond&quot;],
-                    &quot;tags&quot;: [
+                    "metrics": ["d:transactions/duration@millisecond"],
+                    "tags": [
                         {
-                            &quot;condition&quot;: {&quot;op&quot;: &quot;gte&quot;, &quot;name&quot;: &quot;event.duration&quot;, &quot;value&quot;: 9001},
-                            &quot;key&quot;: &quot;satisfaction&quot;,
-                            &quot;value&quot;: &quot;frustrated&quot;
+                            "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                            "key": "satisfaction",
+                            "value": "frustrated"
                         },
                         {
-                            &quot;condition&quot;: {&quot;op&quot;: &quot;gte&quot;, &quot;name&quot;: &quot;event.duration&quot;, &quot;value&quot;: 666},
-                            &quot;key&quot;: &quot;satisfaction&quot;,
-                            &quot;value&quot;: &quot;tolerated&quot;
+                            "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                            "key": "satisfaction",
+                            "value": "tolerated"
                         },
                         {
-                            &quot;condition&quot;: {&quot;op&quot;: &quot;and&quot;, &quot;inner&quot;: []},
-                            &quot;key&quot;: &quot;satisfaction&quot;,
-                            &quot;value&quot;: &quot;satisfied&quot;
+                            "condition": {"op": "and", "inner": []},
+                            "key": "satisfaction",
+                            "value": "satisfied"
                         }
                     ]
                 }
-            ]&quot;#</span>,
+            ]"#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>generic_tags,
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
+            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
+                name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
                     [
                         41.0,
                     ],
                 ),
                 tags: {
-                    &quot;measurement_rating&quot;: &quot;good&quot;,
-                    &quot;platform&quot;: &quot;javascript&quot;,
+                    "measurement_rating": "good",
+                    "platform": "javascript",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;c:transactions/usage@none&quot;,
+                name: "c:transactions/usage@none",
                 value: Counter(
                     1.0,
                 ),
@@ -3988,21 +3989,21 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/duration@millisecond&quot;,
+                name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {
-                    &quot;platform&quot;: &quot;javascript&quot;,
-                    &quot;satisfaction&quot;: &quot;tolerated&quot;,
+                    "platform": "javascript",
+                    "satisfaction": "tolerated",
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                name: "d:transactions/duration_light@millisecond",
                 value: Distribution(
                     [
                         2000.0,
@@ -4011,7 +4012,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

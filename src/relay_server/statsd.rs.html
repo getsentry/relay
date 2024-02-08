@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/statsd.rs`."><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/statsd.rs`."><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -727,12 +728,12 @@
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RelayGauges::NetworkOutage =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
-            RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
-            RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">&quot;buffer.envelopes_mem_count&quot;</span>,
-            RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">&quot;buffer.envelopes_disk_count&quot;</span>,
+            RelayGauges::NetworkOutage =&gt; <span class="string">"upstream.network_outage"</span>,
+            RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">"project_cache.garbage.queue_size"</span>,
+            RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
+            RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
         }
     }
 }
@@ -782,9 +783,9 @@
     <span class="doccomment">/// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
-    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `platform`: The event's platform, such as `"javascript"`.
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
+    ///    Sentry's SDKs and defaults to "proprietary".
     </span>EventSpans,
     <span class="doccomment">/// Number of projects in the in-memory project cache that are waiting for their state to be
     /// updated.
@@ -819,10 +820,10 @@
     /// There is no limit to the number of cached projects.
     </span>ProjectStateCacheSize,
     <span class="doccomment">/// The size of the compressed project config in the redis cache, in bytes.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateSizeBytesCompressed,
     <span class="doccomment">/// The size of the uncompressed project config in the redis cache, in bytes.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateSizeBytesDecompressed,
     <span class="doccomment">/// The number of upstream requests queued up for sending.
     ///
@@ -831,7 +832,7 @@
     /// queued, which is reflected in this metric.
     ///
     /// This metric is tagged with:
-    ///  - `priority`: The queueing priority of the request, either `&quot;high&quot;` or `&quot;low&quot;`. The
+    ///  - `priority`: The queueing priority of the request, either `"high"` or `"low"`. The
     ///    priority determines precedence in executing requests.
     ///
     /// The number of concurrent connections can be configured with:
@@ -850,7 +851,7 @@
     ///     * `rate_limited`: The request was rate limited.
     ///     * `invalid_json`: The response could not be parsed back into JSON.
     ///   - `route`: The endpoint that was called on the upstream.
-    ///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.
+    ///   - `status-code`: The status code of the request when available, otherwise "-".
     </span>UpstreamRetries,
 
     <span class="doccomment">/// Size of envelopes sent over HTTP in bytes.
@@ -871,35 +872,35 @@
 }
 
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>RelayHistograms {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
-            RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
-            RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
-            RelayHistograms::BatchesPerPartition =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
-            RelayHistograms::BucketsPerBatch =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
-            RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
-            RelayHistograms::BufferDiskSize =&gt; <span class="string">&quot;buffer.disk_size&quot;</span>,
-            RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">&quot;buffer.dequeue_attempts&quot;</span>,
-            RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
-            RelayHistograms::ProjectStateAttempts =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
-            RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
-            RelayHistograms::ProjectStateReceived =&gt; <span class="string">&quot;project_state.received&quot;</span>,
-            RelayHistograms::ProjectStateCacheSize =&gt; <span class="string">&quot;project_cache.size&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">"event.queue_size.pct"</span>,
+            RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">"event.queue_size"</span>,
+            RelayHistograms::EventSpans =&gt; <span class="string">"event.spans"</span>,
+            RelayHistograms::BatchesPerPartition =&gt; <span class="string">"metrics.buckets.batches_per_partition"</span>,
+            RelayHistograms::BucketsPerBatch =&gt; <span class="string">"metrics.buckets.per_batch"</span>,
+            RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">"buffer.envelopes_mem"</span>,
+            RelayHistograms::BufferDiskSize =&gt; <span class="string">"buffer.disk_size"</span>,
+            RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">"buffer.dequeue_attempts"</span>,
+            RelayHistograms::ProjectStatePending =&gt; <span class="string">"project_state.pending"</span>,
+            RelayHistograms::ProjectStateAttempts =&gt; <span class="string">"project_state.attempts"</span>,
+            RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">"project_state.request.batch_size"</span>,
+            RelayHistograms::ProjectStateReceived =&gt; <span class="string">"project_state.received"</span>,
+            RelayHistograms::ProjectStateCacheSize =&gt; <span class="string">"project_cache.size"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayHistograms::ProjectStateSizeBytesCompressed =&gt; {
-                <span class="string">&quot;project_state.size_bytes.compressed&quot;
+                <span class="string">"project_state.size_bytes.compressed"
             </span>}
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayHistograms::ProjectStateSizeBytesDecompressed =&gt; {
-                <span class="string">&quot;project_state.size_bytes.decompressed&quot;
+                <span class="string">"project_state.size_bytes.decompressed"
             </span>}
-            RelayHistograms::UpstreamMessageQueueSize =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
-            RelayHistograms::UpstreamRetries =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
-            RelayHistograms::UpstreamQueryBodySize =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
-            RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
-            RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">&quot;upstream.metrics.body_size&quot;</span>,
-            RelayHistograms::PartitionKeys =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
+            RelayHistograms::UpstreamMessageQueueSize =&gt; <span class="string">"http_queue.size"</span>,
+            RelayHistograms::UpstreamRetries =&gt; <span class="string">"upstream.retries"</span>,
+            RelayHistograms::UpstreamQueryBodySize =&gt; <span class="string">"upstream.query.body_size"</span>,
+            RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">"upstream.envelope.body_size"</span>,
+            RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">"upstream.metrics.body_size"</span>,
+            RelayHistograms::PartitionKeys =&gt; <span class="string">"metrics.buckets.partition_keys"</span>,
         }
     }
 }
@@ -914,7 +915,7 @@
     </span>EventProcessingLightNormalization,
     <span class="doccomment">/// Time in milliseconds spent running event processors on an event for normalization. Event
     /// processing happens before filtering.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>EventProcessingProcess,
     <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.
     </span>EventProcessingFiltering,
@@ -923,7 +924,7 @@
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>EventProcessingRateLimiting,
     <span class="doccomment">/// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -971,7 +972,7 @@
     ///
     /// Note that this also times the cases where project config is uncompressed,
     /// in which case the timer should be very close to zero.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateDecompression,
     <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is
     /// returned to the client.
@@ -989,19 +990,19 @@
     ///
     /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
     /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-    /// the parsed minidump, this duration is reported here with status of &quot;n/a&quot;.
+    /// the parsed minidump, this duration is reported here with status of "n/a".
     ///
     /// This metric is tagged with:
     ///
-    /// - `status`: Scrubbing status: &quot;ok&quot; means successful scrubbed, &quot;error&quot; means there
-    ///       was an error during scrubbing and finally &quot;n/a&quot; means scrubbing was successful
+    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
+    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
     ///       but no scurbbing rules applied.
     </span>MinidumpScrubbing,
     <span class="doccomment">/// Time spend on attachment scrubbing.
     ///
     /// This represents the total time spent on evaluating the scrubbing rules for an
     /// attachment and the attachment scrubbing itself, regardless of whether any rules were
-    /// applied.  Note that minidumps which failed to be parsed (status=&quot;error&quot; in
+    /// applied.  Note that minidumps which failed to be parsed (status="error" in
     /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
     /// towards this.
     </span>AttachmentScrubbing,
@@ -1017,7 +1018,7 @@
     ///     * `rate_limited`: The request was rate limited.
     ///     * `invalid_json`: The response could not be parsed back into JSON.
     ///   - `route`: The endpoint that was called on the upstream.
-    ///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.
+    ///   - `status-code`: The status code of the request when available, otherwise "-".
     ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
     </span>UpstreamRequestsDuration,
     <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.
@@ -1056,39 +1057,39 @@
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RelayTimers::EventProcessingDeserialize =&gt; <span class="string">&quot;event_processing.deserialize&quot;</span>,
+            RelayTimers::EventProcessingDeserialize =&gt; <span class="string">"event_processing.deserialize"</span>,
             RelayTimers::EventProcessingLightNormalization =&gt; {
-                <span class="string">&quot;event_processing.light_normalization&quot;
+                <span class="string">"event_processing.light_normalization"
             </span>}
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayTimers::EventProcessingProcess =&gt; <span class="string">&quot;event_processing.process&quot;</span>,
-            RelayTimers::EventProcessingFiltering =&gt; <span class="string">&quot;event_processing.filtering&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
-            RelayTimers::EventProcessingPii =&gt; <span class="string">&quot;event_processing.pii&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayTimers::EventProcessingProcess =&gt; <span class="string">"event_processing.process"</span>,
+            RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
+            RelayTimers::EventProcessingPii =&gt; <span class="string">"event_processing.pii"</span>,
             RelayTimers::EventProcessingSpanMetricsExtraction =&gt; {
-                <span class="string">&quot;event_processing.span_metrics_extraction&quot;
+                <span class="string">"event_processing.span_metrics_extraction"
             </span>}
-            RelayTimers::EventProcessingSerialization =&gt; <span class="string">&quot;event_processing.serialization&quot;</span>,
-            RelayTimers::EnvelopeWaitTime =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
-            RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
-            RelayTimers::EnvelopeTotalTime =&gt; <span class="string">&quot;event.total_time&quot;</span>,
-            RelayTimers::ProjectStateEvictionDuration =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
-            RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">&quot;project_state.decompression&quot;</span>,
-            RelayTimers::RequestsDuration =&gt; <span class="string">&quot;requests.duration&quot;</span>,
-            RelayTimers::MinidumpScrubbing =&gt; <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
-            RelayTimers::AttachmentScrubbing =&gt; <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
-            RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
-            RelayTimers::TimestampDelay =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
-            RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
-            RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">&quot;replay.recording.process&quot;</span>,
-            RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">&quot;global_config.requests.duration&quot;</span>,
-            RelayTimers::ProcessMessageDuration =&gt; <span class="string">&quot;processor.message.duration&quot;</span>,
-            RelayTimers::BufferMessageProcessDuration =&gt; <span class="string">&quot;buffer.message.duration&quot;</span>,
+            RelayTimers::EventProcessingSerialization =&gt; <span class="string">"event_processing.serialization"</span>,
+            RelayTimers::EnvelopeWaitTime =&gt; <span class="string">"event.wait_time"</span>,
+            RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">"event.processing_time"</span>,
+            RelayTimers::EnvelopeTotalTime =&gt; <span class="string">"event.total_time"</span>,
+            RelayTimers::ProjectStateEvictionDuration =&gt; <span class="string">"project_state.eviction.duration"</span>,
+            RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">"project_state.request.duration"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">"project_state.decompression"</span>,
+            RelayTimers::RequestsDuration =&gt; <span class="string">"requests.duration"</span>,
+            RelayTimers::MinidumpScrubbing =&gt; <span class="string">"scrubbing.minidumps.duration"</span>,
+            RelayTimers::AttachmentScrubbing =&gt; <span class="string">"scrubbing.attachments.duration"</span>,
+            RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">"upstream.requests.duration"</span>,
+            RelayTimers::TimestampDelay =&gt; <span class="string">"requests.timestamp_delay"</span>,
+            RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">"outcomes.aggregator.flush_time"</span>,
+            RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">"replay.recording.process"</span>,
+            RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
+            RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
+            RelayTimers::BufferMessageProcessDuration =&gt; <span class="string">"buffer.message.duration"</span>,
         }
     }
 }
@@ -1099,7 +1100,7 @@
     ///
     /// This currently checks for `environment` and `release`, for which we know that
     /// some SDKs may send corrupted values.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>EventCorrupted,
     <span class="doccomment">/// Number of envelopes accepted in the current time slot.
     ///
@@ -1107,7 +1108,7 @@
     /// been sent to the upstream.
     ///
     /// This metric is tagged with:
-    ///  - `handling`: Either `&quot;success&quot;` if the envelope was handled correctly, or `&quot;failure&quot;` if
+    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     </span>EnvelopeAccepted,
     <span class="doccomment">/// Number of envelopes rejected in the current time slot.
@@ -1118,7 +1119,7 @@
     /// To check the rejection reason, check `events.outcomes`, instead.
     ///
     /// This metric is tagged with:
-    ///  - `handling`: Either `&quot;success&quot;` if the envelope was handled correctly, or `&quot;failure&quot;` if
+    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     </span>EnvelopeRejected,
     <span class="doccomment">/// Number times the envelope buffer spools to disk.
@@ -1136,8 +1137,8 @@
     ///  - `outcome`: The basic cause for rejecting the event.
     ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
     ///    outcome.
-    ///  - `to`: Describes the destination of the outcome. Can be either &#39;kafka&#39; (when in
-    ///    processing mode) or &#39;http&#39; (when outcomes are enabled in an external relay).
+    ///  - `to`: Describes the destination of the outcome. Can be either 'kafka' (when in
+    ///    processing mode) or 'http' (when outcomes are enabled in an external relay).
     ///
     /// Possible outcomes are:
     ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that
@@ -1178,7 +1179,7 @@
     ///
     /// This has a tag `hit` with values `true` or `false`.  If false the request will be
     /// sent to the sentry endpoint.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateRedis,
     <span class="doccomment">/// Number of times a project is looked up from the cache.
     ///
@@ -1198,7 +1199,7 @@
     </span>ProjectUpstreamCompleted,
     <span class="doccomment">/// Number of times an upstream request for a project config failed.
     ///
-    /// Failure can happen, for example, when there&#39;s a network error. Refer to
+    /// Failure can happen, for example, when there's a network error. Refer to
     /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     </span>ProjectUpstreamFailed,
     <span class="doccomment">/// Number of full metric data flushes.
@@ -1227,7 +1228,7 @@
     ///    `ingest-attachments`.
     ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProcessingMessageProduced,
     <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
@@ -1240,7 +1241,7 @@
     <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.
     ///
     /// This metric is tagged with:
-    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `platform`: The event's platform, such as `"javascript"`.
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
@@ -1254,7 +1255,7 @@
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
     ///  - `change`: The mechanism that changed the transaction name.
-    ///    Either `&quot;none&quot;`, `&quot;pattern&quot;`, `&quot;rule&quot;`, or `&quot;both&quot;`.
+    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
     ///  - `source_out`: The source of the transaction name after normalization.
     </span>TransactionNameChanges,
     <span class="doccomment">/// Number of HTTP requests reaching Relay.
@@ -1289,9 +1290,9 @@
     <span class="doccomment">/// Number of Events with an OpenTelemetry Context
     ///
     /// This metric is tagged with:
-    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `platform`: The event's platform, such as `"javascript"`.
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
+    ///    Sentry's SDKs and defaults to "proprietary".
     </span>OpenTelemetryEvent,
     <span class="doccomment">/// Number of global config fetches from upstream. Only 2XX responses are
     /// considered and ignores send errors (e.g. auth or network errors).
@@ -1302,41 +1303,41 @@
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayCounters::EventCorrupted =&gt; <span class="string">&quot;event.corrupted&quot;</span>,
-            RelayCounters::EnvelopeAccepted =&gt; <span class="string">&quot;event.accepted&quot;</span>,
-            RelayCounters::EnvelopeRejected =&gt; <span class="string">&quot;event.rejected&quot;</span>,
-            RelayCounters::BufferWrites =&gt; <span class="string">&quot;buffer.writes&quot;</span>,
-            RelayCounters::BufferReads =&gt; <span class="string">&quot;buffer.reads&quot;</span>,
-            RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">&quot;buffer.envelopes_written&quot;</span>,
-            RelayCounters::BufferEnvelopesRead =&gt; <span class="string">&quot;buffer.envelopes_read&quot;</span>,
-            RelayCounters::Outcomes =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
-            RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
-            RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
-            RelayCounters::ProjectStateNoCache =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
-            RelayCounters::ProjectStateFlushAllMetricMeta =&gt; <span class="string">&quot;project_state.flush_all_metric_meta&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
-            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
-            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">&quot;project_upstream.failed&quot;</span>,
-            RelayCounters::ProjectCacheHit =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
-            RelayCounters::ProjectCacheMiss =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
-            RelayCounters::ServerStarting =&gt; <span class="string">&quot;server.starting&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
-            RelayCounters::EventProtocol =&gt; <span class="string">&quot;event.protocol&quot;</span>,
-            RelayCounters::EventTransaction =&gt; <span class="string">&quot;event.transaction&quot;</span>,
-            RelayCounters::TransactionNameChanges =&gt; <span class="string">&quot;event.transaction_name_changes&quot;</span>,
-            RelayCounters::Requests =&gt; <span class="string">&quot;requests&quot;</span>,
-            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
-            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
-            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
-            RelayCounters::MetricMetaParsingFailed =&gt; <span class="string">&quot;metrics.meta.parsing_failed&quot;</span>,
-            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
-            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">&quot;event.opentelemetry&quot;</span>,
-            RelayCounters::GlobalConfigFetched =&gt; <span class="string">&quot;global_config.fetch&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
+            RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
+            RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
+            RelayCounters::BufferWrites =&gt; <span class="string">"buffer.writes"</span>,
+            RelayCounters::BufferReads =&gt; <span class="string">"buffer.reads"</span>,
+            RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">"buffer.envelopes_written"</span>,
+            RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
+            RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
+            RelayCounters::ProjectStateGet =&gt; <span class="string">"project_state.get"</span>,
+            RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
+            RelayCounters::ProjectStateNoCache =&gt; <span class="string">"project_state.no_cache"</span>,
+            RelayCounters::ProjectStateFlushAllMetricMeta =&gt; <span class="string">"project_state.flush_all_metric_meta"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
+            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
+            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
+            RelayCounters::ProjectCacheHit =&gt; <span class="string">"project_cache.hit"</span>,
+            RelayCounters::ProjectCacheMiss =&gt; <span class="string">"project_cache.miss"</span>,
+            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
+            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
+            RelayCounters::EventTransaction =&gt; <span class="string">"event.transaction"</span>,
+            RelayCounters::TransactionNameChanges =&gt; <span class="string">"event.transaction_name_changes"</span>,
+            RelayCounters::Requests =&gt; <span class="string">"requests"</span>,
+            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">"responses.status_codes"</span>,
+            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">"project_cache.eviction"</span>,
+            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">"metrics.buckets.parsing_failed"</span>,
+            RelayCounters::MetricMetaParsingFailed =&gt; <span class="string">"metrics.meta.parsing_failed"</span>,
+            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
+            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
+            RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
         }
     }
 }
@@ -1364,22 +1365,22 @@
 <span class="kw">impl </span>PlatformTag {
     <span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Cocoa =&gt; <span class="string">&quot;cocoa&quot;</span>,
-            <span class="self">Self</span>::Csharp =&gt; <span class="string">&quot;csharp&quot;</span>,
-            <span class="self">Self</span>::Edge =&gt; <span class="string">&quot;edge&quot;</span>,
-            <span class="self">Self</span>::Go =&gt; <span class="string">&quot;go&quot;</span>,
-            <span class="self">Self</span>::Java =&gt; <span class="string">&quot;java&quot;</span>,
-            <span class="self">Self</span>::Javascript =&gt; <span class="string">&quot;javascript&quot;</span>,
-            <span class="self">Self</span>::Julia =&gt; <span class="string">&quot;julia&quot;</span>,
-            <span class="self">Self</span>::Native =&gt; <span class="string">&quot;native&quot;</span>,
-            <span class="self">Self</span>::Node =&gt; <span class="string">&quot;node&quot;</span>,
-            <span class="self">Self</span>::Objc =&gt; <span class="string">&quot;objc&quot;</span>,
-            <span class="self">Self</span>::Other =&gt; <span class="string">&quot;other&quot;</span>,
-            <span class="self">Self</span>::Perl =&gt; <span class="string">&quot;perl&quot;</span>,
-            <span class="self">Self</span>::Php =&gt; <span class="string">&quot;php&quot;</span>,
-            <span class="self">Self</span>::Python =&gt; <span class="string">&quot;python&quot;</span>,
-            <span class="self">Self</span>::Ruby =&gt; <span class="string">&quot;ruby&quot;</span>,
-            <span class="self">Self</span>::Swift =&gt; <span class="string">&quot;swift&quot;</span>,
+            <span class="self">Self</span>::Cocoa =&gt; <span class="string">"cocoa"</span>,
+            <span class="self">Self</span>::Csharp =&gt; <span class="string">"csharp"</span>,
+            <span class="self">Self</span>::Edge =&gt; <span class="string">"edge"</span>,
+            <span class="self">Self</span>::Go =&gt; <span class="string">"go"</span>,
+            <span class="self">Self</span>::Java =&gt; <span class="string">"java"</span>,
+            <span class="self">Self</span>::Javascript =&gt; <span class="string">"javascript"</span>,
+            <span class="self">Self</span>::Julia =&gt; <span class="string">"julia"</span>,
+            <span class="self">Self</span>::Native =&gt; <span class="string">"native"</span>,
+            <span class="self">Self</span>::Node =&gt; <span class="string">"node"</span>,
+            <span class="self">Self</span>::Objc =&gt; <span class="string">"objc"</span>,
+            <span class="self">Self</span>::Other =&gt; <span class="string">"other"</span>,
+            <span class="self">Self</span>::Perl =&gt; <span class="string">"perl"</span>,
+            <span class="self">Self</span>::Php =&gt; <span class="string">"php"</span>,
+            <span class="self">Self</span>::Python =&gt; <span class="string">"python"</span>,
+            <span class="self">Self</span>::Ruby =&gt; <span class="string">"ruby"</span>,
+            <span class="self">Self</span>::Swift =&gt; <span class="string">"swift"</span>,
         }
     }
 }
@@ -1387,21 +1388,21 @@
 <span class="kw">impl</span>&lt;S: AsRef&lt;str&gt;&gt; From&lt;S&gt; <span class="kw">for </span>PlatformTag {
     <span class="kw">fn </span>from(value: S) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>value.as_ref() {
-            <span class="string">&quot;cocoa&quot; </span>=&gt; <span class="self">Self</span>::Cocoa,
-            <span class="string">&quot;csharp&quot; </span>=&gt; <span class="self">Self</span>::Csharp,
-            <span class="string">&quot;edge&quot; </span>=&gt; <span class="self">Self</span>::Edge,
-            <span class="string">&quot;go&quot; </span>=&gt; <span class="self">Self</span>::Go,
-            <span class="string">&quot;java&quot; </span>=&gt; <span class="self">Self</span>::Java,
-            <span class="string">&quot;javascript&quot; </span>=&gt; <span class="self">Self</span>::Javascript,
-            <span class="string">&quot;julia&quot; </span>=&gt; <span class="self">Self</span>::Julia,
-            <span class="string">&quot;native&quot; </span>=&gt; <span class="self">Self</span>::Native,
-            <span class="string">&quot;node&quot; </span>=&gt; <span class="self">Self</span>::Node,
-            <span class="string">&quot;objc&quot; </span>=&gt; <span class="self">Self</span>::Objc,
-            <span class="string">&quot;perl&quot; </span>=&gt; <span class="self">Self</span>::Perl,
-            <span class="string">&quot;php&quot; </span>=&gt; <span class="self">Self</span>::Php,
-            <span class="string">&quot;python&quot; </span>=&gt; <span class="self">Self</span>::Python,
-            <span class="string">&quot;ruby&quot; </span>=&gt; <span class="self">Self</span>::Ruby,
-            <span class="string">&quot;swift&quot; </span>=&gt; <span class="self">Self</span>::Swift,
+            <span class="string">"cocoa" </span>=&gt; <span class="self">Self</span>::Cocoa,
+            <span class="string">"csharp" </span>=&gt; <span class="self">Self</span>::Csharp,
+            <span class="string">"edge" </span>=&gt; <span class="self">Self</span>::Edge,
+            <span class="string">"go" </span>=&gt; <span class="self">Self</span>::Go,
+            <span class="string">"java" </span>=&gt; <span class="self">Self</span>::Java,
+            <span class="string">"javascript" </span>=&gt; <span class="self">Self</span>::Javascript,
+            <span class="string">"julia" </span>=&gt; <span class="self">Self</span>::Julia,
+            <span class="string">"native" </span>=&gt; <span class="self">Self</span>::Native,
+            <span class="string">"node" </span>=&gt; <span class="self">Self</span>::Node,
+            <span class="string">"objc" </span>=&gt; <span class="self">Self</span>::Objc,
+            <span class="string">"perl" </span>=&gt; <span class="self">Self</span>::Perl,
+            <span class="string">"php" </span>=&gt; <span class="self">Self</span>::Php,
+            <span class="string">"python" </span>=&gt; <span class="self">Self</span>::Python,
+            <span class="string">"ruby" </span>=&gt; <span class="self">Self</span>::Ruby,
+            <span class="string">"swift" </span>=&gt; <span class="self">Self</span>::Swift,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Other,
         }
     }

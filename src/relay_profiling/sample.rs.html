@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/sample.rs`."><title>sample.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/sample.rs`."><title>sample.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1038,23 +1039,23 @@
 
 <span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 </span><span class="kw">struct </span>Frame {
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>abs_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(alias = <span class="string">&quot;column&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"column"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>colno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attr">#[serde(alias = <span class="string">&quot;file&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"file"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>filename: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(alias = <span class="string">&quot;name&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"name"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>function: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>in_app: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>instruction_addr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
-    <span class="attr">#[serde(alias = <span class="string">&quot;line&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"line"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>module: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>platform: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -1069,21 +1070,21 @@
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>Sample {
     stack_id: usize,
-    <span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    <span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span>thread_id: u64,
-    <span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    <span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span>elapsed_since_start_ns: u64,
 
     <span class="comment">// cocoa only
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>queue_address: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>ThreadMetadata {
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>name: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>priority: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 }
 
@@ -1098,11 +1099,11 @@
     stacks: Vec&lt;Vec&lt;usize&gt;&gt;,
     frames: Vec&lt;Frame&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>thread_metadata: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, ThreadMetadata&gt;&gt;,
 
     <span class="comment">// cocoa only
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>queue_metadata: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, QueueMetadata&gt;&gt;,
 }
 
@@ -1113,7 +1114,7 @@
     /// Throws an error if the profile is malformed.
     /// Removes extra metadata that are not referenced in the samples.
     ///
-    /// profile.normalize(&quot;cocoa&quot;, &quot;arm64e&quot;)
+    /// profile.normalize("cocoa", "arm64e")
     </span><span class="kw">pub fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>str, architecture: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
         <span class="comment">// Clean samples before running the checks.
         </span><span class="self">self</span>.remove_idle_samples_at_the_edge();
@@ -1145,7 +1146,7 @@
     <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>str, architecture: <span class="kw-2">&amp;</span>str) {
         <span class="kw">let </span>addr = <span class="kw">match </span>(platform, architecture) {
             <span class="comment">// https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-            </span>(<span class="string">&quot;cocoa&quot;</span>, <span class="string">&quot;arm64&quot;</span>) | (<span class="string">&quot;cocoa&quot;</span>, <span class="string">&quot;arm64e&quot;</span>) =&gt; <span class="number">0x0000000FFFFFFFFF</span>,
+            </span>(<span class="string">"cocoa"</span>, <span class="string">"arm64"</span>) | (<span class="string">"cocoa"</span>, <span class="string">"arm64e"</span>) =&gt; <span class="number">0x0000000FFFFFFFFF</span>,
             <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
         };
         <span class="kw">for </span>frame <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.frames {
@@ -1184,7 +1185,7 @@
             .collect();
     }
 
-    <span class="doccomment">/// Removes a sample when it&#39;s the only sample on its thread
+    <span class="doccomment">/// Removes a sample when it's the only sample on its thread
     </span><span class="kw">fn </span>remove_single_samples_per_thread(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>sample_count_by_thread_id = <span class="kw-2">&amp;</span><span class="self">self
             </span>.samples
@@ -1255,7 +1256,7 @@
     name: String,
     version: String,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>build_number: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -1269,13 +1270,13 @@
 </span><span class="kw">struct </span>DeviceMetadata {
     architecture: String,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>is_emulator: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>locale: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>manufacturer: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>model: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -1283,7 +1284,7 @@
 </span><span class="kw">pub enum </span>Version {
     <span class="attr">#[default]
     </span>Unknown,
-    <span class="attr">#[serde(rename = <span class="string">&quot;1&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"1"</span>)]
     </span>V1,
 }
 
@@ -1291,41 +1292,41 @@
 </span><span class="kw">pub struct </span>ProfileMetadata {
     version: Version,
 
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>debug_meta: <span class="prelude-ty">Option</span>&lt;DebugMeta&gt;,
 
     device: DeviceMetadata,
     os: OSMetadata,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>runtime: <span class="prelude-ty">Option</span>&lt;RuntimeMetadata&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"String::is_empty"</span>)]
     </span>environment: String,
-    <span class="attr">#[serde(alias = <span class="string">&quot;profile_id&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"profile_id"</span>)]
     </span>event_id: EventId,
     platform: String,
     timestamp: DateTime&lt;Utc&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;string_is_null_or_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"string_is_null_or_empty"</span>)]
     </span>release: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"String::is_empty"</span>)]
     </span>dist: String,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span>transactions: Vec&lt;TransactionMetadata&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>transaction: <span class="prelude-ty">Option</span>&lt;TransactionMetadata&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
     </span>transaction_metadata: BTreeMap&lt;String, String&gt;,
 
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
     </span>transaction_tags: BTreeMap&lt;String, String&gt;,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">pub struct </span>ProfilingEvent {
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, Measurement&gt;&gt;,
     <span class="attr">#[serde(flatten)]
     </span>metadata: ProfileMetadata,
@@ -1335,7 +1336,7 @@
 <span class="kw">impl </span>ProfilingEvent {
     <span class="kw">fn </span>valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.metadata.platform.as_str() {
-            <span class="string">&quot;cocoa&quot; </span>=&gt; {
+            <span class="string">"cocoa" </span>=&gt; {
                 <span class="self">self</span>.metadata.os.build_number.is_some()
                     &amp;&amp; <span class="self">self</span>.metadata.device.is_emulator.is_some()
                     &amp;&amp; <span class="self">self</span>.metadata.device.locale.is_some()
@@ -1393,24 +1394,24 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = transaction_metadata.get(<span class="string">&quot;transaction&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = transaction_metadata.get(<span class="string">"transaction"</span>) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>transaction) = profile.metadata.transaction {
             transaction.name = transaction_name.to_owned();
         }
     }
 
-    <span class="comment">// Do not replace the release if we&#39;re passing one already.
+    <span class="comment">// Do not replace the release if we're passing one already.
     </span><span class="kw">if </span>profile.metadata.release.is_none() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = transaction_metadata.get(<span class="string">&quot;release&quot;</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = transaction_metadata.get(<span class="string">"release"</span>) {
             profile.metadata.release = <span class="prelude-val">Some</span>(release.to_owned());
         }
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = transaction_metadata.get(<span class="string">&quot;dist&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = transaction_metadata.get(<span class="string">"dist"</span>) {
         profile.metadata.dist = dist.to_owned();
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">&quot;environment&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">"environment"</span>) {
         profile.metadata.environment = environment.to_owned();
     }
 
@@ -1427,7 +1428,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
         <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
@@ -1436,7 +1437,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
         <span class="kw">let </span>profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         <span class="macro">assert!</span>(profile.is_ok());
     }
@@ -1450,24 +1451,24 @@
                 timestamp: Utc::now(),
                 runtime: Option::None,
                 device: DeviceMetadata {
-                    architecture: <span class="string">&quot;arm64e&quot;</span>.to_string(),
+                    architecture: <span class="string">"arm64e"</span>.to_string(),
                     is_emulator: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                    locale: <span class="prelude-val">Some</span>(<span class="string">&quot;en_US&quot;</span>.to_string()),
-                    manufacturer: <span class="prelude-val">Some</span>(<span class="string">&quot;Apple&quot;</span>.to_string()),
-                    model: <span class="prelude-val">Some</span>(<span class="string">&quot;iPhome11,3&quot;</span>.to_string()),
+                    locale: <span class="prelude-val">Some</span>(<span class="string">"en_US"</span>.to_string()),
+                    manufacturer: <span class="prelude-val">Some</span>(<span class="string">"Apple"</span>.to_string()),
+                    model: <span class="prelude-val">Some</span>(<span class="string">"iPhome11,3"</span>.to_string()),
                 },
                 os: OSMetadata {
-                    build_number: <span class="prelude-val">Some</span>(<span class="string">&quot;H3110&quot;</span>.to_string()),
-                    name: <span class="string">&quot;iOS&quot;</span>.to_string(),
-                    version: <span class="string">&quot;16.0&quot;</span>.to_string(),
+                    build_number: <span class="prelude-val">Some</span>(<span class="string">"H3110"</span>.to_string()),
+                    name: <span class="string">"iOS"</span>.to_string(),
+                    version: <span class="string">"16.0"</span>.to_string(),
                 },
-                environment: <span class="string">&quot;testing&quot;</span>.to_string(),
-                platform: <span class="string">&quot;cocoa&quot;</span>.to_string(),
+                environment: <span class="string">"testing"</span>.to_string(),
+                platform: <span class="string">"cocoa"</span>.to_string(),
                 event_id: EventId::new(),
                 transaction: Option::None,
                 transactions: Vec::new(),
-                release: <span class="prelude-val">Some</span>(<span class="string">&quot;1.0&quot;</span>.to_string()),
-                dist: <span class="string">&quot;9999&quot;</span>.to_string(),
+                release: <span class="prelude-val">Some</span>(<span class="string">"1.0"</span>.to_string()),
+                dist: <span class="string">"9999"</span>.to_string(),
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
             },
@@ -1489,25 +1490,25 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">2</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">3</span>,
             },
@@ -1526,25 +1527,25 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">2</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">3</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">1</span>,
                 thread_id: <span class="number">4</span>,
             },
@@ -1564,7 +1565,7 @@
         profile.metadata.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
             id: EventId::new(),
-            name: <span class="string">&quot;blah&quot;</span>.to_string(),
+            name: <span class="string">"blah"</span>.to_string(),
             relative_cpu_end_ms: <span class="number">0</span>,
             relative_cpu_start_ms: <span class="number">0</span>,
             relative_end_ns: <span class="number">30</span>,
@@ -1575,25 +1576,25 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">20</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">30</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">40</span>,
                 thread_id: <span class="number">1</span>,
             },
@@ -1615,7 +1616,7 @@
         profile.metadata.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
             id: EventId::new(),
-            name: <span class="string">&quot;blah&quot;</span>.to_string(),
+            name: <span class="string">"blah"</span>.to_string(),
             relative_cpu_end_ms: <span class="number">0</span>,
             relative_cpu_start_ms: <span class="number">0</span>,
             relative_end_ns: <span class="number">100</span>,
@@ -1626,25 +1627,25 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">20</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">30</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">40</span>,
                 thread_id: <span class="number">1</span>,
             },
@@ -1662,7 +1663,7 @@
         <span class="kw">let </span>transaction = TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
             id: EventId::new(),
-            name: <span class="string">&quot;blah&quot;</span>.to_string(),
+            name: <span class="string">"blah"</span>.to_string(),
             relative_cpu_end_ms: <span class="number">0</span>,
             relative_cpu_start_ms: <span class="number">0</span>,
             relative_end_ns: <span class="number">100</span>,
@@ -1678,25 +1679,25 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">20</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">30</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">40</span>,
                 thread_id: <span class="number">1</span>,
             },
@@ -1722,7 +1723,7 @@
         <span class="kw">let </span>transaction = TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
             id: EventId::new(),
-            name: <span class="string">&quot;blah&quot;</span>.to_string(),
+            name: <span class="string">"blah"</span>.to_string(),
             relative_cpu_end_ms: <span class="number">0</span>,
             relative_cpu_start_ms: <span class="number">0</span>,
             relative_end_ns: <span class="number">100</span>,
@@ -1738,79 +1739,79 @@
         profile.profile.samples = <span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">40</span>,
                 thread_id: <span class="number">2</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">50</span>,
                 thread_id: <span class="number">2</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">20</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">30</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">40</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">50</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">60</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">70</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">90</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">80</span>,
                 thread_id: <span class="number">3</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">90</span>,
                 thread_id: <span class="number">3</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">60</span>,
                 thread_id: <span class="number">2</span>,
             },
@@ -1835,7 +1836,7 @@
         <span class="kw">let </span>transaction = TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
             id: EventId::new(),
-            name: <span class="string">&quot;blah&quot;</span>.to_string(),
+            name: <span class="string">"blah"</span>.to_string(),
             relative_cpu_end_ms: <span class="number">0</span>,
             relative_cpu_start_ms: <span class="number">0</span>,
             relative_end_ns: <span class="number">100</span>,
@@ -1852,30 +1853,30 @@
         <span class="kw">let </span><span class="kw-2">mut </span>thread_metadata: HashMap&lt;String, ThreadMetadata&gt; = HashMap::new();
 
         thread_metadata.insert(
-            <span class="string">&quot;1&quot;</span>.to_string(),
+            <span class="string">"1"</span>.to_string(),
             ThreadMetadata {
-                name: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+                name: <span class="prelude-val">Some</span>(<span class="string">""</span>.to_string()),
                 priority: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             },
         );
         thread_metadata.insert(
-            <span class="string">&quot;2&quot;</span>.to_string(),
+            <span class="string">"2"</span>.to_string(),
             ThreadMetadata {
-                name: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+                name: <span class="prelude-val">Some</span>(<span class="string">""</span>.to_string()),
                 priority: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             },
         );
         thread_metadata.insert(
-            <span class="string">&quot;3&quot;</span>.to_string(),
+            <span class="string">"3"</span>.to_string(),
             ThreadMetadata {
-                name: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+                name: <span class="prelude-val">Some</span>(<span class="string">""</span>.to_string()),
                 priority: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             },
         );
         thread_metadata.insert(
-            <span class="string">&quot;4&quot;</span>.to_string(),
+            <span class="string">"4"</span>.to_string(),
             ThreadMetadata {
-                name: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+                name: <span class="prelude-val">Some</span>(<span class="string">""</span>.to_string()),
                 priority: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             },
         );
@@ -1883,16 +1884,16 @@
         <span class="kw">let </span><span class="kw-2">mut </span>queue_metadata: HashMap&lt;String, QueueMetadata&gt; = HashMap::new();
 
         queue_metadata.insert(
-            <span class="string">&quot;0xdeadbeef&quot;</span>.to_string(),
+            <span class="string">"0xdeadbeef"</span>.to_string(),
             QueueMetadata {
-                label: <span class="string">&quot;com.apple.main-thread&quot;</span>.to_string(),
+                label: <span class="string">"com.apple.main-thread"</span>.to_string(),
             },
         );
 
         queue_metadata.insert(
-            <span class="string">&quot;0x123456789&quot;</span>.to_string(),
+            <span class="string">"0x123456789"</span>.to_string(),
             QueueMetadata {
-                label: <span class="string">&quot;some-label&quot;</span>.to_string(),
+                label: <span class="string">"some-label"</span>.to_string(),
             },
         );
 
@@ -1901,13 +1902,13 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">20</span>,
                 thread_id: <span class="number">2</span>,
             },
@@ -1923,11 +1924,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_transaction_tags() {
         <span class="kw">let </span>transaction_metadata = BTreeMap::from([(
-            <span class="string">&quot;transaction&quot;</span>.to_string(),
-            <span class="string">&quot;some-random-transaction&quot;</span>.to_string(),
+            <span class="string">"transaction"</span>.to_string(),
+            <span class="string">"some-random-transaction"</span>.to_string(),
         )]);
 
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
         <span class="kw">let </span>profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         <span class="macro">assert!</span>(profile_json.is_ok());
 
@@ -1938,7 +1939,7 @@
             .unwrap();
         <span class="macro">assert_eq!</span>(
             output.metadata.transaction.unwrap().name,
-            <span class="string">&quot;some-random-transaction&quot;</span>.to_string()
+            <span class="string">"some-random-transaction"</span>.to_string()
         );
     }
 
@@ -1948,13 +1949,13 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: (MAX_PROFILE_DURATION - Duration::from_secs(<span class="number">1</span>)).as_nanos()
                     <span class="kw">as </span>u64,
                 thread_id: <span class="number">2</span>,
@@ -1970,13 +1971,13 @@
         profile.profile.samples.extend(<span class="macro">vec!</span>[
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
                 thread_id: <span class="number">1</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
-                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">"0xdeadbeef"</span>.to_string()),
                 elapsed_since_start_ns: (MAX_PROFILE_DURATION + Duration::from_secs(<span class="number">1</span>)).as_nanos()
                     <span class="kw">as </span>u64,
                 thread_id: <span class="number">2</span>,
@@ -1988,53 +1989,53 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_accept_null_or_empty_release() {
-        <span class="kw">let </span>payload = <span class="string">r#&quot;{
-            &quot;version&quot;:&quot;1&quot;,
-            &quot;device&quot;:{
-                &quot;architecture&quot;:&quot;arm64e&quot;,
-                &quot;is_emulator&quot;:true,
-                &quot;locale&quot;:&quot;en_US&quot;,
-                &quot;manufacturer&quot;:&quot;Apple&quot;,
-                &quot;model&quot;:&quot;iPhome11,3&quot;
+        <span class="kw">let </span>payload = <span class="string">r#"{
+            "version":"1",
+            "device":{
+                "architecture":"arm64e",
+                "is_emulator":true,
+                "locale":"en_US",
+                "manufacturer":"Apple",
+                "model":"iPhome11,3"
             },
-            &quot;os&quot;:{
-                &quot;name&quot;:&quot;iOS&quot;,
-                &quot;version&quot;:&quot;16.0&quot;,
-                &quot;build_number&quot;:&quot;H3110&quot;
+            "os":{
+                "name":"iOS",
+                "version":"16.0",
+                "build_number":"H3110"
             },
-            &quot;environment&quot;:&quot;testing&quot;,
-            &quot;event_id&quot;:&quot;961d6b96017644db895eafd391682003&quot;,
-            &quot;platform&quot;:&quot;cocoa&quot;,
-            &quot;release&quot;:null,
-            &quot;timestamp&quot;:&quot;2023-11-01T15:27:15.081230Z&quot;,
-            &quot;transaction&quot;:{
-                &quot;active_thread_id&quot;: 1,
-                &quot;id&quot;:&quot;9789498b-6970-4dda-b2a1-f9cb91d1a445&quot;,
-                &quot;name&quot;:&quot;blah&quot;,
-                &quot;trace_id&quot;:&quot;809ff2c0-e185-4c21-8f21-6a6fef009352&quot;
+            "environment":"testing",
+            "event_id":"961d6b96017644db895eafd391682003",
+            "platform":"cocoa",
+            "release":null,
+            "timestamp":"2023-11-01T15:27:15.081230Z",
+            "transaction":{
+                "active_thread_id": 1,
+                "id":"9789498b-6970-4dda-b2a1-f9cb91d1a445",
+                "name":"blah",
+                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352"
             },
-            &quot;dist&quot;:&quot;9999&quot;,
-            &quot;profile&quot;:{
-                &quot;samples&quot;:[
+            "dist":"9999",
+            "profile":{
+                "samples":[
                     {
-                        &quot;stack_id&quot;:0,
-                        &quot;elapsed_since_start_ns&quot;:1,
-                        &quot;thread_id&quot;:1
+                        "stack_id":0,
+                        "elapsed_since_start_ns":1,
+                        "thread_id":1
                     },
                     {
-                        &quot;stack_id&quot;:0,
-                        &quot;elapsed_since_start_ns&quot;:2,
-                        &quot;thread_id&quot;:1
+                        "stack_id":0,
+                        "elapsed_since_start_ns":2,
+                        "thread_id":1
                     }
                 ],
-                &quot;stacks&quot;:[[0]],
-                &quot;frames&quot;:[{
-                    &quot;function&quot;:&quot;main&quot;
+                "stacks":[[0]],
+                "frames":[{
+                    "function":"main"
                 }],
-                &quot;thread_metadata&quot;:{},
-                &quot;queue_metadata&quot;:{}
+                "thread_metadata":{},
+                "queue_metadata":{}
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>profile = parse_profile(payload.as_bytes());
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="macro">assert_eq!</span>(profile.unwrap().metadata.release, <span class="prelude-val">None</span>);

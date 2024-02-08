@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1479,7 +1480,7 @@
 
 <span class="kw">impl </span>Extractable <span class="kw">for </span>Event {
     <span class="kw">fn </span>category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DataCategory {
-        <span class="comment">// Obtain the event&#39;s data category, but treat default events as error events for the
+        <span class="comment">// Obtain the event's data category, but treat default events as error events for the
         // purpose of metric tagging.
         </span><span class="kw">match </span>DataCategory::from(<span class="self">self</span>.ty.value().copied().unwrap_or_default()) {
             DataCategory::Default =&gt; DataCategory::Error,
@@ -1546,427 +1547,427 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics_all_modules() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;platform&quot;: &quot;javascript&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;received&quot;: &quot;2021-04-26T08:00:01+0100&quot;,
-            &quot;server_name&quot;: &quot;myhost&quot;,
-            &quot;release&quot;: &quot;1.2.3&quot;,
-            &quot;dist&quot;: &quot;foo &quot;,
-            &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
-            &quot;user&quot;: {
-                &quot;id&quot;: &quot;user123&quot;,
-                &quot;geo&quot;: {
-                    &quot;country_code&quot;: &quot;US&quot;
+            "type": "transaction",
+            "platform": "javascript",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "received": "2021-04-26T08:00:01+0100",
+            "server_name": "myhost",
+            "release": "1.2.3",
+            "dist": "foo ",
+            "environment": "fake_environment",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "user": {
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
                 }
             },
-            &quot;tags&quot;: {
-                &quot;http.status_code&quot;: 500
+            "tags": {
+                "http.status_code": 500
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;op&quot;: &quot;mYOp&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "mYOp",
+                    "status": "ok"
                 }
             },
-            &quot;request&quot;: {
-                &quot;method&quot;: &quot;POST&quot;
+            "request": {
+                "method": "POST"
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;description&quot;: &quot;&lt;SomeUiRendering&gt;&quot;,
-                    &quot;op&quot;: &quot;UI.React.Render&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "description": "&lt;SomeUiRendering&gt;",
+                    "op": "UI.React.Render",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;description&quot;: &quot;GET http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;GET&quot;
+                    "description": "GET http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.request.method&quot;: &quot;POST&quot;
+                    "description": "POST http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.request.method": "POST"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;PUT http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;method&quot;: &quot;PUT&quot;
+                    "description": "PUT http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "method": "PUT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET /hi/this/is/just/the/path&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;GET&quot;
+                    "description": "GET /hi/this/is/just/the/path",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://127.0.0.1:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;PoSt&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://127.0.0.1:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;PoSt&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://targetdomain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://targetdomain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://targetdomain:1234/api/id/0987654321&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://targetdomain:1234/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;tags&quot;: {
-                        &quot;http.status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
                     },
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;tags&quot;: {
-                        &quot;http.status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
                     },
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;select column FROM table WHERE id IN (1, 2, 3)&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "select column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO table (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;INSERT&quot;
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "INSERT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO from_date (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;INSERT&quot;
+                    "description": "INSERT INTO from_date (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "INSERT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO table (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT \&quot;table\&quot;.\&quot;col\&quot; FROM \&quot;table\&quot; WHERE \&quot;table\&quot;.\&quot;col\&quot; = %s&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;UPDATE table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "UPDATE table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SAVEPOINT save_this_one&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET cache:user:{123}&quot;,
-                    &quot;op&quot;: &quot;cache.get_item&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;cache.hit&quot;: false
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET test:123:def&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "GET test:123:def",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;GET lkjasdlkasjdlasjdlkasjdlkasjd&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;SET &#39;aaa:bbb:123:zzz&#39; &#39;{\&quot;from json\&quot;: \&quot;no\&quot;}&#39;&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;http://domain/static/myscript-v1.9.23.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "http://domain/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.CSS&quot;,
-                    &quot;op&quot;: &quot;resource.css&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.CSS",
+                    "op": "resource.css",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3789&quot;
+                    "hash": "e2fae740cccd3789"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;description&quot;: &quot;domain.com/zero-length-00&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 0,
-                        &quot;http.response_content_length&quot;: 0,
-                        &quot;http.response_transfer_size&quot;: 0
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "op": "resource.script",
+                    "description": "domain.com/zero-length-00",
+                    "data": {
+                        "http.decoded_response_content_length": 0,
+                        "http.response_content_length": 0,
+                        "http.response_transfer_size": 0
                     }
                 },
                 {
-                    &quot;timestamp&quot;: 1702474613.0495,
-                    &quot;start_timestamp&quot;: 1702474613.0175,
-                    &quot;description&quot;: &quot;input.app-123.adfasf456[type=\&quot;range\&quot;][name=\&quot;replay-timeline\&quot;]&quot;,
-                    &quot;op&quot;: &quot;ui.interaction.click&quot;,
-                    &quot;span_id&quot;: &quot;9b01bd820a083e63&quot;,
-                    &quot;parent_span_id&quot;: &quot;a1e13f3f06239d69&quot;,
-                    &quot;trace_id&quot;: &quot;922dda2462ea4ac2b6a4b339bee90863&quot;,
-                    &quot;data&quot;: {
-                        &quot;ui.component_name&quot;: &quot;my-component-name&quot;
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "input.app-123.adfasf456[type=\"range\"][name=\"replay-timeline\"]",
+                    "op": "ui.interaction.click",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {
+                        "ui.component_name": "my-component-name"
                     }
                 }
             ]
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="kw">let </span>features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
@@ -1993,519 +1994,519 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;platform&quot;: &quot;javascript&quot;,
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;server_name&quot;: &quot;myhost&quot;,
-            &quot;release&quot;: &quot;1.2.3&quot;,
-            &quot;dist&quot;: &quot;foo &quot;,
-            &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
-            &quot;user&quot;: {
-                &quot;id&quot;: &quot;user123&quot;,
-                &quot;geo&quot;: {
-                    &quot;country_code&quot;: &quot;US&quot;
+            "type": "transaction",
+            "platform": "javascript",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "server_name": "myhost",
+            "release": "1.2.3",
+            "dist": "foo ",
+            "environment": "fake_environment",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "user": {
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
                 }
             },
-            &quot;tags&quot;: {
-                &quot;http.status_code&quot;: 500
+            "tags": {
+                "http.status_code": 500
             },
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;op&quot;: &quot;mYOp&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "mYOp",
+                    "status": "ok"
                 }
             },
-            &quot;request&quot;: {
-                &quot;method&quot;: &quot;POST&quot;
+            "request": {
+                "method": "POST"
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;description&quot;: &quot;&lt;SomeUiRendering&gt;&quot;,
-                    &quot;op&quot;: &quot;UI.React.Render&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "description": "&lt;SomeUiRendering&gt;",
+                    "op": "UI.React.Render",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;description&quot;: &quot;GET http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;GET&quot;
+                    "description": "GET http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.request.method&quot;: &quot;POST&quot;
+                    "description": "POST http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.request.method": "POST"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;PUT http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;method&quot;: &quot;PUT&quot;
+                    "description": "PUT http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "method": "PUT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET /hi/this/is/just/the/path&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;GET&quot;
+                    "description": "GET /hi/this/is/just/the/path",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://127.0.0.1:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;PoSt&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://127.0.0.1:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;PoSt&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://targetdomain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://targetdomain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://targetdomain:1234/api/id/0987654321&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "description": "POST http://targetdomain:1234/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;tags&quot;: {
-                        &quot;http.status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
                     },
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:1234/api/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;tags&quot;: {
-                        &quot;http.status_code&quot;: &quot;200&quot;
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
                     },
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
-                        &quot;status_code&quot;: &quot;200&quot;
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;select column FROM table WHERE id IN (1, 2, 3)&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "select column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO table (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;INSERT&quot;
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "INSERT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO from_date (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;INSERT&quot;
+                    "description": "INSERT INTO from_date (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "INSERT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;INSERT INTO table (col) VALUES (val)&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT \&quot;table\&quot;.\&quot;col\&quot; FROM \&quot;table\&quot; WHERE \&quot;table\&quot;.\&quot;col\&quot; = %s&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;postgresql&quot;,
-                        &quot;db.operation&quot;: &quot;SELECT&quot;
+                    "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "postgresql",
+                        "db.operation": "SELECT"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;UPDATE table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "UPDATE table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SAVEPOINT save_this_one&quot;,
-                    &quot;op&quot;: &quot;db&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET cache:user:{123}&quot;,
-                    &quot;op&quot;: &quot;cache.get_item&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;cache.hit&quot;: false
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;GET test:123:def&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "GET test:123:def",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;GET lkjasdlkasjdlasjdlkasjdlkasjd&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;SET &#39;aaa:bbb:123:zzz&#39; &#39;{\&quot;from json\&quot;: \&quot;no\&quot;}&#39;&quot;,
-                    &quot;op&quot;: &quot;db.redis&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;http://domain/static/myscript-v1.9.23.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;
+                    "description": "http://domain/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
-                    &quot;description&quot;: &quot;things.count({\&quot;$and\&quot;:[{\&quot;services\&quot;:{\&quot;$exists\&quot;:true}},{\&quot;test_id\&quot;:38}]})&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;mongodb&quot;,
-                        &quot;db.operation&quot;: &quot;count&quot;
+                    "description": "things.count({\"$and\":[{\"services\":{\"$exists\":true}},{\"test_id\":38}]})",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "mongodb",
+                        "db.operation": "count"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db.sql.query&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;things.count({\&quot;$and\&quot;:[{\&quot;services\&quot;:{\&quot;$exists\&quot;:true}},{\&quot;test_id\&quot;:38}]})&quot;,
-                    &quot;op&quot;: &quot;db.mongodb.find&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {}
+                    "description": "things.count({\"$and\":[{\"services\":{\"$exists\":true}},{\"test_id\":38}]})",
+                    "op": "db.mongodb.find",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
                 },
                 {
-                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
-                    &quot;op&quot;: &quot;db.sql.activerecord&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db.sql.activerecord",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SAVEPOINT save_this_one&quot;,
-                    &quot;op&quot;: &quot;db.redis.command&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;data&quot;: {
-                        &quot;db.system&quot;: &quot;redis&quot;
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db.redis.command",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "redis"
                     }
                 },
                 {
-                    &quot;data&quot;: {
-                        &quot;device.class&quot;: &quot;2&quot;,
-                        &quot;environment&quot;: &quot;production&quot;,
-                        &quot;http.response.status_code&quot;: &quot;200&quot;,
-                        &quot;mobile&quot;: true,
-                        &quot;release&quot;: &quot;sentrydemos.ios.EmpowerPlant@0.0.8+1&quot;,
-                        &quot;span.op&quot;: &quot;ui.load&quot;,
-                        &quot;span.status&quot;: &quot;ok&quot;,
-                        &quot;transaction&quot;: &quot;EmpowerPlantViewController&quot;,
-                        &quot;transaction.op&quot;: &quot;ui.load&quot;,
-                        &quot;user&quot;: &quot;id:FADC011D-28AA-40B7-8CA8-839A2AD05168&quot;
+                    "data": {
+                        "device.class": "2",
+                        "environment": "production",
+                        "http.response.status_code": "200",
+                        "mobile": true,
+                        "release": "sentrydemos.ios.EmpowerPlant@0.0.8+1",
+                        "span.op": "ui.load",
+                        "span.status": "ok",
+                        "transaction": "EmpowerPlantViewController",
+                        "transaction.op": "ui.load",
+                        "user": "id:FADC011D-28AA-40B7-8CA8-839A2AD05168"
                     },
-                    &quot;description&quot;: &quot;viewDidLoad&quot;,
-                    &quot;exclusive_time&quot;: 15101.696732,
-                    &quot;op&quot;: &quot;ui.load&quot;,
-                    &quot;parent_span_id&quot;: &quot;6ebd1cdbb9424b88&quot;,
-                    &quot;span_id&quot;: &quot;8cfaf7f29ac345b8&quot;,
-                    &quot;start_timestamp&quot;: 1695255136.239635,
-                    &quot;status&quot;: &quot;ok&quot;,
-                    &quot;timestamp&quot;: 1695255152.073167,
-                    &quot;trace_id&quot;: &quot;2dc90ee797b94299ba5ad82b816fc9f8&quot;
+                    "description": "viewDidLoad",
+                    "exclusive_time": 15101.696732,
+                    "op": "ui.load",
+                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "span_id": "8cfaf7f29ac345b8",
+                    "start_timestamp": 1695255136.239635,
+                    "status": "ok",
+                    "timestamp": 1695255152.073167,
+                    "trace_id": "2dc90ee797b94299ba5ad82b816fc9f8"
                 },
                 {
-                    &quot;data&quot;: {
-                        &quot;device.class&quot;: &quot;2&quot;,
-                        &quot;environment&quot;: &quot;production&quot;,
-                        &quot;http.response.status_code&quot;: &quot;200&quot;,
-                        &quot;mobile&quot;: true,
-                        &quot;release&quot;: &quot;sentrydemos.ios.EmpowerPlant@0.0.8+1&quot;,
-                        &quot;span.op&quot;: &quot;app.start.cold&quot;,
-                        &quot;span.status&quot;: &quot;ok&quot;,
-                        &quot;transaction&quot;: &quot;EmpowerPlantViewController&quot;,
-                        &quot;transaction.op&quot;: &quot;ui.load&quot;,
-                        &quot;user&quot;: &quot;id:FADC011D-28AA-40B7-8CA8-839A2AD05168&quot;
+                    "data": {
+                        "device.class": "2",
+                        "environment": "production",
+                        "http.response.status_code": "200",
+                        "mobile": true,
+                        "release": "sentrydemos.ios.EmpowerPlant@0.0.8+1",
+                        "span.op": "app.start.cold",
+                        "span.status": "ok",
+                        "transaction": "EmpowerPlantViewController",
+                        "transaction.op": "ui.load",
+                        "user": "id:FADC011D-28AA-40B7-8CA8-839A2AD05168"
                     },
-                    &quot;description&quot;: &quot;Cold Start&quot;,
-                    &quot;exclusive_time&quot;: 0.0,
-                    &quot;op&quot;: &quot;app.start.cold&quot;,
-                    &quot;parent_span_id&quot;: &quot;6ebd1cdbb9424b88&quot;,
-                    &quot;span_id&quot;: &quot;0e989cd370034c76&quot;,
-                    &quot;start_timestamp&quot;: 1695255134.469436,
-                    &quot;timestamp&quot;: 1695255136.137952,
-                    &quot;trace_id&quot;: &quot;2dc90ee797b94299ba5ad82b816fc9f8&quot;
+                    "description": "Cold Start",
+                    "exclusive_time": 0.0,
+                    "op": "app.start.cold",
+                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "span_id": "0e989cd370034c76",
+                    "start_timestamp": 1695255134.469436,
+                    "timestamp": 1695255136.137952,
+                    "trace_id": "2dc90ee797b94299ba5ad82b816fc9f8"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css&quot;,
-                    &quot;op&quot;: &quot;resource.css&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
+                    "op": "resource.css",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3789&quot;
+                    "hash": "e2fae740cccd3789"
                 },
                 {
-                    &quot;timestamp&quot;: 1694732408.3145,
-                    &quot;start_timestamp&quot;: 1694732407.8367,
-                    &quot;exclusive_time&quot;: 477.800131,
-                    &quot;description&quot;: &quot;/static/myscript-v1.9.23.js&quot;,
-                    &quot;op&quot;: &quot;resource.script&quot;,
-                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
-                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
-                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
-                        &quot;http.response_content_length&quot;: 36170,
-                        &quot;http.response_transfer_size&quot;: 36470,
-                        &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;,
-                        &quot;server.address&quot;: &quot;subdomain.example.com:5688&quot;,
-                        &quot;url.same_origin&quot;: true,
-                        &quot;url.scheme&quot;: &quot;https&quot;
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
                     },
-                    &quot;hash&quot;: &quot;e2fae740cccd3789&quot;
+                    "hash": "e2fae740cccd3789"
                 }
             ]
         }
-        &quot;#</span>;
+        "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="kw">let </span>features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
@@ -2531,100 +2532,100 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
     }
 
-    <span class="kw">const </span>MOBILE_EVENT: <span class="kw-2">&amp;</span>str = <span class="string">r#&quot;
+    <span class="kw">const </span>MOBILE_EVENT: <span class="kw-2">&amp;</span>str = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.react-native&quot;},
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;release&quot;: &quot;1.2.3&quot;,
-            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-            &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4"
                 },
-                &quot;device&quot;: {
-                    &quot;family&quot;: &quot;iOS&quot;,
-                    &quot;model&quot;: &quot;iPhone1,1&quot;
+                "device": {
+                    "family": "iOS",
+                    "model": "iPhone1,1"
                 },
-                &quot;app&quot;: {
-                    &quot;app_identifier&quot;: &quot;org.reactjs.native.example.RnDiffApp&quot;,
-                    &quot;app_name&quot;: &quot;RnDiffApp&quot;
+                "app": {
+                    "app_identifier": "org.reactjs.native.example.RnDiffApp",
+                    "app_name": "RnDiffApp"
                 },
-                &quot;os&quot;: {
-                    &quot;name&quot;: &quot;iOS&quot;,
-                    &quot;version&quot;: &quot;16.2&quot;
+                "os": {
+                    "name": "iOS",
+                    "version": "16.2"
                 }
             },
-            &quot;measurements&quot;: {
-                &quot;app_start_warm&quot;: {
-                    &quot;value&quot;: 1.0,
-                    &quot;unit&quot;: &quot;millisecond&quot;
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
                 }
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;op&quot;: &quot;app.start.cold&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "app.start.cold",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;ui.load.initial_display&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;app.start.cold&quot;,
-                    &quot;description&quot;: &quot;Cold Start&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "app.start.cold",
+                    "description": "Cold Start",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;custom.op&quot;,
-                    &quot;description&quot;: &quot;Custom Op&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "custom.op",
+                    "description": "Custom Op",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;contentprovider.load&quot;,
-                    &quot;description&quot;: &quot;io.sentry.android.core.SentryPerformanceProvider.onCreate&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "contentprovider.load",
+                    "description": "io.sentry.android.core.SentryPerformanceProvider.onCreate",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;application.load&quot;,
-                    &quot;description&quot;: &quot;io.sentry.samples.android.MyApplication.onCreate&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                    "op": "application.load",
+                    "description": "io.sentry.samples.android.MyApplication.onCreate",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
-                    &quot;op&quot;: &quot;activity.load&quot;,
-                    &quot;description&quot;: &quot;io.sentry.samples.android.MainActivity.onCreate&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976303.0000000,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;app_start_type&quot;: &quot;cold&quot;
+                    "op": "activity.load",
+                    "description": "io.sentry.samples.android.MainActivity.onCreate",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "app_start_type": "cold"
                     }
                 }
             ]
         }
-        &quot;#</span>;
+        "#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics_mobile() {
@@ -2654,49 +2655,49 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics_mobile_screen() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;type&quot;: &quot;transaction&quot;,
-            &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.javascript.react-native&quot;},
-            &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
-            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-            &quot;contexts&quot;: {
-                &quot;trace&quot;: {
-                    &quot;op&quot;: &quot;ui.load&quot;,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "transaction": "gEt /api/:version/users/",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load",
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4"
                 }
             },
-            &quot;spans&quot;: [
+            "spans": [
                 {
-                    &quot;description&quot;: &quot;GET http://domain.tld/hi&quot;,
-                    &quot;op&quot;: &quot;http.client&quot;,
-                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                    &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;start_timestamp&quot;: 1597976300.0000000,
-                    &quot;timestamp&quot;: 1597976302.0000000,
-                    &quot;exclusive_time&quot;: 2000.0,
-                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                    &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;GET&quot;
+                    "description": "GET http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "exclusive_time": 2000.0,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
                     },
-                    &quot;sentry_tags&quot;: {
-                        &quot;action&quot;: &quot;GET&quot;,
-                        &quot;category&quot;: &quot;http&quot;,
-                        &quot;description&quot;: &quot;GET http://domain.tld&quot;,
-                        &quot;domain&quot;: &quot;domain.tld&quot;,
-                        &quot;group&quot;: &quot;d9dc18637d441612&quot;,
-                        &quot;mobile&quot;: &quot;true&quot;,
-                        &quot;op&quot;: &quot;http.client&quot;,
-                        &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
-                        &quot;transaction.method&quot;: &quot;GET&quot;,
-                        &quot;transaction.op&quot;: &quot;ui.load&quot;
+                    "sentry_tags": {
+                        "action": "GET",
+                        "category": "http",
+                        "description": "GET http://domain.tld",
+                        "domain": "domain.tld",
+                        "group": "d9dc18637d441612",
+                        "mobile": "true",
+                        "op": "http.client",
+                        "transaction": "gEt /api/:version/users/",
+                        "transaction.method": "GET",
+                        "transaction.op": "ui.load"
                     }
                 }
             ]
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
@@ -2713,10 +2714,10 @@
         // exclusive_time metrics:
         </span><span class="macro">assert!</span>(metrics
             .iter()
-            .any(|b| b.name == <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>));
+            .any(|b| b.name == <span class="string">"d:spans/exclusive_time@millisecond"</span>));
         <span class="macro">assert!</span>(metrics
             .iter()
-            .any(|b| b.name == <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>));
+            .any(|b| b.name == <span class="string">"d:spans/exclusive_time_light@millisecond"</span>));
     }
 
     <span class="attr">#[test]
@@ -2753,7 +2754,7 @@
 
         <span class="kw">let </span>usage_metrics = metrics
             .into_iter()
-            .filter(|b| b.name == <span class="string">&quot;c:spans/usage@none&quot;</span>)
+            .filter(|b| b.name == <span class="string">"c:spans/usage@none"</span>)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">let </span>expected_usage = <span class="number">6</span>; <span class="comment">// There are 7 spans, but `custom.op` is not counted.
@@ -2778,7 +2779,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>span = Span::default();
         span.sentry_tags
             .get_or_insert_with(Default::default)
-            .insert(<span class="string">&quot;mobile&quot;</span>.to_owned(), <span class="string">&quot;true&quot;</span>.to_owned().into());
+            .insert(<span class="string">"mobile"</span>.to_owned(), <span class="string">"true"</span>.to_owned().into());
         span.timestamp
             .set_value(<span class="prelude-val">Some</span>(Timestamp::from(DateTime::&lt;Utc&gt;::MAX_UTC))); <span class="comment">// whatever
         </span>span.op.set_value(<span class="prelude-val">Some</span>(span_op.into()));
@@ -2789,150 +2790,150 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_cold_inlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">180000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.cold"</span>, <span class="number">180000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="macro">vec!</span>[
-                <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>,
-                <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_op@none&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_segment@none&quot;
+                <span class="string">"d:spans/exclusive_time@millisecond"</span>,
+                <span class="string">"d:spans/exclusive_time_light@millisecond"</span>,
+                <span class="string">"c:spans/count_per_op@none"</span>,
+                <span class="string">"c:spans/count_per_segment@none"
             </span>]
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_cold_outlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">181000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.cold"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert!</span>(metrics.is_empty());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_warm_inlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">180000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.warm"</span>, <span class="number">180000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="macro">vec!</span>[
-                <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>,
-                <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_op@none&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_segment@none&quot;
+                <span class="string">"d:spans/exclusive_time@millisecond"</span>,
+                <span class="string">"d:spans/exclusive_time_light@millisecond"</span>,
+                <span class="string">"c:spans/count_per_op@none"</span>,
+                <span class="string">"c:spans/count_per_segment@none"
             </span>]
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_warm_outlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">181000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.warm"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert!</span>(metrics.is_empty());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_initial_display_inlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">180000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.initial_display"</span>, <span class="number">180000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="macro">vec!</span>[
-                <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>,
-                <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_op@none&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_segment@none&quot;
+                <span class="string">"d:spans/exclusive_time@millisecond"</span>,
+                <span class="string">"d:spans/exclusive_time_light@millisecond"</span>,
+                <span class="string">"c:spans/count_per_op@none"</span>,
+                <span class="string">"c:spans/count_per_segment@none"
             </span>]
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_initial_display_outlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">181000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.initial_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert!</span>(metrics.is_empty());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_full_display_inlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">180000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.full_display"</span>, <span class="number">180000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="macro">vec!</span>[
-                <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>,
-                <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_op@none&quot;</span>,
-                <span class="string">&quot;c:spans/count_per_segment@none&quot;
+                <span class="string">"d:spans/exclusive_time@millisecond"</span>,
+                <span class="string">"d:spans/exclusive_time_light@millisecond"</span>,
+                <span class="string">"c:spans/count_per_op@none"</span>,
+                <span class="string">"c:spans/count_per_segment@none"
             </span>]
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_full_display_outlier() {
-        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">181000.0</span>);
+        <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.full_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert!</span>(metrics.is_empty());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_display_times_extracted() {
-        <span class="kw">let </span>span = <span class="string">r#&quot;{
-            &quot;op&quot;: &quot;ui.load&quot;,
-            &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-            &quot;start_timestamp&quot;: 1597976300.0000000,
-            &quot;timestamp&quot;: 1597976302.0000000,
-            &quot;exclusive_time&quot;: 100,
-            &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-            &quot;sentry_tags&quot;: {
-                &quot;mobile&quot;: &quot;true&quot;,
-                &quot;ttid&quot;: &quot;ttid&quot;,
-                &quot;ttfd&quot;: &quot;ttfd&quot;
+        <span class="kw">let </span>span = <span class="string">r#"{
+            "op": "ui.load",
+            "span_id": "bd429c44b67a3eb4",
+            "start_timestamp": 1597976300.0000000,
+            "timestamp": 1597976302.0000000,
+            "exclusive_time": 100,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "sentry_tags": {
+                "mobile": "true",
+                "ttid": "ttid",
+                "ttfd": "ttfd"
             }
-        }&quot;#</span>;
+        }"#</span>;
         <span class="kw">let </span>span = Annotated::from_json(span).unwrap().into_value().unwrap();
         <span class="kw">let </span>metrics = extract_span_metrics(<span class="kw-2">&amp;</span>span);
 
         <span class="macro">assert!</span>(!metrics.is_empty());
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
-            <span class="kw">if </span>metric.name == <span class="string">&quot;c:spans/count_per_op@none&quot;
-                </span>|| metric.name == <span class="string">&quot;c:spans/count_per_segment@none&quot;
+            <span class="kw">if </span>metric.name == <span class="string">"c:spans/count_per_op@none"
+                </span>|| metric.name == <span class="string">"c:spans/count_per_segment@none"
             </span>{
                 <span class="kw">continue</span>;
             }
-            <span class="kw">if </span>metric.name == <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot; </span>{
-                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">&quot;ttid&quot;</span>));
-                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">&quot;ttfd&quot;</span>));
+            <span class="kw">if </span>metric.name == <span class="string">"d:spans/exclusive_time_light@millisecond" </span>{
+                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">"ttid"</span>));
+                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">"ttfd"</span>));
                 <span class="kw">continue</span>;
             }
-            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttid&quot;</span>));
-            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttfd&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttfd&quot;</span>));
+            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">"ttid"</span>), <span class="prelude-val">Some</span>(<span class="string">"ttid"</span>));
+            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">"ttfd"</span>), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics_performance_score() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
             {
-                &quot;op&quot;: &quot;ui.interaction.click&quot;,
-                &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
-                &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                &quot;start_timestamp&quot;: 1597976300.0000000,
-                &quot;timestamp&quot;: 1597976302.0000000,
-                &quot;exclusive_time&quot;: 2000.0,
-                &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
-                &quot;sentry_tags&quot;: {
-                    &quot;browser.name&quot;: &quot;Chrome&quot;,
-                    &quot;op&quot;: &quot;ui.interaction.click&quot;
+                "op": "ui.interaction.click",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "exclusive_time": 2000.0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "sentry_tags": {
+                    "browser.name": "Chrome",
+                    "op": "ui.interaction.click"
                 },
-                &quot;measurements&quot;: {
-                    &quot;score.total&quot;: {&quot;value&quot;: 1.0},
-                    &quot;score.inp&quot;: {&quot;value&quot;: 1.0},
-                    &quot;score.weight.inp&quot;: {&quot;value&quot;: 1.0},
-                    &quot;inp&quot;: {&quot;value&quot;: 1.0}
+                "measurements": {
+                    "score.total": {"value": 1.0},
+                    "score.inp": {"value": 1.0},
+                    "score.weight.inp": {"value": 1.0},
+                    "inp": {"value": 1.0}
                 }
             }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>span = Annotated::from_json(json).unwrap();
         <span class="kw">let </span>metrics = extract_span_metrics(span.value().unwrap());
 
         <span class="kw">for </span>mri <span class="kw">in </span>[
-            <span class="string">&quot;d:spans/webvital.inp@millisecond&quot;</span>,
-            <span class="string">&quot;d:spans/webvital.score.inp@ratio&quot;</span>,
-            <span class="string">&quot;d:spans/webvital.score.total@ratio&quot;</span>,
-            <span class="string">&quot;d:spans/webvital.score.weight.inp@ratio&quot;</span>,
+            <span class="string">"d:spans/webvital.inp@millisecond"</span>,
+            <span class="string">"d:spans/webvital.score.inp@ratio"</span>,
+            <span class="string">"d:spans/webvital.score.total@ratio"</span>,
+            <span class="string">"d:spans/webvital.score.weight.inp@ratio"</span>,
         ] {
             <span class="macro">assert!</span>(metrics.iter().any(|b| b.name == mri));
         }

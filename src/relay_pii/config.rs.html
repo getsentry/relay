@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/config.rs`."><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -295,7 +296,7 @@
 </span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>PiiConfigError {
     <span class="doccomment">/// A match pattern in a PII rule config could not be parsed.
-    </span><span class="attr">#[error(<span class="string">&quot;could not parse pattern&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"could not parse pattern"</span>)]
     </span>RegexError(<span class="attr">#[source] </span>regex::Error),
 }
 
@@ -305,7 +306,7 @@
 /// consecutive calls.
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>LazyPattern {
-    raw: Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;,
+    raw: Cow&lt;<span class="lifetime">'static</span>, str&gt;,
     case_insensitive: bool,
     pattern: OnceCell&lt;<span class="prelude-ty">Result</span>&lt;Regex, PiiConfigError&gt;&gt;,
 }
@@ -320,7 +321,7 @@
     <span class="doccomment">/// Create a new [`LazyPattern`] from a raw string.
     </span><span class="kw">pub fn </span>new&lt;S&gt;(raw: S) -&gt; <span class="self">Self
     </span><span class="kw">where
-        </span>Cow&lt;<span class="lifetime">&#39;static</span>, str&gt;: From&lt;S&gt;,
+        </span>Cow&lt;<span class="lifetime">'static</span>, str&gt;: From&lt;S&gt;,
     {
         <span class="self">Self </span>{
             raw: raw.into(),
@@ -331,8 +332,8 @@
 
     <span class="doccomment">/// Change the case sensativity settings for the underlying regex.
     ///
-    /// It&#39;s possible to set the case sensativity on already compiled [`LazyPattern`], which will
-    /// be recompiled (re-built) once it&#39;s used again.
+    /// It's possible to set the case sensativity on already compiled [`LazyPattern`], which will
+    /// be recompiled (re-built) once it's used again.
     </span><span class="kw">pub fn </span>case_insensitive(<span class="kw-2">mut </span><span class="self">self</span>, value: bool) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.case_insensitive = value;
         <span class="self">self</span>.pattern.take();
@@ -352,7 +353,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(<span class="kw-2">ref </span>error) = regex_result {
                     <span class="macro">relay_log::error!</span>(
                         error = error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;unable to compile pattern into regex&quot;
+                        <span class="string">"unable to compile pattern into regex"
                     </span>);
                 }
                 regex_result
@@ -361,8 +362,8 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; <span class="kw">for </span>LazyPattern {
-    <span class="kw">fn </span>from(pattern: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; LazyPattern {
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; <span class="kw">for </span>LazyPattern {
+    <span class="kw">fn </span>from(pattern: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; LazyPattern {
         LazyPattern::new(pattern)
     }
 }
@@ -373,8 +374,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>LazyPattern {
-    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>LazyPattern {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
         <span class="kw">let </span>raw = String::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(LazyPattern::new(raw))
     }
@@ -389,40 +390,40 @@
 
 <span class="doccomment">/// A rule that matches a regex pattern.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>PatternRule {
     <span class="doccomment">/// The regular expression to apply.
     </span><span class="kw">pub </span>pattern: LazyPattern,
     <span class="doccomment">/// The match group indices to replace.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;replace_groups_default&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"replace_groups_default"</span>)]
     </span><span class="kw">pub </span>replace_groups: <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;u8&gt;&gt;,
 }
 
 <span class="doccomment">/// A rule that dispatches to multiple other rules.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>MultipleRule {
     <span class="doccomment">/// A reference to other rules to apply
     </span><span class="kw">pub </span>rules: Vec&lt;String&gt;,
     <span class="doccomment">/// When set to true, the outer rule is reported.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_flag_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_flag_default"</span>)]
     </span><span class="kw">pub </span>hide_inner: bool,
 }
 
 <span class="doccomment">/// An alias for another rule.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>AliasRule {
     <span class="doccomment">/// A reference to another rule to apply.
     </span><span class="kw">pub </span>rule: String,
     <span class="doccomment">/// When set to true, the outer rule is reported.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_flag_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_flag_default"</span>)]
     </span><span class="kw">pub </span>hide_inner: bool,
 }
 
 <span class="doccomment">/// A pair redaction rule.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>RedactPairRule {
     <span class="doccomment">/// A pattern to match for keys.
     </span><span class="kw">pub </span>key_pattern: LazyPattern,
@@ -430,7 +431,7 @@
 
 <span class="doccomment">/// Supported scrubbing rules.
 </span><span class="attr">#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(tag = <span class="string">"type"</span>, rename_all = <span class="string">"snake_case"</span>)]
 </span><span class="kw">pub enum </span>RuleType {
     <span class="doccomment">/// Matches any value.
     </span>Anything,
@@ -461,7 +462,7 @@
     <span class="doccomment">/// Keys that look like passwords
     </span>Password,
     <span class="doccomment">/// When a regex matches a key, a value is removed
-    </span><span class="attr">#[serde(alias = <span class="string">&quot;redactPair&quot;</span>)]
+    </span><span class="attr">#[serde(alias = <span class="string">"redactPair"</span>)]
     </span>RedactPair(RedactPairRule),
     <span class="doccomment">/// Applies multiple rules.
     </span>Multiple(MultipleRule),
@@ -485,10 +486,10 @@
 
 <span class="doccomment">/// Configuration for rule parameters.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, PartialEq)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Vars {
     <span class="doccomment">/// The default secret key for hashing operations.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>hash_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
@@ -502,15 +503,15 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 </span><span class="kw">pub struct </span>PiiConfig {
     <span class="doccomment">/// A map of custom PII rules.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
     </span><span class="kw">pub </span>rules: BTreeMap&lt;String, RuleSpec&gt;,
 
     <span class="doccomment">/// Parameters for PII rules.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vars::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Vars::is_empty"</span>)]
     </span><span class="kw">pub </span>vars: Vars,
 
     <span class="doccomment">/// Mapping of selectors to rules.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
     </span><span class="kw">pub </span>applications: BTreeMap&lt;SelectorSpec, Vec&lt;String&gt;&gt;,
 
     <span class="doccomment">/// PII config derived from datascrubbing settings.

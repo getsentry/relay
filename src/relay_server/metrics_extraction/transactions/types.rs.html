@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions/types.rs`."><title>types.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions/types.rs`."><title>types.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -310,7 +311,7 @@
     </span>Usage { tags: UsageTags },
     <span class="doccomment">/// An internal counter metric used to compute dynamic sampling biases.
     ///
-    /// See &#39;&lt;https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40&gt;&#39;.
+    /// See '&lt;https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40&gt;'.
     </span>CountPerRootProject { tags: TransactionCPRTags },
     <span class="doccomment">/// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     </span>Breakdown {
@@ -333,37 +334,37 @@
 
         <span class="kw">let </span>(name, value, unit, tags) = <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::User { value, tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;user&quot;</span>),
+                Cow::Borrowed(<span class="string">"user"</span>),
                 BucketValue::set_from_str(<span class="kw-2">&amp;</span>value),
                 MetricUnit::None,
                 tags.into(),
             ),
             <span class="self">Self</span>::Duration { unit, value, tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;duration&quot;</span>),
+                Cow::Borrowed(<span class="string">"duration"</span>),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
             <span class="self">Self</span>::DurationLight { unit, value, tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;duration_light&quot;</span>),
+                Cow::Borrowed(<span class="string">"duration_light"</span>),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
             <span class="self">Self</span>::Usage { tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;usage&quot;</span>),
+                Cow::Borrowed(<span class="string">"usage"</span>),
                 BucketValue::counter(<span class="number">1</span>.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             <span class="self">Self</span>::CountPerRootProject { tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;count_per_root_project&quot;</span>),
+                Cow::Borrowed(<span class="string">"count_per_root_project"</span>),
                 BucketValue::counter(<span class="number">1</span>.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             <span class="self">Self</span>::Breakdown { name, value, tags } =&gt; (
-                Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;breakdowns.{name}&quot;</span>)),
+                Cow::Owned(<span class="macro">format!</span>(<span class="string">"breakdowns.{name}"</span>)),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
@@ -374,7 +375,7 @@
                 unit,
                 tags,
             } =&gt; (
-                Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;measurements.{name}&quot;</span>)),
+                Cow::Owned(<span class="macro">format!</span>(<span class="string">"measurements.{name}"</span>)),
                 BucketValue::distribution(value),
                 unit,
                 tags.into(),
@@ -408,7 +409,7 @@
     <span class="kw">fn </span>from(tags: TransactionDurationTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = tags.universal_tags.into();
         <span class="kw">if </span>tags.has_profile {
-            map.insert(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string());
+            map.insert(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string());
         }
         map
     }
@@ -442,7 +443,7 @@
     <span class="kw">fn </span>from(tags: UsageTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
         <span class="kw">if </span>tags.has_profile {
-            map.insert(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string());
+            map.insert(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string());
         }
         map
     }
@@ -458,7 +459,7 @@
     <span class="kw">fn </span>from(value: TransactionMeasurementTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = value.universal_tags.into();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(decision) = value.measurement_rating {
-            map.insert(<span class="string">&quot;measurement_rating&quot;</span>.to_string(), decision);
+            map.insert(<span class="string">"measurement_rating"</span>.to_string(), decision);
         }
         map
     }
@@ -473,7 +474,7 @@
 <span class="kw">impl </span>From&lt;TransactionCPRTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
     <span class="kw">fn </span>from(value: TransactionCPRTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = value.universal_tags.into();
-        map.insert(<span class="string">&quot;decision&quot;</span>.to_string(), value.decision);
+        map.insert(<span class="string">"decision"</span>.to_string(), value.decision);
         map
     }
 }
@@ -511,24 +512,24 @@
 }
 
 <span class="kw">impl </span>Display <span class="kw">for </span>CommonTag {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
         <span class="kw">let </span>name = <span class="kw">match </span><span class="self">self </span>{
-            CommonTag::Release =&gt; <span class="string">&quot;release&quot;</span>,
-            CommonTag::Dist =&gt; <span class="string">&quot;dist&quot;</span>,
-            CommonTag::Environment =&gt; <span class="string">&quot;environment&quot;</span>,
-            CommonTag::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
-            CommonTag::Platform =&gt; <span class="string">&quot;platform&quot;</span>,
-            CommonTag::TransactionStatus =&gt; <span class="string">&quot;transaction.status&quot;</span>,
-            CommonTag::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
-            CommonTag::HttpMethod =&gt; <span class="string">&quot;http.method&quot;</span>,
-            CommonTag::HttpStatusCode =&gt; <span class="string">&quot;http.status_code&quot;</span>,
-            CommonTag::BrowserName =&gt; <span class="string">&quot;browser.name&quot;</span>,
-            CommonTag::OsName =&gt; <span class="string">&quot;os.name&quot;</span>,
-            CommonTag::GeoCountryCode =&gt; <span class="string">&quot;geo.country_code&quot;</span>,
-            CommonTag::DeviceClass =&gt; <span class="string">&quot;device.class&quot;</span>,
+            CommonTag::Release =&gt; <span class="string">"release"</span>,
+            CommonTag::Dist =&gt; <span class="string">"dist"</span>,
+            CommonTag::Environment =&gt; <span class="string">"environment"</span>,
+            CommonTag::Transaction =&gt; <span class="string">"transaction"</span>,
+            CommonTag::Platform =&gt; <span class="string">"platform"</span>,
+            CommonTag::TransactionStatus =&gt; <span class="string">"transaction.status"</span>,
+            CommonTag::TransactionOp =&gt; <span class="string">"transaction.op"</span>,
+            CommonTag::HttpMethod =&gt; <span class="string">"http.method"</span>,
+            CommonTag::HttpStatusCode =&gt; <span class="string">"http.status_code"</span>,
+            CommonTag::BrowserName =&gt; <span class="string">"browser.name"</span>,
+            CommonTag::OsName =&gt; <span class="string">"os.name"</span>,
+            CommonTag::GeoCountryCode =&gt; <span class="string">"geo.country_code"</span>,
+            CommonTag::DeviceClass =&gt; <span class="string">"device.class"</span>,
             CommonTag::Custom(s) =&gt; s,
         };
-        <span class="macro">write!</span>(f, <span class="string">&quot;{name}&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"{name}"</span>)
     }
 }
 
@@ -536,14 +537,14 @@
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 </span><span class="kw">pub enum </span>ExtractMetricsError {
     <span class="doccomment">/// The start or end timestamps are missing from the event payload.
-    </span><span class="attr">#[error(<span class="string">&quot;no valid timestamp could be found in the event&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"no valid timestamp could be found in the event"</span>)]
     </span>MissingTimestamp,
     <span class="doccomment">/// The event timestamp is outside the supported range.
     ///
     /// The supported range is derived from the
     /// [`max_secs_in_past`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_past) and
     /// [`max_secs_in_future`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_future) configuration options.
-    </span><span class="attr">#[error(<span class="string">&quot;timestamp too old or too far in the future&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"timestamp too old or too far in the future"</span>)]
     </span>InvalidTimestamp,
 }
 </code></pre></div></section></main></body></html>

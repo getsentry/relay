@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/dsc.rs`."><title>dsc.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_sampling/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_sampling"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/dsc.rs`."><title>dsc.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_sampling/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_sampling"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -623,8 +624,8 @@
     /// `0.0` and `1.0`.
     </span><span class="attr">#[serde(
         default,
-        with = <span class="string">&quot;sample_rate_as_string&quot;</span>,
-        skip_serializing_if = <span class="string">&quot;Option::is_none&quot;
+        with = <span class="string">"sample_rate_as_string"</span>,
+        skip_serializing_if = <span class="string">"Option::is_none"
     </span>)]
     </span><span class="kw">pub </span>sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
     <span class="doccomment">/// The user specific identifier (e.g. a user segment, or similar created by the SDK from the
@@ -636,8 +637,8 @@
     <span class="doccomment">/// Set to true if the transaction starting the trace has been kept by client side sampling.
     </span><span class="attr">#[serde(
         default,
-        deserialize_with = <span class="string">&quot;deserialize_bool_option&quot;</span>,
-        skip_serializing_if = <span class="string">&quot;Option::is_none&quot;
+        deserialize_with = <span class="string">"deserialize_bool_option"</span>,
+        skip_serializing_if = <span class="string">"Option::is_none"
     </span>)]
     </span><span class="kw">pub </span>sampled: <span class="prelude-ty">Option</span>&lt;bool&gt;,
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -646,14 +647,14 @@
 }
 
 <span class="kw">impl </span>Getter <span class="kw">for </span>DynamicSamplingContext {
-    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
-        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">&quot;trace.&quot;</span>)<span class="question-mark">? </span>{
-            <span class="string">&quot;release&quot; </span>=&gt; <span class="self">self</span>.release.as_deref()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;environment&quot; </span>=&gt; <span class="self">self</span>.environment.as_deref()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.id&quot; </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.user_id)<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;user.segment&quot; </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.user_segment)<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;transaction&quot; </span>=&gt; <span class="self">self</span>.transaction.as_deref()<span class="question-mark">?</span>.into(),
-            <span class="string">&quot;replay_id&quot; </span>=&gt; <span class="self">self</span>.replay_id<span class="question-mark">?</span>.into(),
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
+        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">"trace."</span>)<span class="question-mark">? </span>{
+            <span class="string">"release" </span>=&gt; <span class="self">self</span>.release.as_deref()<span class="question-mark">?</span>.into(),
+            <span class="string">"environment" </span>=&gt; <span class="self">self</span>.environment.as_deref()<span class="question-mark">?</span>.into(),
+            <span class="string">"user.id" </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.user_id)<span class="question-mark">?</span>.into(),
+            <span class="string">"user.segment" </span>=&gt; or_none(<span class="kw-2">&amp;</span><span class="self">self</span>.user.user_segment)<span class="question-mark">?</span>.into(),
+            <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.transaction.as_deref()<span class="question-mark">?</span>.into(),
+            <span class="string">"replay_id" </span>=&gt; <span class="self">self</span>.replay_id<span class="question-mark">?</span>.into(),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         })
     }
@@ -661,7 +662,7 @@
 
 <span class="kw">fn </span>or_none(string: <span class="kw-2">&amp;</span><span class="kw">impl </span>AsRef&lt;str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
     <span class="kw">match </span>string.as_ref() {
-        <span class="string">&quot;&quot; </span>=&gt; <span class="prelude-val">None</span>,
+        <span class="string">"" </span>=&gt; <span class="prelude-val">None</span>,
         other =&gt; <span class="prelude-val">Some</span>(other),
     }
 }
@@ -670,18 +671,18 @@
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Default)]
 </span><span class="kw">pub struct </span>TraceUserContext {
     <span class="doccomment">/// The value of the `user.segment` property.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"String::is_empty"</span>)]
     </span><span class="kw">pub </span>user_segment: String,
 
     <span class="doccomment">/// The value of the `user.id` property.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"String::is_empty"</span>)]
     </span><span class="kw">pub </span>user_id: String,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>TraceUserContext {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>TraceUserContext {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="attr">#[derive(Deserialize, Default)]
         </span><span class="kw">struct </span>Nested {
@@ -725,11 +726,11 @@
 
     <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-    <span class="kw">pub fn </span>deserialize&lt;<span class="lifetime">&#39;de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;f64&gt;, D::Error&gt;
+    <span class="kw">pub fn </span>deserialize&lt;<span class="lifetime">'de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;f64&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
-        <span class="kw">let </span>value = <span class="kw">match </span><span class="prelude-ty">Option</span>::&lt;Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
+        <span class="kw">let </span>value = <span class="kw">match </span><span class="prelude-ty">Option</span>::&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
             <span class="prelude-val">Some</span>(value) =&gt; value,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
         };
@@ -738,7 +739,7 @@
             serde_json::from_str(<span class="kw-2">&amp;</span>value).map_err(|e| serde::de::Error::custom(e.to_string()))<span class="question-mark">?</span>;
 
         <span class="kw">if </span>parsed_value &lt; <span class="number">0.0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(serde::de::Error::custom(<span class="string">&quot;sample rate cannot be negative&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(serde::de::Error::custom(<span class="string">"sample rate cannot be negative"</span>));
         }
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(parsed_value))
@@ -759,11 +760,11 @@
 
 <span class="kw">struct </span>BoolOptionVisitor;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; serde::de::Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>BoolOptionVisitor {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; serde::de::Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>BoolOptionVisitor {
     <span class="kw">type </span>Value = <span class="prelude-ty">Option</span>&lt;bool&gt;;
 
     <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        formatter.write_str(<span class="string">&quot;`true` or `false` as boolean or string&quot;</span>)
+        formatter.write_str(<span class="string">"`true` or `false` as boolean or string"</span>)
     }
 
     <span class="kw">fn </span>visit_bool&lt;E&gt;(<span class="self">self</span>, v: bool) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
@@ -778,8 +779,8 @@
         </span>E: serde::de::Error,
     {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>v {
-            <span class="string">&quot;true&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-            <span class="string">&quot;false&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+            <span class="string">"true" </span>=&gt; <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+            <span class="string">"false" </span>=&gt; <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         })
     }
@@ -792,9 +793,9 @@
     }
 }
 
-<span class="kw">fn </span>deserialize_bool_option&lt;<span class="lifetime">&#39;de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;bool&gt;, D::Error&gt;
+<span class="kw">fn </span>deserialize_bool_option&lt;<span class="lifetime">'de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;bool&gt;, D::Error&gt;
 <span class="kw">where
-    </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
 {
     deserializer.deserialize_any(BoolOptionVisitor)
 }
@@ -805,7 +806,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_full() {
-        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/dynamic_sampling_context.json&quot;</span>);
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">"../tests/fixtures/dynamic_sampling_context.json"</span>);
         serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
     }
 
@@ -813,274 +814,274 @@
     </span><span class="doccomment">/// Test parse user
     </span><span class="kw">fn </span>parse_user() {
         <span class="kw">let </span>jsons = [
-            <span class="string">r#&quot;{
-                &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-                &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-                &quot;user&quot;: {
-                    &quot;id&quot;: &quot;some-id&quot;,
-                    &quot;segment&quot;: &quot;all&quot;
+            <span class="string">r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
                 }
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-                &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-                &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-                &quot;user_id&quot;: &quot;some-id&quot;,
-                &quot;user_segment&quot;: &quot;all&quot;
-            }&quot;#</span>,
-            <span class="comment">// testing some edgecases to see whether they behave as expected, but we don&#39;t actually
-            // rely on this behavior anywhere (ignoring Hyrum&#39;s law). it would be fine for them to
+            }"#</span>,
+            <span class="string">r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all"
+            }"#</span>,
+            <span class="comment">// testing some edgecases to see whether they behave as expected, but we don't actually
+            // rely on this behavior anywhere (ignoring Hyrum's law). it would be fine for them to
             // change, we just have to be conscious about it.
-            </span><span class="string">r#&quot;{
-                &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-                &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-                &quot;user_id&quot;: &quot;&quot;,
-                &quot;user_segment&quot;: &quot;&quot;,
-                &quot;user&quot;: {
-                    &quot;id&quot;: &quot;some-id&quot;,
-                    &quot;segment&quot;: &quot;all&quot;
+            </span><span class="string">r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "",
+                "user_segment": "",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
                 }
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-                &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-                &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-                &quot;user_id&quot;: &quot;some-id&quot;,
-                &quot;user_segment&quot;: &quot;all&quot;,
-                &quot;user&quot;: {
-                    &quot;id&quot;: &quot;bogus-id&quot;,
-                    &quot;segment&quot;: &quot;nothing&quot;
+            }"#</span>,
+            <span class="string">r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": {
+                    "id": "bogus-id",
+                    "segment": "nothing"
                 }
-            }&quot;#</span>,
-            <span class="string">r#&quot;{
-                &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-                &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-                &quot;user_id&quot;: &quot;some-id&quot;,
-                &quot;user_segment&quot;: &quot;all&quot;,
-                &quot;user&quot;: null
-            }&quot;#</span>,
+            }"#</span>,
+            <span class="string">r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": null
+            }"#</span>,
         ];
 
         <span class="kw">for </span>json <span class="kw">in </span>jsons {
             <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
-            <span class="macro">assert_eq!</span>(dsc.user.user_id, <span class="string">&quot;some-id&quot;</span>);
-            <span class="macro">assert_eq!</span>(dsc.user.user_segment, <span class="string">&quot;all&quot;</span>);
+            <span class="macro">assert_eq!</span>(dsc.user.user_id, <span class="string">"some-id"</span>);
+            <span class="macro">assert_eq!</span>(dsc.user.user_segment, <span class="string">"all"</span>);
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_user_partial() {
-        <span class="comment">// in that case we might have two different sdks merging data and we at least shouldn&#39;t mix
+        <span class="comment">// in that case we might have two different sdks merging data and we at least shouldn't mix
         // data together
-        </span><span class="kw">let </span>json = <span class="string">r#&quot;
+        </span><span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;user&quot;: {
-                &quot;segment&quot;: &quot;all&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "user": {
+                "segment": "all"
             }
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#"
         {
-          &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-          &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-          &quot;release&quot;: None,
-          &quot;environment&quot;: None,
-          &quot;transaction&quot;: None,
-          &quot;user_id&quot;: &quot;hello&quot;,
-          &quot;replay_id&quot;: None,
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+          "replay_id": None,
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sample_rate() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sample_rate&quot;: &quot;0.5&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "0.5"
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#"
         {
-          &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-          &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-          &quot;release&quot;: None,
-          &quot;environment&quot;: None,
-          &quot;transaction&quot;: None,
-          &quot;sample_rate&quot;: &quot;0.5&quot;,
-          &quot;user_id&quot;: &quot;hello&quot;,
-          &quot;replay_id&quot;: None,
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.5",
+          "user_id": "hello",
+          "replay_id": None,
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sample_rate_scientific_notation() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sample_rate&quot;: &quot;1e-5&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "1e-5"
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(dsc, @<span class="string">r#"
         {
-          &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-          &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-          &quot;release&quot;: None,
-          &quot;environment&quot;: None,
-          &quot;transaction&quot;: None,
-          &quot;sample_rate&quot;: &quot;0.00001&quot;,
-          &quot;user_id&quot;: &quot;hello&quot;,
-          &quot;replay_id&quot;: None,
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.00001",
+          "user_id": "hello",
+          "replay_id": None,
         }
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sample_rate_bogus() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sample_rate&quot;: &quot;bogus&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "bogus"
         }
-        &quot;#</span>;
+        "#</span>;
         serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap_err();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sample_rate_number() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sample_rate&quot;: 0.1
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": 0.1
         }
-        &quot;#</span>;
+        "#</span>;
         serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap_err();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sample_rate_negative() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sample_rate&quot;: &quot;-0.1&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "-0.1"
         }
-        &quot;#</span>;
+        "#</span>;
         serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap_err();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sampled_with_incoming_boolean() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sampled&quot;: true
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": true
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
         <span class="kw">let </span>dsc_as_json = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>dsc).unwrap();
-        <span class="kw">let </span>expected_json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-  &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-  &quot;release&quot;: null,
-  &quot;environment&quot;: null,
-  &quot;transaction&quot;: null,
-  &quot;user_id&quot;: &quot;hello&quot;,
-  &quot;replay_id&quot;: null,
-  &quot;sampled&quot;: true
-}&quot;#</span>;
+        <span class="kw">let </span>expected_json = <span class="string">r#"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": true
+}"#</span>;
 
         <span class="macro">assert_eq!</span>(dsc_as_json, expected_json);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sampled_with_incoming_boolean_as_string() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sampled&quot;: &quot;false&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "false"
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
         <span class="kw">let </span>dsc_as_json = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>dsc).unwrap();
-        <span class="kw">let </span>expected_json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-  &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-  &quot;release&quot;: null,
-  &quot;environment&quot;: null,
-  &quot;transaction&quot;: null,
-  &quot;user_id&quot;: &quot;hello&quot;,
-  &quot;replay_id&quot;: null,
-  &quot;sampled&quot;: false
-}&quot;#</span>;
+        <span class="kw">let </span>expected_json = <span class="string">r#"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": false
+}"#</span>;
 
         <span class="macro">assert_eq!</span>(dsc_as_json, expected_json);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sampled_with_incoming_invalid_boolean_as_string() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sampled&quot;: &quot;tru&quot;
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "tru"
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
         <span class="kw">let </span>dsc_as_json = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>dsc).unwrap();
-        <span class="kw">let </span>expected_json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-  &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-  &quot;release&quot;: null,
-  &quot;environment&quot;: null,
-  &quot;transaction&quot;: null,
-  &quot;user_id&quot;: &quot;hello&quot;,
-  &quot;replay_id&quot;: null
-}&quot;#</span>;
+        <span class="kw">let </span>expected_json = <span class="string">r#"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null
+}"#</span>;
 
         <span class="macro">assert_eq!</span>(dsc_as_json, expected_json);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_sampled_with_incoming_null_value() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="kw">let </span>json = <span class="string">r#"
         {
-            &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-            &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-            &quot;user_id&quot;: &quot;hello&quot;,
-            &quot;sampled&quot;: null
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": null
         }
-        &quot;#</span>;
+        "#</span>;
         <span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(json).unwrap();
         <span class="kw">let </span>dsc_as_json = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>dsc).unwrap();
-        <span class="kw">let </span>expected_json = <span class="string">r#&quot;{
-  &quot;trace_id&quot;: &quot;00000000-0000-0000-0000-000000000000&quot;,
-  &quot;public_key&quot;: &quot;abd0f232775f45feab79864e580d160b&quot;,
-  &quot;release&quot;: null,
-  &quot;environment&quot;: null,
-  &quot;transaction&quot;: null,
-  &quot;user_id&quot;: &quot;hello&quot;,
-  &quot;replay_id&quot;: null
-}&quot;#</span>;
+        <span class="kw">let </span>expected_json = <span class="string">r#"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null
+}"#</span>;
 
         <span class="macro">assert_eq!</span>(dsc_as_json, expected_json);
     }
@@ -1090,42 +1091,42 @@
         <span class="kw">let </span>replay_id = Uuid::new_v4();
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse(<span class="string">&quot;abd0f232775f45feab79864e580d160b&quot;</span>).unwrap(),
-            release: <span class="prelude-val">Some</span>(<span class="string">&quot;1.1.1&quot;</span>.into()),
+            public_key: ProjectKey::parse(<span class="string">"abd0f232775f45feab79864e580d160b"</span>).unwrap(),
+            release: <span class="prelude-val">Some</span>(<span class="string">"1.1.1"</span>.into()),
             user: TraceUserContext {
-                user_segment: <span class="string">&quot;user-seg&quot;</span>.into(),
-                user_id: <span class="string">&quot;user-id&quot;</span>.into(),
+                user_segment: <span class="string">"user-seg"</span>.into(),
+                user_id: <span class="string">"user-id"</span>.into(),
             },
-            environment: <span class="prelude-val">Some</span>(<span class="string">&quot;prod&quot;</span>.into()),
-            transaction: <span class="prelude-val">Some</span>(<span class="string">&quot;transaction1&quot;</span>.into()),
+            environment: <span class="prelude-val">Some</span>(<span class="string">"prod"</span>.into()),
+            transaction: <span class="prelude-val">Some</span>(<span class="string">"transaction1"</span>.into()),
             sample_rate: <span class="prelude-val">None</span>,
             replay_id: <span class="prelude-val">Some</span>(replay_id),
             sampled: <span class="prelude-val">None</span>,
             other: BTreeMap::new(),
         };
 
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;1.1.1&quot;</span>)), dsc.get_value(<span class="string">&quot;trace.release&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">"1.1.1"</span>)), dsc.get_value(<span class="string">"trace.release"</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;prod&quot;</span>)),
-            dsc.get_value(<span class="string">&quot;trace.environment&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"prod"</span>)),
+            dsc.get_value(<span class="string">"trace.environment"</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;user-id&quot;</span>)), dsc.get_value(<span class="string">&quot;trace.user.id&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">"user-id"</span>)), dsc.get_value(<span class="string">"trace.user.id"</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;user-seg&quot;</span>)),
-            dsc.get_value(<span class="string">&quot;trace.user.segment&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"user-seg"</span>)),
+            dsc.get_value(<span class="string">"trace.user.segment"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;transaction1&quot;</span>)),
-            dsc.get_value(<span class="string">&quot;trace.transaction&quot;</span>)
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"transaction1"</span>)),
+            dsc.get_value(<span class="string">"trace.transaction"</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::Uuid(replay_id)), dsc.get_value(<span class="string">&quot;trace.replay_id&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::Uuid(replay_id)), dsc.get_value(<span class="string">"trace.replay_id"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>getter_empty() {
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse(<span class="string">&quot;abd0f232775f45feab79864e580d160b&quot;</span>).unwrap(),
+            public_key: ProjectKey::parse(<span class="string">"abd0f232775f45feab79864e580d160b"</span>).unwrap(),
             release: <span class="prelude-val">None</span>,
             user: TraceUserContext::default(),
             environment: <span class="prelude-val">None</span>,
@@ -1135,16 +1136,16 @@
             sampled: <span class="prelude-val">None</span>,
             other: BTreeMap::new(),
         };
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.release&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.environment&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.user.id&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.user.segment&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.user.transaction&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.replay_id&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.release"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.environment"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.user.id"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.user.segment"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.user.transaction"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.replay_id"</span>));
 
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse(<span class="string">&quot;abd0f232775f45feab79864e580d160b&quot;</span>).unwrap(),
+            public_key: ProjectKey::parse(<span class="string">"abd0f232775f45feab79864e580d160b"</span>).unwrap(),
             release: <span class="prelude-val">None</span>,
             user: TraceUserContext::default(),
             environment: <span class="prelude-val">None</span>,
@@ -1154,8 +1155,8 @@
             sampled: <span class="prelude-val">None</span>,
             other: BTreeMap::new(),
         };
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.user.id&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">&quot;trace.user.segment&quot;</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.user.id"</span>));
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, dsc.get_value(<span class="string">"trace.user.segment"</span>));
     }
 }
 </code></pre></div></section></main></body></html>

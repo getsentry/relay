@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-monitors/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_monitors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_monitors/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_monitors"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-monitors/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_monitors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_monitors/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_monitors"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -382,7 +383,7 @@
 </pre></div><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
-//! Sentry. Once implemented, it&#39;ll allow you to get alerts and metrics to help you solve errors,
+//! Sentry. Once implemented, it'll allow you to get alerts and metrics to help you solve errors,
 //! detect timeouts, and prevent disruptions to your service.
 //!
 //! # API
@@ -392,8 +393,8 @@
 //! [monitors]: https://docs.sentry.io/product/crons/
 
 </span><span class="attr">#![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
 #![warn(missing_docs)]
 
@@ -412,21 +413,21 @@
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ProcessCheckInError {
     <span class="doccomment">/// Failed to deserialize the payload.
-    </span><span class="attr">#[error(<span class="string">&quot;failed to deserialize check in&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"failed to deserialize check in"</span>)]
     </span>Json(<span class="attr">#[from] </span>serde_json::Error),
 
     <span class="doccomment">/// Monitor slug was empty after slugification.
-    </span><span class="attr">#[error(<span class="string">&quot;the monitor slug is empty or invalid&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"the monitor slug is empty or invalid"</span>)]
     </span>EmptySlug,
 
     <span class="doccomment">/// Environment name was invalid.
-    </span><span class="attr">#[error(<span class="string">&quot;the environment is invalid&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"the environment is invalid"</span>)]
     </span>InvalidEnvironment,
 }
 
 <span class="doccomment">///
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
 </span><span class="kw">pub enum </span>CheckInStatus {
     <span class="doccomment">/// Check-in had no issues during execution.
     </span><span class="prelude-val">Ok</span>,
@@ -449,15 +450,15 @@
 }
 
 <span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
-#[serde(tag = <span class="string">&quot;type&quot;</span>)]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
+#[serde(tag = <span class="string">"type"</span>)]
 </span><span class="kw">enum </span>Schedule {
     Crontab { value: String },
     Interval { value: u64, unit: IntervalName },
 }
 
 <span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[serde(rename_all = <span class="string">"snake_case"</span>)]
 </span><span class="kw">enum </span>IntervalName {
     Year,
     Month,
@@ -475,24 +476,24 @@
 
     <span class="doccomment">/// How long (in minutes) after the expected checkin time will we wait until we consider the
     /// checkin to have been missed.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>checkin_margin: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
     <span class="doccomment">/// How long (in minutes) is the check-in allowed to run for in in_progress before it is
     /// considered failed.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>max_runtime: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
     <span class="doccomment">/// tz database style timezone string
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>timezone: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// How many consecutive failed check-ins it takes to create an issue.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>failure_issue_threshold: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
     <span class="doccomment">/// How many consecutive OK check-ins it takes to resolve an issue.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>recovery_threshold: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
@@ -500,7 +501,7 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>CheckInTrace {
     <span class="doccomment">/// Trace-ID of the check-in.
-    </span><span class="attr">#[serde(serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
+    </span><span class="attr">#[serde(serialize_with = <span class="string">"uuid_simple"</span>)]
     </span>trace_id: Uuid,
 }
 
@@ -508,7 +509,7 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>CheckInContexts {
     <span class="doccomment">/// Trace context sent with a check-in.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>trace: <span class="prelude-ty">Option</span>&lt;CheckInTrace&gt;,
 }
 
@@ -516,31 +517,31 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>CheckIn {
     <span class="doccomment">/// Unique identifier of this check-in.
-    </span><span class="attr">#[serde(default, serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
+    </span><span class="attr">#[serde(default, serialize_with = <span class="string">"uuid_simple"</span>)]
     </span><span class="kw">pub </span>check_in_id: Uuid,
 
     <span class="doccomment">/// Identifier of the monitor for this check-in.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>monitor_slug: String,
 
-    <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
+    <span class="doccomment">/// Status of this check-in. Defaults to `"unknown"`.
     </span><span class="kw">pub </span>status: CheckInStatus,
 
     <span class="doccomment">/// The environment to associate the check-in with
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// Duration of this check since it has started in seconds.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 
     <span class="doccomment">/// monitor configuration to support upserts.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>monitor_config: <span class="prelude-ty">Option</span>&lt;MonitorConfig&gt;,
 
     <span class="doccomment">/// Contexts describing the associated environment of the job run.
     /// Only supports trace for now.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>contexts: <span class="prelude-ty">Option</span>&lt;CheckInContexts&gt;,
 }
 
@@ -584,13 +585,13 @@
 
     <span class="kw">static </span>NAMESPACE: OnceCell&lt;Uuid&gt; = OnceCell::new();
     <span class="kw">let </span>namespace = NAMESPACE
-        .get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b&quot;https://sentry.io/crons/#did&quot;</span>));
+        .get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b"https://sentry.io/crons/#did"</span>));
 
     <span class="comment">// Use the project_id + monitor_slug as the routing key hint. This helps ensure monitor
     // check-ins are processed in order by consistently routing check-ins from the same monitor.
 
     </span><span class="kw">let </span>slug = <span class="kw-2">&amp;</span>check_in.monitor_slug;
-    <span class="kw">let </span>project_id_slug_key = <span class="macro">format!</span>(<span class="string">&quot;{project_id}:{slug}&quot;</span>);
+    <span class="kw">let </span>project_id_slug_key = <span class="macro">format!</span>(<span class="string">"{project_id}:{slug}"</span>);
 
     <span class="kw">let </span>routing_hint = Uuid::new_v5(namespace, project_id_slug_key.as_bytes());
 
@@ -614,29 +615,29 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>truncate_basic() {
-        <span class="kw">let </span><span class="kw-2">mut </span>test1 = <span class="string">&quot;test_&quot;</span>.repeat(<span class="number">50</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>test1 = <span class="string">"test_"</span>.repeat(<span class="number">50</span>);
         trim_slug(<span class="kw-2">&amp;mut </span>test1);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;test_test_test_test_test_test_test_test_test_test_&quot;</span>, test1,);
+        <span class="macro">assert_eq!</span>(<span class="string">"test_test_test_test_test_test_test_test_test_test_"</span>, test1,);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>test2 = <span class="string">&quot;🦀&quot;</span>.repeat(SLUG_LENGTH + <span class="number">10</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>test2 = <span class="string">"🦀"</span>.repeat(SLUG_LENGTH + <span class="number">10</span>);
         trim_slug(<span class="kw-2">&amp;mut </span>test2);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;🦀&quot;</span>.repeat(SLUG_LENGTH), test2);
+        <span class="macro">assert_eq!</span>(<span class="string">"🦀"</span>.repeat(SLUG_LENGTH), test2);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>serialize_json_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
-  &quot;status&quot;: &quot;in_progress&quot;,
-  &quot;environment&quot;: &quot;production&quot;,
-  &quot;duration&quot;: 21.0,
-  &quot;contexts&quot;: {
-    &quot;trace&quot;: {
-      &quot;trace_id&quot;: &quot;8f431b7aa08441bbbd5a0100fd91f9fe&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "environment": "production",
+  "duration": 21.0,
+  "contexts": {
+    "trace": {
+      "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe"
     }
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
@@ -646,17 +647,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>serialize_with_upsert_short() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
-  &quot;status&quot;: &quot;in_progress&quot;,
-  &quot;monitor_config&quot;: {
-    &quot;schedule&quot;: {
-      &quot;type&quot;: &quot;crontab&quot;,
-      &quot;value&quot;: &quot;0 * * * *&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "crontab",
+      "value": "0 * * * *"
     }
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
@@ -666,23 +667,23 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>serialize_with_upsert_interval() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
-  &quot;status&quot;: &quot;in_progress&quot;,
-  &quot;monitor_config&quot;: {
-    &quot;schedule&quot;: {
-      &quot;type&quot;: &quot;interval&quot;,
-      &quot;value&quot;: 5,
-      &quot;unit&quot;: &quot;day&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "interval",
+      "value": 5,
+      "unit": "day"
     },
-    &quot;checkin_margin&quot;: 5,
-    &quot;max_runtime&quot;: 10,
-    &quot;timezone&quot;: &quot;America/Los_Angles&quot;,
-    &quot;failure_issue_threshold&quot;: 3,
-    &quot;recovery_threshold&quot;: 1
+    "checkin_margin": 5,
+    "max_runtime": 10,
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
@@ -692,22 +693,22 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>serialize_with_upsert_full() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-  &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
-  &quot;status&quot;: &quot;in_progress&quot;,
-  &quot;monitor_config&quot;: {
-    &quot;schedule&quot;: {
-      &quot;type&quot;: &quot;crontab&quot;,
-      &quot;value&quot;: &quot;0 * * * *&quot;
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+  "monitor_slug": "my-monitor",
+  "status": "in_progress",
+  "monitor_config": {
+    "schedule": {
+      "type": "crontab",
+      "value": "0 * * * *"
     },
-    &quot;checkin_margin&quot;: 5,
-    &quot;max_runtime&quot;: 10,
-    &quot;timezone&quot;: &quot;America/Los_Angles&quot;,
-    &quot;failure_issue_threshold&quot;: 3,
-    &quot;recovery_threshold&quot;: 1
+    "checkin_margin": 5,
+    "max_runtime": 10,
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
-}&quot;#</span>;
+}"#</span>;
 
         <span class="kw">let </span>check_in = serde_json::from_str::&lt;CheckIn&gt;(json).unwrap();
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>check_in).unwrap();
@@ -717,28 +718,28 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>process_simple() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;check_in_id&quot;:&quot;a460c25ff2554577b920fcfacae4e5eb&quot;,&quot;monitor_slug&quot;:&quot;my-monitor&quot;,&quot;status&quot;:&quot;ok&quot;}&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#</span>;
 
         <span class="kw">let </span>result = process_check_in(json.as_bytes(), ProjectId::new(<span class="number">1</span>));
 
         <span class="comment">// The routing_hint should be consistent for the (project_id, monitor_slug)
-        </span><span class="kw">let </span>expected_uuid = Uuid::parse_str(<span class="string">&quot;66e5c5fa-b1b9-5980-8d85-432c1874521a&quot;</span>).unwrap();
+        </span><span class="kw">let </span>expected_uuid = Uuid::parse_str(<span class="string">"66e5c5fa-b1b9-5980-8d85-432c1874521a"</span>).unwrap();
 
         <span class="kw">if let </span><span class="prelude-val">Ok</span>(processed_result) = result {
             <span class="macro">assert_eq!</span>(String::from_utf8(processed_result.payload).unwrap(), json);
             <span class="macro">assert_eq!</span>(processed_result.routing_hint, expected_uuid);
         } <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;Failed to process check-in&quot;</span>)
+            <span class="macro">panic!</span>(<span class="string">"Failed to process check-in"</span>)
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>process_empty_slug() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-          &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-          &quot;monitor_slug&quot;: &quot;&quot;,
-          &quot;status&quot;: &quot;in_progress&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+          "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+          "monitor_slug": "",
+          "status": "in_progress"
+        }"#</span>;
 
         <span class="kw">let </span>result = process_check_in(json.as_bytes(), ProjectId::new(<span class="number">1</span>));
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(ProcessCheckInError::EmptySlug)));
@@ -746,12 +747,12 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>process_invalid_environment() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-          &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
-          &quot;monitor_slug&quot;: &quot;test&quot;,
-          &quot;status&quot;: &quot;in_progress&quot;,
-          &quot;environment&quot;: &quot;1234567890123456789012345678901234567890123456789012345678901234567890&quot;
-        }&quot;#</span>;
+        <span class="kw">let </span>json = <span class="string">r#"{
+          "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+          "monitor_slug": "test",
+          "status": "in_progress",
+          "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
+        }"#</span>;
 
         <span class="kw">let </span>result = process_check_in(json.as_bytes(), ProjectId::new(<span class="number">1</span>));
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(

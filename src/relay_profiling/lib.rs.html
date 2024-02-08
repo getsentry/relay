@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -290,18 +291,18 @@
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
 //! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
-//! the same envelope) and are usually big objects (average size around 300KB and it&#39;s not unusual
+//! the same envelope) and are usually big objects (average size around 300KB and it's not unusual
 //! to see several MB). Their size is linked to the amount of code executed during the transaction
 //! (so the duration of the transaction influences the size of the profile).
 //!
-//! It&#39;s preferrable to have a profile with a transaction. If a transaction is dropped, the profile
+//! It's preferrable to have a profile with a transaction. If a transaction is dropped, the profile
 //! should be dropped as well.
 //!
 //! # Envelope
 //!
 //! To send a profile to Relay, the profile is enclosed in an item of type `profile`:
 //! ```json
-//! {&quot;type&quot;: &quot;profile&quot;, &quot;size&quot;: ...}
+//! {"type": "profile", "size": ...}
 //! { ... }
 //! ```
 //!
@@ -311,30 +312,30 @@
 //! containing the raw profile. Each platform has their own schema for the profile.
 //!
 //! `android` has a specific binary representation of its profile and Relay is responsible to
-//! unpack it before it&#39;s forwarded down the line.
+//! unpack it before it's forwarded down the line.
 //!
 //! The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks
 //! like this:
 //! ```json
 //! {
-//!     &quot;debug_meta&quot;: { ... },
-//!     &quot;device_is_emulator&quot;: true,
-//!     &quot;device_locale&quot;: &quot;en_US&quot;,
-//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,
-//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,
-//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,
-//!     &quot;device_os_name&quot;: &quot;iOS&quot;,
-//!     &quot;device_os_version&quot;: &quot;15.2&quot;,
-//!     &quot;device_physical_memory_bytes&quot;: 34359738368,
-//!     &quot;duration_ns&quot;: &quot;6634284250&quot;,
-//!     &quot;platform&quot;: &quot;cocoa&quot;,
-//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
-//!     &quot;sampled_profile&quot;: { ... },
-//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
-//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
-//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
-//!     &quot;version_code&quot;: &quot;1&quot;,
-//!     &quot;version_name&quot;: &quot;7.14.0&quot;
+//!     "debug_meta": { ... },
+//!     "device_is_emulator": true,
+//!     "device_locale": "en_US",
+//!     "device_manufacturer": "Apple",
+//!     "device_model": "iPhone14,3",
+//!     "device_os_build_number": "21E258",
+//!     "device_os_name": "iOS",
+//!     "device_os_version": "15.2",
+//!     "device_physical_memory_bytes": 34359738368,
+//!     "duration_ns": "6634284250",
+//!     "platform": "cocoa",
+//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
+//!     "sampled_profile": { ... },
+//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
+//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
+//!     "transaction_name": "iOS_Swift.ViewController",
+//!     "version_code": "1",
+//!     "version_name": "7.14.0"
 //! }
 //! ```
 //!
@@ -360,24 +361,24 @@
 //! like this for the `cocoa` platform:
 //! ```json
 //! {
-//!     &quot;debug_meta&quot;: { ... },
-//!     &quot;device_is_emulator&quot;: true,
-//!     &quot;device_locale&quot;: &quot;en_US&quot;,
-//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,
-//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,
-//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,
-//!     &quot;device_os_name&quot;: &quot;iOS&quot;,
-//!     &quot;device_os_version&quot;: &quot;15.2&quot;,
-//!     &quot;device_physical_memory_bytes&quot;: 34359738368,
-//!     &quot;duration_ns&quot;: 6634284250,
-//!     &quot;platform&quot;: &quot;cocoa&quot;,
-//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
-//!     &quot;sampled_profile&quot;: { ... },
-//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
-//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
-//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
-//!     &quot;version_code&quot;: &quot;1&quot;,
-//!     &quot;version_name&quot;: &quot;7.14.0&quot;
+//!     "debug_meta": { ... },
+//!     "device_is_emulator": true,
+//!     "device_locale": "en_US",
+//!     "device_manufacturer": "Apple",
+//!     "device_model": "iPhone14,3",
+//!     "device_os_build_number": "21E258",
+//!     "device_os_name": "iOS",
+//!     "device_os_version": "15.2",
+//!     "device_physical_memory_bytes": 34359738368,
+//!     "duration_ns": 6634284250,
+//!     "platform": "cocoa",
+//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
+//!     "sampled_profile": { ... },
+//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
+//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
+//!     "transaction_name": "iOS_Swift.ViewController",
+//!     "version_code": "1",
+//!     "version_name": "7.14.0"
 //! }
 //! ```
 
@@ -413,7 +414,7 @@
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>MinimalProfile {
-    <span class="attr">#[serde(alias = <span class="string">&quot;profile_id&quot;</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"profile_id"</span>)]
     </span>event_id: ProfileId,
     platform: String,
     <span class="attr">#[serde(default)]
@@ -433,7 +434,7 @@
         <span class="prelude-val">Err</span>(err) =&gt; {
             <span class="macro">relay_log::warn!</span>(
                 error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                from = <span class="string">&quot;minimal&quot;</span>,
+                from = <span class="string">"minimal"</span>,
                 project_id = project_id.value(),
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
@@ -447,27 +448,27 @@
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::warn!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        from = <span class="string">&quot;metadata&quot;</span>,
+                        from = <span class="string">"metadata"</span>,
                         platform = profile.platform,
                         project_id = project_id.value(),
-                        <span class="string">&quot;invalid profile&quot;</span>,
+                        <span class="string">"invalid profile"</span>,
                     );
                     <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
                 }
             };
         }
         <span class="kw">_ </span>=&gt; <span class="kw">match </span>profile.platform.as_str() {
-            <span class="string">&quot;android&quot; </span>=&gt; {
+            <span class="string">"android" </span>=&gt; {
                 <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(payload);
                 <span class="kw">let _</span>: android::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
                     <span class="prelude-val">Ok</span>(profile) =&gt; profile,
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::warn!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            from = <span class="string">&quot;metadata&quot;</span>,
-                            platform = <span class="string">&quot;android&quot;</span>,
+                            from = <span class="string">"metadata"</span>,
+                            platform = <span class="string">"android"</span>,
                             project_id = project_id.value(),
-                            <span class="string">&quot;invalid profile&quot;</span>,
+                            <span class="string">"invalid profile"</span>,
                         );
                         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
                     }
@@ -485,13 +486,13 @@
         <span class="prelude-val">Err</span>(err) =&gt; {
             <span class="macro">relay_log::warn!</span>(
                 error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                from = <span class="string">&quot;minimal&quot;</span>,
+                from = <span class="string">"minimal"</span>,
                 platform = event.platform.as_str(),
                 project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                 sdk_name = event.sdk_name(),
                 sdk_version = event.sdk_version(),
                 transaction_id = <span class="question-mark">?</span>event.id.value(),
-                <span class="string">&quot;invalid profile&quot;</span>,
+                <span class="string">"invalid profile"</span>,
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
         }
@@ -503,7 +504,7 @@
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
         sample::Version::Unknown =&gt; <span class="kw">match </span>profile.platform.as_str() {
-            <span class="string">&quot;android&quot; </span>=&gt; {
+            <span class="string">"android" </span>=&gt; {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
@@ -515,26 +516,26 @@
             ProfileError::InvalidJson(err) =&gt; {
                 <span class="macro">relay_log::warn!</span>(
                     error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    from = <span class="string">&quot;parsing&quot;</span>,
+                    from = <span class="string">"parsing"</span>,
                     platform = profile.platform,
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
                     transaction_id = <span class="question-mark">?</span>event.id.value(),
-                    <span class="string">&quot;invalid profile&quot;</span>,
+                    <span class="string">"invalid profile"</span>,
                 );
                 <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="macro">relay_log::warn!</span>(
                     error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    from = <span class="string">&quot;parsing&quot;</span>,
+                    from = <span class="string">"parsing"</span>,
                     platform = profile.platform,
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
                     transaction_id = <span class="question-mark">?</span>event.id.value(),
-                    <span class="string">&quot;invalid profile&quot;</span>,
+                    <span class="string">"invalid profile"</span>,
                 );
                 <span class="prelude-val">Err</span>(err)
             }
@@ -548,7 +549,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_minimal_profile_with_version() {
-        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;version&quot;:&quot;1&quot;,&quot;platform&quot;:&quot;cocoa&quot;,&quot;event_id&quot;:&quot;751fff80-a266-467b-a6f5-eeeef65f4f84&quot;}&quot;#</span>;
+        <span class="kw">let </span>data = <span class="string">r#"{"version":"1","platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#</span>;
         <span class="kw">let </span>profile = minimal_profile_from_json(data.as_bytes());
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="macro">assert_eq!</span>(profile.unwrap().version, sample::Version::V1);
@@ -556,7 +557,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_minimal_profile_without_version() {
-        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;platform&quot;:&quot;android&quot;,&quot;event_id&quot;:&quot;751fff80-a266-467b-a6f5-eeeef65f4f84&quot;}&quot;#</span>;
+        <span class="kw">let </span>data = <span class="string">r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#</span>;
         <span class="kw">let </span>profile = minimal_profile_from_json(data.as_bytes());
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="macro">assert_eq!</span>(profile.unwrap().version, sample::Version::Unknown);
@@ -564,13 +565,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/roundtrip.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 }

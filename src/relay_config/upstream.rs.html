@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-config/src/upstream.rs`."><title>upstream.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-config/src/upstream.rs`."><title>upstream.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_config/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_config"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -190,11 +191,11 @@
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamError {
     <span class="doccomment">/// Raised if the DNS lookup for an upstream host failed.
-    </span><span class="attr">#[error(<span class="string">&quot;dns lookup failed&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"dns lookup failed"</span>)]
     </span>LookupFailed(<span class="attr">#[source] </span>io::Error),
     <span class="doccomment">/// Raised if the DNS lookup succeeded but an empty result was
     /// returned.
-    </span><span class="attr">#[error(<span class="string">&quot;dns lookup returned no results&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"dns lookup returned no results"</span>)]
     </span>EmptyLookupResult,
 }
 
@@ -202,31 +203,31 @@
 </span><span class="attr">#[derive(Debug, Eq, Hash, PartialEq, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamParseError {
     <span class="doccomment">/// Raised if an upstream could not be parsed as URL.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid upstream URL: bad URL format&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"invalid upstream URL: bad URL format"</span>)]
     </span>BadUrl,
     <span class="doccomment">/// Raised if a path was added to a URL.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid upstream URL: non root URL given&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"invalid upstream URL: non root URL given"</span>)]
     </span>NonOriginUrl,
     <span class="doccomment">/// Raised if an unknown or unsupported scheme is encountered.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid upstream URL: unknown or unsupported URL scheme&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"invalid upstream URL: unknown or unsupported URL scheme"</span>)]
     </span>UnknownScheme,
     <span class="doccomment">/// Raised if no host was provided.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid upstream URL: no host&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"invalid upstream URL: no host"</span>)]
     </span>NoHost,
 }
 
 <span class="doccomment">/// The upstream target is a type that holds all the information
 /// to uniquely identify an upstream target.
 </span><span class="attr">#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-</span><span class="kw">pub struct </span>UpstreamDescriptor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    host: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
+</span><span class="kw">pub struct </span>UpstreamDescriptor&lt;<span class="lifetime">'a</span>&gt; {
+    host: Cow&lt;<span class="lifetime">'a</span>, str&gt;,
     port: u16,
     scheme: Scheme,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; UpstreamDescriptor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; UpstreamDescriptor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Manually constructs an upstream descriptor.
-    </span><span class="kw">pub fn </span>new(host: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, port: u16, scheme: Scheme) -&gt; UpstreamDescriptor&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>new(host: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, port: u16, scheme: Scheme) -&gt; UpstreamDescriptor&lt;<span class="lifetime">'a</span>&gt; {
         UpstreamDescriptor {
             host: Cow::Borrowed(host),
             port,
@@ -236,7 +237,7 @@
 
     <span class="doccomment">/// Given a DSN this returns an upstream descriptor that
     /// describes it.
-    </span><span class="kw">pub fn </span>from_dsn(dsn: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Dsn) -&gt; UpstreamDescriptor&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub fn </span>from_dsn(dsn: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Dsn) -&gt; UpstreamDescriptor&lt;<span class="lifetime">'a</span>&gt; {
         UpstreamDescriptor {
             host: Cow::Borrowed(dsn.host()),
             port: dsn.port(),
@@ -256,7 +257,7 @@
 
     <span class="doccomment">/// Returns a URL relative to the upstream.
     </span><span class="kw">pub fn </span>get_url(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; Url {
-        <span class="macro">format!</span>(<span class="string">&quot;{self}{}&quot;</span>, path.trim_start_matches(<span class="kw-2">&amp;</span>[<span class="string">&#39;/&#39;</span>][..]))
+        <span class="macro">format!</span>(<span class="string">"{self}{}"</span>, path.trim_start_matches(<span class="kw-2">&amp;</span>[<span class="string">'/'</span>][..]))
             .parse()
             .unwrap()
     }
@@ -274,13 +275,13 @@
             .ok_or(UpstreamError::EmptyLookupResult)
     }
 
-    <span class="doccomment">/// Returns the upstream&#39;s connection scheme.
+    <span class="doccomment">/// Returns the upstream's connection scheme.
     </span><span class="kw">pub fn </span>scheme(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scheme {
         <span class="self">self</span>.scheme
     }
 
     <span class="doccomment">/// Returns a version of the upstream descriptor that is static.
-    </span><span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt; {
+    </span><span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt; {
         UpstreamDescriptor {
             host: Cow::Owned(<span class="self">self</span>.host.into_owned()),
             port: <span class="self">self</span>.port,
@@ -289,38 +290,38 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt; {
-    <span class="kw">fn </span>default() -&gt; UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>Default <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt; {
         UpstreamDescriptor {
-            host: Cow::Borrowed(<span class="string">&quot;sentry.io&quot;</span>),
+            host: Cow::Borrowed(<span class="string">"sentry.io"</span>),
             port: <span class="number">443</span>,
             scheme: Scheme::Https,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}://{}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scheme, <span class="kw-2">&amp;</span><span class="self">self</span>.host)<span class="question-mark">?</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Display <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}://{}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scheme, <span class="kw-2">&amp;</span><span class="self">self</span>.host)<span class="question-mark">?</span>;
         <span class="kw">if </span><span class="self">self</span>.port() != <span class="self">self</span>.scheme.default_port() {
-            <span class="macro">write!</span>(f, <span class="string">&quot;:{}&quot;</span>, <span class="self">self</span>.port())<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">":{}"</span>, <span class="self">self</span>.port())<span class="question-mark">?</span>;
         }
-        <span class="macro">write!</span>(f, <span class="string">&quot;/&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"/"</span>)
     }
 }
 
-<span class="kw">impl </span>FromStr <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>FromStr <span class="kw">for </span>UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">type </span><span class="prelude-val">Err </span>= UpstreamParseError;
 
-    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt;, UpstreamParseError&gt; {
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;, UpstreamParseError&gt; {
         <span class="kw">let </span>url = Url::parse(s).map_err(|<span class="kw">_</span>| UpstreamParseError::BadUrl)<span class="question-mark">?</span>;
-        <span class="kw">if </span>url.path() != <span class="string">&quot;/&quot; </span>|| !(url.query().is_none() || url.query() == <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>)) {
+        <span class="kw">if </span>url.path() != <span class="string">"/" </span>|| !(url.query().is_none() || url.query() == <span class="prelude-val">Some</span>(<span class="string">""</span>)) {
             <span class="kw">return </span><span class="prelude-val">Err</span>(UpstreamParseError::NonOriginUrl);
         }
 
         <span class="kw">let </span>scheme = <span class="kw">match </span>url.scheme() {
-            <span class="string">&quot;http&quot; </span>=&gt; Scheme::Http,
-            <span class="string">&quot;https&quot; </span>=&gt; Scheme::Https,
+            <span class="string">"http" </span>=&gt; Scheme::Http,
+            <span class="string">"https" </span>=&gt; Scheme::Https,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UpstreamParseError::UnknownScheme),
         };
 
@@ -335,7 +336,7 @@
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(UpstreamDescriptor&lt;<span class="lifetime">&#39;static</span>&gt;, <span class="string">&quot;a sentry upstream URL&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;, <span class="string">"a sentry upstream URL"</span>);
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
@@ -343,17 +344,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_basic_parsing() {
-        <span class="kw">let </span>desc: UpstreamDescriptor&lt;<span class="lifetime">&#39;_</span>&gt; = <span class="string">&quot;https://sentry.io/&quot;</span>.parse().unwrap();
-        <span class="macro">assert_eq!</span>(desc.host(), <span class="string">&quot;sentry.io&quot;</span>);
+        <span class="kw">let </span>desc: UpstreamDescriptor&lt;<span class="lifetime">'_</span>&gt; = <span class="string">"https://sentry.io/"</span>.parse().unwrap();
+        <span class="macro">assert_eq!</span>(desc.host(), <span class="string">"sentry.io"</span>);
         <span class="macro">assert_eq!</span>(desc.port(), <span class="number">443</span>);
         <span class="macro">assert_eq!</span>(desc.scheme(), Scheme::Https);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_from_dsn() {
-        <span class="kw">let </span>dsn: Dsn = <span class="string">&quot;https://username:password@domain:8888/42&quot;</span>.parse().unwrap();
+        <span class="kw">let </span>dsn: Dsn = <span class="string">"https://username:password@domain:8888/42"</span>.parse().unwrap();
         <span class="kw">let </span>desc = UpstreamDescriptor::from_dsn(<span class="kw-2">&amp;</span>dsn);
-        <span class="macro">assert_eq!</span>(desc.host(), <span class="string">&quot;domain&quot;</span>);
+        <span class="macro">assert_eq!</span>(desc.host(), <span class="string">"domain"</span>);
         <span class="macro">assert_eq!</span>(desc.port(), <span class="number">8888</span>);
         <span class="macro">assert_eq!</span>(desc.scheme(), Scheme::Https);
     }

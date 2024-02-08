@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/native.rs`."><title>native.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/native.rs`."><title>native.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -238,7 +239,7 @@
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 
-<span class="kw">type </span>Minidump&lt;<span class="lifetime">&#39;a</span>&gt; = minidump::Minidump&lt;<span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;;
+<span class="kw">type </span>Minidump&lt;<span class="lifetime">'a</span>&gt; = minidump::Minidump&lt;<span class="lifetime">'a</span>, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;;
 
 <span class="doccomment">/// Placeholder payload fragments indicating a native event.
 ///
@@ -251,11 +252,11 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>NativePlaceholder {
     <span class="doccomment">/// The `exception.type` attribute value rendered in the issue.
-    </span>exception_type: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    </span>exception_type: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     <span class="doccomment">/// The default `exception.value` shown in the issue if processing fails.
-    </span>exception_value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    </span>exception_value: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     <span class="doccomment">/// The `exception.mechanism.type` attribute, which is the primary indicator for processing.
-    </span>mechanism_type: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    </span>mechanism_type: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
 }
 
 <span class="doccomment">/// Writes a placeholder to indicate that this event has an associated minidump or an apple
@@ -266,11 +267,11 @@
 </span><span class="kw">fn </span>write_native_placeholder(event: <span class="kw-2">&amp;mut </span>Event, placeholder: NativePlaceholder) {
     <span class="comment">// Events must be native platform.
     </span><span class="kw">let </span>platform = event.platform.value_mut();
-    <span class="kw-2">*</span>platform = <span class="prelude-val">Some</span>(<span class="string">&quot;native&quot;</span>.to_string());
+    <span class="kw-2">*</span>platform = <span class="prelude-val">Some</span>(<span class="string">"native"</span>.to_string());
 
     <span class="comment">// Assume that this minidump is the result of a crash and assign the fatal
-    // level. Note that the use of `setdefault` here doesn&#39;t generally allow the
-    // user to override the minidump&#39;s level as processing will overwrite it
+    // level. Note that the use of `setdefault` here doesn't generally allow the
+    // user to override the minidump's level as processing will overwrite it
     // later.
     </span>event.level.get_or_insert_with(|| Level::Fatal);
 
@@ -307,11 +308,11 @@
 /// present.
 ///
 /// Crashpad has global annotations, and per-module annotations. For each of these, a separate
-/// context of type &quot;crashpad&quot; is added, which contains the annotations as key-value mapping. List
-/// annotations are added to an &quot;annotations&quot; JSON list.
+/// context of type "crashpad" is added, which contains the annotations as key-value mapping. List
+/// annotations are added to an "annotations" JSON list.
 </span><span class="kw">fn </span>write_crashpad_annotations(
     event: <span class="kw-2">&amp;mut </span>Event,
-    minidump: <span class="kw-2">&amp;</span>Minidump&lt;<span class="lifetime">&#39;_</span>&gt;,
+    minidump: <span class="kw-2">&amp;</span>Minidump&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), minidump::Error&gt; {
     <span class="kw">let </span>module_list = minidump.get_stream::&lt;MinidumpModuleList&gt;()<span class="question-mark">?</span>;
     <span class="kw">let </span>crashpad_info = <span class="kw">match </span>minidump.get_stream::&lt;MinidumpCrashpadInfo&gt;() {
@@ -330,7 +331,7 @@
             .map(|(key, value)| (key, Annotated::new(Value::from(value))))
             .collect();
 
-        contexts.insert(<span class="string">&quot;crashpad&quot;</span>.to_string(), Context::Other(crashpad_context));
+        contexts.insert(<span class="string">"crashpad"</span>.to_string(), Context::Other(crashpad_context));
     }
 
     <span class="kw">if </span>crashpad_info.module_list.is_empty() {
@@ -348,7 +349,7 @@
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     module_index = module_info.module_index,
-                    <span class="string">&quot;Skipping invalid minidump module index&quot;</span>,
+                    <span class="string">"Skipping invalid minidump module index"</span>,
                 );
                 <span class="kw">continue</span>;
             }
@@ -356,14 +357,14 @@
 
         <span class="comment">// Use the basename of the code file (library or executable name) as context name. The
         // context type must be set explicitly in this case, which will render in Sentry as
-        // &quot;Module.dll (crashpad)&quot;.
+        // "Module.dll (crashpad)".
         </span><span class="kw">let </span>code_file = module.code_file();
         <span class="kw">let </span>(<span class="kw">_</span>, module_name) = symbolic_common::split_path(<span class="kw-2">&amp;</span>code_file);
 
         <span class="kw">let </span><span class="kw-2">mut </span>module_context = BTreeMap::new();
         module_context.insert(
-            <span class="string">&quot;type&quot;</span>.to_owned(),
-            Annotated::new(Value::String(<span class="string">&quot;crashpad&quot;</span>.to_owned())),
+            <span class="string">"type"</span>.to_owned(),
+            Annotated::new(Value::String(<span class="string">"crashpad"</span>.to_owned())),
         );
 
         <span class="kw">for </span>(key, value) <span class="kw">in </span>module_info.simple_annotations {
@@ -378,7 +379,7 @@
 
         <span class="kw">if </span>!module_info.list_annotations.is_empty() {
             <span class="comment">// Annotation lists do not maintain a key-value mapping, so instead write them to an
-            // &quot;annotations&quot; key within the module context. This will render as a JSON list in Sentry.
+            // "annotations" key within the module context. This will render as a JSON list in Sentry.
             </span><span class="kw">let </span>annotation_list = module_info
                 .list_annotations
                 .into_iter()
@@ -386,7 +387,7 @@
                 .collect();
 
             module_context.insert(
-                <span class="string">&quot;annotations&quot;</span>.to_owned(),
+                <span class="string">"annotations"</span>.to_owned(),
                 Annotated::new(Value::Array(annotation_list)),
             );
         }
@@ -403,21 +404,21 @@
 /// successfully, even if the minidump or part of its data cannot be parsed.
 </span><span class="kw">pub fn </span>process_minidump(event: <span class="kw-2">&amp;mut </span>Event, data: <span class="kw-2">&amp;</span>[u8]) {
     <span class="kw">let </span>placeholder = NativePlaceholder {
-        exception_type: <span class="string">&quot;Minidump&quot;</span>,
-        exception_value: <span class="string">&quot;Invalid Minidump&quot;</span>,
-        mechanism_type: <span class="string">&quot;minidump&quot;</span>,
+        exception_type: <span class="string">"Minidump"</span>,
+        exception_value: <span class="string">"Invalid Minidump"</span>,
+        mechanism_type: <span class="string">"minidump"</span>,
     };
     write_native_placeholder(event, placeholder);
 
     <span class="kw">let </span>minidump = <span class="kw">match </span>Minidump::read(data) {
         <span class="prelude-val">Ok</span>(minidump) =&gt; minidump,
         <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to parse minidump&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to parse minidump"</span>);
             <span class="kw">return</span>;
         }
     };
 
-    <span class="comment">// Use the minidump&#39;s timestamp as the event&#39;s primary time. This timestamp can lie multiple
+    <span class="comment">// Use the minidump's timestamp as the event's primary time. This timestamp can lie multiple
     // days in the past, in which case the event may be rejected in store normalization.
     </span><span class="kw">let </span>timestamp = Utc
         .timestamp_opt(minidump.header.time_date_stamp.into(), <span class="number">0</span>)
@@ -433,7 +434,7 @@
         <span class="comment">// TODO: Consider adding an event error for failed annotation extraction.
         </span><span class="macro">relay_log::debug!</span>(
             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-            <span class="string">&quot;failed to parse minidump module list&quot;
+            <span class="string">"failed to parse minidump module list"
         </span>);
     }
 }
@@ -442,9 +443,9 @@
 /// Report.
 </span><span class="kw">pub fn </span>process_apple_crash_report(event: <span class="kw-2">&amp;mut </span>Event, _data: <span class="kw-2">&amp;</span>[u8]) {
     <span class="kw">let </span>placeholder = NativePlaceholder {
-        exception_type: <span class="string">&quot;AppleCrashReport&quot;</span>,
-        exception_value: <span class="string">&quot;Invalid Apple Crash Report&quot;</span>,
-        mechanism_type: <span class="string">&quot;applecrashreport&quot;</span>,
+        exception_type: <span class="string">"AppleCrashReport"</span>,
+        exception_value: <span class="string">"Invalid Apple Crash Report"</span>,
+        mechanism_type: <span class="string">"applecrashreport"</span>,
     };
     write_native_placeholder(event, placeholder);
 }

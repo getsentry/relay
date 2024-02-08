@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/envelope.rs`."><title>envelope.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/envelope.rs`."><title>envelope.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1910,10 +1911,10 @@
 //! This is enabled by declaring an explicit length in the item headers. Example:
 //!
 //! ```plain
-//! {&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;: &quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;}
-//! {&quot;type&quot;:&quot;event&quot;,&quot;length&quot;:41,&quot;content_type&quot;:&quot;application/json&quot;}
-//! {&quot;message&quot;:&quot;hello world&quot;,&quot;level&quot;:&quot;error&quot;}
-//! {&quot;type&quot;:&quot;attachment&quot;,&quot;length&quot;:7,&quot;content_type&quot;:&quot;text/plain&quot;,&quot;filename&quot;:&quot;application.log&quot;}
+//! {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn": "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+//! {"type":"event","length":41,"content_type":"application/json"}
+//! {"message":"hello world","level":"error"}
+//! {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
 //! Hello
 //!
 //! ```
@@ -1940,25 +1941,25 @@
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
 
-<span class="kw">pub const </span>CONTENT_TYPE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;application/x-sentry-envelope&quot;</span>;
+<span class="kw">pub const </span>CONTENT_TYPE: <span class="kw-2">&amp;</span>str = <span class="string">"application/x-sentry-envelope"</span>;
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>EnvelopeError {
-    <span class="attr">#[error(<span class="string">&quot;unexpected end of file&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"unexpected end of file"</span>)]
     </span>UnexpectedEof,
-    <span class="attr">#[error(<span class="string">&quot;missing envelope header&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"missing envelope header"</span>)]
     </span>MissingHeader,
-    <span class="attr">#[error(<span class="string">&quot;missing newline after header or payload&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"missing newline after header or payload"</span>)]
     </span>MissingNewline,
-    <span class="attr">#[error(<span class="string">&quot;invalid envelope header&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"invalid envelope header"</span>)]
     </span>InvalidHeader(<span class="attr">#[source] </span>serde_json::Error),
-    <span class="attr">#[error(<span class="string">&quot;{0} header mismatch between envelope and request&quot;</span>)]
-    </span>HeaderMismatch(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
-    <span class="attr">#[error(<span class="string">&quot;invalid item header&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"{0} header mismatch between envelope and request"</span>)]
+    </span>HeaderMismatch(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str),
+    <span class="attr">#[error(<span class="string">"invalid item header"</span>)]
     </span>InvalidItemHeader(<span class="attr">#[source] </span>serde_json::Error),
-    <span class="attr">#[error(<span class="string">&quot;failed to write header&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to write header"</span>)]
     </span>HeaderIoFailed(<span class="attr">#[source] </span>serde_json::Error),
-    <span class="attr">#[error(<span class="string">&quot;failed to write payload&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to write payload"</span>)]
     </span>PayloadIoFailed(<span class="attr">#[source] </span>io::Error),
 }
 
@@ -2033,30 +2034,30 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ItemType {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Event =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event&quot;</span>),
-            <span class="self">Self</span>::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transaction&quot;</span>),
-            <span class="self">Self</span>::Security =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;security&quot;</span>),
-            <span class="self">Self</span>::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;attachment&quot;</span>),
-            <span class="self">Self</span>::FormData =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;form_data&quot;</span>),
-            <span class="self">Self</span>::RawSecurity =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;raw_security&quot;</span>),
-            <span class="self">Self</span>::Nel =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;nel&quot;</span>),
-            <span class="self">Self</span>::UnrealReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal_report&quot;</span>),
-            <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;user_report&quot;</span>),
-            <span class="self">Self</span>::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;feedback&quot;</span>),
-            <span class="self">Self</span>::Session =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;session&quot;</span>),
-            <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
-            <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;statsd&quot;</span>),
-            <span class="self">Self</span>::MetricBuckets =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metric_buckets&quot;</span>),
-            <span class="self">Self</span>::MetricMeta =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metric_meta&quot;</span>),
-            <span class="self">Self</span>::ClientReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;client_report&quot;</span>),
-            <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;profile&quot;</span>),
-            <span class="self">Self</span>::ReplayEvent =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_event&quot;</span>),
-            <span class="self">Self</span>::ReplayRecording =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_recording&quot;</span>),
-            <span class="self">Self</span>::CheckIn =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;check_in&quot;</span>),
-            <span class="self">Self</span>::Span =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;span&quot;</span>),
-            <span class="self">Self</span>::OtelSpan =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;otel_span&quot;</span>),
+            <span class="self">Self</span>::Event =&gt; <span class="macro">write!</span>(f, <span class="string">"event"</span>),
+            <span class="self">Self</span>::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">"transaction"</span>),
+            <span class="self">Self</span>::Security =&gt; <span class="macro">write!</span>(f, <span class="string">"security"</span>),
+            <span class="self">Self</span>::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">"attachment"</span>),
+            <span class="self">Self</span>::FormData =&gt; <span class="macro">write!</span>(f, <span class="string">"form_data"</span>),
+            <span class="self">Self</span>::RawSecurity =&gt; <span class="macro">write!</span>(f, <span class="string">"raw_security"</span>),
+            <span class="self">Self</span>::Nel =&gt; <span class="macro">write!</span>(f, <span class="string">"nel"</span>),
+            <span class="self">Self</span>::UnrealReport =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal_report"</span>),
+            <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">"user_report"</span>),
+            <span class="self">Self</span>::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">"feedback"</span>),
+            <span class="self">Self</span>::Session =&gt; <span class="macro">write!</span>(f, <span class="string">"session"</span>),
+            <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">"sessions"</span>),
+            <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">"statsd"</span>),
+            <span class="self">Self</span>::MetricBuckets =&gt; <span class="macro">write!</span>(f, <span class="string">"metric_buckets"</span>),
+            <span class="self">Self</span>::MetricMeta =&gt; <span class="macro">write!</span>(f, <span class="string">"metric_meta"</span>),
+            <span class="self">Self</span>::ClientReport =&gt; <span class="macro">write!</span>(f, <span class="string">"client_report"</span>),
+            <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">"profile"</span>),
+            <span class="self">Self</span>::ReplayEvent =&gt; <span class="macro">write!</span>(f, <span class="string">"replay_event"</span>),
+            <span class="self">Self</span>::ReplayRecording =&gt; <span class="macro">write!</span>(f, <span class="string">"replay_recording"</span>),
+            <span class="self">Self</span>::CheckIn =&gt; <span class="macro">write!</span>(f, <span class="string">"check_in"</span>),
+            <span class="self">Self</span>::Span =&gt; <span class="macro">write!</span>(f, <span class="string">"span"</span>),
+            <span class="self">Self</span>::OtelSpan =&gt; <span class="macro">write!</span>(f, <span class="string">"otel_span"</span>),
             <span class="self">Self</span>::Unknown(s) =&gt; s.fmt(f),
         }
     }
@@ -2067,34 +2068,34 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;event&quot; </span>=&gt; <span class="self">Self</span>::Event,
-            <span class="string">&quot;transaction&quot; </span>=&gt; <span class="self">Self</span>::Transaction,
-            <span class="string">&quot;security&quot; </span>=&gt; <span class="self">Self</span>::Security,
-            <span class="string">&quot;attachment&quot; </span>=&gt; <span class="self">Self</span>::Attachment,
-            <span class="string">&quot;form_data&quot; </span>=&gt; <span class="self">Self</span>::FormData,
-            <span class="string">&quot;raw_security&quot; </span>=&gt; <span class="self">Self</span>::RawSecurity,
-            <span class="string">&quot;nel&quot; </span>=&gt; <span class="self">Self</span>::Nel,
-            <span class="string">&quot;unreal_report&quot; </span>=&gt; <span class="self">Self</span>::UnrealReport,
-            <span class="string">&quot;user_report&quot; </span>=&gt; <span class="self">Self</span>::UserReport,
-            <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
-            <span class="string">&quot;session&quot; </span>=&gt; <span class="self">Self</span>::Session,
-            <span class="string">&quot;sessions&quot; </span>=&gt; <span class="self">Self</span>::Sessions,
-            <span class="string">&quot;statsd&quot; </span>=&gt; <span class="self">Self</span>::Statsd,
-            <span class="string">&quot;metric_buckets&quot; </span>=&gt; <span class="self">Self</span>::MetricBuckets,
-            <span class="string">&quot;metric_meta&quot; </span>=&gt; <span class="self">Self</span>::MetricMeta,
-            <span class="string">&quot;client_report&quot; </span>=&gt; <span class="self">Self</span>::ClientReport,
-            <span class="string">&quot;profile&quot; </span>=&gt; <span class="self">Self</span>::Profile,
-            <span class="string">&quot;replay_event&quot; </span>=&gt; <span class="self">Self</span>::ReplayEvent,
-            <span class="string">&quot;replay_recording&quot; </span>=&gt; <span class="self">Self</span>::ReplayRecording,
-            <span class="string">&quot;check_in&quot; </span>=&gt; <span class="self">Self</span>::CheckIn,
-            <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
-            <span class="string">&quot;otel_span&quot; </span>=&gt; <span class="self">Self</span>::OtelSpan,
+            <span class="string">"event" </span>=&gt; <span class="self">Self</span>::Event,
+            <span class="string">"transaction" </span>=&gt; <span class="self">Self</span>::Transaction,
+            <span class="string">"security" </span>=&gt; <span class="self">Self</span>::Security,
+            <span class="string">"attachment" </span>=&gt; <span class="self">Self</span>::Attachment,
+            <span class="string">"form_data" </span>=&gt; <span class="self">Self</span>::FormData,
+            <span class="string">"raw_security" </span>=&gt; <span class="self">Self</span>::RawSecurity,
+            <span class="string">"nel" </span>=&gt; <span class="self">Self</span>::Nel,
+            <span class="string">"unreal_report" </span>=&gt; <span class="self">Self</span>::UnrealReport,
+            <span class="string">"user_report" </span>=&gt; <span class="self">Self</span>::UserReport,
+            <span class="string">"feedback" </span>=&gt; <span class="self">Self</span>::UserReportV2,
+            <span class="string">"session" </span>=&gt; <span class="self">Self</span>::Session,
+            <span class="string">"sessions" </span>=&gt; <span class="self">Self</span>::Sessions,
+            <span class="string">"statsd" </span>=&gt; <span class="self">Self</span>::Statsd,
+            <span class="string">"metric_buckets" </span>=&gt; <span class="self">Self</span>::MetricBuckets,
+            <span class="string">"metric_meta" </span>=&gt; <span class="self">Self</span>::MetricMeta,
+            <span class="string">"client_report" </span>=&gt; <span class="self">Self</span>::ClientReport,
+            <span class="string">"profile" </span>=&gt; <span class="self">Self</span>::Profile,
+            <span class="string">"replay_event" </span>=&gt; <span class="self">Self</span>::ReplayEvent,
+            <span class="string">"replay_recording" </span>=&gt; <span class="self">Self</span>::ReplayRecording,
+            <span class="string">"check_in" </span>=&gt; <span class="self">Self</span>::CheckIn,
+            <span class="string">"span" </span>=&gt; <span class="self">Self</span>::Span,
+            <span class="string">"otel_span" </span>=&gt; <span class="self">Self</span>::OtelSpan,
             other =&gt; <span class="self">Self</span>::Unknown(other.to_owned()),
         })
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(ItemType, <span class="string">&quot;an envelope item type (see sentry develop docs)&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(ItemType, <span class="string">"an envelope item type (see sentry develop docs)"</span>);
 
 <span class="doccomment">/// Payload content types.
 ///
@@ -2123,12 +2124,12 @@
     <span class="attr">#[inline]
     </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::Text =&gt; <span class="string">&quot;text/plain&quot;</span>,
-            <span class="self">Self</span>::Json =&gt; <span class="string">&quot;application/json&quot;</span>,
-            <span class="self">Self</span>::MsgPack =&gt; <span class="string">&quot;application/x-msgpack&quot;</span>,
-            <span class="self">Self</span>::OctetStream =&gt; <span class="string">&quot;application/octet-stream&quot;</span>,
-            <span class="self">Self</span>::Minidump =&gt; <span class="string">&quot;application/x-dmp&quot;</span>,
-            <span class="self">Self</span>::Xml =&gt; <span class="string">&quot;text/xml&quot;</span>,
+            <span class="self">Self</span>::Text =&gt; <span class="string">"text/plain"</span>,
+            <span class="self">Self</span>::Json =&gt; <span class="string">"application/json"</span>,
+            <span class="self">Self</span>::MsgPack =&gt; <span class="string">"application/x-msgpack"</span>,
+            <span class="self">Self</span>::OctetStream =&gt; <span class="string">"application/octet-stream"</span>,
+            <span class="self">Self</span>::Minidump =&gt; <span class="string">"application/x-dmp"</span>,
+            <span class="self">Self</span>::Xml =&gt; <span class="string">"text/xml"</span>,
             <span class="self">Self</span>::Envelope =&gt; <span class="self">self</span>::CONTENT_TYPE,
             <span class="self">Self</span>::Other(<span class="kw-2">ref </span>other) =&gt; other,
         }
@@ -2146,7 +2147,7 @@
         } <span class="kw">else if </span>ct.eq_ignore_ascii_case(<span class="self">Self</span>::Minidump.as_str()) {
             <span class="prelude-val">Some</span>(<span class="self">Self</span>::Minidump)
         } <span class="kw">else if </span>ct.eq_ignore_ascii_case(<span class="self">Self</span>::Xml.as_str())
-            || ct.eq_ignore_ascii_case(<span class="string">&quot;application/xml&quot;</span>)
+            || ct.eq_ignore_ascii_case(<span class="string">"application/xml"</span>)
         {
             <span class="prelude-val">Some</span>(<span class="self">Self</span>::Xml)
         } <span class="kw">else if </span>ct.eq_ignore_ascii_case(<span class="self">Self</span>::Envelope.as_str()) {
@@ -2166,7 +2167,7 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str&gt; <span class="kw">for </span>ContentType {
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str&gt; <span class="kw">for </span>ContentType {
     <span class="kw">fn </span>from(content_type: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::from_str(content_type)
             .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
@@ -2192,8 +2193,8 @@
     }
 }
 
-<span class="kw">impl </span>PartialEq&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str&gt; <span class="kw">for </span>ContentType {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: &amp;&amp;<span class="lifetime">&#39;_ </span>str) -&gt; bool {
+<span class="kw">impl </span>PartialEq&lt;<span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str&gt; <span class="kw">for </span>ContentType {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: &amp;&amp;<span class="lifetime">'_ </span>str) -&gt; bool {
         <span class="kw-2">*</span><span class="self">self </span>== <span class="kw-2">**</span>other
     }
 }
@@ -2204,7 +2205,7 @@
     }
 }
 
-<span class="kw">impl </span>PartialEq&lt;ContentType&gt; <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str {
+<span class="kw">impl </span>PartialEq&lt;ContentType&gt; <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>ContentType) -&gt; bool {
         <span class="kw-2">*</span>other == <span class="kw-2">*</span><span class="self">self
     </span>}
@@ -2231,7 +2232,7 @@
     }
 }
 
-<span class="macro">relay_common::impl_str_de!</span>(ContentType, <span class="string">&quot;a content type string&quot;</span>);
+<span class="macro">relay_common::impl_str_de!</span>(ContentType, <span class="string">"a content type string"</span>);
 
 <span class="doccomment">/// The type of an event attachment.
 ///
@@ -2291,16 +2292,16 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>AttachmentType {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            AttachmentType::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.attachment&quot;</span>),
-            AttachmentType::Minidump =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.minidump&quot;</span>),
-            AttachmentType::AppleCrashReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.applecrashreport&quot;</span>),
-            AttachmentType::EventPayload =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.payload&quot;</span>),
-            AttachmentType::Breadcrumbs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.breadcrumbs&quot;</span>),
-            AttachmentType::UnrealContext =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.context&quot;</span>),
-            AttachmentType::UnrealLogs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.logs&quot;</span>),
-            AttachmentType::ViewHierarchy =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.view_hierarchy&quot;</span>),
+            AttachmentType::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">"event.attachment"</span>),
+            AttachmentType::Minidump =&gt; <span class="macro">write!</span>(f, <span class="string">"event.minidump"</span>),
+            AttachmentType::AppleCrashReport =&gt; <span class="macro">write!</span>(f, <span class="string">"event.applecrashreport"</span>),
+            AttachmentType::EventPayload =&gt; <span class="macro">write!</span>(f, <span class="string">"event.payload"</span>),
+            AttachmentType::Breadcrumbs =&gt; <span class="macro">write!</span>(f, <span class="string">"event.breadcrumbs"</span>),
+            AttachmentType::UnrealContext =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal.context"</span>),
+            AttachmentType::UnrealLogs =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal.logs"</span>),
+            AttachmentType::ViewHierarchy =&gt; <span class="macro">write!</span>(f, <span class="string">"event.view_hierarchy"</span>),
             AttachmentType::Unknown(s) =&gt; s.fmt(f),
         }
     }
@@ -2311,14 +2312,14 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;event.attachment&quot; </span>=&gt; AttachmentType::Attachment,
-            <span class="string">&quot;event.minidump&quot; </span>=&gt; AttachmentType::Minidump,
-            <span class="string">&quot;event.applecrashreport&quot; </span>=&gt; AttachmentType::AppleCrashReport,
-            <span class="string">&quot;event.payload&quot; </span>=&gt; AttachmentType::EventPayload,
-            <span class="string">&quot;event.breadcrumbs&quot; </span>=&gt; AttachmentType::Breadcrumbs,
-            <span class="string">&quot;event.view_hierarchy&quot; </span>=&gt; AttachmentType::ViewHierarchy,
-            <span class="string">&quot;unreal.context&quot; </span>=&gt; AttachmentType::UnrealContext,
-            <span class="string">&quot;unreal.logs&quot; </span>=&gt; AttachmentType::UnrealLogs,
+            <span class="string">"event.attachment" </span>=&gt; AttachmentType::Attachment,
+            <span class="string">"event.minidump" </span>=&gt; AttachmentType::Minidump,
+            <span class="string">"event.applecrashreport" </span>=&gt; AttachmentType::AppleCrashReport,
+            <span class="string">"event.payload" </span>=&gt; AttachmentType::EventPayload,
+            <span class="string">"event.breadcrumbs" </span>=&gt; AttachmentType::Breadcrumbs,
+            <span class="string">"event.view_hierarchy" </span>=&gt; AttachmentType::ViewHierarchy,
+            <span class="string">"unreal.context" </span>=&gt; AttachmentType::UnrealContext,
+            <span class="string">"unreal.logs" </span>=&gt; AttachmentType::UnrealLogs,
             other =&gt; AttachmentType::Unknown(other.to_owned()),
         })
     }
@@ -2326,7 +2327,7 @@
 
 <span class="macro">relay_common::impl_str_serde!</span>(
     AttachmentType,
-    <span class="string">&quot;an attachment type (see sentry develop docs)&quot;
+    <span class="string">"an attachment type (see sentry develop docs)"
 </span>);
 
 <span class="kw">fn </span>is_false(val: <span class="kw-2">&amp;</span>bool) -&gt; bool {
@@ -2336,34 +2337,34 @@
 <span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>ItemHeaders {
     <span class="doccomment">/// The type of the item.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[serde(rename = <span class="string">"type"</span>)]
     </span>ty: ItemType,
 
     <span class="doccomment">/// Content length of the item.
     ///
     /// Can be omitted if the item does not contain new lines. In this case, the item payload is
     /// parsed until the first newline is encountered.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>length: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 
     <span class="doccomment">/// If this is an attachment item, this may contain the attachment type.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>attachment_type: <span class="prelude-ty">Option</span>&lt;AttachmentType&gt;,
 
     <span class="doccomment">/// Content type of the payload.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>content_type: <span class="prelude-ty">Option</span>&lt;ContentType&gt;,
 
     <span class="doccomment">/// If this is an attachment item, this may contain the original file name.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>filename: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// The routing_hint may be used to specify how the envelpope should be routed in when
     /// published to kafka.
     ///
-    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]&#39;s when publishing
+    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
     /// the envelope into kafka.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>routing_hint: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
 
     <span class="doccomment">/// Indicates that this item is being rate limited.
@@ -2393,7 +2394,7 @@
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
     /// effective sample rate is multiplied.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>sample_rates: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 
     <span class="doccomment">/// Flag indicating if metrics have already been extracted from the item.
@@ -2402,15 +2403,15 @@
     /// chain of Relays, a Relay that extracts metrics from an item (typically
     /// the first Relay) MUST set this flat to true so that upstream Relays do
     /// not extract the metric again causing double counting of the metric.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_false"</span>)]
     </span>metrics_extracted: bool,
 
-    <span class="doccomment">/// `false` if the sampling decision is &quot;drop&quot;.
+    <span class="doccomment">/// `false` if the sampling decision is "drop".
     ///
-    /// In the most common use case, the item is dropped when the sampling decision is &quot;drop&quot;.
+    /// In the most common use case, the item is dropped when the sampling decision is "drop".
     /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
     /// for which the transaction was dropped as `sampled: false`.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;default_true&quot;</span>, skip_serializing_if = <span class="string">&quot;is_true&quot;</span>)]
+    </span><span class="attr">#[serde(default = <span class="string">"default_true"</span>, skip_serializing_if = <span class="string">"is_true"</span>)]
     </span>sampled: bool,
 
     <span class="doccomment">/// Other attributes for forward compatibility.
@@ -2479,7 +2480,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.headers.ty
     }
 
-    <span class="doccomment">/// Returns the length of this item&#39;s payload.
+    <span class="doccomment">/// Returns the length of this item's payload.
     </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.payload.len()
     }
@@ -2531,13 +2532,13 @@
         }
     }
 
-    <span class="doccomment">/// Returns `true` if this item&#39;s payload is empty.
+    <span class="doccomment">/// Returns `true` if this item's payload is empty.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.payload.is_empty()
     }
 
-    <span class="doccomment">/// Returns the content type of this item&#39;s payload.
-    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">&quot;processing&quot;</span>), allow(dead_code))]
+    <span class="doccomment">/// Returns the content type of this item's payload.
+    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), allow(dead_code))]
     </span><span class="kw">pub fn </span>content_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ContentType&gt; {
         <span class="self">self</span>.headers.content_type.as_ref()
     }
@@ -2577,7 +2578,7 @@
     }
 
     <span class="doccomment">/// Returns the file name of this item, if it is an attachment.
-    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">&quot;processing&quot;</span>), allow(dead_code))]
+    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), allow(dead_code))]
     </span><span class="kw">pub fn </span>filename(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="self">self</span>.headers.filename.as_deref()
     }
@@ -2591,13 +2592,13 @@
     }
 
     <span class="doccomment">/// Returns the routing_hint of this item.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>routing_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Uuid&gt; {
         <span class="self">self</span>.headers.routing_hint
     }
 
     <span class="doccomment">/// Set the routing_hint of this item.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>set_routing_hint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, routing_hint: Uuid) {
         <span class="self">self</span>.headers.routing_hint = <span class="prelude-val">Some</span>(routing_hint);
     }
@@ -2778,8 +2779,8 @@
 }
 
 <span class="kw">pub type </span>Items = SmallVec&lt;[Item; <span class="number">3</span>]&gt;;
-<span class="kw">pub type </span>ItemIter&lt;<span class="lifetime">&#39;a</span>&gt; = std::slice::Iter&lt;<span class="lifetime">&#39;a</span>, Item&gt;;
-<span class="kw">pub type </span>ItemIterMut&lt;<span class="lifetime">&#39;a</span>&gt; = std::slice::IterMut&lt;<span class="lifetime">&#39;a</span>, Item&gt;;
+<span class="kw">pub type </span>ItemIter&lt;<span class="lifetime">'a</span>&gt; = std::slice::Iter&lt;<span class="lifetime">'a</span>, Item&gt;;
+<span class="kw">pub type </span>ItemIterMut&lt;<span class="lifetime">'a</span>&gt; = std::slice::IterMut&lt;<span class="lifetime">'a</span>, Item&gt;;
 
 <span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>EnvelopeHeaders&lt;M = RequestMeta&gt; {
@@ -2787,7 +2788,7 @@
     ///
     /// Envelopes without contained events do not contain an event id.  This is for instance
     /// the case for session metrics.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
 
     <span class="doccomment">/// Further event information derived from a store request.
@@ -2798,17 +2799,17 @@
     ///
     /// This value is always overwritten in processing mode by the value specified in the project
     /// configuration.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>retention: <span class="prelude-ty">Option</span>&lt;u16&gt;,
 
     <span class="doccomment">/// Timestamp when the event has been sent, according to the SDK.
     ///
     /// This can be used to perform drift correction.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 
     <span class="doccomment">/// Trace context associated with the request
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>trace: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;DynamicSamplingContext&gt;&gt;,
 
     <span class="doccomment">/// Other attributes for forward compatibility.
@@ -2828,20 +2829,20 @@
     </span><span class="kw">fn </span>complete(<span class="self">self</span>, request_meta: RequestMeta) -&gt; <span class="prelude-ty">Result</span>&lt;EnvelopeHeaders, EnvelopeError&gt; {
         <span class="kw">let </span>meta = <span class="self">self</span>.meta;
 
-        <span class="comment">// Relay does not read the envelope&#39;s headers before running initial validation and fully
-        // relies on request headers at the moment. Technically, the envelope&#39;s meta is checked
+        <span class="comment">// Relay does not read the envelope's headers before running initial validation and fully
+        // relies on request headers at the moment. Technically, the envelope's meta is checked
         // again once the event goes through validation, but we want to be as accurate as possible
         // in the endpoint already.
         </span><span class="kw">if </span>meta.origin().is_some() &amp;&amp; meta.origin() != request_meta.origin() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">&quot;origin&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">"origin"</span>));
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = meta.dsn() {
             <span class="kw">if </span>dsn.project_id() != request_meta.dsn().project_id() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">&quot;project id&quot;</span>));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">"project id"</span>));
             }
             <span class="kw">if </span>dsn.public_key() != request_meta.dsn().public_key() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">&quot;public key&quot;</span>));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">"public key"</span>));
             }
         }
 
@@ -2895,7 +2896,7 @@
     <span class="doccomment">/// Parses an envelope taking into account a request.
     ///
     /// This method is intended to be used when parsing an envelope that was sent as part of a web
-    /// request. It validates that request headers are in line with the envelope&#39;s headers.
+    /// request. It validates that request headers are in line with the envelope's headers.
     ///
     /// If no event id is provided explicitly, one is created on the fly.
     </span><span class="kw">pub fn </span>parse_request(
@@ -2914,7 +2915,7 @@
         <span class="prelude-val">Ok</span>(Box::new(Envelope { headers, items }))
     }
 
-    <span class="doccomment">/// Move the envelope&#39;s items into an envelope with the same headers.
+    <span class="doccomment">/// Move the envelope's items into an envelope with the same headers.
     </span><span class="kw">pub fn </span>take_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Envelope {
         <span class="kw">let </span><span class="self">Self </span>{ headers, items } = <span class="self">self</span>;
         <span class="self">Self </span>{
@@ -2946,7 +2947,7 @@
     /// payloads that can be transformed into events (such as security reports). Lastly, there can
     /// be additional information to an event, such as attachments.
     ///
-    /// It&#39;s permissible for envelopes to not contain event bound information such as session data
+    /// It's permissible for envelopes to not contain event bound information such as session data
     /// in which case this returns None.
     </span><span class="kw">pub fn </span>event_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;EventId&gt; {
         <span class="self">self</span>.headers.event_id
@@ -2963,7 +2964,7 @@
     }
 
     <span class="doccomment">/// Returns the data retention in days for items in this envelope.
-    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">&quot;processing&quot;</span>), allow(dead_code))]
+    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), allow(dead_code))]
     </span><span class="kw">pub fn </span>retention(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u16 {
         <span class="self">self</span>.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
     }
@@ -2998,7 +2999,7 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.headers.trace {
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
-                <span class="macro">relay_log::debug!</span>(error = e.as_ref(), <span class="string">&quot;failed to parse sampling context&quot;</span>);
+                <span class="macro">relay_log::debug!</span>(error = e.as_ref(), <span class="string">"failed to parse sampling context"</span>);
                 <span class="prelude-val">None
             </span>}
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(t)) =&gt; <span class="prelude-val">Some</span>(t),
@@ -3011,7 +3012,7 @@
     }
 
     <span class="doccomment">/// Returns the specified header value, if present.
-    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">&quot;processing&quot;</span>), allow(dead_code))]
+    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), allow(dead_code))]
     </span><span class="kw">pub fn </span>get_header&lt;K&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>K) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Value&gt;
     <span class="kw">where
         </span>String: Borrow&lt;K&gt;,
@@ -3032,14 +3033,14 @@
     <span class="doccomment">/// Returns an iterator over items in this envelope.
     ///
     /// Note that iteration order may change when using `take_item`.
-    </span><span class="kw">pub fn </span>items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ItemIter&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ItemIter&lt;<span class="lifetime">'_</span>&gt; {
         <span class="self">self</span>.items.iter()
     }
 
     <span class="doccomment">/// Returns a mutable iterator over items in this envelope.
     ///
     /// Note that iteration order may change when using `take_item`.
-    </span><span class="kw">pub fn </span>items_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; ItemIterMut&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>items_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; ItemIterMut&lt;<span class="lifetime">'_</span>&gt; {
         <span class="self">self</span>.items.iter_mut()
     }
 
@@ -3142,15 +3143,15 @@
         </span>W: Write,
     {
         serde_json::to_writer(<span class="kw-2">&amp;mut </span>writer, <span class="kw-2">&amp;</span><span class="self">self</span>.headers).map_err(EnvelopeError::HeaderIoFailed)<span class="question-mark">?</span>;
-        <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+        <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b"\n"</span>)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.items {
             serde_json::to_writer(<span class="kw-2">&amp;mut </span>writer, <span class="kw-2">&amp;</span>item.headers)
                 .map_err(EnvelopeError::HeaderIoFailed)<span class="question-mark">?</span>;
-            <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b"\n"</span>)<span class="question-mark">?</span>;
 
             <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="kw-2">&amp;</span>item.payload)<span class="question-mark">?</span>;
-            <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>writer, <span class="string">b"\n"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -3222,7 +3223,7 @@
                 </span><span class="self">Self</span>::require_termination(slice, payload_end)<span class="question-mark">?</span>;
                 payload_end
             }
-            <span class="prelude-val">None </span>=&gt; <span class="kw">match </span>bytes[payload_start..].iter().position(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;\n&#39;</span>) {
+            <span class="prelude-val">None </span>=&gt; <span class="kw">match </span>bytes[payload_start..].iter().position(|b| <span class="kw-2">*</span>b == <span class="string">b'\n'</span>) {
                 <span class="prelude-val">Some</span>(relative_end) =&gt; payload_start + relative_end,
                 <span class="prelude-val">None </span>=&gt; bytes.len(),
             },
@@ -3236,7 +3237,7 @@
 
     <span class="kw">fn </span>require_termination(slice: <span class="kw-2">&amp;</span>[u8], offset: usize) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeError&gt; {
         <span class="kw">match </span>slice.get(offset) {
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">b&#39;\n&#39;</span>) | <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">b'\n'</span>) | <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(EnvelopeError::MissingNewline),
         }
     }
@@ -3258,7 +3259,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>request_meta() -&gt; RequestMeta {
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
             .unwrap();
 
@@ -3280,7 +3281,7 @@
     </span><span class="kw">fn </span>test_item_set_payload() {
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
 
-        <span class="kw">let </span>payload = Bytes::from(<span class="kw-2">&amp;</span><span class="string">br#&quot;{&quot;event_id&quot;:&quot;3adcb99a1be84a5d8057f2eb9a0161ce&quot;}&quot;#</span>[..]);
+        <span class="kw">let </span>payload = Bytes::from(<span class="kw-2">&amp;</span><span class="string">br#"{"event_id":"3adcb99a1be84a5d8057f2eb9a0161ce"}"#</span>[..]);
         item.set_payload(ContentType::Json, payload.clone());
 
         <span class="comment">// Payload
@@ -3295,16 +3296,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_item_set_header() {
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-        item.set_header(<span class="string">&quot;custom&quot;</span>, <span class="number">42u64</span>);
+        item.set_header(<span class="string">"custom"</span>, <span class="number">42u64</span>);
 
-        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">&quot;custom&quot;</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::from(<span class="number">42u64</span>)));
-        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">&quot;anything&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"custom"</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::from(<span class="number">42u64</span>)));
+        <span class="macro">assert_eq!</span>(item.get_header(<span class="string">"anything"</span>), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
-    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>test_item_set_routing_hint() {
-        <span class="kw">let </span>uuid = Uuid::parse_str(<span class="string">&quot;8a4ab00f-fba2-4f7b-a164-b58199d55c95&quot;</span>).unwrap();
+        <span class="kw">let </span>uuid = Uuid::parse_str(<span class="string">"8a4ab00f-fba2-4f7b-a164-b58199d55c95"</span>).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
         item.set_routing_hint(uuid);
@@ -3358,18 +3359,18 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
 
         <span class="kw">let </span><span class="kw-2">mut </span>item1 = Item::new(ItemType::Attachment);
-        item1.set_filename(<span class="string">&quot;item1&quot;</span>);
+        item1.set_filename(<span class="string">"item1"</span>);
         envelope.add_item(item1);
 
         <span class="kw">let </span><span class="kw-2">mut </span>item2 = Item::new(ItemType::Attachment);
-        item2.set_filename(<span class="string">&quot;item2&quot;</span>);
+        item2.set_filename(<span class="string">"item2"</span>);
         envelope.add_item(item2);
 
         <span class="kw">let </span>taken = envelope
             .take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment)
-            .expect(<span class="string">&quot;should return some item&quot;</span>);
+            .expect(<span class="string">"should return some item"</span>);
 
-        <span class="macro">assert_eq!</span>(taken.filename(), <span class="prelude-val">Some</span>(<span class="string">&quot;item1&quot;</span>));
+        <span class="macro">assert_eq!</span>(taken.filename(), <span class="prelude-val">Some</span>(<span class="string">"item1"</span>));
 
         <span class="macro">assert!</span>(envelope
             .take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
@@ -3379,41 +3380,41 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_empty() {
         <span class="comment">// Without terminating newline after header
-        </span><span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}&quot;</span>);
+        </span><span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
 
-        <span class="kw">let </span>event_id = EventId(<span class="string">&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;</span>.parse().unwrap());
+        <span class="kw">let </span>event_id = EventId(<span class="string">"9ec79c33ec9942ab8353589fcb2e04dc"</span>.parse().unwrap());
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id));
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">0</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_request_meta() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\&quot;,\&quot;client\&quot;:\&quot;sentry/javascript\&quot;,\&quot;version\&quot;:6,\&quot;origin\&quot;:\&quot;http://localhost/\&quot;,\&quot;remote_addr\&quot;:\&quot;127.0.0.1\&quot;,\&quot;forwarded_for\&quot;:\&quot;8.8.8.8\&quot;,\&quot;user_agent\&quot;:\&quot;sentry-cli/1.0\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
         <span class="kw">let </span>meta = envelope.meta();
 
-        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42&quot;
+        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42"
             </span>.parse()
             .unwrap();
         <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>meta.dsn(), dsn);
         <span class="macro">assert_eq!</span>(meta.project_id(), <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">42</span>)));
         <span class="macro">assert_eq!</span>(
             meta.public_key().as_str(),
-            <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;
+            <span class="string">"e12d836b15bb49d7bbf99e64295d995b"
         </span>);
-        <span class="macro">assert_eq!</span>(meta.client(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/javascript&quot;</span>));
+        <span class="macro">assert_eq!</span>(meta.client(), <span class="prelude-val">Some</span>(<span class="string">"sentry/javascript"</span>));
         <span class="macro">assert_eq!</span>(meta.version(), <span class="number">6</span>);
-        <span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;http://localhost/&quot;</span>.parse().unwrap()));
-        <span class="macro">assert_eq!</span>(meta.remote_addr(), <span class="prelude-val">Some</span>(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()));
-        <span class="macro">assert_eq!</span>(meta.forwarded_for(), <span class="string">&quot;8.8.8.8&quot;</span>);
-        <span class="macro">assert_eq!</span>(meta.user_agent(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry-cli/1.0&quot;</span>));
+        <span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"http://localhost/"</span>.parse().unwrap()));
+        <span class="macro">assert_eq!</span>(meta.remote_addr(), <span class="prelude-val">Some</span>(<span class="string">"127.0.0.1"</span>.parse().unwrap()));
+        <span class="macro">assert_eq!</span>(meta.forwarded_for(), <span class="string">"8.8.8.8"</span>);
+        <span class="macro">assert_eq!</span>(meta.user_agent(), <span class="prelude-val">Some</span>(<span class="string">"sentry-cli/1.0"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_empty_newline() {
         <span class="comment">// With terminating newline after header
-        </span><span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n&quot;</span>);
+        </span><span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">0</span>);
     }
@@ -3422,12 +3423,12 @@
     </span><span class="kw">fn </span>test_deserialize_envelope_empty_item_newline() {
         <span class="comment">// With terminating newline after item payload
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:0}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":0}\n\
              \n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:0}\n\
-             &quot;</span>,
+             {\"type\":\"attachment\",\"length\":0}\n\
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3442,12 +3443,12 @@
     </span><span class="kw">fn </span>test_deserialize_envelope_empty_item_eof() {
         <span class="comment">// Without terminating newline after item payload
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:0}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":0}\n\
              \n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:0}\
-             &quot;</span>,
+             {\"type\":\"attachment\",\"length\":0}\
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3462,11 +3463,11 @@
     </span><span class="kw">fn </span>test_deserialize_envelope_implicit_length() {
         <span class="comment">// With terminating newline after item payload
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\n\
              helloworld\n\
-             &quot;</span>,
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3480,11 +3481,11 @@
     </span><span class="kw">fn </span>test_deserialize_envelope_implicit_length_eof() {
         <span class="comment">// With item ending the envelope
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\n\
              helloworld\
-             &quot;</span>,
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3499,10 +3500,10 @@
         <span class="comment">// Empty item with implicit length ending the envelope
         // Panic regression test.
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;}\
-             &quot;</span>,
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3515,13 +3516,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_multiple_items() {
         <span class="comment">// With terminating newline
-        </span><span class="kw">let </span>bytes = Bytes::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\
-            {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-            {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:10,\&quot;content_type\&quot;:\&quot;text/plain\&quot;,\&quot;filename\&quot;:\&quot;hello.txt\&quot;}\n\
+        </span><span class="kw">let </span>bytes = Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\
+            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+            {\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\
             \xef\xbb\xbfHello\r\n\n\
-            {\&quot;type\&quot;:\&quot;event\&quot;,\&quot;length\&quot;:41,\&quot;content_type\&quot;:\&quot;application/json\&quot;,\&quot;filename\&quot;:\&quot;application.log\&quot;}\n\
-            {\&quot;message\&quot;:\&quot;hello world\&quot;,\&quot;level\&quot;:\&quot;error\&quot;}\n\
-        &quot;</span>[..]);
+            {\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n\
+            {\"message\":\"hello world\",\"level\":\"error\"}\n\
+        "</span>[..]);
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
 
@@ -3532,7 +3533,7 @@
         <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].len(), <span class="number">10</span>);
         <span class="macro">assert_eq!</span>(
             items[<span class="number">0</span>].payload(),
-            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\xef\xbb\xbfHello\r\n&quot;</span>[..])
+            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\xef\xbb\xbfHello\r\n"</span>[..])
         );
         <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Text));
 
@@ -3540,21 +3541,21 @@
         <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].len(), <span class="number">41</span>);
         <span class="macro">assert_eq!</span>(
             items[<span class="number">1</span>].payload(),
-            Bytes::from(<span class="string">&quot;{\&quot;message\&quot;:\&quot;hello world\&quot;,\&quot;level\&quot;:\&quot;error\&quot;}&quot;</span>)
+            Bytes::from(<span class="string">"{\"message\":\"hello world\",\"level\":\"error\"}"</span>)
         );
         <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].content_type(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContentType::Json));
-        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(<span class="string">&quot;application.log&quot;</span>));
+        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(<span class="string">"application.log"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_unknown_item() {
         <span class="comment">// With terminating newline after item payload
         </span><span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;invalid_unknown\&quot;}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"invalid_unknown\"}\n\
              helloworld\n\
-             &quot;</span>,
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3567,11 +3568,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_replay_recording() {
         <span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;replay_recording\&quot;}\n\
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_recording\"}\n\
              helloworld\n\
-             &quot;</span>,
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3583,11 +3584,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_envelope_view_hierarchy() {
         <span class="kw">let </span>bytes = Bytes::from(
-            <span class="string">&quot;\
-             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
-             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:44,\&quot;content_type\&quot;:\&quot;application/json\&quot;,\&quot;attachment_type\&quot;:\&quot;event.view_hierarchy\&quot;}\n\
-             {\&quot;rendering_system\&quot;:\&quot;compose\&quot;,\&quot;windows\&quot;:[]}\n\
-             &quot;</span>,
+            <span class="string">"\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":44,\"content_type\":\"application/json\",\"attachment_type\":\"event.view_hierarchy\"}\n\
+             {\"rendering_system\":\"compose\",\"windows\":[]}\n\
+             "</span>,
         );
 
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -3602,34 +3603,34 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_request_envelope() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         <span class="kw">let </span>meta = envelope.meta();
 
         <span class="comment">// This test asserts that all information from the envelope is overwritten with request
-        // information. Note that the envelope&#39;s DSN points to &quot;other.sentry.io&quot;, but all other
+        // information. Note that the envelope's DSN points to "other.sentry.io", but all other
         // information matches the DSN.
 
-        </span><span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+        </span><span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
             .unwrap();
         <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>meta.dsn(), dsn);
         <span class="macro">assert_eq!</span>(meta.project_id(), <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">42</span>)));
         <span class="macro">assert_eq!</span>(
             meta.public_key().as_str(),
-            <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;
+            <span class="string">"e12d836b15bb49d7bbf99e64295d995b"
         </span>);
-        <span class="macro">assert_eq!</span>(meta.client(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/client&quot;</span>));
+        <span class="macro">assert_eq!</span>(meta.client(), <span class="prelude-val">Some</span>(<span class="string">"sentry/client"</span>));
         <span class="macro">assert_eq!</span>(meta.version(), <span class="number">7</span>);
-        <span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;http://origin/&quot;</span>.parse().unwrap()));
-        <span class="macro">assert_eq!</span>(meta.remote_addr(), <span class="prelude-val">Some</span>(<span class="string">&quot;192.168.0.1&quot;</span>.parse().unwrap()));
-        <span class="macro">assert_eq!</span>(meta.forwarded_for(), <span class="string">&quot;&quot;</span>);
-        <span class="macro">assert_eq!</span>(meta.user_agent(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/agent&quot;</span>));
+        <span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"http://origin/"</span>.parse().unwrap()));
+        <span class="macro">assert_eq!</span>(meta.remote_addr(), <span class="prelude-val">Some</span>(<span class="string">"192.168.0.1"</span>.parse().unwrap()));
+        <span class="macro">assert_eq!</span>(meta.forwarded_for(), <span class="string">""</span>);
+        <span class="macro">assert_eq!</span>(meta.user_agent(), <span class="prelude-val">Some</span>(<span class="string">"sentry/agent"</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_request_no_dsn() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         <span class="kw">let </span>meta = envelope.meta();
 
@@ -3639,7 +3640,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_request_sent_at() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;, \&quot;sent_at\&quot;: \&quot;1970-01-01T00:02:03Z\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\", \"sent_at\": \"1970-01-01T00:02:03Z\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         <span class="kw">let </span>sent_at = envelope.sent_at().unwrap();
 
@@ -3650,84 +3651,84 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_request_sent_at_null() {
         <span class="kw">let </span>bytes =
-            Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;, \&quot;sent_at\&quot;: null}&quot;</span>);
+            Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\", \"sent_at\": null}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         <span class="macro">assert!</span>(envelope.sent_at().is_none());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_request_no_origin() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}"</span>);
         <span class="kw">let </span>envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         <span class="kw">let </span>meta = envelope.meta();
 
         <span class="comment">// Origin validation should skip a missing origin.
-        </span><span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;http://origin/&quot;</span>.parse().unwrap()));
+        </span><span class="macro">assert_eq!</span>(meta.origin(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"http://origin/"</span>.parse().unwrap()));
     }
 
     <span class="attr">#[test]
-    #[should_panic(expected = <span class="string">&quot;project id&quot;</span>)]
+    #[should_panic(expected = <span class="string">"project id"</span>)]
     </span><span class="kw">fn </span>test_parse_request_validate_project() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}"</span>);
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     <span class="attr">#[test]
-    #[should_panic(expected = <span class="string">&quot;public key&quot;</span>)]
+    #[should_panic(expected = <span class="string">"public key"</span>)]
     </span><span class="kw">fn </span>test_parse_request_validate_key() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}"</span>);
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     <span class="attr">#[test]
-    #[should_panic(expected = <span class="string">&quot;origin&quot;</span>)]
+    #[should_panic(expected = <span class="string">"origin"</span>)]
     </span><span class="kw">fn </span>test_parse_request_validate_origin() {
-        <span class="kw">let </span>bytes = Bytes::from(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;,\&quot;origin\&quot;:\&quot;http://localhost/\&quot;}&quot;</span>);
+        <span class="kw">let </span>bytes = Bytes::from(<span class="string">"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}"</span>);
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_serialize_envelope_empty() {
-        <span class="kw">let </span>event_id = EventId(<span class="string">&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;</span>.parse().unwrap());
+        <span class="kw">let </span>event_id = EventId(<span class="string">"9ec79c33ec9942ab8353589fcb2e04dc"</span>.parse().unwrap());
         <span class="kw">let </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
 
         <span class="kw">let </span><span class="kw-2">mut </span>buffer = Vec::new();
         envelope.serialize(<span class="kw-2">&amp;mut </span>buffer).unwrap();
 
         <span class="kw">let </span>stringified = String::from_utf8_lossy(<span class="kw-2">&amp;</span>buffer);
-        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#&quot;{&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
-&quot;#</span>);
+        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+"#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_serialize_envelope_attachments() {
-        <span class="kw">let </span>event_id = EventId(<span class="string">&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;</span>.parse().unwrap());
+        <span class="kw">let </span>event_id = EventId(<span class="string">"9ec79c33ec9942ab8353589fcb2e04dc"</span>.parse().unwrap());
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
-            <span class="string">&quot;{\&quot;message\&quot;:\&quot;hello world\&quot;,\&quot;level\&quot;:\&quot;error\&quot;}&quot;</span>,
+            <span class="string">"{\"message\":\"hello world\",\"level\":\"error\"}"</span>,
         );
         envelope.add_item(item);
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-        item.set_payload(ContentType::Text, <span class="kw-2">&amp;</span><span class="string">b&quot;Hello\r\n&quot;</span>[..]);
-        item.set_filename(<span class="string">&quot;application.log&quot;</span>);
+        item.set_payload(ContentType::Text, <span class="kw-2">&amp;</span><span class="string">b"Hello\r\n"</span>[..]);
+        item.set_filename(<span class="string">"application.log"</span>);
         envelope.add_item(item);
 
         <span class="kw">let </span><span class="kw-2">mut </span>buffer = Vec::new();
         envelope.serialize(<span class="kw-2">&amp;mut </span>buffer).unwrap();
 
         <span class="kw">let </span>stringified = String::from_utf8_lossy(<span class="kw-2">&amp;</span>buffer);
-        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#&quot;
-        {&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
-        {&quot;type&quot;:&quot;event&quot;,&quot;length&quot;:41,&quot;content_type&quot;:&quot;application/json&quot;}
-        {&quot;message&quot;:&quot;hello world&quot;,&quot;level&quot;:&quot;error&quot;}
-        {&quot;type&quot;:&quot;attachment&quot;,&quot;length&quot;:7,&quot;content_type&quot;:&quot;text/plain&quot;,&quot;filename&quot;:&quot;application.log&quot;}
+        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#"
+        {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+        {"type":"event","length":41,"content_type":"application/json"}
+        {"message":"hello world","level":"error"}
+        {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
 
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
@@ -3759,7 +3760,7 @@
         envelope.add_item(Item::new(ItemType::Attachment));
 
         <span class="kw">let </span>split_opt = envelope.split_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Session);
-        <span class="kw">let </span>split_envelope = split_opt.expect(<span class="string">&quot;split_by returns an Envelope&quot;</span>);
+        <span class="kw">let </span>split_envelope = split_opt.expect(<span class="string">"split_by returns an Envelope"</span>);
 
         <span class="macro">assert_eq!</span>(split_envelope.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(split_envelope.event_id(), envelope.event_id());

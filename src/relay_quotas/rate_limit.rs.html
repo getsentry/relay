@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/rate_limit.rs`."><title>rate_limit.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_quotas/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_quotas"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/rate_limit.rs`."><title>rate_limit.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_quotas/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_quotas"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -998,10 +999,10 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>RetryAfter {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self</span>.remaining_seconds() {
-            <span class="number">0 </span>=&gt; <span class="macro">write!</span>(f, <span class="string">&quot;RetryAfter(expired)&quot;</span>),
-            remaining =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;RetryAfter({remaining}s)&quot;</span>),
+            <span class="number">0 </span>=&gt; <span class="macro">write!</span>(f, <span class="string">"RetryAfter(expired)"</span>),
+            remaining =&gt; <span class="macro">write!</span>(f, <span class="string">"RetryAfter({remaining}s)"</span>),
         }
     }
 }
@@ -1013,7 +1014,7 @@
         </span>S: serde::Serializer,
     {
         <span class="kw">use </span>serde::ser::SerializeTupleStruct;
-        <span class="kw">let </span><span class="kw-2">mut </span>tup = serializer.serialize_tuple_struct(<span class="string">&quot;RetryAfter&quot;</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>tup = serializer.serialize_tuple_struct(<span class="string">"RetryAfter"</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
         tup.serialize_field(<span class="kw-2">&amp;</span><span class="self">self</span>.remaining_seconds())<span class="question-mark">?</span>;
         tup.end()
     }
@@ -1068,7 +1069,7 @@
     }
 
     <span class="doccomment">/// Returns the canonical name of this scope.
-    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::Global =&gt; QuotaScope::Global.name(),
             <span class="self">Self</span>::Key(<span class="kw">_</span>) =&gt; QuotaScope::Key.name(),
@@ -1112,19 +1113,19 @@
     }
 
     <span class="doccomment">/// Checks whether the rate limit applies to the given item.
-    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
         <span class="self">self</span>.matches_scope(scoping)
             &amp;&amp; <span class="self">self</span>.matches_namespace(scoping)
             &amp;&amp; scoping.matches_categories(<span class="kw-2">&amp;</span><span class="self">self</span>.categories)
     }
 
     <span class="doccomment">/// Returns `true` if the rate limit namespace matches the namespace of the item.
-    </span><span class="kw">fn </span>matches_namespace(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+    </span><span class="kw">fn </span>matches_namespace(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
         <span class="self">self</span>.namespace.is_none() || <span class="self">self</span>.namespace == scoping.namespace
     }
 
     <span class="doccomment">/// Returns `true` if the rate limiting scope matches the given item.
-    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.scope {
             RateLimitScope::Global =&gt; <span class="bool-val">true</span>,
             RateLimitScope::Organization(org_id) =&gt; scoping.organization_id == org_id,
@@ -1200,7 +1201,7 @@
     ///
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
-    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.check_with_quotas(<span class="kw-2">&amp;</span>[], scoping)
     }
 
@@ -1211,7 +1212,7 @@
     ///
     /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
-    </span><span class="kw">pub fn </span>check_with_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>, quotas: <span class="kw-2">&amp;</span>[Quota], scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>check_with_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>, quotas: <span class="kw-2">&amp;</span>[Quota], scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>applied_limits = <span class="self">Self</span>::new();
 
         <span class="kw">for </span>quota <span class="kw">in </span>quotas {
@@ -1231,7 +1232,7 @@
     }
 
     <span class="doccomment">/// Returns an iterator over the rate limits.
-    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RateLimitsIter&lt;<span class="lifetime">&#39;_</span>&gt; {
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RateLimitsIter&lt;<span class="lifetime">'_</span>&gt; {
         RateLimitsIter {
             iter: <span class="self">self</span>.limits.iter(),
         }
@@ -1248,12 +1249,12 @@
 <span class="doccomment">/// Immutable rate limits iterator.
 ///
 /// This struct is created by the `iter` method on `RateLimits`.
-</span><span class="kw">pub struct </span>RateLimitsIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    iter: std::slice::Iter&lt;<span class="lifetime">&#39;a</span>, RateLimit&gt;,
+</span><span class="kw">pub struct </span>RateLimitsIter&lt;<span class="lifetime">'a</span>&gt; {
+    iter: std::slice::Iter&lt;<span class="lifetime">'a</span>, RateLimit&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>RateLimitsIter&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RateLimit;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>RateLimitsIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RateLimit;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
         <span class="self">self</span>.iter.next()
@@ -1287,9 +1288,9 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RateLimits {
-    <span class="kw">type </span>IntoIter = RateLimitsIter&lt;<span class="lifetime">&#39;a</span>&gt;;
-    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RateLimit;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>RateLimits {
+    <span class="kw">type </span>IntoIter = RateLimitsIter&lt;<span class="lifetime">'a</span>&gt;;
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RateLimit;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
         <span class="self">self</span>.iter()
@@ -1306,46 +1307,46 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_retry_after() {
         <span class="comment">// positive float always rounds up to the next integer
-        </span><span class="kw">let </span>retry_after = <span class="string">&quot;17.1&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        </span><span class="kw">let </span>retry_after = <span class="string">"17.1"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">18</span>);
         <span class="macro">assert!</span>(!retry_after.expired());
-        <span class="kw">let </span>retry_after = <span class="string">&quot;17.7&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="kw">let </span>retry_after = <span class="string">"17.7"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">18</span>);
         <span class="macro">assert!</span>(!retry_after.expired());
 
         <span class="comment">// positive int
-        </span><span class="kw">let </span>retry_after = <span class="string">&quot;17&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        </span><span class="kw">let </span>retry_after = <span class="string">"17"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">17</span>);
         <span class="macro">assert!</span>(!retry_after.expired());
 
         <span class="comment">// negative numbers are treated as zero
-        </span><span class="kw">let </span>retry_after = <span class="string">&quot;-2&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        </span><span class="kw">let </span>retry_after = <span class="string">"-2"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">0</span>);
         <span class="macro">assert!</span>(retry_after.expired());
-        <span class="kw">let </span>retry_after = <span class="string">&quot;-inf&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="kw">let </span>retry_after = <span class="string">"-inf"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">0</span>);
         <span class="macro">assert!</span>(retry_after.expired());
 
         <span class="comment">// inf and NaN are valid input and treated as zero
-        </span><span class="kw">let </span>retry_after = <span class="string">&quot;inf&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        </span><span class="kw">let </span>retry_after = <span class="string">"inf"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">0</span>);
         <span class="macro">assert!</span>(retry_after.expired());
-        <span class="kw">let </span>retry_after = <span class="string">&quot;NaN&quot;</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="kw">let </span>retry_after = <span class="string">"NaN"</span>.parse::&lt;RetryAfter&gt;().expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">0</span>);
         <span class="macro">assert!</span>(retry_after.expired());
 
         <span class="comment">// large inputs that would overflow are treated as zero
-        </span><span class="kw">let </span>retry_after = <span class="string">&quot;100000000000000000000&quot;
+        </span><span class="kw">let </span>retry_after = <span class="string">"100000000000000000000"
             </span>.parse::&lt;RetryAfter&gt;()
-            .expect(<span class="string">&quot;parse RetryAfter&quot;</span>);
+            .expect(<span class="string">"parse RetryAfter"</span>);
         <span class="macro">assert_eq!</span>(retry_after.remaining_seconds(), <span class="number">0</span>);
         <span class="macro">assert!</span>(retry_after.expired());
 
         <span class="comment">// invalid strings cause parse error
-        </span><span class="string">&quot;&quot;</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">&quot;error RetryAfter&quot;</span>);
-        <span class="string">&quot;nope&quot;</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">&quot;error RetryAfter&quot;</span>);
-        <span class="string">&quot; 2 &quot;</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">&quot;error RetryAfter&quot;</span>);
-        <span class="string">&quot;6 0&quot;</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">&quot;error RetryAfter&quot;</span>);
+        </span><span class="string">""</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">"error RetryAfter"</span>);
+        <span class="string">"nope"</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">"error RetryAfter"</span>);
+        <span class="string">" 2 "</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">"error RetryAfter"</span>);
+        <span class="string">"6 0"</span>.parse::&lt;RetryAfter&gt;().expect_err(<span class="string">"error RetryAfter"</span>);
     }
 
     <span class="attr">#[test]
@@ -1363,7 +1364,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1374,7 +1375,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1396,7 +1397,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1407,7 +1408,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">0</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1429,7 +1430,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1440,7 +1441,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">0</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1452,7 +1453,7 @@
         <span class="kw">let </span>rate_limit = RateLimit {
             categories: DataCategories::new(),
             scope: RateLimitScope::Key(
-                ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             ),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
@@ -1464,7 +1465,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1475,7 +1476,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">0</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;deadbeefdeadbeefdeadbeefdeadbeef&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"deadbeefdeadbeefdeadbeefdeadbeef"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1489,7 +1490,7 @@
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Default, DataCategory::Error],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;first&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespace: <span class="prelude-val">None</span>,
         });
@@ -1498,12 +1499,12 @@
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error, DataCategory::Default],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;second&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespace: <span class="prelude-val">None</span>,
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1512,13 +1513,13 @@
                 error,
               ],
               scope: Organization(42),
-              reason_code: Some(ReasonCode(&quot;second&quot;)),
+              reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespace: None,
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1528,7 +1529,7 @@
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Default, DataCategory::Error],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;first&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespace: <span class="prelude-val">None</span>,
         });
@@ -1537,12 +1538,12 @@
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error, DataCategory::Default],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;second&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespace: <span class="prelude-val">None</span>,
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1551,13 +1552,13 @@
                 error,
               ],
               scope: Organization(42),
-              reason_code: Some(ReasonCode(&quot;first&quot;)),
+              reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
               namespace: None,
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1590,7 +1591,7 @@
             namespace: <span class="prelude-val">None</span>,
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1622,7 +1623,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1632,7 +1633,7 @@
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;first&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespace: <span class="prelude-val">None</span>,
         });
@@ -1641,23 +1642,23 @@
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Transaction],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;second&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespace: <span class="prelude-val">None</span>,
         });
 
         <span class="kw">let </span>rate_limit = rate_limits.longest().unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r###"
         RateLimit(
           categories: [
             transaction,
           ],
           scope: Organization(42),
-          reason_code: Some(ReasonCode(&quot;second&quot;)),
+          reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
           namespace: None,
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1688,7 +1689,7 @@
         rate_limits.clean_expired();
 
         <span class="comment">// Check that the expired limit has been removed
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1702,7 +1703,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1732,14 +1733,14 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
         });
 
         <span class="comment">// Check that the error limit is applied
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1753,7 +1754,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1783,7 +1784,7 @@
             scoping: <span class="kw-2">&amp;</span>Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">21</span>),
-                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
             namespace: <span class="prelude-val">None</span>,
@@ -1793,16 +1794,16 @@
             id: <span class="prelude-val">None</span>,
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
             scope: QuotaScope::Organization,
-            scope_id: <span class="prelude-val">Some</span>(<span class="string">&quot;42&quot;</span>.to_owned()),
+            scope_id: <span class="prelude-val">Some</span>(<span class="string">"42"</span>.to_owned()),
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;zero&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"zero"</span>)),
             namespace: <span class="prelude-val">None</span>,
         }];
 
         <span class="kw">let </span>applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1810,13 +1811,13 @@
                 error,
               ],
               scope: Organization(42),
-              reason_code: Some(ReasonCode(&quot;zero&quot;)),
+              reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
               namespace: None,
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1827,7 +1828,7 @@
         rate_limits1.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;first&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespace: <span class="prelude-val">None</span>,
         });
@@ -1843,14 +1844,14 @@
         rate_limits2.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
             scope: RateLimitScope::Organization(<span class="number">42</span>),
-            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;second&quot;</span>)),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespace: <span class="prelude-val">None</span>,
         });
 
         rate_limits1.merge(rate_limits2);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -1858,7 +1859,7 @@
                 error,
               ],
               scope: Organization(42),
-              reason_code: Some(ReasonCode(&quot;second&quot;)),
+              reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespace: None,
             ),
@@ -1873,7 +1874,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

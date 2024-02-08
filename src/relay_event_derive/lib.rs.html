@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-derive/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_derive/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_derive"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-derive/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_derive/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_event_derive"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -693,10 +694,10 @@
 
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
-    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
-#![recursion_limit = <span class="string">&quot;256&quot;</span>]
+#![recursion_limit = <span class="string">"256"</span>]
 
 </span><span class="kw">use </span>std::str::FromStr;
 
@@ -711,7 +712,7 @@
     </span>derive_process_value
 );
 
-<span class="kw">fn </span>derive_process_value(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+<span class="kw">fn </span>derive_process_value(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
     <span class="kw">let _ </span>= s.bind_with(|_bi| synstructure::BindStyle::RefMut);
     <span class="kw">let _ </span>= s.add_bounds(synstructure::AddBounds::Generics);
 
@@ -782,7 +783,7 @@
         <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
             <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
             <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
-            <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;FIELD_ATTRS_{index}&quot;</span>), Span::call_site());
+            <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"FIELD_ATTRS_{index}"</span>), Span::call_site());
             <span class="kw">let </span>field_name = field_attrs.field_name.clone();
 
             <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">None</span>);
@@ -794,7 +795,7 @@
 
             <span class="kw">let </span>enter_state = <span class="kw">if </span>field_attrs.additional_properties {
                 <span class="kw">if </span>is_tuple_struct {
-                    <span class="macro">panic!</span>(<span class="string">&quot;additional_properties not allowed in tuple struct&quot;</span>);
+                    <span class="macro">panic!</span>(<span class="string">"additional_properties not allowed in tuple struct"</span>);
                 }
 
                 <span class="macro">quote! </span>{
@@ -872,7 +873,7 @@
                 <span class="kw-2">&amp;mut </span><span class="self">self</span>,
                 __meta: <span class="kw-2">&amp;mut </span>relay_protocol::Meta,
                 __processor: <span class="kw-2">&amp;mut </span>P,
-                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
             ) -&gt; <span class="kw">crate</span>::processor::ProcessingResult
             <span class="kw">where
                 </span>P: <span class="kw">crate</span>::processor::Processor,
@@ -889,7 +890,7 @@
             </span><span class="kw">fn </span>process_child_values&lt;P&gt;(
                 <span class="kw-2">&amp;mut </span><span class="self">self</span>,
                 __processor: <span class="kw-2">&amp;mut </span>P,
-                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;
+                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">'_</span>&gt;
             ) -&gt; <span class="kw">crate</span>::processor::ProcessingResult
             <span class="kw">where
                 </span>P: <span class="kw">crate</span>::processor::Processor,
@@ -906,32 +907,32 @@
 
 <span class="kw">fn </span>parse_max_chars(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
     <span class="kw">match </span>name {
-        <span class="string">&quot;logger&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Logger),
-        <span class="string">&quot;hash&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Hash),
-        <span class="string">&quot;enumlike&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::EnumLike),
-        <span class="string">&quot;summary&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Summary),
-        <span class="string">&quot;message&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Message),
-        <span class="string">&quot;symbol&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Symbol),
-        <span class="string">&quot;path&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Path),
-        <span class="string">&quot;short_path&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::ShortPath),
-        <span class="string">&quot;email&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Email),
-        <span class="string">&quot;culprit&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Culprit),
-        <span class="string">&quot;tag_key&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagKey),
-        <span class="string">&quot;tag_value&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagValue),
-        <span class="string">&quot;environment&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Environment),
-        <span class="string">&quot;distribution&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Distribution),
-        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid max_chars variant &#39;{name}&#39;&quot;</span>),
+        <span class="string">"logger" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Logger),
+        <span class="string">"hash" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Hash),
+        <span class="string">"enumlike" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::EnumLike),
+        <span class="string">"summary" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Summary),
+        <span class="string">"message" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Message),
+        <span class="string">"symbol" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Symbol),
+        <span class="string">"path" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Path),
+        <span class="string">"short_path" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::ShortPath),
+        <span class="string">"email" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Email),
+        <span class="string">"culprit" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Culprit),
+        <span class="string">"tag_key" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagKey),
+        <span class="string">"tag_value" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagValue),
+        <span class="string">"environment" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Environment),
+        <span class="string">"distribution" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Distribution),
+        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid max_chars variant '{name}'"</span>),
     }
 }
 
 <span class="kw">fn </span>parse_bag_size(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
     <span class="kw">match </span>name {
-        <span class="string">&quot;small&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Small),
-        <span class="string">&quot;medium&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Medium),
-        <span class="string">&quot;large&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Large),
-        <span class="string">&quot;larger&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Larger),
-        <span class="string">&quot;massive&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Massive),
-        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid bag_size variant &#39;{name}&#39;&quot;</span>),
+        <span class="string">"small" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Small),
+        <span class="string">"medium" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Medium),
+        <span class="string">"large" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Large),
+        <span class="string">"larger" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Larger),
+        <span class="string">"massive" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Massive),
+        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid bag_size variant '{name}'"</span>),
     }
 }
 
@@ -956,7 +957,7 @@
     }
 }
 
-<span class="kw">fn </span>parse_type_attributes(s: <span class="kw-2">&amp;</span>synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TypeAttrs {
+<span class="kw">fn </span>parse_type_attributes(s: <span class="kw-2">&amp;</span>synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TypeAttrs {
     <span class="kw">let </span><span class="kw-2">mut </span>rv = TypeAttrs::default();
 
     <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>s.ast().attrs {
@@ -970,39 +971,39 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
+        <span class="kw">if </span>ident != <span class="string">"metastructure" </span>{
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if let </span>Meta::List(metalist) = meta {
             <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
                 <span class="kw">match </span>nested_meta {
-                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">"unexpected literal attribute"</span>),
                     NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
                         Meta::NameValue(name_value) =&gt; {
-                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
+                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">"Unexpected path"</span>);
 
-                            <span class="kw">if </span>ident == <span class="string">&quot;process_func&quot; </span>{
+                            <span class="kw">if </span>ident == <span class="string">"process_func" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         rv.process_func = <span class="prelude-val">Some</span>(litstr.value());
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for process_func&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for process_func"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;value_type&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"value_type" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         rv.value_type.push(litstr.value());
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for value type&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for value type"</span>);
                                     }
                                 }
                             }
                         }
-                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unsupported attribute&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Unsupported attribute"</span>),
                     },
                 }
             }
@@ -1050,7 +1051,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.required.is_none() &amp;&amp; <span class="self">self</span>.nonempty.is_some() {
             <span class="macro">panic!</span>(
-                <span class="string">&quot;`required` has to be explicitly set to \&quot;true\&quot; or \&quot;false\&quot; if `nonempty` is used.&quot;
+                <span class="string">"`required` has to be explicitly set to \"true\" or \"false\" if `nonempty` is used."
             </span>);
         }
         <span class="kw">let </span>required = <span class="kw">if let </span><span class="prelude-val">Some</span>(required) = <span class="self">self</span>.required {
@@ -1140,11 +1141,11 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ()&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;never&quot; </span>=&gt; SkipSerialization::Never,
-            <span class="string">&quot;null&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">false</span>),
-            <span class="string">&quot;null_deep&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">true</span>),
-            <span class="string">&quot;empty&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">false</span>),
-            <span class="string">&quot;empty_deep&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">true</span>),
+            <span class="string">"never" </span>=&gt; SkipSerialization::Never,
+            <span class="string">"null" </span>=&gt; SkipSerialization::Null(<span class="bool-val">false</span>),
+            <span class="string">"null_deep" </span>=&gt; SkipSerialization::Null(<span class="bool-val">true</span>),
+            <span class="string">"empty" </span>=&gt; SkipSerialization::Empty(<span class="bool-val">false</span>),
+            <span class="string">"empty_deep" </span>=&gt; SkipSerialization::Empty(<span class="bool-val">true</span>),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(()),
         })
     }
@@ -1158,7 +1159,7 @@
     <span class="kw">if </span>bi_ast.ident.is_none() {
         <span class="kw-2">*</span>is_tuple_struct = <span class="bool-val">true</span>;
     } <span class="kw">else if </span><span class="kw-2">*</span>is_tuple_struct {
-        <span class="macro">panic!</span>(<span class="string">&quot;invalid tuple struct&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"invalid tuple struct"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>rv = FieldAttrs {
@@ -1181,73 +1182,73 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
+        <span class="kw">if </span>ident != <span class="string">"metastructure" </span>{
             <span class="kw">continue</span>;
         }
 
         <span class="kw">if let </span>Meta::List(metalist) = meta {
             <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
                 <span class="kw">match </span>nested_meta {
-                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">"unexpected literal attribute"</span>),
                     NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
                         Meta::Path(path) =&gt; {
-                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
+                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">"Unexpected path"</span>);
 
-                            <span class="kw">if </span>ident == <span class="string">&quot;additional_properties&quot; </span>{
+                            <span class="kw">if </span>ident == <span class="string">"additional_properties" </span>{
                                 rv.additional_properties = <span class="bool-val">true</span>;
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;omit_from_schema&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"omit_from_schema" </span>{
                                 rv.omit_from_schema = <span class="bool-val">true</span>;
                             } <span class="kw">else </span>{
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {ident}&quot;</span>);
+                                <span class="macro">panic!</span>(<span class="string">"Unknown attribute {ident}"</span>);
                             }
                         }
                         Meta::NameValue(name_value) =&gt; {
-                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
-                            <span class="kw">if </span>ident == <span class="string">&quot;field&quot; </span>{
+                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">"Unexpected path"</span>);
+                            <span class="kw">if </span>ident == <span class="string">"field" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         rv.field_name = litstr.value();
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for field&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for field"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;required&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"required" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">&quot;true&quot; </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot; </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {other}&quot;</span>),
+                                        <span class="string">"true" </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">"false" </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
                                     },
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for required&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for required"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;nonempty&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"nonempty" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">&quot;true&quot; </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot; </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {other}&quot;</span>),
+                                        <span class="string">"true" </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">"false" </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
                                     },
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for nonempty&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for nonempty"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;trim_whitespace&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"trim_whitespace" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">&quot;true&quot; </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot; </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {other}&quot;</span>),
+                                        <span class="string">"true" </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">"false" </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
                                     },
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for trim_whitespace&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for trim_whitespace"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;allow_chars&quot; </span>|| ident == <span class="string">&quot;deny_chars&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"allow_chars" </span>|| ident == <span class="string">"deny_chars" </span>{
                                 <span class="kw">if </span>rv.characters.is_some() {
-                                    <span class="macro">panic!</span>(<span class="string">&quot;allow_chars and deny_chars are mutually exclusive&quot;</span>);
+                                    <span class="macro">panic!</span>(<span class="string">"allow_chars and deny_chars are mutually exclusive"</span>);
                                 }
 
                                 <span class="kw">match </span>name_value.lit {
@@ -1257,60 +1258,60 @@
                                         rv.characters = <span class="prelude-val">Some</span>(attr);
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for max_chars&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for max_chars"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;max_chars&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"max_chars" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         <span class="kw">let </span>attr = parse_max_chars(litstr.value().as_str());
                                         rv.max_chars = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#attr));
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for max_chars&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for max_chars"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;bag_size&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"bag_size" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; {
                                         <span class="kw">let </span>attr = parse_bag_size(litstr.value().as_str());
                                         rv.bag_size = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#attr));
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for bag_size&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for bag_size"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;pii&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"pii" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">&quot;true&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::True),
-                                        <span class="string">&quot;false&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::False),
-                                        <span class="string">&quot;maybe&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::Maybe),
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {other}&quot;</span>),
+                                        <span class="string">"true" </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::True),
+                                        <span class="string">"false" </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::False),
+                                        <span class="string">"maybe" </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::Maybe),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
                                     },
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for pii&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for pii"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;retain&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"retain" </span>{
                                 <span class="kw">match </span>name_value.lit {
                                     Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">&quot;true&quot; </span>=&gt; rv.retain = <span class="bool-val">true</span>,
-                                        <span class="string">&quot;false&quot; </span>=&gt; rv.retain = <span class="bool-val">false</span>,
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {other}&quot;</span>),
+                                        <span class="string">"true" </span>=&gt; rv.retain = <span class="bool-val">true</span>,
+                                        <span class="string">"false" </span>=&gt; rv.retain = <span class="bool-val">false</span>,
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
                                     },
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for retain&quot;</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for retain"</span>);
                                     }
                                 }
-                            } <span class="kw">else if </span>ident == <span class="string">&quot;legacy_alias&quot; </span>|| ident == <span class="string">&quot;skip_serialization&quot; </span>{
+                            } <span class="kw">else if </span>ident == <span class="string">"legacy_alias" </span>|| ident == <span class="string">"skip_serialization" </span>{
                                 <span class="comment">// Skip
                             </span>} <span class="kw">else </span>{
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown argument to metastructure: {ident}&quot;</span>);
+                                <span class="macro">panic!</span>(<span class="string">"Unknown argument to metastructure: {ident}"</span>);
                             }
                         }
                         other =&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, other.path());
+                            <span class="macro">panic!</span>(<span class="string">"Unexpected or bad attribute {:?}"</span>, other.path());
                         }
                     },
                 }
@@ -1338,7 +1339,7 @@
     <span class="kw">for </span>c <span class="kw">in </span>value.chars() {
         <span class="kw">match </span>(state, c) {
             (State::Blank, a) =&gt; state = State::OpenRange(a),
-            (State::OpenRange(a), <span class="string">&#39;-&#39;</span>) =&gt; state = State::MidRange(a),
+            (State::OpenRange(a), <span class="string">'-'</span>) =&gt; state = State::MidRange(a),
             (State::OpenRange(a), c) =&gt; {
                 state = State::OpenRange(c);
                 ranges.push(<span class="macro">quote!</span>(#a..=#a));
@@ -1354,12 +1355,12 @@
         State::OpenRange(a) =&gt; ranges.push(<span class="macro">quote!</span>(#a..=#a)),
         State::MidRange(a) =&gt; {
             ranges.push(<span class="macro">quote!</span>(#a..=#a));
-            ranges.push(<span class="macro">quote!</span>(<span class="string">&#39;-&#39;</span>..=<span class="string">&#39;-&#39;</span>));
+            ranges.push(<span class="macro">quote!</span>(<span class="string">'-'</span>..=<span class="string">'-'</span>));
         }
         State::Blank =&gt; {}
     }
 
-    <span class="kw">let </span>is_negative = ident == <span class="string">&quot;deny_chars&quot;</span>;
+    <span class="kw">let </span>is_negative = ident == <span class="string">"deny_chars"</span>;
 
     <span class="macro">quote! </span>{
         <span class="kw">crate</span>::processor::CharacterSet {

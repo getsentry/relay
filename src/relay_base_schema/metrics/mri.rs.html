@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-base-schema/src/metrics/mri.rs`."><title>mri.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_base_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_base_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_base_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-base-schema/src/metrics/mri.rs`."><title>mri.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_base_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_base_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_base_schema"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -483,7 +484,7 @@
     /// Counters can be incremented and decremented. The default operation is to increment a counter
     /// by `1`, although increments by larger values are equally possible.
     ///
-    /// Counters are declared as `&quot;c&quot;`. Alternatively, `&quot;m&quot;` is allowed.
+    /// Counters are declared as `"c"`. Alternatively, `"m"` is allowed.
     </span>Counter,
     <span class="doccomment">/// Builds a statistical distribution over values reported.
     ///
@@ -491,7 +492,7 @@
     /// average of the reported values, as well as statistical quantiles. With an increasing number
     /// of values in the distribution, its accuracy becomes approximate.
     ///
-    /// Distributions are declared as `&quot;d&quot;`. Alternatively, `&quot;d&quot;` and `&quot;ms&quot;` are allowed.
+    /// Distributions are declared as `"d"`. Alternatively, `"d"` and `"ms"` are allowed.
     </span>Distribution,
     <span class="doccomment">/// Counts the number of unique reported values.
     ///
@@ -499,31 +500,31 @@
     /// count. With an increasing number of unique values in the set, its accuracy becomes
     /// approximate. It is not possible to query individual values from a set.
     ///
-    /// Sets are declared as `&quot;s&quot;`.
+    /// Sets are declared as `"s"`.
     </span>Set,
     <span class="doccomment">/// Stores absolute snapshots of values.
     ///
     /// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,
     /// minimum and sum of all values, as well as the last reported value.
     ///
-    /// Gauges are declared as `&quot;g&quot;`.
+    /// Gauges are declared as `"g"`.
     </span>Gauge,
 }
 
 <span class="kw">impl </span>MetricType {
     <span class="doccomment">/// Return the shortcode for this metric type.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            MetricType::Counter =&gt; <span class="string">&quot;c&quot;</span>,
-            MetricType::Distribution =&gt; <span class="string">&quot;d&quot;</span>,
-            MetricType::Set =&gt; <span class="string">&quot;s&quot;</span>,
-            MetricType::Gauge =&gt; <span class="string">&quot;g&quot;</span>,
+            MetricType::Counter =&gt; <span class="string">"c"</span>,
+            MetricType::Distribution =&gt; <span class="string">"d"</span>,
+            MetricType::Set =&gt; <span class="string">"s"</span>,
+            MetricType::Gauge =&gt; <span class="string">"g"</span>,
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricType {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -533,24 +534,24 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-            <span class="string">&quot;c&quot; </span>| <span class="string">&quot;m&quot; </span>=&gt; <span class="self">Self</span>::Counter,
-            <span class="string">&quot;h&quot; </span>| <span class="string">&quot;d&quot; </span>| <span class="string">&quot;ms&quot; </span>=&gt; <span class="self">Self</span>::Distribution,
-            <span class="string">&quot;s&quot; </span>=&gt; <span class="self">Self</span>::Set,
-            <span class="string">&quot;g&quot; </span>=&gt; <span class="self">Self</span>::Gauge,
+            <span class="string">"c" </span>| <span class="string">"m" </span>=&gt; <span class="self">Self</span>::Counter,
+            <span class="string">"h" </span>| <span class="string">"d" </span>| <span class="string">"ms" </span>=&gt; <span class="self">Self</span>::Distribution,
+            <span class="string">"s" </span>=&gt; <span class="self">Self</span>::Set,
+            <span class="string">"g" </span>=&gt; <span class="self">Self</span>::Gauge,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseMetricError),
         })
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(MetricType, <span class="string">&quot;a metric type string&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(MetricType, <span class="string">"a metric type string"</span>);
 
 <span class="doccomment">/// An error returned when metrics or MRIs cannot be parsed.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>ParseMetricError;
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseMetricError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;failed to parse metric&quot;</span>)
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"failed to parse metric"</span>)
     }
 }
 
@@ -587,9 +588,9 @@
     </span>Custom,
     <span class="doccomment">/// An unknown and unsupported metric.
     ///
-    /// Metrics that Relay either doesn&#39;t know or recognize the namespace of will be dropped before
+    /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
-    /// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into
+    /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
     /// this variant.
     ///
     /// Relay currently drops all metrics whose namespace ends up being deserialized as
@@ -599,13 +600,13 @@
 
 <span class="kw">impl </span>MetricNamespace {
     <span class="doccomment">/// Returns the string representation for this metric type.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            MetricNamespace::Sessions =&gt; <span class="string">&quot;sessions&quot;</span>,
-            MetricNamespace::Transactions =&gt; <span class="string">&quot;transactions&quot;</span>,
-            MetricNamespace::Spans =&gt; <span class="string">&quot;spans&quot;</span>,
-            MetricNamespace::Custom =&gt; <span class="string">&quot;custom&quot;</span>,
-            MetricNamespace::Unsupported =&gt; <span class="string">&quot;unsupported&quot;</span>,
+            MetricNamespace::Sessions =&gt; <span class="string">"sessions"</span>,
+            MetricNamespace::Transactions =&gt; <span class="string">"transactions"</span>,
+            MetricNamespace::Spans =&gt; <span class="string">"spans"</span>,
+            MetricNamespace::Custom =&gt; <span class="string">"custom"</span>,
+            MetricNamespace::Unsupported =&gt; <span class="string">"unsupported"</span>,
         }
     }
 }
@@ -615,19 +616,19 @@
 
     <span class="kw">fn </span>from_str(ns: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>ns {
-            <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Sessions),
-            <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Transactions),
-            <span class="string">&quot;spans&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Spans),
-            <span class="string">&quot;custom&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Custom),
+            <span class="string">"sessions" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Sessions),
+            <span class="string">"transactions" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Transactions),
+            <span class="string">"spans" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Spans),
+            <span class="string">"custom" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Custom),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unsupported),
         }
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(MetricNamespace, <span class="string">&quot;a valid metric namespace&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(MetricNamespace, <span class="string">"a valid metric namespace"</span>);
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricNamespace {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="self">self</span>.as_str())
     }
 }
@@ -643,7 +644,7 @@
 /// `[&lt;namespace&gt;/]&lt;name&gt;[@&lt;unit&gt;]`. The differences to the internal MRI format are:
 ///  - Types are not part of metric naming. Instead, the type is declared in a separate field
 ///    following the value.
-///  - The namespace is optional. If missing, `&quot;custom&quot;` is assumed.
+///  - The namespace is optional. If missing, `"custom"` is assumed.
 ///
 /// # Background
 ///
@@ -663,12 +664,12 @@
 /// ```
 /// use relay_base_schema::metrics::MetricResourceIdentifier;
 ///
-/// let string = &quot;c:custom/test@second&quot;;
-/// let mri = MetricResourceIdentifier::parse(string).expect(&quot;should parse&quot;);
+/// let string = "c:custom/test@second";
+/// let mri = MetricResourceIdentifier::parse(string).expect("should parse");
 /// assert_eq!(mri.to_string(), string);
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-</span><span class="kw">pub struct </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>MetricResourceIdentifier&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The type of a metric, determining its aggregation and evaluation.
     ///
     /// In MRIs, the type is specified with its short name: counter (`c`), set (`s`), distribution
@@ -677,28 +678,28 @@
 
     <span class="doccomment">/// The namespace for this metric.
     ///
-    /// In statsd submissions payloads, the namespace is optional and defaults to `&quot;custom&quot;`.
+    /// In statsd submissions payloads, the namespace is optional and defaults to `"custom"`.
     /// Otherwise, the namespace must be declared explicitly.
     ///
-    /// Note that in Sentry the namespace is also referred to as &quot;use case&quot; or &quot;usecase&quot;. There is a
+    /// Note that in Sentry the namespace is also referred to as "use case" or "usecase". There is a
     /// list of known and enabled namespaces. Metrics of unknown or disabled namespaces are dropped
     /// during ingestion.
     </span><span class="kw">pub </span>namespace: MetricNamespace,
 
     <span class="doccomment">/// The display name of the metric in the allowed character set.
-    </span><span class="kw">pub </span>name: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
+    </span><span class="kw">pub </span>name: Cow&lt;<span class="lifetime">'a</span>, str&gt;,
 
     <span class="doccomment">/// The verbatim unit name of the metric value.
     ///
-    /// The unit is optional and defaults to [`MetricUnit::None`] (`&quot;none&quot;`).
+    /// The unit is optional and defaults to [`MetricUnit::None`] (`"none"`).
     </span><span class="kw">pub </span>unit: MetricUnit,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; MetricResourceIdentifier&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Parses and validates an MRI.
-    </span><span class="kw">pub fn </span>parse(name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
+    </span><span class="kw">pub fn </span>parse(name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
         <span class="comment">// Note that this is NOT `VALUE_SEPARATOR`:
-        </span><span class="kw">let </span>(raw_ty, rest) = name.split_once(<span class="string">&#39;:&#39;</span>).ok_or(ParseMetricError)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>(raw_ty, rest) = name.split_once(<span class="string">':'</span>).ok_or(ParseMetricError)<span class="question-mark">?</span>;
         <span class="kw">let </span>ty = raw_ty.parse()<span class="question-mark">?</span>;
 
         <span class="self">Self</span>::parse_with_type(rest, ty)
@@ -707,15 +708,15 @@
     <span class="doccomment">/// Parses an MRI from a string and a separate type.
     ///
     /// The given string must be a part of the MRI, including the following components:
-    ///  - (optional) The namespace. If missing, it is defaulted to `&quot;custom&quot;`
+    ///  - (optional) The namespace. If missing, it is defaulted to `"custom"`
     ///  - (required) The metric name.
-    ///  - (optional) The unit. If missing, it is defaulted to &quot;none&quot;.
+    ///  - (optional) The unit. If missing, it is defaulted to "none".
     ///
     /// The metric type is never part of this string and must be supplied separately.
-    </span><span class="kw">pub fn </span>parse_with_type(string: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, ty: MetricType) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
+    </span><span class="kw">pub fn </span>parse_with_type(string: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, ty: MetricType) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
         <span class="kw">let </span>(name_and_namespace, unit) = parse_name_unit(string).ok_or(ParseMetricError)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>(namespace, name) = <span class="kw">match </span>name_and_namespace.split_once(<span class="string">&#39;/&#39;</span>) {
+        <span class="kw">let </span>(namespace, name) = <span class="kw">match </span>name_and_namespace.split_once(<span class="string">'/'</span>) {
             <span class="prelude-val">Some</span>((raw_namespace, name)) =&gt; (raw_namespace.parse()<span class="question-mark">?</span>, name),
             <span class="prelude-val">None </span>=&gt; (MetricNamespace::Custom, name_and_namespace),
         };
@@ -731,7 +732,7 @@
     }
 
     <span class="doccomment">/// Converts the MRI into an owned version with a static lifetime.
-    </span><span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; MetricResourceIdentifier&lt;<span class="lifetime">&#39;static</span>&gt; {
+    </span><span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; MetricResourceIdentifier&lt;<span class="lifetime">'static</span>&gt; {
         MetricResourceIdentifier {
             ty: <span class="self">self</span>.ty,
             namespace: <span class="self">self</span>.namespace,
@@ -741,13 +742,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="comment">// Deserialize without allocation, if possible.
-        </span><span class="kw">let </span>string = &lt;Cow&lt;<span class="lifetime">&#39;de</span>, str&gt;&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>string = &lt;Cow&lt;<span class="lifetime">'de</span>, str&gt;&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="kw">let </span>result = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>string)
             .map_err(serde::de::Error::custom)<span class="question-mark">?
             </span>.into_owned();
@@ -756,7 +757,7 @@
     }
 }
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>Serialize <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -765,12 +766,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Display <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="comment">// `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`
         </span><span class="macro">write!</span>(
             f,
-            <span class="string">&quot;{}:{}/{}@{}&quot;</span>,
+            <span class="string">"{}:{}/{}@{}"</span>,
             <span class="self">self</span>.ty, <span class="self">self</span>.namespace, <span class="self">self</span>.name, <span class="self">self</span>.unit
         )
     }
@@ -781,7 +782,7 @@
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if value is invalid.
 /// The name is not normalized.
 </span><span class="kw">fn </span>parse_name_unit(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, MetricUnit)&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>components = string.split(<span class="string">&#39;@&#39;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>components = string.split(<span class="string">'@'</span>);
     <span class="kw">let </span>name = components.next()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>unit = <span class="kw">match </span>components.next() {
@@ -807,104 +808,104 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_mri_lenient() {
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:foo@none&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:foo@none"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::None,
             },
         );
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:foo&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:foo"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::None,
             },
         );
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:custom/foo&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:custom/foo"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::None,
             },
         );
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:custom/foo@millisecond&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:custom/foo@millisecond"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             },
         );
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:something/foo&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:something/foo"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Unsupported,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::None,
             },
         );
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:foo@something&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"c:foo@something"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
-                unit: MetricUnit::Custom(CustomUnit::parse(<span class="string">&quot;something&quot;</span>).unwrap()),
+                name: <span class="string">"foo"</span>.into(),
+                unit: MetricUnit::Custom(CustomUnit::parse(<span class="string">"something"</span>).unwrap()),
             },
         );
-        <span class="macro">assert!</span>(MetricResourceIdentifier::parse(<span class="string">&quot;foo&quot;</span>).is_err());
+        <span class="macro">assert!</span>(MetricResourceIdentifier::parse(<span class="string">"foo"</span>).is_err());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_invalid_names_should_normalize() {
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:f?o&quot;</span>).unwrap().name,
-            <span class="string">&quot;f_o&quot;
+            MetricResourceIdentifier::parse(<span class="string">"c:f?o"</span>).unwrap().name,
+            <span class="string">"f_o"
         </span>);
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:f??o&quot;</span>).unwrap().name,
-            <span class="string">&quot;f_o&quot;
+            MetricResourceIdentifier::parse(<span class="string">"c:f??o"</span>).unwrap().name,
+            <span class="string">"f_o"
         </span>);
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:föo&quot;</span>).unwrap().name,
-            <span class="string">&quot;f_o&quot;
+            MetricResourceIdentifier::parse(<span class="string">"c:föo"</span>).unwrap().name,
+            <span class="string">"f_o"
         </span>);
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:custom/f?o&quot;</span>)
+            MetricResourceIdentifier::parse(<span class="string">"c:custom/f?o"</span>)
                 .unwrap()
                 .name,
-            <span class="string">&quot;f_o&quot;
+            <span class="string">"f_o"
         </span>);
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:custom/f??o&quot;</span>)
+            MetricResourceIdentifier::parse(<span class="string">"c:custom/f??o"</span>)
                 .unwrap()
                 .name,
-            <span class="string">&quot;f_o&quot;
+            <span class="string">"f_o"
         </span>);
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;c:custom/föo&quot;</span>)
+            MetricResourceIdentifier::parse(<span class="string">"c:custom/föo"</span>)
                 .unwrap()
                 .name,
-            <span class="string">&quot;f_o&quot;
+            <span class="string">"f_o"
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dash_to_underscore() {
         <span class="macro">assert_eq!</span>(
-            MetricResourceIdentifier::parse(<span class="string">&quot;d:foo.bar.blob-size@second&quot;</span>).unwrap(),
+            MetricResourceIdentifier::parse(<span class="string">"d:foo.bar.blob-size@second"</span>).unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Distribution,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo.bar.blob_size&quot;</span>.into(),
+                name: <span class="string">"foo.bar.blob_size"</span>.into(),
                 unit: MetricUnit::Duration(DurationUnit::Second),
             },
         );
@@ -913,14 +914,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_deserialize_mri() {
         <span class="macro">assert_eq!</span>(
-            serde_json::from_str::&lt;MetricResourceIdentifier&lt;<span class="lifetime">&#39;static</span>&gt;&gt;(
-                <span class="string">&quot;\&quot;c:custom/foo@millisecond\&quot;&quot;
+            serde_json::from_str::&lt;MetricResourceIdentifier&lt;<span class="lifetime">'static</span>&gt;&gt;(
+                <span class="string">"\"c:custom/foo@millisecond\""
             </span>)
             .unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             },
         );
@@ -932,11 +933,11 @@
             serde_json::to_string(<span class="kw-2">&amp;</span>MetricResourceIdentifier {
                 ty: MetricType::Counter,
                 namespace: MetricNamespace::Custom,
-                name: <span class="string">&quot;foo&quot;</span>.into(),
+                name: <span class="string">"foo"</span>.into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             })
             .unwrap(),
-            <span class="string">&quot;\&quot;c:custom/foo@millisecond\&quot;&quot;</span>.to_owned(),
+            <span class="string">"\"c:custom/foo@millisecond\""</span>.to_owned(),
         );
     }
 }

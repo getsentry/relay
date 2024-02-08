@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/minidumps.rs`."><title>minidumps.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/minidumps.rs`."><title>minidumps.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../relay_pii/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_pii"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -823,19 +824,19 @@
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ScrubMinidumpError {
     <span class="doccomment">/// Failed to parse open or parse the minidump.
-    </span><span class="attr">#[error(<span class="string">&quot;failed to parse minidump&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"failed to parse minidump"</span>)]
     </span>InvalidMinidump(<span class="attr">#[from] </span>MinidumpError),
 
     <span class="doccomment">/// The minidump contains an invalid memory address.
-    </span><span class="attr">#[error(<span class="string">&quot;invalid memory address&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"invalid memory address"</span>)]
     </span>InvalidAddress,
 
     <span class="doccomment">/// Minidump offsets out of usize range.
-    </span><span class="attr">#[error(<span class="string">&quot;minidump offsets out of usize range&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"minidump offsets out of usize range"</span>)]
     </span>OutOfRange,
 
     <span class="doccomment">/// A UTF-8 or prefix string in the minidump could not be decoded.
-    </span><span class="attr">#[error(<span class="string">&quot;string decoding error&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">"string decoding error"</span>)]
     </span>Decoding,
 }
 
@@ -882,18 +883,18 @@
     </span>DebugModuleName(Range&lt;usize&gt;),
 }
 
-<span class="doccomment">/// Internal struct to keep a minidump and it&#39;s raw data together.
-</span><span class="kw">struct </span>MinidumpData&lt;<span class="lifetime">&#39;a</span>&gt; {
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
-    minidump: Minidump&lt;<span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;,
+<span class="doccomment">/// Internal struct to keep a minidump and it's raw data together.
+</span><span class="kw">struct </span>MinidumpData&lt;<span class="lifetime">'a</span>&gt; {
+    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
+    minidump: Minidump&lt;<span class="lifetime">'a</span>, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; MinidumpData&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; MinidumpData&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Parses raw minidump data into the readable `Minidump` struct.
     ///
     /// This does only read the stream index, individual streams might still be corrupt even
     /// when parsing this succeeds.
-    </span><span class="kw">fn </span>parse(data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ScrubMinidumpError&gt; {
+    </span><span class="kw">fn </span>parse(data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ScrubMinidumpError&gt; {
         <span class="kw">let </span>minidump = Minidump::read(data).map_err(ScrubMinidumpError::InvalidMinidump)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ data, minidump })
     }
@@ -1039,7 +1040,7 @@
     }
 }
 
-<span class="kw">impl </span>PiiAttachmentsProcessor&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>PiiAttachmentsProcessor&lt;<span class="lifetime">'_</span>&gt; {
     <span class="doccomment">/// Applies PII rules to the given minidump.
     ///
     /// This function selectively opens minidump streams in order to avoid destroying the stack
@@ -1070,7 +1071,7 @@
 
                     <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
                     <span class="kw">let </span>state = file_state.enter_static(
-                        <span class="string">&quot;stack_memory&quot;</span>,
+                        <span class="string">"stack_memory"</span>,
                         <span class="prelude-val">Some</span>(attrs),
                         ValueType::Binary | ValueType::StackMemory,
                     );
@@ -1082,7 +1083,7 @@
                         .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
                     <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     <span class="kw">let </span>state = file_state.enter_static(
-                        <span class="string">&quot;heap_memory&quot;</span>,
+                        <span class="string">"heap_memory"</span>,
                         <span class="prelude-val">Some</span>(attrs),
                         ValueType::Binary | ValueType::HeapMemory,
                     );
@@ -1093,7 +1094,7 @@
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
                     <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
-                    <span class="kw">let </span>state = file_state.enter_static(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::Binary));
+                    <span class="kw">let </span>state = file_state.enter_static(<span class="string">""</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::Binary));
                     changed |= <span class="self">self</span>.scrub_bytes(slice, <span class="kw-2">&amp;</span>state, ScrubEncodings::All);
                 }
                 MinidumpItem::CodeModuleName(range) =&gt; {
@@ -1103,7 +1104,7 @@
                     <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     <span class="comment">// Mirrors decisions made on NativeImagePath type
                     </span><span class="kw">let </span>state =
-                        file_state.enter_static(<span class="string">&quot;code_file&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
+                        file_state.enter_static(<span class="string">"code_file"</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
                     <span class="kw">let </span>wstr = WStr::from_utf16le_mut(slice)<span class="question-mark">?</span>; <span class="comment">// TODO: Consider making this lossy?
                     </span>changed |= <span class="self">self</span>.scrub_utf16_filepath(wstr, <span class="kw-2">&amp;</span>state);
                 }
@@ -1114,7 +1115,7 @@
                     <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     <span class="comment">// Mirrors decisions made on NativeImagePath type
                     </span><span class="kw">let </span>state =
-                        file_state.enter_static(<span class="string">&quot;debug_file&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
+                        file_state.enter_static(<span class="string">"debug_file"</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
                     <span class="kw">let </span>s = std::str::from_utf8_mut(slice)<span class="question-mark">?</span>;
                     changed |= <span class="self">self</span>.scrub_utf8_filepath(s, <span class="kw-2">&amp;</span>state);
                 }
@@ -1134,28 +1135,28 @@
     <span class="kw">use </span><span class="kw">crate</span>::config::PiiConfig;
 
     <span class="kw">struct </span>TestScrubber {
-        orig_dump: Minidump&lt;<span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt;,
+        orig_dump: Minidump&lt;<span class="lifetime">'static</span>, <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]&gt;,
         _scrubbed_data: Vec&lt;u8&gt;,
-        scrubbed_dump: Minidump&lt;<span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt;,
+        scrubbed_dump: Minidump&lt;<span class="lifetime">'static</span>, <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]&gt;,
     }
 
     <span class="kw">impl </span>TestScrubber {
-        <span class="kw">fn </span>new(filename: <span class="kw-2">&amp;</span>str, orig_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8], json: serde_json::Value) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>orig_dump = Minidump::read(orig_data).expect(<span class="string">&quot;original minidump failed to parse&quot;</span>);
+        <span class="kw">fn </span>new(filename: <span class="kw-2">&amp;</span>str, orig_data: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8], json: serde_json::Value) -&gt; <span class="self">Self </span>{
+            <span class="kw">let </span>orig_dump = Minidump::read(orig_data).expect(<span class="string">"original minidump failed to parse"</span>);
             <span class="kw">let </span><span class="kw-2">mut </span>scrubbed_data = Vec::from(orig_data);
 
-            <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(json).expect(<span class="string">&quot;invalid config json&quot;</span>);
+            <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(json).expect(<span class="string">"invalid config json"</span>);
             <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
             processor
                 .scrub_minidump(filename, scrubbed_data.as_mut_slice())
-                .expect(<span class="string">&quot;scrubbing failed&quot;</span>);
+                .expect(<span class="string">"scrubbing failed"</span>);
 
             <span class="comment">// We could let scrubbed_dump just consume the Vec&lt;[u8]&gt;, but that would give
             // both our dumps different types which is awkward to work with.  So we store
             // the Vec separately to keep the slice alive and pretend we give Minidump a
-            // &amp;&#39;static [u8].
+            // &amp;'static [u8].
             </span><span class="kw">let </span>slice = <span class="kw">unsafe </span>{ std::mem::transmute(scrubbed_data.as_slice()) };
-            <span class="kw">let </span>scrubbed_dump = Minidump::read(slice).expect(<span class="string">&quot;scrubbed minidump failed to parse&quot;</span>);
+            <span class="kw">let </span>scrubbed_dump = Minidump::read(slice).expect(<span class="string">"scrubbed minidump failed to parse"</span>);
             <span class="self">Self </span>{
                 orig_dump,
                 _scrubbed_data: scrubbed_data,
@@ -1196,8 +1197,8 @@
         }
 
         <span class="doccomment">/// Returns the raw stack or heap memory regions.
-        </span><span class="kw">fn </span>memory_regions&lt;<span class="lifetime">&#39;slf</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span><span class="self">self</span>, which: Which, region: MemRegion) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span>[u8]&gt; {
-            <span class="kw">let </span>dump: <span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span>Minidump&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt; = <span class="kw">match </span>which {
+        </span><span class="kw">fn </span>memory_regions&lt;<span class="lifetime">'slf</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'slf </span><span class="self">self</span>, which: Which, region: MemRegion) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'slf </span>[u8]&gt; {
+            <span class="kw">let </span>dump: <span class="kw-2">&amp;</span><span class="lifetime">'slf </span>Minidump&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8]&gt; = <span class="kw">match </span>which {
                 Which::Original =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.orig_dump,
                 Which::Scrubbed =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.scrubbed_dump,
             };
@@ -1214,7 +1215,7 @@
             // iterator are currenty wrong and assumes we keep a reference to the
             // MinidumpMemoryList, hence we need to transmute this.  See
             // https://github.com/luser/rust-minidump/pull/111
-            </span><span class="kw">let </span>mem_list: MinidumpMemoryList&lt;<span class="lifetime">&#39;slf</span>&gt; = dump.get_stream().unwrap();
+            </span><span class="kw">let </span>mem_list: MinidumpMemoryList&lt;<span class="lifetime">'slf</span>&gt; = dump.get_stream().unwrap();
             mem_list
                 .iter()
                 .filter(|mem| <span class="kw">match </span>region {
@@ -1251,13 +1252,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_module_list_removed_win() {
         <span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;windows.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/windows.dmp&quot;</span>),
+            <span class="string">"windows.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/windows.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;debug_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
-                        <span class="string">&quot;$attachments.&#39;windows.dmp&#39;.code_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>]
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"debug_file"</span>: [<span class="string">"@anything:mask"</span>],
+                        <span class="string">"$attachments.'windows.dmp'.code_file"</span>: [<span class="string">"@anything:mask"</span>]
                     }
                 }
             ),
@@ -1266,90 +1267,90 @@
         <span class="kw">let </span>main = scrubber.main_module(Which::Original);
         <span class="macro">assert_eq!</span>(
             main.code_file(),
-            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe&quot;
+            <span class="string">"C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe"
         </span>);
         <span class="macro">assert_eq!</span>(
             main.debug_file().unwrap(),
-            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb&quot;
+            <span class="string">"C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb"
         </span>);
 
         <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
         <span class="macro">assert_eq!</span>(
             main.code_file(),
-            <span class="string">&quot;******************************************\\crash.exe&quot;
+            <span class="string">"******************************************\\crash.exe"
         </span>);
         <span class="macro">assert_eq!</span>(
             main.debug_file().unwrap(),
-            <span class="string">&quot;******************************************\\crash.pdb&quot;
+            <span class="string">"******************************************\\crash.pdb"
         </span>);
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().starts_with(<span class="string">&quot;C:\\Windows\\System32\\&quot;</span>),
-                <span class="string">&quot;code file without full path&quot;
+                module.code_file().starts_with(<span class="string">"C:\\Windows\\System32\\"</span>),
+                <span class="string">"code file without full path"
             </span>);
-            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">&quot;.pdb&quot;</span>));
+            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">".pdb"</span>));
         }
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().starts_with(<span class="string">&quot;*******************\\&quot;</span>),
-                <span class="string">&quot;code file path not scrubbed&quot;
+                module.code_file().starts_with(<span class="string">"*******************\\"</span>),
+                <span class="string">"code file path not scrubbed"
             </span>);
-            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">&quot;.pdb&quot;</span>));
+            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">".pdb"</span>));
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_module_list_removed_lin() {
         <span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;debug_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
-                        <span class="string">&quot;$attachments.*.code_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>]
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"debug_file"</span>: [<span class="string">"@anything:mask"</span>],
+                        <span class="string">"$attachments.*.code_file"</span>: [<span class="string">"@anything:mask"</span>]
                     }
                 }
             ),
         );
 
         <span class="kw">let </span>main = scrubber.main_module(Which::Original);
-        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">"/work/linux/build/crash"</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">"/work/linux/build/crash"</span>);
 
         <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
-        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;*****************/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">"*****************/crash"</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">"*****************/crash"</span>);
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1
-                    </span>|| module.code_file() == <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;code file does not contain path&quot;
+                module.code_file().matches(<span class="string">'/'</span>).count() &gt; <span class="number">1
+                    </span>|| module.code_file() == <span class="string">"linux-gate.so"</span>,
+                <span class="string">"code file does not contain path"
             </span>);
             <span class="macro">assert!</span>(
-                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1
-                    </span>|| module.debug_file().unwrap() == <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;debug file does not contain a path&quot;
+                module.debug_file().unwrap().matches(<span class="string">'/'</span>).count() &gt; <span class="number">1
+                    </span>|| module.debug_file().unwrap() == <span class="string">"linux-gate.so"</span>,
+                <span class="string">"debug file does not contain a path"
             </span>);
         }
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1
-                    </span>|| module.code_file() == <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;code file not scrubbed&quot;
+                module.code_file().matches(<span class="string">'/'</span>).count() == <span class="number">1
+                    </span>|| module.code_file() == <span class="string">"linux-gate.so"</span>,
+                <span class="string">"code file not scrubbed"
             </span>);
             <span class="macro">assert!</span>(
-                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1
-                    </span>|| module.debug_file().unwrap() == <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;scrubbed debug file contains a path&quot;
+                module.debug_file().unwrap().matches(<span class="string">'/'</span>).count() == <span class="number">1
+                    </span>|| module.debug_file().unwrap() == <span class="string">"linux-gate.so"</span>,
+                <span class="string">"scrubbed debug file contains a path"
             </span>);
         }
     }
@@ -1357,13 +1358,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_module_list_removed_mac() {
         <span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;macos.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/macos.dmp&quot;</span>),
+            <span class="string">"macos.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/macos.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;debug_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
-                        <span class="string">&quot;$attachments.*.code_file&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>]
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"debug_file"</span>: [<span class="string">"@anything:mask"</span>],
+                        <span class="string">"$attachments.*.code_file"</span>: [<span class="string">"@anything:mask"</span>]
                     }
                 }
             ),
@@ -1372,38 +1373,38 @@
         <span class="kw">let </span>main = scrubber.main_module(Which::Original);
         <span class="macro">assert_eq!</span>(
             main.code_file(),
-            <span class="string">&quot;/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash&quot;
+            <span class="string">"/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash"
         </span>);
-        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">"crash"</span>);
 
         <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
         <span class="macro">assert_eq!</span>(
             main.code_file(),
-            <span class="string">&quot;**********************************************************/crash&quot;
+            <span class="string">"**********************************************************/crash"
         </span>);
-        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">"crash"</span>);
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1</span>,
-                <span class="string">&quot;code file does not contain path&quot;
+                module.code_file().matches(<span class="string">'/'</span>).count() &gt; <span class="number">1</span>,
+                <span class="string">"code file does not contain path"
             </span>);
             <span class="macro">assert!</span>(
-                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">0</span>,
-                <span class="string">&quot;debug file contains a path&quot;
+                module.debug_file().unwrap().matches(<span class="string">'/'</span>).count() == <span class="number">0</span>,
+                <span class="string">"debug file contains a path"
             </span>);
         }
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1</span>,
-                <span class="string">&quot;code file not scrubbed&quot;
+                module.code_file().matches(<span class="string">'/'</span>).count() == <span class="number">1</span>,
+                <span class="string">"code file not scrubbed"
             </span>);
             <span class="macro">assert!</span>(
-                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">0</span>,
-                <span class="string">&quot;scrubbed debug file contains a path&quot;
+                module.debug_file().unwrap().matches(<span class="string">'/'</span>).count() == <span class="number">0</span>,
+                <span class="string">"scrubbed debug file contains a path"
             </span>);
         }
     }
@@ -1412,56 +1413,56 @@
     </span><span class="kw">fn </span>test_module_list_selectors() {
         <span class="comment">// Since scrubbing the module list is safe, it should be scrubbed by valuetype.
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$string&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$string"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
         );
         <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
-        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;*****************/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">"*****************/crash"</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">"*****************/crash"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stack_scrubbing_backwards_compatible_selector() {
-        <span class="comment">// Some users already use this bare selector, that&#39;s all we care about for backwards
+        <span class="comment">// Some users already use this bare selector, that's all we care about for backwards
         // compatibility.
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$stack_memory&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$stack_memory"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
         );
         <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
-            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b'*'</span>));
         }
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stack_scrubbing_path_item_selector() {
         <span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$minidump.stack_memory&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$minidump.stack_memory"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
         );
         <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
-            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b'*'</span>));
         }
     }
 
@@ -1471,18 +1472,18 @@
         <span class="comment">// This should work, but is known to fail currently because the selector logic never
         // considers a selector containing $binary as specific.
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$minidump.$binary&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$minidump.$binary"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
         );
         <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
-            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b'*'</span>));
         }
     }
 
@@ -1490,12 +1491,12 @@
     </span><span class="kw">fn </span>test_stack_scrubbing_valuetype_not_fully_qualified() {
         <span class="comment">// Not fully qualified valuetype should not touch the stack
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$binary&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$binary"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
@@ -1515,12 +1516,12 @@
         <span class="comment">// Wildcard should not touch the stack.  However currently wildcards are considered
         // specific selectors so they do.  This is a known issue.
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$minidump.*&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$minidump.*"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
@@ -1538,12 +1539,12 @@
     </span><span class="kw">fn </span>test_stack_scrubbing_deep_wildcard() {
         <span class="comment">// Wildcard should not touch the stack
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$attachments.**&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$attachments.**"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
@@ -1560,12 +1561,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_stack_scrubbing_binary_not_stack() {
         <span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$binary &amp;&amp; !stack_memory&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$binary &amp;&amp; !stack_memory"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
@@ -1578,7 +1579,7 @@
             <span class="macro">assert_eq!</span>(scrubbed_stack, original_stack);
         }
         <span class="kw">for </span>heap <span class="kw">in </span>scrubber.heaps(Which::Scrubbed) {
-            <span class="macro">assert!</span>(heap.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
+            <span class="macro">assert!</span>(heap.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b'*'</span>));
         }
     }
 
@@ -1586,18 +1587,18 @@
     </span><span class="kw">fn </span>test_linux_environ_valuetype() {
         <span class="comment">// The linux environ should be scrubbed for any $binary
         </span><span class="kw">let </span>scrubber = TestScrubber::new(
-            <span class="string">&quot;linux.dmp&quot;</span>,
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="string">"linux.dmp"</span>,
+            <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/linux.dmp"</span>),
             <span class="macro">serde_json::json!</span>(
                 {
-                    <span class="string">&quot;applications&quot;</span>: {
-                        <span class="string">&quot;$binary&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    <span class="string">"applications"</span>: {
+                        <span class="string">"$binary"</span>: [<span class="string">"@anything:mask"</span>],
                     }
                 }
             ),
         );
         <span class="kw">let </span>environ = scrubber.environ(Which::Scrubbed);
-        <span class="macro">assert!</span>(environ.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
+        <span class="macro">assert!</span>(environ.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b'*'</span>));
     }
 }
 </code></pre></div></section></main></body></html>

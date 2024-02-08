@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -433,10 +434,10 @@
 </span><span class="kw">const </span>MAX_NUM_UNREAL_LOGS: usize = <span class="number">40</span>;
 
 <span class="doccomment">/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.
-</span><span class="kw">const </span>SENTRY_PAYLOAD_KEY: <span class="kw-2">&amp;</span>str = <span class="string">&quot;__sentry&quot;</span>;
+</span><span class="kw">const </span>SENTRY_PAYLOAD_KEY: <span class="kw-2">&amp;</span>str = <span class="string">"__sentry"</span>;
 
 <span class="doccomment">/// Client SDK name used for the event payload to identify the UE4 crash reporter.
-</span><span class="kw">const </span>CLIENT_SDK_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;unreal.crashreporter&quot;</span>;
+</span><span class="kw">const </span>CLIENT_SDK_NAME: <span class="kw-2">&amp;</span>str = <span class="string">"unreal.crashreporter"</span>;
 
 <span class="kw">fn </span>get_event_item(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Item&gt;, Unreal4Error&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>context = Unreal4Context::parse(data)<span class="question-mark">?</span>;
@@ -445,7 +446,7 @@
         <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
     };
 
-    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;adding event payload from unreal context&quot;</span>);
+    <span class="macro">relay_log::trace!</span>(<span class="string">"adding event payload from unreal context"</span>);
     <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
     item.set_payload(ContentType::Json, json);
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(item))
@@ -453,7 +454,7 @@
 
 <span class="doccomment">/// Expands Unreal 4 items inside an envelope.
 ///
-/// If the envelope does NOT contain an `UnrealReport` item, it doesn&#39;t do anything. If the envelope
+/// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
 /// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
 /// of its contents.
 ///
@@ -511,7 +512,7 @@
 }
 
 <span class="kw">fn </span>merge_unreal_user_info(event: <span class="kw-2">&amp;mut </span>Event, user_info: <span class="kw-2">&amp;</span>str) {
-    <span class="kw">let </span><span class="kw-2">mut </span>parts = user_info.split(<span class="string">&#39;|&#39;</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>parts = user_info.split(<span class="string">'|'</span>);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = parts.next() {
         <span class="kw">let </span>user = event.user.value_mut().get_or_insert_with(User::default);
@@ -521,7 +522,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(epic_account_id) = parts.next() {
         <span class="kw">let </span>tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry(
-            Annotated::new(<span class="string">&quot;epic_account_id&quot;</span>.to_string()),
+            Annotated::new(<span class="string">"epic_account_id"</span>.to_string()),
             Annotated::new(epic_account_id.to_string()),
         )));
     }
@@ -529,7 +530,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(machine_id) = parts.next() {
         <span class="kw">let </span>tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry::from_pair((
-            Annotated::new(<span class="string">&quot;machine_id&quot;</span>.to_string()),
+            Annotated::new(<span class="string">"machine_id"</span>.to_string()),
             Annotated::new(machine_id.to_string()),
         ))));
     }
@@ -575,10 +576,10 @@
     <span class="kw">let </span>user_name = runtime_props
         .username
         .clone()
-        .unwrap_or_else(|| <span class="string">&quot;unknown&quot;</span>.to_owned());
+        .unwrap_or_else(|| <span class="string">"unknown"</span>.to_owned());
 
     <span class="kw">let </span>user_report = UserReport {
-        email: <span class="string">&quot;&quot;</span>.to_owned(),
+        email: <span class="string">""</span>.to_owned(),
         comments: user_description,
         event_id,
         name: user_name,
@@ -644,7 +645,7 @@
 
     <span class="comment">// Promote all game data (except the special `__sentry` key) into a context.
     </span><span class="kw">if </span>!context.game_data.is_empty() {
-        <span class="kw">let </span>game_context = contexts.get_or_insert_with(<span class="string">&quot;game&quot;</span>, || Context::Other(Object::new()));
+        <span class="kw">let </span>game_context = contexts.get_or_insert_with(<span class="string">"game"</span>, || Context::Other(Object::new()));
         <span class="kw">if let </span>Context::Other(game_context) = game_context {
             <span class="kw">let </span>filtered_keys = context
                 .game_data
@@ -662,14 +663,14 @@
         version: runtime_props
             .crash_reporter_client_version
             .take()
-            .unwrap_or_else(|| <span class="string">&quot;0.0.0&quot;</span>.to_owned())
+            .unwrap_or_else(|| <span class="string">"0.0.0"</span>.to_owned())
             .into(),
         ..ClientSdkInfo::default()
     });
 
     <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Value::Object(props))) = relay_protocol::to_value(<span class="kw-2">&amp;</span>runtime_props) {
         <span class="kw">let </span>unreal_context =
-            contexts.get_or_insert_with(<span class="string">&quot;unreal&quot;</span>, || Context::Other(Object::new()));
+            contexts.get_or_insert_with(<span class="string">"unreal"</span>, || Context::Other(Object::new()));
 
         <span class="kw">if let </span>Context::Other(unreal_context) = unreal_context {
             unreal_context.extend(props);
@@ -731,7 +732,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>get_context() -&gt; Unreal4Context {
-        <span class="kw">let </span>raw_context = <span class="string">br#&quot;&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+        <span class="kw">let </span>raw_context = <span class="string">br#"&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;FGenericCrashContext&gt;
 	&lt;RuntimeProperties&gt;
 		&lt;UserName&gt;bruno&lt;/UserName&gt;
@@ -757,7 +758,7 @@
 		&lt;PlatformCallbackResult&gt;0&lt;/PlatformCallbackResult&gt;
 	&lt;/PlatformProperties&gt;
 &lt;/FGenericCrashContext&gt;
-&quot;#</span>;
+"#</span>;
 
         Unreal4Context::parse(raw_context).unwrap()
     }
@@ -800,11 +801,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_merge_unreal_logs() {
-        <span class="kw">let </span>logs = <span class="string">br#&quot;Log file open, 10/29/18 17:56:37
+        <span class="kw">let </span>logs = <span class="string">br#"Log file open, 10/29/18 17:56:37
 [2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
-[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s&quot;#</span>;
+[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         merge_unreal_logs(<span class="kw-2">&amp;mut </span>event, logs).ok();
@@ -814,8 +815,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_merge_unreal_context_event() {
-        <span class="kw">let </span>bytes = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/integration/fixtures/native/unreal_crash&quot;</span>);
-        <span class="kw">let </span>user_id = <span class="string">&quot;ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F&quot;</span>;
+        <span class="kw">let </span>bytes = <span class="macro">include_bytes!</span>(<span class="string">"../../../tests/integration/fixtures/native/unreal_crash"</span>);
+        <span class="kw">let </span>user_id = <span class="string">"ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F"</span>;
 
         <span class="kw">let </span>crash = Unreal4Crash::parse(bytes).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();

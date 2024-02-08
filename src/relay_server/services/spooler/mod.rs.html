@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/spooler/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/spooler/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><a class="sub-logo-container" href="../../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="relay_server"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1814,40 +1815,40 @@
 <span class="doccomment">/// The set of errors which can happened while working the buffer.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BufferError {
-    <span class="attr">#[error(<span class="string">&quot;failed to move envelope from disk to memory&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to move envelope from disk to memory"</span>)]
     </span>CapacityExceeded(<span class="attr">#[from] </span><span class="kw">crate</span>::utils::BufferError),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to get the size of the buffer on the filesystem&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to get the size of the buffer on the filesystem"</span>)]
     </span>DatabaseFileError(<span class="attr">#[from] </span>std::io::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to insert data into database: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to insert data into database: {0}"</span>)]
     </span>InsertFailed(sqlx::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to delete data from the database: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to delete data from the database: {0}"</span>)]
     </span>DeleteFailed(sqlx::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to fetch data from the database: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to fetch data from the database: {0}"</span>)]
     </span>FetchFailed(sqlx::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to get database file size: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to get database file size: {0}"</span>)]
     </span>FileSizeReadFailed(sqlx::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to setup the database: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to setup the database: {0}"</span>)]
     </span>SqlxSetupFailed(sqlx::Error),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to create the spool file: {0}&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to create the spool file: {0}"</span>)]
     </span>FileSetupError(std::io::Error),
 
     <span class="attr">#[error(transparent)]
     </span>EnvelopeError(<span class="attr">#[from] </span>EnvelopeError),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to run migrations&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to run migrations"</span>)]
     </span>MigrationFailed(<span class="attr">#[from] </span>MigrateError),
 
-    <span class="attr">#[error(<span class="string">&quot;failed to extract project key from the row&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"failed to extract project key from the row"</span>)]
     </span>ParseProjectKeyFailed(<span class="attr">#[from] </span>ParseProjectKeyError),
 
-    <span class="attr">#[error(<span class="string">&quot;on-disk spool is full&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"on-disk spool is full"</span>)]
     </span>SpoolIsFull,
 }
 
@@ -1961,13 +1962,13 @@
 }
 
 <span class="kw">impl </span>Buffer {
-    <span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            Buffer::Enqueue(<span class="kw">_</span>) =&gt; <span class="string">&quot;Enqueue&quot;</span>,
-            Buffer::DequeueMany(<span class="kw">_</span>) =&gt; <span class="string">&quot;DequeueMany&quot;</span>,
-            Buffer::RemoveMany(<span class="kw">_</span>) =&gt; <span class="string">&quot;RemoveMany&quot;</span>,
-            Buffer::Health(<span class="kw">_</span>) =&gt; <span class="string">&quot;Health&quot;</span>,
-            Buffer::RestoreIndex(<span class="kw">_</span>) =&gt; <span class="string">&quot;RestoreIndex&quot;</span>,
+            Buffer::Enqueue(<span class="kw">_</span>) =&gt; <span class="string">"Enqueue"</span>,
+            Buffer::DequeueMany(<span class="kw">_</span>) =&gt; <span class="string">"DequeueMany"</span>,
+            Buffer::RemoveMany(<span class="kw">_</span>) =&gt; <span class="string">"RemoveMany"</span>,
+            Buffer::Health(<span class="kw">_</span>) =&gt; <span class="string">"Health"</span>,
+            Buffer::RestoreIndex(<span class="kw">_</span>) =&gt; <span class="string">"RestoreIndex"</span>,
         }
     }
 }
@@ -2155,7 +2156,7 @@
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to serialize the envelope&quot;
+                            <span class="string">"failed to serialize the envelope"
                         </span>);
                         <span class="prelude-val">None
                     </span>}
@@ -2197,17 +2198,17 @@
         row: SqliteRow,
         services: <span class="kw-2">&amp;</span>Services,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(QueueKey, Vec&lt;ManagedEnvelope&gt;), BufferError&gt; {
-        <span class="kw">let </span>envelope_row: Vec&lt;u8&gt; = row.try_get(<span class="string">&quot;envelope&quot;</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
+        <span class="kw">let </span>envelope_row: Vec&lt;u8&gt; = row.try_get(<span class="string">"envelope"</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>envelope_bytes = bytes::Bytes::from(envelope_row);
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(envelope_bytes)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>received_at: i64 = row
-            .try_get(<span class="string">&quot;received_at&quot;</span>)
+            .try_get(<span class="string">"received_at"</span>)
             .map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
-        <span class="kw">let </span>own_key: <span class="kw-2">&amp;</span>str = row.try_get(<span class="string">&quot;own_key&quot;</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
+        <span class="kw">let </span>own_key: <span class="kw-2">&amp;</span>str = row.try_get(<span class="string">"own_key"</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>sampling_key: <span class="kw-2">&amp;</span>str = row
-            .try_get(<span class="string">&quot;sampling_key&quot;</span>)
+            .try_get(<span class="string">"sampling_key"</span>)
             .map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>queue_key = QueueKey {
             own_key: ProjectKey::parse(own_key).map_err(BufferError::ParseProjectKeyFailed)<span class="question-mark">?</span>,
@@ -2288,7 +2289,7 @@
                     </span><span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to read the buffer stream from the disk&quot;</span>,
+                            <span class="string">"failed to read the buffer stream from the disk"</span>,
                         );
                         <span class="self">self</span>.track_count(-count);
                         <span class="kw">return </span><span class="prelude-val">Err</span>(key);
@@ -2303,7 +2304,7 @@
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;failed to extract envelope from the buffer&quot;</span>,
+                        <span class="string">"failed to extract envelope from the buffer"</span>,
                     ),
                 }
             }
@@ -2345,7 +2346,7 @@
                     </span><span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to read the buffer stream from the disk&quot;</span>,
+                            <span class="string">"failed to read the buffer stream from the disk"</span>,
                         );
                         <span class="kw">continue</span>;
                     }
@@ -2359,7 +2360,7 @@
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;failed to extract envelope from the buffer&quot;</span>,
+                        <span class="string">"failed to extract envelope from the buffer"</span>,
                     ),
                 }
             }
@@ -2461,11 +2462,11 @@
 
     <span class="kw">fn </span>extract_key(row: SqliteRow) -&gt; <span class="prelude-ty">Option</span>&lt;QueueKey&gt; {
         <span class="kw">let </span>own_key = row
-            .try_get(<span class="string">&quot;own_key&quot;</span>)
+            .try_get(<span class="string">"own_key"</span>)
             .map_err(BufferError::FetchFailed)
             .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
         <span class="kw">let </span>sampling_key = row
-            .try_get(<span class="string">&quot;sampling_key&quot;</span>)
+            .try_get(<span class="string">"sampling_key"</span>)
             .map_err(BufferError::FetchFailed)
             .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
 
@@ -2476,7 +2477,7 @@
             }),
             <span class="comment">// Report the first found error.
             </span>(<span class="prelude-val">Err</span>(err), <span class="kw">_</span>) | (<span class="kw">_</span>, <span class="prelude-val">Err</span>(err)) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to extract a queue key from the spool record: {err}&quot;</span>);
+                <span class="macro">relay_log::error!</span>(<span class="string">"Failed to extract a queue key from the spool record: {err}"</span>);
                 <span class="prelude-val">None
             </span>}
         }
@@ -2561,11 +2562,11 @@
                 <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;failed to spool the in-memory buffer to disk&quot;</span>,
+                        <span class="string">"failed to spool the in-memory buffer to disk"</span>,
                     );
                 }
                 <span class="macro">relay_log::trace!</span>(
-                    <span class="string">&quot;transition to disk spool: # of envelopes = {}&quot;</span>,
+                    <span class="string">"transition to disk spool: # of envelopes = {}"</span>,
                     disk.count.unwrap_or_default()
                 );
 
@@ -2579,7 +2580,7 @@
                             buffer,
                         );
                         <span class="macro">relay_log::trace!</span>(
-                            <span class="string">&quot;transition to memory spool: # of envelopes = {}&quot;</span>,
+                            <span class="string">"transition to memory spool: # of envelopes = {}"</span>,
                             ram.envelope_count
                         );
 
@@ -2588,7 +2589,7 @@
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::error!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to move data from disk to memory, keep using on-disk spool&quot;</span>,
+                            <span class="string">"failed to move data from disk to memory, keep using on-disk spool"</span>,
                         );
 
                         <span class="self">Self</span>::Disk(disk)
@@ -2637,7 +2638,7 @@
 <span class="kw">impl </span>BufferService {
     <span class="doccomment">/// Set up the database and return the current number of envelopes.
     ///
-    /// The directories and spool file will be created if they don&#39;t already
+    /// The directories and spool file will be created if they don't already
     /// exist.
     </span><span class="kw">async fn </span>setup(path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
         BufferService::create_spool_directory(path).<span class="kw">await</span><span class="question-mark">?</span>;
@@ -2652,7 +2653,7 @@
             .<span class="kw">await
             </span>.map_err(BufferError::SqlxSetupFailed)<span class="question-mark">?</span>;
 
-        <span class="macro">sqlx::migrate!</span>(<span class="string">&quot;../migrations&quot;</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="macro">sqlx::migrate!</span>(<span class="string">"../migrations"</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2662,7 +2663,7 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         };
         <span class="kw">if </span>!parent.as_os_str().is_empty() &amp;&amp; !parent.exists() {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;creating directory for spooling file: {}&quot;</span>, parent.display());
+            <span class="macro">relay_log::debug!</span>(<span class="string">"creating directory for spooling file: {}"</span>, parent.display());
             DirBuilder::new()
                 .recursive(<span class="bool-val">true</span>)
                 .create(<span class="kw-2">&amp;</span>parent)
@@ -2682,12 +2683,12 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
         };
 
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;buffer file {}&quot;</span>, path.to_string_lossy());
+        <span class="macro">relay_log::info!</span>(<span class="string">"buffer file {}"</span>, path.to_string_lossy());
         <span class="macro">relay_log::info!</span>(
-            <span class="string">&quot;max memory size {}&quot;</span>,
+            <span class="string">"max memory size {}"</span>,
             config.spool_envelopes_max_memory_size()
         );
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;max disk size {}&quot;</span>, config.spool_envelopes_max_disk_size());
+        <span class="macro">relay_log::info!</span>(<span class="string">"max disk size {}"</span>, config.spool_envelopes_max_disk_size());
 
         <span class="self">Self</span>::setup(<span class="kw-2">&amp;</span>path).<span class="kw">await</span><span class="question-mark">?</span>;
 
@@ -2733,7 +2734,7 @@
         };
 
         <span class="kw">if </span>on_disk.is_empty().<span class="kw">await</span><span class="question-mark">? </span>{
-            <span class="comment">// Only start live-tracking the count if there&#39;s nothing in the db yet.
+            <span class="comment">// Only start live-tracking the count if there's nothing in the db yet.
             </span>on_disk.count = <span class="prelude-val">Some</span>(<span class="number">0</span>);
         }
 
@@ -2831,8 +2832,8 @@
 
         <span class="kw">if </span>count &gt; <span class="number">0 </span>{
             relay_log::with_scope(
-                |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, project_key),
-                || <span class="macro">relay_log::error!</span>(count, <span class="string">&quot;evicted project with envelopes&quot;</span>),
+                |scope| scope.set_tag(<span class="string">"project_key"</span>, project_key),
+                || <span class="macro">relay_log::error!</span>(count, <span class="string">"evicted project with envelopes"</span>),
             );
         }
 
@@ -2855,7 +2856,7 @@
 
     <span class="doccomment">/// Handles retrieving of the index from the underlying spool.
     ///
-    /// To process this request we spawn the tokio task and once it&#39;s done the result will be sent
+    /// To process this request we spawn the tokio task and once it's done the result will be sent
     /// to [`ProjectCache`].
     ///
     /// If the spool is memory based, we ignore this request - the index in the
@@ -2872,13 +2873,13 @@
                     <span class="kw">match </span>OnDisk::get_spooled_index(<span class="kw-2">&amp;</span>db).<span class="kw">await </span>{
                         <span class="prelude-val">Ok</span>(index) =&gt; {
                             <span class="macro">relay_log::trace!</span>(
-                                <span class="string">&quot;recover index from disk with {} unique project keys&quot;</span>,
+                                <span class="string">"recover index from disk with {} unique project keys"</span>,
                                 index.len()
                             );
                             project_cache.send(RefreshIndexCache(index))
                         }
                         <span class="prelude-val">Err</span>(err) =&gt; {
-                            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to retrieve the index from the disk: {err}&quot;</span>)
+                            <span class="macro">relay_log::error!</span>(<span class="string">"failed to retrieve the index from the disk: {err}"</span>)
                         }
                     }
                 });
@@ -2926,7 +2927,7 @@
 
         <span class="macro">relay_log::info!</span>(
             count,
-            <span class="string">&quot;received shutdown signal, spooling envelopes to disk&quot;
+            <span class="string">"received shutdown signal, spooling envelopes to disk"
         </span>);
 
         <span class="kw">let </span>buffer = std::mem::take(<span class="kw-2">&amp;mut </span>ram.buffer);
@@ -2950,7 +2951,7 @@
                         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.handle_message(message).<span class="kw">await </span>{
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                                <span class="string">&quot;failed to handle an incoming message&quot;</span>,
+                                <span class="string">"failed to handle an incoming message"</span>,
                             );
                         }
                     }
@@ -2958,7 +2959,7 @@
                        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.handle_shutdown().<span class="kw">await </span>{
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                                <span class="string">&quot;failed while shutting down the service&quot;</span>,
+                                <span class="string">"failed while shutting down the service"</span>,
                             );
                         }
                     }
@@ -2976,7 +2977,7 @@
             BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } =&gt; {
                 <span class="kw">let </span>count = ram.count();
                 <span class="kw">if </span>count &gt; <span class="number">0 </span>{
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped {count} envelopes&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">"dropped {count} envelopes"</span>);
                 }
             }
             BufferState::Disk(<span class="kw">_</span>) =&gt; (),
@@ -3003,9 +3004,9 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>services() -&gt; Services {
-        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">&quot;test_store&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">"project_cache"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = mock_service(<span class="string">"test_store"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
 
         Services {
             project_cache,
@@ -3028,14 +3029,14 @@
     </span><span class="kw">async fn </span>create_spool_directory_deep_path() {
         <span class="kw">let </span>parent_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         <span class="kw">let </span>target_dir = parent_dir
-            .join(<span class="string">&quot;subdir1&quot;</span>)
-            .join(<span class="string">&quot;subdir2&quot;</span>)
-            .join(<span class="string">&quot;spool-file&quot;</span>);
+            .join(<span class="string">"subdir1"</span>)
+            .join(<span class="string">"subdir2"</span>)
+            .join(<span class="string">"spool-file"</span>);
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">1</span>).into();
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: target_dir,
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: target_dir,
                 }
             }
         }))
@@ -3051,10 +3052,10 @@
     </span><span class="kw">async fn </span>ensure_start_time_restore() {
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">10</span>).into();
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
                 </span>}
             }
         }))
@@ -3070,9 +3071,9 @@
         </span><span class="kw">let </span>test_cases = [
             <span class="comment">// The difference between the `Instant::now` and start_time is 2 seconds,
             // that the start time is restored to the correct point in time.
-            </span>(<span class="number">2</span>, <span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>),
+            </span>(<span class="number">2</span>, <span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>),
             <span class="comment">// There is no delay, and the `Instant::now` must be within the same second.
-            </span>(<span class="number">0</span>, <span class="string">&quot;aaaae32be2584e0bbd7a4cbb95971fff&quot;</span>),
+            </span>(<span class="number">0</span>, <span class="string">"aaaae32be2584e0bbd7a4cbb95971fff"</span>),
         ];
         <span class="kw">for </span>(result, pub_key) <span class="kw">in </span>test_cases {
             <span class="kw">let </span>project_key = ProjectKey::parse(pub_key).unwrap();
@@ -3110,10 +3111,10 @@
         <span class="kw">let </span>num_permits = <span class="number">3</span>;
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(num_permits).into();
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
                 </span>}
             }
         }))
@@ -3128,7 +3129,7 @@
         <span class="kw">let </span>addr = service.start();
         <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx) = mpsc::unbounded_channel();
 
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>key = QueueKey {
             own_key: project_key,
             sampling_key: project_key,
@@ -3152,7 +3153,7 @@
 
         <span class="comment">// There are enough permits, so get an envelope:
         </span><span class="kw">let </span>res = rx.recv().<span class="kw">await</span>;
-        <span class="macro">assert!</span>(res.is_some(), <span class="string">&quot;{res:?}&quot;</span>);
+        <span class="macro">assert!</span>(res.is_some(), <span class="string">"{res:?}"</span>);
         <span class="macro">assert_eq!</span>(buffer_guard.available(), <span class="number">2</span>);
 
         <span class="comment">// Simulate a new envelope coming in via a web request:
@@ -3204,17 +3205,17 @@
 
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">999999</span>).into();
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="string">&quot;4KB&quot;</span>,
-                    <span class="string">&quot;max_disk_size&quot;</span>: <span class="string">&quot;20KB&quot;</span>,
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="string">"4KB"</span>,
+                    <span class="string">"max_disk_size"</span>: <span class="string">"20KB"</span>,
                 }
             }
         }))
         .unwrap()
         .into();
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>key = QueueKey {
             own_key: project_key,
             sampling_key: project_key,
@@ -3267,41 +3268,41 @@
         <span class="comment">// Collect only the buffer metrics.
         </span><span class="kw">let </span>captures: Vec&lt;<span class="kw">_</span>&gt; = captures
             .into_iter()
-            .filter(|name| name.contains(<span class="string">&quot;buffer.&quot;</span>))
+            .filter(|name| name.contains(<span class="string">"buffer."</span>))
             .collect();
 
-        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
+        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r#"
         [
-            &quot;buffer.envelopes_mem:2000|h&quot;,
-            &quot;buffer.envelopes_mem_count:1|g&quot;,
-            &quot;buffer.envelopes_mem:4000|h&quot;,
-            &quot;buffer.envelopes_mem_count:2|g&quot;,
-            &quot;buffer.envelopes_mem:6000|h&quot;,
-            &quot;buffer.envelopes_mem_count:3|g&quot;,
-            &quot;buffer.envelopes_mem:0|h&quot;,
-            &quot;buffer.writes:1|c&quot;,
-            &quot;buffer.envelopes_written:3|c&quot;,
-            &quot;buffer.envelopes_disk_count:3|g&quot;,
-            &quot;buffer.disk_size:1031|h&quot;,
-            &quot;buffer.envelopes_written:1|c&quot;,
-            &quot;buffer.envelopes_disk_count:4|g&quot;,
-            &quot;buffer.writes:1|c&quot;,
-            &quot;buffer.disk_size:1372|h&quot;,
-            &quot;buffer.disk_size:1372|h&quot;,
-            &quot;buffer.envelopes_written:1|c&quot;,
-            &quot;buffer.envelopes_disk_count:5|g&quot;,
-            &quot;buffer.writes:1|c&quot;,
-            &quot;buffer.disk_size:1713|h&quot;,
-            &quot;buffer.dequeue_attempts:1|h&quot;,
-            &quot;buffer.reads:1|c&quot;,
-            &quot;buffer.envelopes_read:-5|c&quot;,
-            &quot;buffer.envelopes_disk_count:0|g&quot;,
-            &quot;buffer.dequeue_attempts:1|h&quot;,
-            &quot;buffer.reads:1|c&quot;,
-            &quot;buffer.disk_size:8|h&quot;,
-            &quot;buffer.reads:1|c&quot;,
+            "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem_count:1|g",
+            "buffer.envelopes_mem:4000|h",
+            "buffer.envelopes_mem_count:2|g",
+            "buffer.envelopes_mem:6000|h",
+            "buffer.envelopes_mem_count:3|g",
+            "buffer.envelopes_mem:0|h",
+            "buffer.writes:1|c",
+            "buffer.envelopes_written:3|c",
+            "buffer.envelopes_disk_count:3|g",
+            "buffer.disk_size:1031|h",
+            "buffer.envelopes_written:1|c",
+            "buffer.envelopes_disk_count:4|g",
+            "buffer.writes:1|c",
+            "buffer.disk_size:1372|h",
+            "buffer.disk_size:1372|h",
+            "buffer.envelopes_written:1|c",
+            "buffer.envelopes_disk_count:5|g",
+            "buffer.writes:1|c",
+            "buffer.disk_size:1713|h",
+            "buffer.dequeue_attempts:1|h",
+            "buffer.reads:1|c",
+            "buffer.envelopes_read:-5|c",
+            "buffer.envelopes_disk_count:0|g",
+            "buffer.dequeue_attempts:1|h",
+            "buffer.reads:1|c",
+            "buffer.disk_size:8|h",
+            "buffer.reads:1|c",
         ]
-        &quot;#</span>);
+        "#</span>);
     }
 
     <span class="kw">pub enum </span>TestHealth {
@@ -3350,11 +3351,11 @@
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">10</span>).into();
 
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
-                    </span><span class="string">&quot;max_disk_size&quot;</span>: <span class="number">0</span>,
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+                    </span><span class="string">"max_disk_size"</span>: <span class="number">0</span>,
                 }
             }
         }))
@@ -3379,11 +3380,11 @@
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">10</span>).into();
 
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
-                    </span><span class="string">&quot;max_disk_size&quot;</span>: <span class="string">&quot;100KB&quot;</span>,
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+                    </span><span class="string">"max_disk_size"</span>: <span class="string">"100KB"</span>,
                 }
             }
         }))
@@ -3409,11 +3410,11 @@
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">10</span>).into();
 
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: db_path,
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
-                    </span><span class="string">&quot;max_disk_size&quot;</span>: <span class="string">&quot;100KB&quot;</span>,
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"path"</span>: db_path,
+                    <span class="string">"max_memory_size"</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+                    </span><span class="string">"max_disk_size"</span>: <span class="string">"100KB"</span>,
                 }
             }
         }))
@@ -3425,7 +3426,7 @@
 
         <span class="comment">// Setup db and insert few records for the test.
         </span><span class="kw">let </span><span class="kw-2">mut </span>db =
-            SqliteConnectOptions::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;sqlite://{}&quot;</span>, db_path.to_str().unwrap()))
+            SqliteConnectOptions::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"sqlite://{}"</span>, db_path.to_str().unwrap()))
                 .unwrap()
                 .connect()
                 .<span class="kw">await
@@ -3433,12 +3434,12 @@
 
         <span class="kw">let </span>now = chrono::Utc::now().timestamp_millis();
         <span class="kw">let </span>result = sqlx::query(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-            <span class="string">r#&quot;INSERT INTO
+            <span class="string">r#"INSERT INTO
                     envelopes (received_at, own_key, sampling_key, envelope)
                VALUES
-                    (&quot;{}&quot;, &quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;, &quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;, &quot;&quot;),
-                    (&quot;{}&quot;, &quot;a94ae32be2584e0bbd7a4cbb95971f00&quot;, &quot;a94ae32be2584e0bbd7a4cbb95971f11&quot;, &quot;&quot;)
-            &quot;#</span>, now , now),
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971fee", "a94ae32be2584e0bbd7a4cbb95971fee", ""),
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971f00", "a94ae32be2584e0bbd7a4cbb95971f11", "")
+            "#</span>, now , now),
         ).execute(<span class="kw-2">&amp;mut </span>db).<span class="kw">await</span>.unwrap();
 
         <span class="macro">assert_eq!</span>(result.rows_affected(), <span class="number">2</span>);
@@ -3446,7 +3447,7 @@
         <span class="kw">let </span>index = Arc::new(Mutex::new(BTreeMap::new()));
         <span class="kw">let </span><span class="kw-2">mut </span>services = services();
         <span class="kw">let </span>index_in = index.clone();
-        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), <span class="kw">move </span>|(), msg: ProjectCache| {
+        <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">"project_cache"</span>, (), <span class="kw">move </span>|(), msg: ProjectCache| {
             <span class="kw">let </span>ProjectCache::RefreshIndexCache(new_index) = msg <span class="kw">else </span>{
                 <span class="kw">return</span>;
             };
@@ -3467,16 +3468,16 @@
         </span><span class="kw">let </span>index = index.lock().unwrap().clone();
 
         <span class="macro">assert_eq!</span>(index.len(), <span class="number">3</span>);
-        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971f00&quot;</span>).unwrap()));
-        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971f11&quot;</span>).unwrap()));
-        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap()));
+        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971f00"</span>).unwrap()));
+        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971f11"</span>).unwrap()));
+        <span class="macro">assert!</span>(index.contains_key(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap()));
         <span class="kw">let </span>result_for_key = BTreeSet::from([QueueKey {
-            own_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
-            sampling_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+            own_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
+            sampling_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
         }]);
         <span class="macro">assert_eq!</span>(
             index
-                .get(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap())
+                .get(<span class="kw-2">&amp;</span>ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap())
                 .unwrap(),
             <span class="kw-2">&amp;</span>result_for_key
         );
