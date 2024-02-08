@@ -497,6 +497,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
