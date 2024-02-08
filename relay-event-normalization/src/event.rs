@@ -1018,7 +1018,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
+        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2618,5 +2618,61 @@ mod tests {
             exception.meta().iter_errors().collect_tuple(),
             Some((&expected,))
         );
+    }
+
+    #[test]
+    fn test_normalize_exception() {
+        let mut event = Annotated::new(Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                // Exception with missing type and value
+                ty: Annotated::empty(),
+                value: Annotated::empty(),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        });
+
+        normalize_event(&mut event, &NormalizationConfig::default());
+
+        let exception = event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap();
+
+        assert_debug_snapshot!(exception.meta(), @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: MissingAttribute,
+                    data: {
+                        "attribute": String(
+                            "type or value",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {
+                        "mechanism": ~,
+                        "module": ~,
+                        "raw_stacktrace": ~,
+                        "stacktrace": ~,
+                        "thread_id": ~,
+                        "type": ~,
+                        "value": ~,
+                    },
+                ),
+            ),
+        }"#);
     }
 }
