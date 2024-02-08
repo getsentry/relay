@@ -66,6 +66,11 @@
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -94,10 +99,15 @@
 </span><span class="attr">#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
 </span><span class="kw">pub enum </span>CardinalityScope {
-    <span class="doccomment">/// The organization that this project belongs to.
+    <span class="doccomment">/// An organization level cardinality limit.
     ///
-    /// This is the top-level scope.
+    /// The limit will be enforced across the entire org.
     </span>Organization,
+
+    <span class="doccomment">/// A project level cardinality limit.
+    ///
+    /// The limit will be enforced for a specific project.
+    </span>Project,
 
     <span class="doccomment">/// Any other scope that is not known by this Relay.
     </span><span class="attr">#[serde(other)]
