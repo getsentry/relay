@@ -14,9 +14,8 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -517,35 +516,62 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the last frame of the stacktrace of the first exception.
+/// Normalizes all the stack traces in the given event.
 ///
-/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+/// Normalized stack traces are `event.stacktrace`, `event.exceptions.stacktrace`, and
+/// `event.thread.stacktrace`. Raw stack traces are not normalized.
 fn normalize_stacktraces(event: &mut Event) {
-    match event.exceptions.value_mut() {
-        None => (),
-        Some(exception) => match exception.values.value_mut() {
-            None => (),
-            Some(exceptions) => match exceptions.first_mut() {
-                None => (),
-                Some(first) => normalize_last_stacktrace_frame(first),
-            },
-        },
-    };
+    normalize_event_stacktrace(event);
+    normalize_exception_stacktraces(event);
+    normalize_thread_stacktraces(event);
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
-    let _ = processor::apply(exception, |e, _| {
-        processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
-            None => Ok(()),
-            Some(frames) => match frames.last_mut() {
-                None => Ok(()),
-                Some(frame) => {
-                    stacktrace::process_non_raw_frame(frame);
-                    Ok(())
-                }
-            },
-        })
-    });
+/// Normalizes an event's stack trace, in `event.stacktrace`.
+fn normalize_event_stacktrace(event: &mut Event) {
+    let Annotated(Some(stacktrace), meta) = &mut event.stacktrace else {
+        return;
+    };
+    stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+}
+
+/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
+fn normalize_exception_stacktraces(event: &mut Event) {
+    let Some(event_exception) = event.exceptions.value_mut() else {
+        return;
+    };
+    let Some(exceptions) = event_exception.values.value_mut() else {
+        return;
+    };
+    for annotated_exception in exceptions {
+        let Some(exception) = annotated_exception.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut exception.stacktrace {
+            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
+}
+
+/// Normalizes the stack traces in an event's threads, in `event.threads.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
+fn normalize_thread_stacktraces(event: &mut Event) {
+    let Some(event_threads) = event.threads.value_mut() else {
+        return;
+    };
+    let Some(threads) = event_threads.values.value_mut() else {
+        return;
+    };
+    for annotated_thread in threads {
+        let Some(thread) = annotated_thread.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut thread.stacktrace {
+            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
 }
 
 fn normalize_exceptions(event: &mut Event) {

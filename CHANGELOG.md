@@ -7,7 +7,7 @@
 - Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
-- Add `app_start_type` as self time tag for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027))
+- Add `app_start_type` as a tag for self time and duration for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027)), ([#3066](https://github.com/getsentry/relay/pull/3066))
 
 **Internal**:
 
@@ -16,6 +16,8 @@
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
 - Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
 - Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+- Upgrade sqlparser to 0.43.1.([#3057](https://github.com/getsentry/relay/pull/3057))
+- Implement project scoped cardinality limits. ([#3071](https://github.com/getsentry/relay/pull/3071))
 
 ## 24.1.1
 
