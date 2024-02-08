@@ -14,7 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::{profile, ProcessEnvelopeState};
+use crate::services::processor::{profile, ProcessEnvelopeState, TransactionGroup};
 use crate::utils::{self, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -37,7 +37,7 @@ use crate::utils::{self, ItemAction, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-pub fn normalize(state: &mut ProcessEnvelopeState) {
+pub fn normalize(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
         return;
     }
@@ -58,7 +58,7 @@ pub fn normalize(state: &mut ProcessEnvelopeState) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     // Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
@@ -98,7 +98,7 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
 pub fn sample_envelope_items(
-    state: &mut ProcessEnvelopeState,
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
     config: &Config,
     global_config: &GlobalConfig,
 ) {
@@ -200,7 +200,7 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn tag_error_with_sampling_decision<G>(state: &mut ProcessEnvelopeState<G>, config: &Config) {
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -242,7 +242,10 @@ pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config
 }
 
 /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &GlobalConfig) -> bool {
+fn forward_unsampled_profiles(
+    state: &ProcessEnvelopeState<TransactionGroup>,
+    global_config: &GlobalConfig,
+) -> bool {
     let global_options = &global_config.options;
 
     if !global_options.unsampled_profiles_enabled {
@@ -269,6 +272,7 @@ fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &Glob
 mod tests {
 
     use std::collections::BTreeMap;
+    use std::marker::PhantomData;
     use std::sync::Arc;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -282,7 +286,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, TransactionGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -327,7 +331,7 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction,
+                ProcessingGroup::Transaction(TransactionGroup),
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -473,11 +477,12 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Ungrouped,
+                    ProcessingGroup::Transaction(TransactionGroup),
                 ),
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
+                _group: PhantomData::<TransactionGroup> {},
             }
         };
 

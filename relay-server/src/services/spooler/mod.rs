@@ -1255,6 +1255,7 @@ mod tests {
     use sqlx::ConnectOptions;
     use uuid::Uuid;
 
+    use crate::services::processor::Ungrouped;
     use crate::services::project_cache::SpoolHealth;
     use crate::testutils::empty_envelope;
 
@@ -1419,7 +1420,7 @@ mod tests {
                 empty_envelope(),
                 services.outcome_aggregator,
                 services.test_store,
-                ProcessingGroup::Ungrouped,
+                ProcessingGroup::Ungrouped(Ungrouped),
             )
             .unwrap();
 

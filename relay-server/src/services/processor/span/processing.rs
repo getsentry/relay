@@ -21,11 +21,13 @@ use relay_protocol::{Annotated, Empty, Object};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
+use crate::services::processor::{
+    ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+};
 use crate::utils::ItemAction;
 
 pub fn process(
-    state: &mut ProcessEnvelopeState,
+    state: &mut ProcessEnvelopeState<SpanGroup>,
     config: Arc<Config>,
     global_config: &GlobalConfig,
 ) {
@@ -139,7 +141,7 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
