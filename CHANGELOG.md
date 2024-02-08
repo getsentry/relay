@@ -16,6 +16,7 @@
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
 - Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
 - Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+- Implement project scoped cardinality limits. ([#3071](https://github.com/getsentry/relay/pull/3071))
 
 ## 24.1.1
 
