@@ -14,8 +14,9 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Headers, IpAddr, Level,
-    LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags, Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
+    Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
