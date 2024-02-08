@@ -46,12 +46,13 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1047,10 +1048,6 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let normalize_spans = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
         let transaction_aggregator_config = self
             .inner
             .config
@@ -1098,7 +1095,6 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1143,7 +1139,7 @@ impl EnvelopeProcessorService {
         dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
         });
 
@@ -1189,7 +1185,7 @@ impl EnvelopeProcessorService {
         );
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
         });
@@ -1648,6 +1644,7 @@ impl EnvelopeProcessorService {
             let item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
+                namespace: None,
             };
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
@@ -1685,28 +1682,52 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_batches(
+    fn rate_limit_buckets_by_namespace(
         &self,
         scoping: Scoping,
-        buckets: &[Bucket],
-        project_state: &ProjectState,
+        buckets: Vec<Bucket>,
+        quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
-    ) -> bool {
+    ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
+            return buckets;
         };
 
+        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
+            .into_iter()
+            .filter_map(|bucket| Some((bucket.parse_namespace().ok()?, bucket)))
+            .into_group_map();
+
+        buckets_by_ns
+            .into_iter()
+            .filter_map(|(namespace, buckets)| {
+                let item_scoping = ItemScoping {
+                    category: DataCategory::MetricBucket,
+                    scoping: &scoping,
+                    namespace: Some(namespace),
+                };
+
+                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
+                    .then_some(buckets)
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
+    fn rate_limit_buckets(
+        &self,
+        item_scoping: relay_quotas::ItemScoping,
+        buckets: &[Bucket],
+        quotas: &[relay_quotas::Quota],
+        mode: ExtractionMode,
+        rate_limiter: &RedisRateLimiter,
+    ) -> bool {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
-
-        let quotas = &project_state.config.quotas;
-        let item_scoping = relay_quotas::ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-        };
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
@@ -1721,26 +1742,26 @@ impl EnvelopeProcessorService {
                 utils::reject_metrics(
                     &self.inner.outcome_aggregator,
                     quantities,
-                    scoping,
+                    *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner
-                    .project_cache
-                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+                self.inner.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
 
-                return true;
+                true
             }
-            Ok(_) => {} // not rate limited
+            Ok(_) => false,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
+                false
             }
         }
-
-        false
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -1753,7 +1774,7 @@ impl EnvelopeProcessorService {
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let global_config = self.inner.global_config.current();
-        let cardinality_limiter_mode = global_config.cardinality_limiter_mode();
+        let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
             return buckets;
@@ -1779,6 +1800,17 @@ impl EnvelopeProcessorService {
                 return buckets;
             }
         };
+
+        let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
+        if limits.has_rejections() && sample(error_sample_rate) {
+            for limit_id in limits.enforced_limits() {
+                relay_log::error!(
+                    tags.organization_id = scoping.organization_id,
+                    tags.limit_id = limit_id,
+                    "Cardinality Limit"
+                );
+            }
+        }
 
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
             return limits.into_source();
@@ -1808,18 +1840,23 @@ impl EnvelopeProcessorService {
 
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
-                mut buckets,
+                buckets,
                 project_state,
             } = message;
 
             let mode = project_state.get_extraction_mode();
             let limits = project_state.get_cardinality_limits();
 
-            if project_state.has_feature(Feature::CardinalityLimiter) {
-                buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            }
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
-            if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
+            let buckets = self.rate_limit_buckets_by_namespace(
+                scoping,
+                buckets,
+                &project_state.config.quotas,
+                mode,
+            );
+
+            if buckets.is_empty() {
                 continue;
             }
 
@@ -2223,12 +2260,20 @@ impl UpstreamRequest for SendEnvelope {
     }
 }
 
+/// Returns `true` if the current item should be sampled.
+///
+/// The passed `rate` is expected to be `0 <= rate <= 1`.
+#[cfg(feature = "processing")]
+fn sample(rate: f32) -> bool {
+    (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() < rate)
+}
+
 /// Computes a stable partitioning key for sharded metric requests.
 fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u64>) -> Option<u64> {
     use std::hash::{Hash, Hasher};
 
     let partitions = partitions?.max(1);
-    let key = (project_key, bucket.timestamp, &bucket.name, &bucket.tags);
+    let key = (project_key, &bucket.name, &bucket.tags);
 
     let mut hasher = FnvHasher::default();
     key.hash(&mut hasher);
@@ -2443,6 +2488,7 @@ mod tests {
                     limit: Some(0),
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
+                    namespace: None,
                 };
 
                 let mut config = ProjectConfig::default();

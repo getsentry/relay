@@ -41,9 +41,6 @@ pub enum Feature {
     /// Enable metric metadata.
     #[serde(rename = "organizations:metric-meta")]
     MetricMeta,
-    /// Enable the Relay cardinality limiter.
-    #[serde(rename = "organizations:relay-cardinality-limiter")]
-    CardinalityLimiter,
     /// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
     ///
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.

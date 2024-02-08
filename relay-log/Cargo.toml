@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Error reporting and logging for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.1"
+version = "24.1.2"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -14,6 +14,7 @@ build = "build.rs"
 chrono = { workspace = true, features = ["clock"], optional = true }
 console = { version = "0.15.5", optional = true }
 once_cell = { version = "1.13.1", optional = true }
+relay-common = { path = "../relay-common" }
 relay-crash = { path = "../relay-crash", optional = true }
 sentry = { version = "0.31.7", features = [
     "debug-images",

@@ -85,11 +85,10 @@ pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const R
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_new(
     config: *const RelayStr,
-    geoip_lookup: *const RelayGeoIpLookup,
+    _geoip_lookup: *const RelayGeoIpLookup,
 ) -> *mut RelayStoreNormalizer {
     let config: StoreConfig = serde_json::from_str((*config).as_str())?;
-    let geoip_lookup = (geoip_lookup as *const GeoIpLookup).as_ref();
-    let normalizer = StoreProcessor::new(config, geoip_lookup);
+    let normalizer = StoreProcessor::new(config);
     Box::into_raw(Box::new(normalizer)) as *mut RelayStoreNormalizer
 }
 
@@ -139,7 +138,6 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         is_renormalize: config.is_renormalize.unwrap_or(false),
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
-        normalize_spans: false,
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,

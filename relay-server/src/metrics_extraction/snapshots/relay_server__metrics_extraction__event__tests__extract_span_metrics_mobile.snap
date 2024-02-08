@@ -29,6 +29,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "category": "app",
                 "device.class": "1",
                 "mobile": "true",
@@ -69,6 +70,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "mobile": "true",
                 "op": "ui.load.initial_display",
@@ -108,6 +110,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "category": "app",
                 "description": "Cold Start",
                 "device.class": "1",
@@ -150,6 +153,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "mobile": "true",
                 "op": "custom.op",
@@ -189,6 +193,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "description": "io.sentry.android.core.SentryPerformanceProvider.onCreate",
                 "device.class": "1",
                 "group": "cfb484dec50a18c9",
@@ -230,6 +235,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "app_start_type": "warm",
                 "description": "io.sentry.samples.android.MyApplication.onCreate",
                 "device.class": "1",
                 "group": "a928f42bab6aff5b",
@@ -269,8 +275,13 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: ~,
             origin: ~,
             profile_id: ~,
-            data: ~,
+            data: {
+                "app_start_type": String(
+                    "cold",
+                ),
+            },
             sentry_tags: {
+                "app_start_type": "cold",
                 "description": "io.sentry.samples.android.MainActivity.onCreate",
                 "device.class": "1",
                 "group": "6d931be5b5897006",
@@ -299,6 +310,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -360,6 +372,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -418,6 +431,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -483,6 +497,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -525,6 +540,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -587,6 +603,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
@@ -649,6 +666,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "cold",
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
