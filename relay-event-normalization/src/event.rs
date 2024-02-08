@@ -1008,7 +1008,8 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
+        Breadcrumb, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request,
+        Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2537,5 +2538,31 @@ mod tests {
         });
 
         assert_eq!(user.other, Object::new());
+    }
+
+    #[test]
+    fn test_normalize_breadcrumbs() {
+        let mut event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Breadcrumb::default())]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_breadcrumbs(&mut event);
+
+        let breadcrumb = event
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+        assert_eq!(breadcrumb.ty.value().unwrap(), "default");
+        assert_eq!(&breadcrumb.level.value().unwrap().to_string(), "info");
     }
 }
