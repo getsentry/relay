@@ -891,6 +891,9 @@
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1276,7 +1279,7 @@
     <span class="macro">scrub_sql_test!</span>(
         strip_prefixes_mysql_generic,
         <span class="string">r#&quot;SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s&quot;#</span>,
-        <span class="string">r#&quot;SELECT foo, count(*) from table WHERE sku = %s&quot;#
+        <span class="string">r#&quot;SELECT foo, count(*) FROM table WHERE sku = %s&quot;#
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
@@ -1474,7 +1477,7 @@
     <span class="macro">scrub_sql_test!</span>(
         values_multi,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)  ON CONFLICT DO NOTHING&quot;
+        <span class="string">&quot;INSERT INTO a (..) VALUES (%s) ON CONFLICT DO NOTHING&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
@@ -1769,13 +1772,16 @@
     </span>);
 
     <span class="macro">scrub_sql_test_with_dialect!</span>(
-        dont_fallback_to_regex,
+        replace_into,
         <span class="string">&quot;mysql&quot;</span>,
-        <span class="comment">// sqlparser cannot parse REPLACE INTO. If we know that
-        // a query is MySQL, we should give up rather than try to scrub
-        // with regex
-        </span><span class="string">r#&quot;REPLACE INTO `foo` (`a`) VALUES (&quot;abcd1234&quot;)&quot;#</span>,
-        <span class="string">&quot;REPLACE INTO foo (a) VALUES (%s)&quot;
+        <span class="string">r#&quot;REPLACE INTO `foo` (`a`) VALUES (&quot;abcd1234&quot;)&quot;#</span>,
+        <span class="string">&quot;REPLACE INTO foo (..) VALUES (%s)&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        replace_into_set_dont_panic,
+        <span class="string">r#&quot;REPLACE INTO `foo` SET x = y&quot;#</span>,
+        <span class="string">&quot;REPLACE INTO foo SET x = y&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
