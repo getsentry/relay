@@ -218,7 +218,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 
     if extract_transaction_span {
         // Extract tags to add to this span as well
-        let shared_tags = tag_extraction::extract_shared_tags(event);
+        let mut shared_tags = tag_extraction::extract_shared_tags(event);
+
+        if let Some(span_op) = transaction_span.op.value() {
+            shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
+        }
+
         transaction_span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()
