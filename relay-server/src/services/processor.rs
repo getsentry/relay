@@ -1840,16 +1840,14 @@ impl EnvelopeProcessorService {
 
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
-                mut buckets,
+                buckets,
                 project_state,
             } = message;
 
             let mode = project_state.get_extraction_mode();
             let limits = project_state.get_cardinality_limits();
 
-            if project_state.has_feature(Feature::CardinalityLimiter) {
-                buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            }
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
             let buckets = self.rate_limit_buckets_by_namespace(
                 scoping,

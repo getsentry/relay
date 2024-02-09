@@ -26,10 +26,15 @@ pub struct CardinalityLimit {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CardinalityScope {
-    /// The organization that this project belongs to.
+    /// An organization level cardinality limit.
     ///
-    /// This is the top-level scope.
+    /// The limit will be enforced across the entire org.
     Organization,
+
+    /// A project level cardinality limit.
+    ///
+    /// The limit will be enforced for a specific project.
+    Project,
 
     /// Any other scope that is not known by this Relay.
     #[serde(other)]

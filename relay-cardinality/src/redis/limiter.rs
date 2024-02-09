@@ -619,7 +619,7 @@ mod tests {
         let rejected = limiter.test_limits(scoping, limits, entries1);
         assert_eq!(rejected.len(), 0);
 
-        for i in 0..window.window_seconds / window.granularity_seconds {
+        for i in 0..(window.window_seconds / window.granularity_seconds) * 2 {
             // Fast forward time.
             limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
@@ -631,8 +631,8 @@ mod tests {
             assert_eq!(rejected.len(), 1);
         }
 
-        // Fast forward time to where we're in the next window.
-        limiter.time_offset = Duration::from_secs(window.window_seconds + 1);
+        // Fast forward time to a fresh window.
+        limiter.time_offset = Duration::from_secs(1 + window.window_seconds * 3);
         // Accept the new element.
         let rejected = limiter.test_limits(scoping, limits, entries2);
         assert_eq!(rejected.len(), 0);
@@ -745,6 +745,43 @@ mod tests {
     }
 
     #[test]
+    fn test_project_limit() {
+        let limiter = build_limiter();
+
+        let scoping1 = new_scoping(&limiter);
+        let scoping2 = Scoping {
+            project_id: ProjectId::new(2),
+            ..scoping1
+        };
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 1,
+            scope: CardinalityScope::Project,
+            namespace: None,
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        let entries2 = [Entry::new(EntryId(0), MetricNamespace::Custom, 1)];
+
+        // Accept different entries for different scopes.
+        let rejected = limiter.test_limits(scoping1, limits, entries1);
+        assert_eq!(rejected.len(), 0);
+        let rejected = limiter.test_limits(scoping2, limits, entries2);
+        assert_eq!(rejected.len(), 0);
+
+        // Make sure the other entry is not accepted.
+        let rejected = limiter.test_limits(scoping1, limits, entries2);
+        assert_eq!(rejected.len(), 1);
+        let rejected = limiter.test_limits(scoping2, limits, entries1);
+        assert_eq!(rejected.len(), 1);
+    }
+
+    #[test]
     fn test_limiter_sliding_window_full() {
         let mut limiter = build_limiter();
         let scoping = new_scoping(&limiter);
@@ -826,5 +863,58 @@ mod tests {
                 assert_eq!(size, 100);
             }
         }
+    }
+
+    #[test]
+    fn test_limiter_sliding_window_perfect() {
+        let mut limiter = build_limiter();
+        let scoping = new_scoping(&limiter);
+
+        let window = SlidingWindow {
+            window_seconds: 300,
+            granularity_seconds: 100,
+        };
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window,
+            limit: 100,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        macro_rules! test {
+            ($r:expr) => {{
+                let entries = $r
+                    .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+                    .collect::<Vec<_>>();
+
+                limiter.test_limits(scoping, limits, entries)
+            }};
+        }
+
+        // Test Case:
+        //  1. Fill the window
+        //  2. Fast forward one granule and fill that with the same values
+        //  3. Assert that values "confirmed" in the first granule are active for a full window
+        //
+        // [ ][ ][ ]{ }{ }{ }[ ][ ][ ]
+        // [A][A][A]{ }{ }{ }[ ][ ][ ]
+        //    [A][A]{A}{ }{ }[ ][ ][ ]
+        //     |     \-- Assert this value.
+        //     \-- Touch this value.
+
+        // Fill the first window with values.
+        assert!(test!(0..100).is_empty());
+
+        // Fast forward one granule with the same values.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds);
+        assert!(test!(0..100).is_empty());
+
+        // Fast forward to the first granule after a full reset.
+        limiter.time_offset = Duration::from_secs(1 + window.window_seconds);
+        // Make sure the window is full and does not accept new values.
+        assert_eq!(test!(200..300).len(), 100);
+        // Assert original values.
+        assert!(test!(0..100).is_empty());
     }
 }
