@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
+
 ## 24.1.2
 
 **Features**:
