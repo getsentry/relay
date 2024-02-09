@@ -247,25 +247,26 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
-                    println!("0");
                     if item.replay_combined_payload() {
-                        println!("1");
                         replay_recording = Some(item);
+                    } else {
+                        self.produce_replay_recording(
+                            event_id, scoping, item, start_time, retention,
+                        )?;
                     }
-
-                    self.produce_replay_recording(event_id, scoping, item, start_time, retention)?;
                 }
                 ItemType::ReplayEvent => {
-                    self.produce_replay_event(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
-                        scoping.project_id,
-                        start_time,
-                        retention,
-                        item,
-                    )?;
                     if item.replay_combined_payload() {
                         replay_event = Some(item);
+                    } else {
+                        self.produce_replay_event(
+                            event_id.ok_or(StoreError::NoEventId)?,
+                            scoping.organization_id,
+                            scoping.project_id,
+                            start_time,
+                            retention,
+                            item,
+                        )?;
                     }
                 }
                 ItemType::CheckIn => self.produce_check_in(
@@ -282,9 +283,6 @@ impl StoreService {
                 _ => {}
             }
         }
-        println!("here?");
-        println!("event: {:?}", replay_event);
-        println!("rec: {:?}", replay_recording);
 
         if let (Some(replay_event), Some(replay_recording)) = (replay_event, replay_recording) {
             let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
@@ -444,7 +442,7 @@ impl StoreService {
         start_time: Instant,
         retention: u16,
     ) -> ReplayRecordingNotChunkedKafkaMessage {
-        return ReplayRecordingNotChunkedKafkaMessage {
+        ReplayRecordingNotChunkedKafkaMessage {
             replay_id: event_id,
             project_id: scoping.project_id,
             org_id: scoping.organization_id,
@@ -453,7 +451,7 @@ impl StoreService {
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: replay_recording.payload(),
             replay_event: Some(replay_event.payload()),
-        };
+        }
     }
 
     fn produce(

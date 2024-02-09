@@ -409,8 +409,8 @@ class ReplayRecordingsConsumer(EventsConsumer):
         assert v["type"] == "replay_recording", v["type"]
         return v
 
-    def get_not_chunked_replay(self):
-        message = self.poll(timeout=10)
+    def get_not_chunked_replay(self, timeout=None):
+        message = self.poll(timeout=timeout)
         assert message is not None
         assert message.error() is None
 
