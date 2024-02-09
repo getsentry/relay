@@ -197,6 +197,7 @@ impl StoreService {
 
         let mut replay_event = None;
         let mut replay_recording = None;
+        let mut send_combined_replay_envelope = false;
 
         for item in envelope.items() {
             match item.ty() {
@@ -248,26 +249,15 @@ impl StoreService {
                 )?,
                 ItemType::ReplayRecording => {
                     if item.replay_combined_payload() {
-                        replay_recording = Some(item);
-                    } else {
-                        self.produce_replay_recording(
-                            event_id, scoping, item, start_time, retention,
-                        )?;
+                        send_combined_replay_envelope = true
                     }
+                    replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
                     if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    } else {
-                        self.produce_replay_event(
-                            event_id.ok_or(StoreError::NoEventId)?,
-                            scoping.organization_id,
-                            scoping.project_id,
-                            start_time,
-                            retention,
-                            item,
-                        )?;
+                        send_combined_replay_envelope = true
                     }
+                    replay_event = Some(item);
                 }
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
@@ -284,25 +274,35 @@ impl StoreService {
             }
         }
 
-        if let (Some(replay_event), Some(replay_recording)) = (replay_event, replay_recording) {
-            let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
-                event_id.ok_or(StoreError::NoEventId)?,
-                replay_event,
-                replay_recording,
-                scoping,
-                start_time,
-                retention,
-            );
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                KafkaMessage::ReplayRecordingNotChunked(combined_replay_kafka_message),
-            )?;
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "replay_recording_combined"
-            );
-        }
+        self.produce_replay_messages(
+            replay_event,
+            replay_recording,
+            event_id.ok_or(StoreError::NoEventId)?,
+            scoping,
+            start_time,
+            retention,
+            send_combined_replay_envelope,
+        )?;
+
+        // if let (Some(replay_event), Some(replay_recording)) = (replay_event, replay_recording) {
+        //     let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
+        //         event_id.ok_or(StoreError::NoEventId)?,
+        //         replay_event,
+        //         replay_recording,
+        //         scoping,
+        //         start_time,
+        //         retention,
+        //     );
+        //     self.produce(
+        //         KafkaTopic::ReplayRecordings,
+        //         scoping.organization_id,
+        //         KafkaMessage::ReplayRecordingNotChunked(combined_replay_kafka_message),
+        //     )?;
+        //     metric!(
+        //         counter(RelayCounters::ProcessingMessageProduced) += 1,
+        //         event_type = "replay_recording_combined"
+        //     );
+        // }
 
         if event_item.is_none() && attachments.is_empty() {
             // No event-related content. All done.
@@ -432,26 +432,6 @@ impl StoreService {
         });
 
         attachment_iterator.chain(event_iterator)
-    }
-
-    fn extract_combined_replay_kafka_message(
-        event_id: EventId,
-        replay_event: &Item,
-        replay_recording: &Item,
-        scoping: Scoping,
-        start_time: Instant,
-        retention: u16,
-    ) -> ReplayRecordingNotChunkedKafkaMessage {
-        ReplayRecordingNotChunkedKafkaMessage {
-            replay_id: event_id,
-            project_id: scoping.project_id,
-            org_id: scoping.organization_id,
-            key_id: scoping.key_id,
-            retention_days: retention,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: replay_recording.payload(),
-            replay_event: Some(replay_event.payload()),
-        }
     }
 
     fn produce(
@@ -829,6 +809,7 @@ impl StoreService {
         event_id: Option<EventId>,
         scoping: Scoping,
         item: &Item,
+        replay_event: Option<&Item>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
@@ -837,6 +818,11 @@ impl StoreService {
 
         // Remaining bytes can be filled by the payload.
         let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
+
+        let mut replay_event_payload = None;
+        if let Some(replay_event) = replay_event {
+            replay_event_payload = Some(replay_event.payload());
+        }
 
         if item.payload().len() < max_payload_size {
             let message =
@@ -848,7 +834,7 @@ impl StoreService {
                     received: UnixTimestamp::from_instant(start_time).as_secs(),
                     retention_days: retention,
                     payload: item.payload(),
-                    replay_event: None,
+                    replay_event: replay_event_payload,
                 });
 
             self.produce(
@@ -865,6 +851,61 @@ impl StoreService {
             relay_log::warn!("replay_recording over maximum size.");
         };
 
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn produce_replay_messages(
+        &self,
+        replay_event: Option<&Item>,
+        replay_recording: Option<&Item>,
+        replay_id: EventId,
+        scoping: Scoping,
+        start_time: Instant,
+        retention_days: u16,
+        send_combined_replay_envelope: bool,
+    ) -> Result<(), StoreError> {
+        if let Some(replay_event) = replay_event {
+            self.produce_replay_event(
+                replay_id,
+                scoping.organization_id,
+                scoping.project_id,
+                start_time,
+                retention_days,
+                replay_event,
+            )?;
+
+            if let Some(replay_recording) = replay_recording {
+                if send_combined_replay_envelope {
+                    self.produce_replay_recording(
+                        Some(replay_id),
+                        scoping,
+                        replay_recording,
+                        Some(replay_event),
+                        start_time,
+                        retention_days,
+                    )?;
+                } else {
+                    self.produce_replay_recording(
+                        Some(replay_id),
+                        scoping,
+                        replay_recording,
+                        None,
+                        start_time,
+                        retention_days,
+                    )?;
+                }
+            }
+        } else if let Some(replay_recording) = replay_recording {
+            self.produce_replay_recording(
+                Some(replay_id),
+                scoping,
+                replay_recording,
+                None,
+                start_time,
+                retention_days,
+            )?;
+        }
         Ok(())
     }
 
