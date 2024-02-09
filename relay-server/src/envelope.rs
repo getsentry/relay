@@ -746,6 +746,7 @@ impl Item {
     }
 
     /// Returns if the payload's replay items should be combined into one kafka message.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn replay_combined_payload(&self) -> bool {
         self.headers.replay_combined_payload
     }
