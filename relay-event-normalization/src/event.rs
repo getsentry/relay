@@ -1089,8 +1089,8 @@ mod tests {
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request,
-        Tags, Values,
+        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
+        Request, Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
