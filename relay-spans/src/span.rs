@@ -62,7 +62,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
     }
 }
 
-/// Transform an OtelSpan to an Sentry span.
+/// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
     let mut data: Object<Value> = Object::new();
