@@ -885,69 +885,7 @@ impl StoreService {
             });
         }
 
-        if let Some(metrics_summary) = &mut span.metrics_summary {
-            metrics_summary.retain(|_, mut v| {
-                if let Some(v) = &mut v {
-                    v.retain(|v| {
-                        if let Some(v) = v {
-                            return v.min.is_some()
-                                || v.max.is_some()
-                                || v.sum.is_some()
-                                || v.count.is_some();
-                        }
-                        false
-                    });
-                    !v.is_empty()
-                } else {
-                    false
-                }
-            });
-
-            let group = span
-                .sentry_tags
-                .as_ref()
-                .and_then(|sentry_tags| sentry_tags.get("group").cloned())
-                .unwrap_or_default();
-
-            for (mri, summaries) in metrics_summary {
-                let Some(summaries) = summaries else {
-                    continue;
-                };
-                for summary in summaries {
-                    let Some(summary) = summary else {
-                        continue;
-                    };
-                    // Ignore immediate errors on produce.
-                    if let Err(error) = self.produce(
-                        KafkaTopic::MetricsSummaries,
-                        scoping.organization_id,
-                        KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
-                            count: summary.count,
-                            duration_ms: span.duration_ms,
-                            end_timestamp: span.end_timestamp,
-                            group: &group,
-                            is_segment: span.is_segment,
-                            max: summary.max,
-                            mri,
-                            min: summary.min,
-                            project_id: span.project_id,
-                            retention_days: span.retention_days,
-                            segment_id: span.segment_id.unwrap_or_default(),
-                            span_id: span.span_id,
-                            sum: summary.sum,
-                            tags: summary.tags,
-                            trace_id: span.trace_id,
-                        }),
-                    ) {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to push metrics summary to kafka",
-                        );
-                    }
-                }
-            }
-            span.metrics_summary = None;
-        }
+        self.produce_metrics_summary(scoping, start_time, item, &span);
 
         self.produce(
             KafkaTopic::Spans,
@@ -971,6 +909,101 @@ impl StoreService {
         );
 
         Ok(())
+    }
+
+    fn produce_metrics_summary(
+        &self,
+        scoping: Scoping,
+        start_time: Instant,
+        item: &Item,
+        span: &SpanKafkaMessage,
+    ) {
+        let payload = item.payload();
+        let d = &mut Deserializer::from_slice(&payload);
+        let mut metrics_summary: SpanWithMetricsSummary = match serde_path_to_error::deserialize(d)
+        {
+            Ok(span) => span,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse span"
+                );
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: instant_to_date_time(start_time),
+                });
+                return;
+            }
+        };
+        let Some(metrics_summary) = &mut metrics_summary.metrics_summary else {
+            return;
+        };
+
+        metrics_summary.retain(|_, mut v| {
+            if let Some(v) = &mut v {
+                v.retain(|v| {
+                    if let Some(v) = v {
+                        return v.min.is_some()
+                            || v.max.is_some()
+                            || v.sum.is_some()
+                            || v.count.is_some();
+                    }
+                    false
+                });
+                !v.is_empty()
+            } else {
+                false
+            }
+        });
+
+        let group = span
+            .sentry_tags
+            .as_ref()
+            .and_then(|sentry_tags| sentry_tags.get("group"))
+            .map_or("", String::as_str);
+
+        for (mri, summaries) in metrics_summary {
+            let Some(summaries) = summaries else {
+                continue;
+            };
+            for summary in summaries {
+                let Some(summary) = summary else {
+                    continue;
+                };
+                // Ignore immediate errors on produce.
+                if let Err(error) = self.produce(
+                    KafkaTopic::MetricsSummaries,
+                    scoping.organization_id,
+                    KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
+                        count: summary.count,
+                        duration_ms: span.duration_ms,
+                        end_timestamp: span.end_timestamp,
+                        group,
+                        is_segment: span.is_segment,
+                        max: summary.max,
+                        mri,
+                        min: summary.min,
+                        project_id: span.project_id,
+                        retention_days: span.retention_days,
+                        segment_id: span.segment_id.unwrap_or_default(),
+                        span_id: span.span_id,
+                        sum: summary.sum,
+                        tags: summary.tags,
+                        trace_id: span.trace_id,
+                    }),
+                ) {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to push metrics summary to kafka",
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1292,13 +1325,6 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
-    #[serde(
-        borrow,
-        default,
-        rename = "_metrics_summary",
-        skip_serializing_if = "Option::is_none"
-    )]
-    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries<'a>>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1321,6 +1347,17 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpanWithMetricsSummary<'a> {
+    #[serde(
+        borrow,
+        default,
+        rename(deserialize = "_metrics_summary"),
+        skip_serializing_if = "Option::is_none"
+    )]
+    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries<'a>>>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
