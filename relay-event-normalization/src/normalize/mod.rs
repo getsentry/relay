@@ -7,8 +7,8 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping,
-    NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
+    ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
@@ -408,25 +408,6 @@ impl Processor for StoreNormalizeProcessor {
         self.normalize_metrics_summaries(event);
         self.normalize_trace_context(event);
         self.normalize_replay_context(event);
-
-        Ok(())
-    }
-
-    fn process_breadcrumb(
-        &mut self,
-        breadcrumb: &mut Breadcrumb,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        breadcrumb.process_child_values(self, state)?;
-
-        if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
-        }
-
-        if breadcrumb.level.value().is_none() {
-            breadcrumb.level.set_value(Some(Level::Info));
-        }
 
         Ok(())
     }
