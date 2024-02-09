@@ -6,6 +6,13 @@ import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Span,
+    ScopeSpans,
+    ResourceSpans,
+    TracesData,
+)
+from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 import pytest
 from flask import Response, abort
@@ -1530,10 +1537,10 @@ def test_span_ingestion(
     )
     relay.send_envelope(project_id, envelope)
 
-    # 2 - Send OTel span via endpoint
+    # 2 - Send OTel json span via endpoint
     relay.send_otel_span(
         project_id,
-        {
+        json={
             "resourceSpans": [
                 {
                     "scopeSpans": [
@@ -1562,6 +1569,31 @@ def test_span_ingestion(
                 },
             ],
         },
+    )
+
+    protobuf_span = Span(
+        trace_id=bytes.fromhex("89143b0763095bd9c9955e8175d1fb24"),
+        span_id=bytes.fromhex("f0b809703e783d00"),
+        name="my 3rd protobuf OTel span",
+        start_time_unix_nano=int(start.timestamp() * 1e9),
+        end_time_unix_nano=int(end.timestamp() * 1e9),
+        attributes=[
+            KeyValue(
+                key="sentry.exclusive_time_ns",
+                value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
+            ),
+        ],
+    )
+    scope_spans = ScopeSpans(spans=[protobuf_span])
+    resource_spans = ResourceSpans(scope_spans=[scope_spans])
+    traces_data = TracesData(resource_spans=[resource_spans])
+    protobuf_payload = traces_data.SerializeToString()
+
+    # 3 - Send OTel protobuf span via endpoint
+    relay.send_otel_span(
+        project_id,
+        bytes=protobuf_payload,
+        headers={"Content-Type": "application/x-protobuf"},
     )
 
     spans = list(spans_consumer.get_spans(timeout=10.0))
@@ -1656,6 +1688,20 @@ def test_span_ingestion(
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
+        {
+            "description": "my 3rd protobuf OTel span",
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "parent_span_id": "",
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "f0b809703e783d00",
+            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
+            "span_id": "f0b809703e783d00",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+        },
     ]
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
@@ -1694,7 +1740,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 1.0,
+            "value": 2.0,
             "timestamp": expected_timestamp,
             "tags": {"span.op": "default"},
             "retention_days": 90,

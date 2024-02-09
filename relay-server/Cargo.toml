@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.1"
+version = "24.1.2"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -124,6 +124,7 @@ tower-http = { version = "0.4.0", default-features = false, features = [
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { version = "0.12.3", optional = true }
+axum-extra = { version = "0.7.7", features = ["protobuf"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }

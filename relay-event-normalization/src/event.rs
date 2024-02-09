@@ -7,14 +7,16 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
+use once_cell::sync::OnceCell;
+use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
+    Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -201,7 +203,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
+    normalize_user(&mut event.user);
     normalize_logentry(&mut event.logentry, meta);
+    normalize_debug_meta(event);
+    normalize_breadcrumbs(event);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
     normalize_platform_and_level(event);
@@ -368,10 +373,62 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
+fn normalize_user(user: &mut Annotated<User>) {
+    let Annotated(Some(user), _) = user else {
+        return;
+    };
+    if !user.other.is_empty() {
+        let data = user.data.value_mut().get_or_insert_with(Object::new);
+        data.extend(std::mem::take(&mut user.other));
+    }
+}
+
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
     let _ = processor::apply(logentry, |logentry, meta| {
         crate::logentry::normalize_logentry(logentry, meta)
     });
+}
+
+/// Normalizes the debug images in the event's debug meta.
+fn normalize_debug_meta(event: &mut Event) {
+    let Annotated(Some(debug_meta), _) = &mut event.debug_meta else {
+        return;
+    };
+    let Annotated(Some(debug_images), _) = &mut debug_meta.images else {
+        return;
+    };
+
+    for annotated_image in debug_images {
+        let _ = processor::apply(annotated_image, |image, meta| match image {
+            DebugImage::Other(_) => {
+                meta.add_error(Error::invalid("unsupported debug image type"));
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+            _ => Ok(()),
+        });
+    }
+}
+
+fn normalize_breadcrumbs(event: &mut Event) {
+    let Annotated(Some(breadcrumbs), _) = &mut event.breadcrumbs else {
+        return;
+    };
+    let Some(breadcrumbs) = breadcrumbs.values.value_mut() else {
+        return;
+    };
+
+    for annotated_breadcrumb in breadcrumbs {
+        let Annotated(Some(breadcrumb), _) = annotated_breadcrumb else {
+            continue;
+        };
+
+        if breadcrumb.ty.value().is_empty() {
+            breadcrumb.ty.set_value(Some("default".to_string()));
+        }
+        if breadcrumb.level.value().is_none() {
+            breadcrumb.level.set_value(Some(Level::Info));
+        }
+    }
 }
 
 /// Ensures that the `release` and `dist` fields match up.
@@ -504,35 +561,62 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the last frame of the stacktrace of the first exception.
+/// Normalizes all the stack traces in the given event.
 ///
-/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+/// Normalized stack traces are `event.stacktrace`, `event.exceptions.stacktrace`, and
+/// `event.thread.stacktrace`. Raw stack traces are not normalized.
 fn normalize_stacktraces(event: &mut Event) {
-    match event.exceptions.value_mut() {
-        None => (),
-        Some(exception) => match exception.values.value_mut() {
-            None => (),
-            Some(exceptions) => match exceptions.first_mut() {
-                None => (),
-                Some(first) => normalize_last_stacktrace_frame(first),
-            },
-        },
-    };
+    normalize_event_stacktrace(event);
+    normalize_exception_stacktraces(event);
+    normalize_thread_stacktraces(event);
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
-    let _ = processor::apply(exception, |e, _| {
-        processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
-            None => Ok(()),
-            Some(frames) => match frames.last_mut() {
-                None => Ok(()),
-                Some(frame) => {
-                    stacktrace::process_non_raw_frame(frame);
-                    Ok(())
-                }
-            },
-        })
-    });
+/// Normalizes an event's stack trace, in `event.stacktrace`.
+fn normalize_event_stacktrace(event: &mut Event) {
+    let Annotated(Some(stacktrace), meta) = &mut event.stacktrace else {
+        return;
+    };
+    stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+}
+
+/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
+fn normalize_exception_stacktraces(event: &mut Event) {
+    let Some(event_exception) = event.exceptions.value_mut() else {
+        return;
+    };
+    let Some(exceptions) = event_exception.values.value_mut() else {
+        return;
+    };
+    for annotated_exception in exceptions {
+        let Some(exception) = annotated_exception.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut exception.stacktrace {
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
+}
+
+/// Normalizes the stack traces in an event's threads, in `event.threads.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
+fn normalize_thread_stacktraces(event: &mut Event) {
+    let Some(event_threads) = event.threads.value_mut() else {
+        return;
+    };
+    let Some(threads) = event_threads.values.value_mut() else {
+        return;
+    };
+    for annotated_thread in threads {
+        let Some(thread) = annotated_thread.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut thread.stacktrace {
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
 }
 
 fn normalize_exceptions(event: &mut Event) {
@@ -557,6 +641,7 @@ fn normalize_exceptions(event: &mut Event) {
             //
             // We also want to validate some other aspects of it.
             for exception in exceptions {
+                normalize_exception(exception);
                 if let Some(exception) = exception.value_mut() {
                     if let Some(mechanism) = exception.mechanism.value_mut() {
                         mechanism::normalize_mechanism(mechanism, os_hint);
@@ -565,6 +650,35 @@ fn normalize_exceptions(event: &mut Event) {
             }
         }
     }
+}
+
+fn normalize_exception(exception: &mut Annotated<Exception>) {
+    static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+    let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
+
+    let _ = processor::apply(exception, |exception, meta| {
+        if exception.ty.value().is_empty() {
+            if let Some(value_str) = exception.value.value_mut() {
+                let new_values = regex
+                    .captures(value_str)
+                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+
+                if let Some((new_type, new_value)) = new_values {
+                    exception.ty.set_value(Some(new_type));
+                    *value_str = new_value;
+                }
+            }
+        }
+
+        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
+            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
+                error.insert("attribute", "type or value");
+            }));
+            return Err(ProcessingAction::DeleteValueSoft);
+        }
+
+        Ok(())
+    });
 }
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
@@ -973,8 +1087,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use insta::assert_debug_snapshot;
+    use itertools::Itertools;
     use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
+        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
+        Request, Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2473,5 +2589,233 @@ mod tests {
             },
         );
         assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_user_data_moved() {
+        let mut user = Annotated::new(User {
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_owned())),
+                );
+                map
+            },
+            ..User::default()
+        });
+
+        normalize_user(&mut user);
+
+        let user = user.value().unwrap();
+
+        assert_eq!(user.data, {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            Annotated::new(map)
+        });
+
+        assert_eq!(user.other, Object::new());
+    }
+
+    #[test]
+    fn test_handle_types_in_spaced_exception_values() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError: unauthorized".to_string().into()),
+            ..Exception::default()
+        });
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
+    }
+
+    #[test]
+    fn test_handle_types_in_non_spaced_excepton_values() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError:unauthorized".to_string().into()),
+            ..Exception::default()
+        });
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
+    }
+
+    #[test]
+    fn test_rejects_empty_exception_fields() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("".to_string().into()),
+            ty: Annotated::new("".to_string()),
+            ..Default::default()
+        });
+
+        normalize_exception(&mut exception);
+
+        assert!(exception.value().is_none());
+        assert!(exception.meta().has_errors());
+    }
+
+    #[test]
+    fn test_json_value() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            ..Exception::default()
+        });
+
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+
+        // Don't split a json-serialized value on the colon
+        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
+        assert_eq!(exception.ty.value(), None);
+    }
+
+    #[test]
+    fn test_exception_invalid() {
+        let mut exception = Annotated::new(Exception::default());
+
+        normalize_exception(&mut exception);
+
+        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
+            error.insert("attribute", "type or value");
+        });
+        assert_eq!(
+            exception.meta().iter_errors().collect_tuple(),
+            Some((&expected,))
+        );
+    }
+
+    #[test]
+    fn test_normalize_exception() {
+        let mut event = Annotated::new(Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                // Exception with missing type and value
+                ty: Annotated::empty(),
+                value: Annotated::empty(),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        });
+
+        normalize_event(&mut event, &NormalizationConfig::default());
+
+        let exception = event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap();
+
+        assert_debug_snapshot!(exception.meta(), @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: MissingAttribute,
+                    data: {
+                        "attribute": String(
+                            "type or value",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {
+                        "mechanism": ~,
+                        "module": ~,
+                        "raw_stacktrace": ~,
+                        "stacktrace": ~,
+                        "thread_id": ~,
+                        "type": ~,
+                        "value": ~,
+                    },
+                ),
+            ),
+        }"#);
+    }
+
+    #[test]
+    fn test_normalize_breadcrumbs() {
+        let mut event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Breadcrumb::default())]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_breadcrumbs(&mut event);
+
+        let breadcrumb = event
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+        assert_eq!(breadcrumb.ty.value().unwrap(), "default");
+        assert_eq!(&breadcrumb.level.value().unwrap().to_string(), "info");
+    }
+
+    #[test]
+    fn test_other_debug_images_have_meta_errors() {
+        let mut event = Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(
+                    DebugImage::Other(BTreeMap::default()),
+                )]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_debug_meta(&mut event);
+
+        let debug_image_meta = event
+            .debug_meta
+            .value()
+            .unwrap()
+            .images
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .meta();
+        assert_debug_snapshot!(debug_image_meta, @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "unsupported debug image type",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {},
+                ),
+            ),
+        }"#);
     }
 }
