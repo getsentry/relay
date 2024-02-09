@@ -2230,25 +2230,6 @@
 <a href="#2229" id="2229">2229</a>
 <a href="#2230" id="2230">2230</a>
 <a href="#2231" id="2231">2231</a>
-<a href="#2232" id="2232">2232</a>
-<a href="#2233" id="2233">2233</a>
-<a href="#2234" id="2234">2234</a>
-<a href="#2235" id="2235">2235</a>
-<a href="#2236" id="2236">2236</a>
-<a href="#2237" id="2237">2237</a>
-<a href="#2238" id="2238">2238</a>
-<a href="#2239" id="2239">2239</a>
-<a href="#2240" id="2240">2240</a>
-<a href="#2241" id="2241">2241</a>
-<a href="#2242" id="2242">2242</a>
-<a href="#2243" id="2243">2243</a>
-<a href="#2244" id="2244">2244</a>
-<a href="#2245" id="2245">2245</a>
-<a href="#2246" id="2246">2246</a>
-<a href="#2247" id="2247">2247</a>
-<a href="#2248" id="2248">2248</a>
-<a href="#2249" id="2249">2249</a>
-<a href="#2250" id="2250">2250</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2258,8 +2239,8 @@
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping,
-    NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
+    ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 <span class="kw">use </span>relay_protocol::{
     Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
@@ -2659,25 +2640,6 @@
         </span><span class="self">self</span>.normalize_metrics_summaries(event);
         <span class="self">self</span>.normalize_trace_context(event);
         <span class="self">self</span>.normalize_replay_context(event);
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>process_breadcrumb(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        breadcrumb: <span class="kw-2">&amp;mut </span>Breadcrumb,
-        _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        breadcrumb.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
-
-        <span class="kw">if </span>breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(<span class="prelude-val">Some</span>(<span class="string">"default"</span>.to_string()));
-        }
-
-        <span class="kw">if </span>breadcrumb.level.value().is_none() {
-            breadcrumb.level.set_value(<span class="prelude-val">Some</span>(Level::Info));
-        }
 
         <span class="prelude-val">Ok</span>(())
     }
