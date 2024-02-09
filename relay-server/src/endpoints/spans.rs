@@ -25,17 +25,13 @@ where
     B::Data: Send + Into<Bytes>,
     B::Error: Into<axum::BoxError>,
 {
-    let trace = if content_type.as_ref().starts_with("application/json") {
-        let json: Json<TracesData> = request.extract().await?;
-        Some(json.0)
+    let trace: TracesData = if content_type.as_ref().starts_with("application/json") {
+        let Json(trace) = request.extract().await?;
+        trace
     } else if content_type.as_ref().starts_with("application/x-protobuf") {
-        let protobuf: Protobuf<TracesData> = request.extract().await?;
-        Some(protobuf.0)
+        let Protobuf(trace) = request.extract().await?;
+        trace
     } else {
-        None
-    };
-
-    let Some(trace) = trace else {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     };
 
@@ -53,6 +49,7 @@ where
         }
     }
     common::handle_envelope(&state, envelope).await?;
+
     Ok(StatusCode::ACCEPTED)
 }
 
