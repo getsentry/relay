@@ -293,7 +293,7 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range: timestmap_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -317,7 +317,7 @@ fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(&timestmap_range))?;
+        validate_span(span, Some(&timestamp_range))?;
     }
     process_value(
         annotated_span,

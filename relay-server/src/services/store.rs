@@ -943,6 +943,17 @@ impl StoreService {
         let Some(metrics_summary) = &mut metrics_summary.metrics_summary else {
             return;
         };
+        let &SpanKafkaMessage {
+            end_timestamp,
+            duration_ms,
+            is_segment,
+            project_id,
+            segment_id,
+            retention_days,
+            span_id,
+            trace_id,
+            ..
+        } = span;
 
         metrics_summary.retain(|_, mut v| {
             if let Some(v) = &mut v {
@@ -972,7 +983,14 @@ impl StoreService {
                 continue;
             };
             for summary in summaries {
-                let Some(summary) = summary else {
+                let &mut Some(SpanMetricsSummary {
+                    count,
+                    max,
+                    min,
+                    sum,
+                    tags,
+                }) = summary
+                else {
                     continue;
                 };
                 // Ignore immediate errors on produce.
@@ -980,21 +998,21 @@ impl StoreService {
                     KafkaTopic::MetricsSummaries,
                     scoping.organization_id,
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
-                        count: summary.count,
-                        duration_ms: span.duration_ms,
-                        end_timestamp: span.end_timestamp,
+                        count,
+                        duration_ms,
+                        end_timestamp,
                         group,
-                        is_segment: span.is_segment,
-                        max: summary.max,
+                        is_segment,
+                        max,
+                        min,
                         mri,
-                        min: summary.min,
-                        project_id: span.project_id,
-                        retention_days: span.retention_days,
-                        segment_id: span.segment_id.unwrap_or_default(),
-                        span_id: span.span_id,
-                        sum: summary.sum,
-                        tags: summary.tags,
-                        trace_id: span.trace_id,
+                        project_id,
+                        retention_days,
+                        segment_id: segment_id.unwrap_or_default(),
+                        span_id,
+                        sum,
+                        tags,
+                        trace_id,
                     }),
                 ) {
                     relay_log::error!(
