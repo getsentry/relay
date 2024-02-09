@@ -33,7 +33,7 @@ const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of PG queries we don't want to support.
-const DISABLE_SOME_PG_QUERIES: &[&str] = &["* SAVEPOINT *"];
+const DISABLE_SOME_PG_QUERIES: &[&str] = &["*SAVEPOINT*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
