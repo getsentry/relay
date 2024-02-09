@@ -319,6 +319,72 @@ mod tests {
     );
 
     scrub_sql_test!(
+        savepoint_quoted_backtick,
+        "SAVEPOINT `backtick_quoted_identifier`",
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase,
+        "RELEASE SAVEPOINT unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase_semicolon,
+        "RELEASE SAVEPOINT unquoted_identifier;",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_lowercase,
+        "release savepoint unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted,
+        "RELEASE SAVEPOINT 'single_quoted_identifier'",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted_backtick,
+        "RELEASE SAVEPOINT `backtick_quoted_identifier`",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase_semicolon,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier;",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_lowercase,
+        "rollback to savepoint unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted,
+        "ROLLBACK TO SAVEPOINT 'single_quoted_identifier'",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted_backtick,
+        "ROLLBACK TO SAVEPOINT `backtick_quoted_identifier`",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
         declare_cursor,
         "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
         "DECLARE %s CURSOR FOR SELECT * FROM t1"
@@ -337,12 +403,6 @@ mod tests {
     );
 
     scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
-
-    scrub_sql_test!(
-        savepoint_quoted_backtick,
-        "SAVEPOINT `backtick_quoted_identifier`",
-        "SAVEPOINT %s"
-    );
 
     scrub_sql_test!(
         single_quoted_string,
