@@ -2215,21 +2215,6 @@
 <a href="#2214" id="2214">2214</a>
 <a href="#2215" id="2215">2215</a>
 <a href="#2216" id="2216">2216</a>
-<a href="#2217" id="2217">2217</a>
-<a href="#2218" id="2218">2218</a>
-<a href="#2219" id="2219">2219</a>
-<a href="#2220" id="2220">2220</a>
-<a href="#2221" id="2221">2221</a>
-<a href="#2222" id="2222">2222</a>
-<a href="#2223" id="2223">2223</a>
-<a href="#2224" id="2224">2224</a>
-<a href="#2225" id="2225">2225</a>
-<a href="#2226" id="2226">2226</a>
-<a href="#2227" id="2227">2227</a>
-<a href="#2228" id="2228">2228</a>
-<a href="#2229" id="2229">2229</a>
-<a href="#2230" id="2230">2230</a>
-<a href="#2231" id="2231">2231</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2239,7 +2224,7 @@
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{
-    ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
     ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 <span class="kw">use </span>relay_protocol::{
@@ -2643,21 +2628,6 @@
 
         <span class="prelude-val">Ok</span>(())
     }
-
-    <span class="kw">fn </span>process_debug_image(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        image: <span class="kw-2">&amp;mut </span>DebugImage,
-        meta: <span class="kw-2">&amp;mut </span>Meta,
-        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        <span class="kw">match </span>image {
-            DebugImage::Other(<span class="kw">_</span>) =&gt; {
-                meta.add_error(Error::invalid(<span class="string">"unsupported debug image type"</span>));
-                <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
 }
 
 <span class="doccomment">/// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -2769,9 +2739,9 @@
     <span class="kw">use </span>relay_base_schema::spans::SpanStatus;
     <span class="kw">use </span>relay_event_schema::processor::process_value;
     <span class="kw">use </span>relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, DebugMeta, Exception, Frame, Geo, IpAddr, LenientString,
-        LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId,
-        Stacktrace, TagEntry, Tags, TraceId, User, Values,
+        Context, ContextInner, Contexts, DebugImage, DebugMeta, Exception, Frame, Geo, IpAddr,
+        LenientString, LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request,
+        Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     <span class="kw">use </span>relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,

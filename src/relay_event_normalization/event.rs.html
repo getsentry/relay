@@ -2754,6 +2754,72 @@
 <a href="#2753" id="2753">2753</a>
 <a href="#2754" id="2754">2754</a>
 <a href="#2755" id="2755">2755</a>
+<a href="#2756" id="2756">2756</a>
+<a href="#2757" id="2757">2757</a>
+<a href="#2758" id="2758">2758</a>
+<a href="#2759" id="2759">2759</a>
+<a href="#2760" id="2760">2760</a>
+<a href="#2761" id="2761">2761</a>
+<a href="#2762" id="2762">2762</a>
+<a href="#2763" id="2763">2763</a>
+<a href="#2764" id="2764">2764</a>
+<a href="#2765" id="2765">2765</a>
+<a href="#2766" id="2766">2766</a>
+<a href="#2767" id="2767">2767</a>
+<a href="#2768" id="2768">2768</a>
+<a href="#2769" id="2769">2769</a>
+<a href="#2770" id="2770">2770</a>
+<a href="#2771" id="2771">2771</a>
+<a href="#2772" id="2772">2772</a>
+<a href="#2773" id="2773">2773</a>
+<a href="#2774" id="2774">2774</a>
+<a href="#2775" id="2775">2775</a>
+<a href="#2776" id="2776">2776</a>
+<a href="#2777" id="2777">2777</a>
+<a href="#2778" id="2778">2778</a>
+<a href="#2779" id="2779">2779</a>
+<a href="#2780" id="2780">2780</a>
+<a href="#2781" id="2781">2781</a>
+<a href="#2782" id="2782">2782</a>
+<a href="#2783" id="2783">2783</a>
+<a href="#2784" id="2784">2784</a>
+<a href="#2785" id="2785">2785</a>
+<a href="#2786" id="2786">2786</a>
+<a href="#2787" id="2787">2787</a>
+<a href="#2788" id="2788">2788</a>
+<a href="#2789" id="2789">2789</a>
+<a href="#2790" id="2790">2790</a>
+<a href="#2791" id="2791">2791</a>
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a>
+<a href="#2802" id="2802">2802</a>
+<a href="#2803" id="2803">2803</a>
+<a href="#2804" id="2804">2804</a>
+<a href="#2805" id="2805">2805</a>
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a>
+<a href="#2808" id="2808">2808</a>
+<a href="#2809" id="2809">2809</a>
+<a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2770,9 +2836,9 @@
 };
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, MaxChars, ProcessingAction, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
+    Tags, Timestamp, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -2961,6 +3027,7 @@
     <span class="comment">// Default required attributes, even if they have errors
     </span>normalize_user(<span class="kw-2">&amp;mut </span>event.user);
     normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
+    normalize_debug_meta(event);
     normalize_breadcrumbs(event);
     normalize_release_dist(event); <span class="comment">// dist is a tag extracted along with other metrics from transactions
     </span>normalize_event_tags(event); <span class="comment">// Tags are added to every metric
@@ -3142,6 +3209,26 @@
     <span class="kw">let _ </span>= processor::apply(logentry, |logentry, meta| {
         <span class="kw">crate</span>::logentry::normalize_logentry(logentry, meta)
     });
+}
+
+<span class="doccomment">/// Normalizes the debug images in the event's debug meta.
+</span><span class="kw">fn </span>normalize_debug_meta(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(debug_meta), <span class="kw">_</span>) = <span class="kw-2">&amp;mut </span>event.debug_meta <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(debug_images), <span class="kw">_</span>) = <span class="kw-2">&amp;mut </span>debug_meta.images <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+
+    <span class="kw">for </span>annotated_image <span class="kw">in </span>debug_images {
+        <span class="kw">let _ </span>= processor::apply(annotated_image, |image, meta| <span class="kw">match </span>image {
+            DebugImage::Other(<span class="kw">_</span>) =&gt; {
+                meta.add_error(Error::invalid(<span class="string">"unsupported debug image type"</span>));
+                <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
+            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
+        });
+    }
 }
 
 <span class="kw">fn </span>normalize_breadcrumbs(event: <span class="kw-2">&amp;mut </span>Event) {
@@ -3824,8 +3911,8 @@
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>itertools::Itertools;
     <span class="kw">use </span>relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request,
-        Tags, Values,
+        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
+        Request, Tags, Values,
     };
     <span class="kw">use </span>relay_protocol::{get_value, Annotated, SerializableAnnotated};
     <span class="kw">use </span>serde_json::json;
@@ -5507,6 +5594,51 @@
             .unwrap();
         <span class="macro">assert_eq!</span>(breadcrumb.ty.value().unwrap(), <span class="string">"default"</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>breadcrumb.level.value().unwrap().to_string(), <span class="string">"info"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_other_debug_images_have_meta_errors() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
+                    DebugImage::Other(BTreeMap::default()),
+                )]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_debug_meta(<span class="kw-2">&amp;mut </span>event);
+
+        <span class="kw">let </span>debug_image_meta = event
+            .debug_meta
+            .value()
+            .unwrap()
+            .images
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .meta();
+        <span class="macro">assert_debug_snapshot!</span>(debug_image_meta, @<span class="string">r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "unsupported debug image type",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {},
+                ),
+            ),
+        }"#</span>);
     }
 }
 </code></pre></div></section></main></body></html>
