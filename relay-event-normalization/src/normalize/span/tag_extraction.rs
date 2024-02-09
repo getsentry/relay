@@ -732,6 +732,7 @@ mod tests {
     use relay_protocol::{get_value, Annotated};
 
     use super::*;
+    use crate::span::description::parse_query;
     use crate::{normalize_event, NormalizationConfig};
 
     #[test]
