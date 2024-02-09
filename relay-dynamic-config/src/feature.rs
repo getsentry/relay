@@ -11,8 +11,8 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// Enables combining session replay envelope item (Replay Recordings and Replay Events).
-    /// into one item.
+    /// Enables combining session replay envelope items (Replay Recordings and Replay Events).
+    /// into one Kafka message.
     #[serde(rename = "organizations:session-replay-combined-envelope-items")]
     SessionReplayCombinedEnvelopeItems,
     /// Enables new User Feedback ingest.

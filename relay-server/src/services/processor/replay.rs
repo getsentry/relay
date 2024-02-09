@@ -156,5 +156,6 @@ fn process_replay_event(
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
+
     Ok(replay)
 }

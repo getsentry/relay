@@ -131,11 +131,13 @@ fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentIn
     };
 
     let user_agent_info = RawUserAgentInfo::from_headers(headers);
+
     let user_agent_info = if user_agent_info.is_empty() {
         default_user_agent
     } else {
         &user_agent_info
     };
+
     let contexts = replay.contexts.get_or_insert_with(Contexts::new);
     user_agent::normalize_user_agent_info_generic(contexts, &replay.platform, user_agent_info);
 }

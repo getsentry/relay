@@ -745,12 +745,12 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
-    /// Returns the contained source quantities.
+    /// Returns if the payload's replay items should be combined into one kafka message.
     pub fn replay_combined_payload(&self) -> bool {
         self.headers.replay_combined_payload
     }
 
-    /// Sets new source quantities.
+    /// Sets the replay_combined_payload for this item.
     pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
         self.headers.replay_combined_payload = combined_payload;
     }

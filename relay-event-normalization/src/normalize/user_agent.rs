@@ -68,6 +68,7 @@ pub fn normalize_user_agent_info_generic(
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
+
     if !contexts.contains_key(os_context_key) {
         if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
             contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
@@ -330,6 +331,7 @@ impl FromUserAgentInfo for DeviceContext {
 impl FromUserAgentInfo for BrowserContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
         let (browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
+
         Some(Self {
             name: Annotated::new(browser),
             version: Annotated::new(version),
@@ -339,6 +341,7 @@ impl FromUserAgentInfo for BrowserContext {
 
     fn parse_user_agent(user_agent: &str) -> Option<Self> {
         let browser = relay_ua::parse_user_agent(user_agent);
+
         if !is_known(&browser.family) {
             return None;
         }
