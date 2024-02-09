@@ -983,7 +983,7 @@ impl StoreService {
                 continue;
             };
             for summary in summaries {
-                let &mut Some(SpanMetricsSummary {
+                let Some(SpanMetricsSummary {
                     count,
                     max,
                     min,
@@ -1308,22 +1308,6 @@ struct SpanMeasurement {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SpanMetricsSummary<'a> {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    count: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    max: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    min: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sum: Option<f64>,
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    tags: Option<&'a RawValue>,
-}
-
-type SpanMetricsSummaries<'a> = Vec<Option<SpanMetricsSummary<'a>>>;
-
-#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
     start_timestamp: f64,
@@ -1368,17 +1352,28 @@ struct SpanKafkaMessage<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-struct SpanWithMetricsSummary<'a> {
-    #[serde(
-        borrow,
-        default,
-        rename(deserialize = "_metrics_summary"),
-        skip_serializing_if = "Option::is_none"
-    )]
-    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries<'a>>>>,
+struct SpanMetricsSummary {
+    #[serde(default)]
+    count: Option<u64>,
+    #[serde(default)]
+    max: Option<f64>,
+    #[serde(default)]
+    min: Option<f64>,
+    #[serde(default)]
+    sum: Option<f64>,
+    #[serde(default)]
+    tags: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
+
+#[derive(Debug, Deserialize)]
+struct SpanWithMetricsSummary {
+    #[serde(default, rename(deserialize = "_metrics_summary"))]
+    metrics_summary: Option<BTreeMap<String, Option<SpanMetricsSummaries>>>,
+}
+
+#[derive(Debug, Serialize)]
 struct MetricsSummaryKafkaMessage<'a> {
     duration_ms: u32,
     end_timestamp: f64,
@@ -1391,16 +1386,16 @@ struct MetricsSummaryKafkaMessage<'a> {
     span_id: &'a str,
     trace_id: &'a str,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    count: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    max: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    min: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sum: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<&'a RawValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    count: &'a Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sum: &'a Option<f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    tags: &'a BTreeMap<String, String>,
 }
 
 /// An enum over all possible ingest messages.
