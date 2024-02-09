@@ -1,7 +1,4 @@
-use std::collections::BTreeSet;
-
 use relay_auth::PublicKey;
-use relay_base_schema::spans::SpanAttribute;
 use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -68,9 +65,6 @@ pub struct ProjectConfig {
     /// Configuration for generic metrics extraction from all data categories.
     #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
-    /// The span attributes configuration.
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub span_attributes: BTreeSet<SpanAttribute>,
     /// Rules for applying metrics tags depending on the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
@@ -126,7 +120,6 @@ impl Default for ProjectConfig {
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
             metric_extraction: Default::default(),
-            span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: Default::default(),
             tx_name_rules: Vec::new(),
@@ -175,8 +168,6 @@ pub struct LimitedProjectConfig {
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub span_attributes: BTreeSet<SpanAttribute>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -406,6 +406,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
                     .always(), // already guarded by condition on metric
+                Tag::with_key("app_start_type")
+                    .from_field("span.sentry_tags.app_start_type")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
