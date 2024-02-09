@@ -1346,137 +1346,36 @@ impl EnvelopeProcessorService {
         // from the contents of the envelope.
         let group = managed_envelope.group();
 
+        macro_rules! run {
+            ($fn:ident) => {{
+                let mut state = self.prepare_state(
+                    managed_envelope,
+                    project_id,
+                    project_state,
+                    sampling_project_state,
+                    reservoir_counters,
+                );
+                match self.$fn(&mut state) {
+                    Ok(()) => Ok(ProcessingStateResult {
+                        managed_envelope: state.managed_envelope,
+                        extracted_metrics: state.extracted_metrics,
+                    }),
+                    Err(e) => Err((e, state.managed_envelope)),
+                }
+            }};
+        }
+
         relay_log::trace!("Processing {group:?} group");
 
         match group {
-            ProcessingGroup::Error(ErrorGroup) => {
-                let mut state = self.prepare_state::<ErrorGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_errors(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::Transaction(TransactionGroup) => {
-                let mut state = self.prepare_state::<TransactionGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_transactions(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::Session(SessionGroup) => {
-                let mut state = self.prepare_state::<SessionGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_sessions(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::Standalone(StandaloneGroup) => {
-                let mut state = self.prepare_state::<StandaloneGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_standalone(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::ClientReport(ClientReportGroup) => {
-                let mut state = self.prepare_state::<ClientReportGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_client_reports(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::Replay(ReplayGroup) => {
-                let mut state = self.prepare_state::<ReplayGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_replays(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::CheckIn(CheckInGroup) => {
-                let mut state = self.prepare_state::<CheckInGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_checkins(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
-            ProcessingGroup::Span(SpanGroup) => {
-                let mut state = self.prepare_state::<SpanGroup>(
-                    managed_envelope,
-                    project_id,
-                    project_state,
-                    sampling_project_state,
-                    reservoir_counters,
-                );
-                match self.process_spans(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
-                        extracted_metrics: state.extracted_metrics,
-                    }),
-                    Err(e) => Err((e, state.managed_envelope)),
-                }
-            }
+            ProcessingGroup::Error(ErrorGroup) => run!(process_errors),
+            ProcessingGroup::Transaction(TransactionGroup) => run!(process_transactions),
+            ProcessingGroup::Session(SessionGroup) => run!(process_sessions),
+            ProcessingGroup::Standalone(StandaloneGroup) => run!(process_standalone),
+            ProcessingGroup::ClientReport(ClientReportGroup) => run!(process_client_reports),
+            ProcessingGroup::Replay(ReplayGroup) => run!(process_replays),
+            ProcessingGroup::CheckIn(CheckInGroup) => run!(process_checkins),
+            ProcessingGroup::Span(SpanGroup) => run!(process_spans),
             // Currently is not used.
             ProcessingGroup::Metrics(MetricsGroup) => {
                 relay_log::error!(
