@@ -1,4 +1,3 @@
-import zlib
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_replay_recordings import recording_payload
@@ -10,7 +9,6 @@ def test_replay_combined_with_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer
 ):
     project_id = 42
-    org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
@@ -55,8 +53,3 @@ def test_replay_combined_with_processing(
     replay_event = json.loads(combined_replay_message["replay_event"])
 
     assert replay_event["replay_id"] == replay_id
-
-
-def recording_payload(bits: bytes):
-    compressed_payload = zlib.compress(bits)
-    return b'{"segment_id": 0}\n' + compressed_payload
