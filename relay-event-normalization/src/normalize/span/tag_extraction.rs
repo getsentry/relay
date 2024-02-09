@@ -15,7 +15,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{normalize_domain, parse_query, scrub_span_description};
+use crate::span::description::{normalize_domain, scrub_span_description};
 use crate::utils::{
     extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
     MOBILE_SDKS,
@@ -279,7 +279,7 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let scrubbed_description = scrub_span_description(span);
+        let (scrubbed_description, parsed_sql) = scrub_span_description(span);
 
         let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
@@ -373,7 +373,7 @@ pub fn extract_tags(
         } else if span_op.starts_with("db") {
             span.description
                 .value()
-                .and_then(|query| sql_tables_from_query(system, query))
+                .and_then(|query| sql_tables_from_query(query, &parsed_sql))
         } else {
             None
         };
@@ -604,9 +604,12 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// HACK: When there is a single table, add comma separation so that the
 /// backend can understand the difference between tables and their subsets
 /// for example: table `,users,` and table `,users_config,` should be considered different
-fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
-    match parse_query(db_system, query) {
-        Ok(ast) => {
+fn sql_tables_from_query(
+    query: &str,
+    ast: &Option<Vec<sqlparser::ast::Statement>>,
+) -> Option<String> {
+    match ast {
+        Some(ast) => {
             let mut visitor = SqlTableNameVisitor {
                 table_names: Default::default(),
             };
@@ -628,8 +631,8 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             }
             (!s.is_empty()).then_some(s)
         }
-        Err(e) => {
-            relay_log::debug!("Failed to parse SQL: {e}");
+        None => {
+            relay_log::debug!("Failed to parse SQL");
             extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
     }
@@ -845,7 +848,7 @@ mod tests {
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
             ",b,"
         );
     }
@@ -853,14 +856,17 @@ mod tests {
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(
+            sql_tables_from_query(query, &parse_query(None, query).ok()).unwrap(),
+            ",b,"
+        );
     }
 
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
             ",a,b,c,"
         );
     }
@@ -870,7 +876,7 @@ mod tests {
         let query =
             r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(Some("mysql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("mysql"), query).ok()).unwrap(),
             ",a,b,c,"
         );
     }
@@ -901,7 +907,7 @@ WHERE (
 LIMIT 1
             "#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
             ",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         );
     }
@@ -909,14 +915,17 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(
+            sql_tables_from_query(query, &parse_query(None, query).ok()).unwrap(),
+            ",b,"
+        );
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
             ",a,"
         );
     }
@@ -925,7 +934,7 @@ LIMIT 1
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
             ",a,"
         );
     }

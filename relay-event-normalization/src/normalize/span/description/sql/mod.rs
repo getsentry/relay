@@ -107,21 +107,21 @@ static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
 static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Normalizes the given SQL-query-like string.
-pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
+pub fn scrub_queries(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
     let t = Instant::now();
     let (res, mode) = scrub_queries_inner(db_system, string);
     relay_statsd::metric!(
         timer(Timers::SpanDescriptionNormalizeSQL) = t.elapsed(),
         mode = mode.as_str(),
     );
-    res
+    (res, mode)
 }
 
 /// The scrubbing mode that was applied to an SQL string.
 #[derive(Debug)]
-enum Mode {
+pub enum Mode {
     /// The SQL parser was able to parse & sanitize the string.
-    Parser,
+    Parsed(Vec<sqlparser::ast::Statement>),
     /// SQL parsing failed and the scrubber fell back to a sequence of regexes.
     Regex,
 }
@@ -129,15 +129,15 @@ enum Mode {
 impl Mode {
     fn as_str(&self) -> &str {
         match self {
-            Mode::Parser => "parser",
+            Mode::Parsed(_) => "parser",
             Mode::Regex => "regex",
         }
     }
 }
 
 fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
-    if let Ok(queries) = normalize_parsed_queries(db_system, string) {
-        return (Some(queries), Mode::Parser);
+    if let Ok((queries, ast)) = normalize_parsed_queries(db_system, string) {
+        return (Some(queries), Mode::Parsed(ast));
     }
 
     let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
@@ -193,7 +193,7 @@ mod tests {
         ($name:ident, $description_in:expr, $output:literal) => {
             #[test]
             fn $name() {
-                let scrubbed = scrub_queries(None, $description_in);
+                let (scrubbed, _mode) = scrub_queries(None, $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -203,7 +203,7 @@ mod tests {
         ($name:ident, $db_system:literal, $description_in:literal, $output:literal) => {
             #[test]
             fn $name() {
-                let scrubbed = scrub_queries(Some($db_system), $description_in);
+                let (scrubbed, _mode) = scrub_queries(Some($db_system), $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };

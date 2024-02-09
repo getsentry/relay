@@ -31,8 +31,12 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
-pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
-    let description = span.description.as_str()?;
+pub(crate) fn scrub_span_description(
+    span: &Span,
+) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
+    let Some(description) = span.description.as_str() else {
+        return (None, None);
+    };
 
     let data = span.data.value();
 
@@ -41,7 +45,9 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
-    span.op
+    let mut parsed_sql = None;
+    let scrubbed_description = span
+        .op
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
@@ -64,7 +70,11 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     // the query type ("User find" for example).
                     Some(description.to_owned())
                 } else {
-                    sql::scrub_queries(db_system, description)
+                    let (scrubbed, mode) = sql::scrub_queries(db_system, description);
+                    if let sql::Mode::Parsed(ast) = mode {
+                        parsed_sql = Some(ast);
+                    }
+                    scrubbed
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
@@ -105,7 +115,8 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
             }
             ("file", _) => scrub_file(description),
             _ => None,
-        })
+        });
+    (scrubbed_description, parsed_sql)
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
@@ -437,9 +448,9 @@ mod tests {
                 let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
                 if $expected == "" {
-                    assert!(scrubbed.is_none());
+                    assert!(scrubbed.0.is_none());
                 } else {
-                    assert_eq!($expected, scrubbed.unwrap());
+                    assert_eq!($expected, scrubbed.0.unwrap());
                 }
             }
         };
@@ -917,7 +928,7 @@ mod tests {
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
         let scrubbed = scrub_span_description(span);
-        assert_eq!(scrubbed.as_deref(), Some("SELECT %s"));
+        assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
     #[test]
@@ -932,7 +943,7 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
-        assert!(scrubbed.is_none());
+        assert!(scrubbed.0.is_none());
     }
 
     #[test]
@@ -950,7 +961,7 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // Can be scrubbed with db system.
-        assert_eq!(scrubbed.as_deref(), Some("SELECT a FROM b"));
+        assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
     }
 
     #[test]
@@ -965,7 +976,7 @@ mod tests {
 
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-        assert_eq!(scrubbed.as_deref(), Some("INSERTED * 'UAEventData'"));
+        assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
 
     #[test]
@@ -981,7 +992,7 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         assert_eq!(
-            scrubbed.as_deref(),
+            scrubbed.0.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
     }
@@ -1001,6 +1012,6 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // Can be scrubbed with db system.
-        assert_eq!(scrubbed.as_deref(), Some("my-component-name"));
+        assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
     }
 }
