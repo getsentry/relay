@@ -3074,7 +3074,7 @@
     <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>event.stacktrace <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
-    stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+    stacktrace::normalize_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
 }
 
 <span class="doccomment">/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
@@ -3092,7 +3092,7 @@
             <span class="kw">continue</span>;
         };
         <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>exception.stacktrace {
-            stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+            stacktrace::normalize_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
         }
     }
 }
@@ -3112,7 +3112,7 @@
             <span class="kw">continue</span>;
         };
         <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>thread.stacktrace {
-            stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+            stacktrace::normalize_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
         }
     }
 }
