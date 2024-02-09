@@ -29,8 +29,11 @@ const MOBILE_OPS: &[&str] = &[
 /// A list of span descriptions that indicate top-level app start spans.
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 
-/// A list of patterns found in MongoDB queries
+/// A list of patterns found in MongoDB queries.
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+
+/// A list of PG queries we don't want to support.
+const DISABLE_SOME_PG_QUERIES: &[&str] = &["*SAVEPOINT*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
@@ -66,7 +69,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
-            | RuleCondition::glob("span.description", MONGODB_QUERIES));
+            | RuleCondition::glob("span.description", MONGODB_QUERIES)
+            | RuleCondition::glob("span.description", DISABLE_SOME_PG_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
