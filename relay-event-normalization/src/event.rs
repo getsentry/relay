@@ -14,9 +14,9 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
+    Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -205,6 +205,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Default required attributes, even if they have errors
     normalize_user(&mut event.user);
     normalize_logentry(&mut event.logentry, meta);
+    normalize_debug_meta(event);
     normalize_breadcrumbs(event);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
@@ -386,6 +387,26 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
     let _ = processor::apply(logentry, |logentry, meta| {
         crate::logentry::normalize_logentry(logentry, meta)
     });
+}
+
+/// Normalizes the debug images in the event's debug meta.
+fn normalize_debug_meta(event: &mut Event) {
+    let Annotated(Some(debug_meta), _) = &mut event.debug_meta else {
+        return;
+    };
+    let Annotated(Some(debug_images), _) = &mut debug_meta.images else {
+        return;
+    };
+
+    for annotated_image in debug_images {
+        let _ = processor::apply(annotated_image, |image, meta| match image {
+            DebugImage::Other(_) => {
+                meta.add_error(Error::invalid("unsupported debug image type"));
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+            _ => Ok(()),
+        });
+    }
 }
 
 fn normalize_breadcrumbs(event: &mut Event) {
@@ -1068,8 +1089,8 @@ mod tests {
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request,
-        Tags, Values,
+        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
+        Request, Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2751,5 +2772,50 @@ mod tests {
             .unwrap();
         assert_eq!(breadcrumb.ty.value().unwrap(), "default");
         assert_eq!(&breadcrumb.level.value().unwrap().to_string(), "info");
+    }
+
+    #[test]
+    fn test_other_debug_images_have_meta_errors() {
+        let mut event = Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(
+                    DebugImage::Other(BTreeMap::default()),
+                )]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_debug_meta(&mut event);
+
+        let debug_image_meta = event
+            .debug_meta
+            .value()
+            .unwrap()
+            .images
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .meta();
+        assert_debug_snapshot!(debug_image_meta, @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "unsupported debug image type",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {},
+                ),
+            ),
+        }"#);
     }
 }

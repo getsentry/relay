@@ -7,7 +7,7 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
     ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -411,21 +411,6 @@ impl Processor for StoreNormalizeProcessor {
 
         Ok(())
     }
-
-    fn process_debug_image(
-        &mut self,
-        image: &mut DebugImage,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        match image {
-            DebugImage::Other(_) => {
-                meta.add_error(Error::invalid("unsupported debug image type"));
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-            _ => Ok(()),
-        }
-    }
 }
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -537,9 +522,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, DebugMeta, Exception, Frame, Geo, IpAddr, LenientString,
-        LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId,
-        Stacktrace, TagEntry, Tags, TraceId, User, Values,
+        Context, ContextInner, Contexts, DebugImage, DebugMeta, Exception, Frame, Geo, IpAddr,
+        LenientString, LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request,
+        Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,
