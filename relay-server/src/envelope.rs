@@ -489,7 +489,7 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
-    /// Indicates that this item should be combined into one payload with othe replay item.
+    /// Indicates that this item should be combined into one payload with other replay item.
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     replay_combined_payload: bool,
