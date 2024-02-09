@@ -57,8 +57,6 @@ fn parse_query_inner(
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.
-///
-///
 pub fn normalize_parsed_queries(
     db_system: Option<&str>,
     string: &str,
