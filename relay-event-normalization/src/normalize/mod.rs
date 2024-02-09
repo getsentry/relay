@@ -7,8 +7,8 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Frame, Level,
-    MetricSummaryMapping, NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
+    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Level, MetricSummaryMapping,
+    NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
@@ -445,43 +445,6 @@ impl Processor for StoreNormalizeProcessor {
             _ => Ok(()),
         }
     }
-
-    fn process_frame(
-        &mut self,
-        frame: &mut Frame,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        frame.process_child_values(self, state)?;
-
-        if frame.function.as_str() == Some("?") {
-            frame.function.set_value(None);
-        }
-
-        if frame.symbol.as_str() == Some("?") {
-            frame.symbol.set_value(None);
-        }
-
-        if let Some(lines) = frame.pre_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if let Some(lines) = frame.post_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if frame.context_line.value().is_none()
-            && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
-        {
-            frame.context_line.set_value(Some(String::new()));
-        }
-
-        Ok(())
-    }
 }
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -605,6 +568,7 @@ mod tests {
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
+    use crate::stacktrace::normalize_non_raw_frame;
     use crate::{
         normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
         GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
@@ -1231,8 +1195,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         let frame = frame.value().unwrap();
         assert_eq!(frame.context_line.as_str(), Some(""));
@@ -1268,8 +1231,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         assert_eq!(
             *get_value!(frame.pre_context!),

@@ -532,7 +532,7 @@ fn normalize_event_stacktrace(event: &mut Event) {
     let Annotated(Some(stacktrace), meta) = &mut event.stacktrace else {
         return;
     };
-    stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+    stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
 }
 
 /// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
@@ -550,7 +550,7 @@ fn normalize_exception_stacktraces(event: &mut Event) {
             continue;
         };
         if let Annotated(Some(stacktrace), meta) = &mut exception.stacktrace {
-            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
         }
     }
 }
@@ -570,7 +570,7 @@ fn normalize_thread_stacktraces(event: &mut Event) {
             continue;
         };
         if let Annotated(Some(stacktrace), meta) = &mut thread.stacktrace {
-            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
         }
     }
 }
