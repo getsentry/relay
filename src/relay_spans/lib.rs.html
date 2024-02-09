@@ -14,7 +14,6 @@
 <a href="#13" id="13">13</a>
 <a href="#14" id="14">14</a>
 <a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Structs and functions needed to ingest OpenTelemetry spans.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -23,12 +22,11 @@
     html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
 
-</span><span class="kw">pub use </span><span class="kw">crate</span>::span::OtelSpan;
-<span class="kw">pub use </span><span class="kw">crate</span>::trace::TracesData;
+</span><span class="kw">pub use </span><span class="kw">crate</span>::span::otel_to_sentry_span;
+
+<span class="kw">pub use </span>opentelemetry_proto::tonic::trace::v1 <span class="kw">as </span>otel_trace;
 
 <span class="kw">mod </span>otel_to_sentry_tags;
 <span class="kw">mod </span>span;
 <span class="kw">mod </span>status_codes;
-<span class="kw">mod </span>trace;
-<span class="kw">mod </span>utils;
 </code></pre></div></section></main></body></html>

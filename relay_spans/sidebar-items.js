@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["OtelSpan","TracesData"]};
+window.SIDEBAR_ITEMS = {"fn":["otel_to_sentry_span"],"mod":["otel_trace"]};

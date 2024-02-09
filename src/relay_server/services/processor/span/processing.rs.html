@@ -479,7 +479,6 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -499,6 +498,7 @@
 <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Object};
+<span class="kw">use </span>relay_spans::{otel_to_sentry_span, otel_trace::Span <span class="kw">as </span>OtelSpan};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
@@ -540,15 +540,13 @@
 
     state.managed_envelope.retain_items(|item| {
         <span class="kw">let </span><span class="kw-2">mut </span>annotated_span = <span class="kw">match </span>item.ty() {
-            ItemType::OtelSpan =&gt; {
-                <span class="kw">match </span>serde_json::from_slice::&lt;relay_spans::OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload()) {
-                    <span class="prelude-val">Ok</span>(otel_span) =&gt; Annotated::new(otel_span.into()),
-                    <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">"failed to parse OTel span: {}"</span>, err);
-                        <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                    }
+            ItemType::OtelSpan =&gt; <span class="kw">match </span>serde_json::from_slice::&lt;OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload()) {
+                <span class="prelude-val">Ok</span>(otel_span) =&gt; Annotated::new(otel_to_sentry_span(otel_span)),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::debug!</span>(<span class="string">"failed to parse OTel span: {}"</span>, err);
+                    <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                 }
-            }
+            },
             ItemType::Span =&gt; <span class="kw">match </span>Annotated::&lt;Span&gt;::from_json_bytes(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(span) =&gt; span,
                 <span class="prelude-val">Err</span>(err) =&gt; {
