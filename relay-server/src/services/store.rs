@@ -861,20 +861,18 @@ impl StoreService {
                 produce replay recording with replay event if combined flag is set
                 otherwise produce replay recording without replay event
                 */
-                if send_combined_replay_envelope {
-                    self.produce_replay_recording(
-                        Some(replay_id),
-                        scoping,
-                        replay_recording,
-                        if send_combined_replay_envelope {
-                            Some(replay_event)
-                        } else {
-                            None
-                        },
-                        start_time,
-                        retention_days,
-                    )?;
-                }
+                self.produce_replay_recording(
+                    Some(replay_id),
+                    scoping,
+                    replay_recording,
+                    if send_combined_replay_envelope {
+                        Some(replay_event)
+                    } else {
+                        None
+                    },
+                    start_time,
+                    retention_days,
+                )?;
             }
         } else if let Some(replay_recording) = replay_recording {
             // this block in theory should never happen, as SDK always sends replay_event and recording together,
