@@ -319,6 +319,38 @@ mod tests {
     );
 
     scrub_sql_test!(
+        savepoint_mysql,
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        savepoint_mysql_informed,
+        "mysql",
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint,
+        r#"ReLease SaVePoInT name"#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_mysql,
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        release_savepoint_mysql_informed,
+        "mysql",
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
         declare_cursor,
         "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
         "DECLARE %s CURSOR FOR SELECT * FROM t1"
