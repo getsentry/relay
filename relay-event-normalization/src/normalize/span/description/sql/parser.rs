@@ -397,8 +397,8 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => Self::erase_name(dbg!(name)),
-            Statement::ReleaseSavepoint { name } => Self::erase_name(dbg!(name)),
+            Statement::Savepoint { name } => Self::erase_name(name),
+            Statement::ReleaseSavepoint { name } => Self::erase_name(name),
             Statement::Declare { name, query, .. } => {
                 Self::erase_name(name);
                 self.transform_query(query);
@@ -414,7 +414,7 @@ impl VisitorMut for NormalizeVisitor {
             }
             Statement::Close { cursor } => match cursor {
                 CloseCursor::All => {}
-                CloseCursor::Specific { name } => Self::scrub_name(name),
+                CloseCursor::Specific { name } => Self::erase_name(name),
             },
             Statement::AlterTable {
                 name, operations, ..
@@ -608,7 +608,7 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Commit { .. } => {}
             Statement::Rollback { savepoint, .. } => {
                 if let Some(savepoint) = savepoint {
-                    Self::scrub_name(savepoint);
+                    Self::erase_name(savepoint);
                 }
             }
             Statement::CreateSchema { .. } => {}
