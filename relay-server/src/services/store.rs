@@ -944,12 +944,13 @@ impl StoreService {
             return;
         };
         let &SpanKafkaMessage {
-            end_timestamp,
             duration_ms,
+            end_timestamp,
             is_segment,
             project_id,
-            segment_id,
+            received,
             retention_days,
+            segment_id,
             span_id,
             trace_id,
             ..
@@ -1007,6 +1008,7 @@ impl StoreService {
                         min,
                         mri,
                         project_id,
+                        received,
                         retention_days,
                         segment_id: segment_id.unwrap_or_default(),
                         span_id,
@@ -1381,6 +1383,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     is_segment: bool,
     mri: &'a str,
     project_id: u64,
+    received: f64,
     retention_days: u16,
     segment_id: &'a str,
     span_id: &'a str,
