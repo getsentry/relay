@@ -6,6 +6,9 @@
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
 
+**Internal**:
+
+- Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
 
 ## 24.1.2
 
