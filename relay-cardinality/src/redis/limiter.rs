@@ -32,6 +32,8 @@ pub struct RedisSetLimiter {
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
+    timestamp: UnixTimestamp,
+    #[cfg(test)]
     time_offset: std::time::Duration,
 }
 
@@ -43,6 +45,8 @@ impl RedisSetLimiter {
             redis,
             script: CardinalityScript::load(),
             cache: Cache::new(options.cache_vacuum_interval),
+            #[cfg(test)]
+            timestamp: UnixTimestamp::now(),
             #[cfg(test)]
             time_offset: std::time::Duration::from_secs(0),
         }
@@ -101,10 +105,11 @@ impl Limiter for RedisSetLimiter {
         E: IntoIterator<Item = Entry>,
         R: Rejections<'a>,
     {
+        #[cfg(not(test))]
         let timestamp = UnixTimestamp::now();
-        // Allows to fast forward time in tests.
+        // Allows to fast forward time in tests using a fixed offset.
         #[cfg(test)]
-        let timestamp = timestamp + self.time_offset;
+        let timestamp = self.timestamp + self.time_offset;
 
         let mut states = LimitState::from_limits(scoping, limits);
 
