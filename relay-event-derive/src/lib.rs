@@ -440,6 +440,7 @@ impl FieldAttrs {
 }
 
 #[derive(Copy, Clone, Default)]
+#[allow(dead_code)]
 enum SkipSerialization {
     #[default]
     Never,

@@ -6,7 +6,6 @@ use std::time::Duration;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_dynamic_config::GlobalConfig;
 use relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -504,20 +503,20 @@ struct ProjectCacheBroker {
 #[derive(Debug)]
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
-    Ready(Arc<GlobalConfig>),
+    Ready,
     /// The global config is not fetched yet.
     Pending,
 }
 
 impl GlobalConfigStatus {
     fn is_ready(&self) -> bool {
-        matches!(self, GlobalConfigStatus::Ready(_))
+        matches!(self, GlobalConfigStatus::Ready)
     }
 }
 
 impl ProjectCacheBroker {
-    fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        self.global_config = GlobalConfigStatus::Ready(global_config);
+    fn set_global_config_ready(&mut self) {
+        self.global_config = GlobalConfigStatus::Ready;
     }
 
     /// Adds the value to the queue for the provided key.
@@ -1042,9 +1041,9 @@ impl Service for ProjectCacheService {
             };
 
             let global_config = match subscription.borrow().clone() {
-                global_config::Status::Ready(global_config) => {
+                global_config::Status::Ready(_) => {
                     relay_log::info!("global config received");
-                    GlobalConfigStatus::Ready(global_config)
+                    GlobalConfigStatus::Ready
                 }
                 global_config::Status::Pending => {
                     relay_log::info!("waiting for global config");
@@ -1083,7 +1082,7 @@ impl Service for ProjectCacheService {
 
                     Ok(()) = subscription.changed() => {
                         match subscription.borrow().clone() {
-                            global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
+                            global_config::Status::Ready(_) => broker.set_global_config_ready(),
                             // The watch should only be updated if it gets a new value.
                             // This would imply a logical bug.
                             global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
@@ -1312,7 +1311,7 @@ mod tests {
             project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
                 .await;
 
-        broker.global_config = GlobalConfigStatus::Ready(Default::default());
+        broker.global_config = GlobalConfigStatus::Ready;
         let (tx_update, mut rx_update) = mpsc::unbounded_channel();
         let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
 
