@@ -195,10 +195,10 @@ impl NormalizeVisitor {
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
-    // fn pre_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
-    //     Self::simplify_compound_identifier(&mut relation.0);
-    //     ControlFlow::Continue(())
-    // }
+    fn pre_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
+        Self::simplify_compound_identifier(&mut relation.0);
+        ControlFlow::Continue(())
+    }
 
     fn pre_visit_table_factor(
         &mut self,
@@ -671,11 +671,6 @@ impl VisitorMut for NormalizeVisitor {
             Statement::UnlockTables => {}
         }
 
-        ControlFlow::Continue(())
-    }
-
-    fn post_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
-        Self::simplify_compound_identifier(&mut relation.0);
         ControlFlow::Continue(())
     }
 }
