@@ -496,7 +496,7 @@ struct ProjectCacheBroker {
     global_config: GlobalConfigStatus,
 }
 
-/// Describes the current status of the [`GlobalConfig`]
+/// Describes the current status of the `GlobalConfig`.
 ///
 /// Either it's ready to be used, or it contains the list of in-flight project keys,
 /// to be processed once the config arrives.
@@ -690,7 +690,7 @@ impl ProjectCacheBroker {
     /// The following pre-conditions must be met before calling this function:
     /// - Envelope's project state must be cached and valid.
     /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - [`GlobalConfig`] from the [`GlobalConfigManager`] must be available.
+    /// - `GlobalConfig` from the [`GlobalConfigManager`] must be available.
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
