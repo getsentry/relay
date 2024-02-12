@@ -538,7 +538,7 @@
 
         <span class="kw">let </span>expired = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CacheVacuum), {
             <span class="self">self</span>.cache
-                .drain_filter(|scope, cache| cache.current_slot &lt; scope.active_slot(ts))
+                .extract_if(|scope, cache| cache.current_slot &lt; scope.active_slot(ts))
                 .count()
         });
         <span class="macro">metric!</span>(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired <span class="kw">as </span>i64);

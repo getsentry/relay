@@ -1866,7 +1866,7 @@
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
     services: Services,
-    <span class="comment">// Need hashbrown because drain_filter is not stable in std yet.
+    <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
     source: ProjectSource,
@@ -1931,14 +1931,14 @@
 
         <span class="kw">let </span>expired = <span class="self">self
             </span>.projects
-            .drain_filter(|<span class="kw">_</span>, entry| entry.last_updated_at() + delta &lt;= eviction_start);
+            .extract_if(|<span class="kw">_</span>, entry| entry.last_updated_at() + delta &lt;= eviction_start);
 
         <span class="comment">// Defer dropping the projects to a dedicated thread:
         </span><span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
         <span class="kw">for </span>(project_key, project) <span class="kw">in </span>expired {
             <span class="kw">let </span>keys = <span class="self">self
                 </span>.index
-                .drain_filter(|key| key.own_key == project_key || key.sampling_key == project_key)
+                .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
                 .collect::&lt;BTreeSet&lt;<span class="kw">_</span>&gt;&gt;();
 
             <span class="kw">if </span>!keys.is_empty() {
@@ -2310,7 +2310,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>index = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.index);
         <span class="kw">let </span>values = index
-            .drain_filter(|key| <span class="self">self</span>.is_state_valid(key))
+            .extract_if(|key| <span class="self">self</span>.is_state_valid(key))
             .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">if </span>!values.is_empty() {
