@@ -179,7 +179,6 @@ mod tests {
                 ],
                 max_custom_measurements: 5,
             }),
-
             options: Options {
                 unsampled_profiles_enabled: true,
                 ..Default::default()

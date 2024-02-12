@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**
+
+- Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
+
 ## 24.1.2
 
 **Features**:
