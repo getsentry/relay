@@ -43,7 +43,10 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn extract<G>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -136,7 +139,10 @@ pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
     Ok(())
 }
 
-pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn finalize<G>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
@@ -265,7 +271,7 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     Ok(())
 }
 
-pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
@@ -289,7 +295,7 @@ pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) -> Result<(), ProcessingError> {
     let event = &mut state.event;
     let config = &state.project_state.config;
 
@@ -317,7 +323,7 @@ pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
     Ok(())
 }
 
-pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn serialize<G>(state: &mut ProcessEnvelopeState<G>) -> Result<(), ProcessingError> {
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -344,7 +350,10 @@ pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError
 }
 
 #[cfg(feature = "processing")]
-pub fn store(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn store<G>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let ProcessEnvelopeState {
         ref mut event,
         ref project_state,

@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
+use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup, Ungrouped};
 use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::statsd::RelayCounters;
 use crate::utils::{
@@ -334,7 +334,7 @@ pub async fn handle_envelope(
             state.test_store().clone(),
             // It's not clear at this point which group this envelope belongs to.
             // The decission will be made while queueing in `queue_envelope` function.
-            ProcessingGroup::Ungrouped,
+            ProcessingGroup::Ungrouped(Ungrouped),
         )
         .map_err(BadStoreRequest::QueueFailed)?;
 
