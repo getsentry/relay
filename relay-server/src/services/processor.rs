@@ -17,6 +17,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
+use relay_dynamic_config::DynamicQuotas;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -34,6 +35,7 @@ use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, M
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
+use relay_quotas::Quota;
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
@@ -934,7 +936,9 @@ impl EnvelopeProcessorService {
         };
 
         let project_state = &state.project_state;
-        let quotas = project_state.config.quotas.as_slice();
+        let global_config = self.inner.global_config.current();
+        let quotas = DynamicQuotas::new(&global_config, &project_state.config.quotas);
+
         if quotas.is_empty() {
             return Ok(());
         }
@@ -945,7 +949,7 @@ impl EnvelopeProcessorService {
         // remove it from the processing state eventually.
         let mut envelope_limiter =
             EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
+                rate_limiter.is_rate_limited(quotas.iter(), item_scope, quantity, false)
             });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
@@ -1647,11 +1651,14 @@ impl EnvelopeProcessorService {
                 namespace: None,
             };
 
+            let global_config = self.inner.global_config.current();
+            let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
+
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                bucket_limiter.quotas(),
+                quotas.iter(),
                 item_scoping,
                 bucket_limiter.transaction_count(),
                 over_accept_once,
@@ -1683,11 +1690,11 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn rate_limit_buckets_by_namespace(
-        &self,
+    fn rate_limit_buckets_by_namespace<'a>(
+        &'a self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: &[relay_quotas::Quota],
+        dynamic_quotas: DynamicQuotas<'a>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1708,8 +1715,14 @@ impl EnvelopeProcessorService {
                     namespace: Some(namespace),
                 };
 
-                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
-                    .then_some(buckets)
+                (!self.rate_limit_buckets(
+                    item_scoping,
+                    &buckets,
+                    dynamic_quotas.iter(),
+                    mode,
+                    rate_limiter,
+                ))
+                .then_some(buckets)
             })
             .flatten()
             .collect()
@@ -1717,11 +1730,11 @@ impl EnvelopeProcessorService {
 
     /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
+    fn rate_limit_buckets<'a>(
+        &'a self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: &[relay_quotas::Quota],
+        quotas: impl Iterator<Item = &'a Quota>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
@@ -1838,6 +1851,8 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
+        let global_config = self.inner.global_config.current();
+
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
@@ -1848,13 +1863,9 @@ impl EnvelopeProcessorService {
             let limits = project_state.get_cardinality_limits();
 
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
+            let quotas = DynamicQuotas::new(&global_config, &project_state.config.quotas);
 
-            let buckets = self.rate_limit_buckets_by_namespace(
-                scoping,
-                buckets,
-                &project_state.config.quotas,
-                mode,
-            );
+            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
             if buckets.is_empty() {
                 continue;

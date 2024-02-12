@@ -4,6 +4,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_event_normalization::MeasurementsConfig;
+use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -18,6 +19,9 @@ pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
+    /// Configuration for measurements normalization.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub quotas: Vec<Quota>,
     /// Sentry options passed down to Relay.
     #[serde(skip_serializing_if = "is_default")]
     pub options: Options,
@@ -117,12 +121,52 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     *t == T::default()
 }
 
+/// Container for global and project level [`Quota`].
+pub struct DynamicQuotas<'a> {
+    global_quotas: &'a [Quota],
+    project_quotas: &'a [Quota],
+}
+
+impl<'a> DynamicQuotas<'a> {
+    /// Returns a new [`DynamicQuotas`]
+    pub fn new(global_config: &'a GlobalConfig, quotas: &'a [Quota]) -> Self {
+        Self {
+            global_quotas: &global_config.quotas,
+            project_quotas: quotas,
+        }
+    }
+
+    /// Returns the combination of global and project quotas.
+    pub fn iter(&self) -> impl Iterator<Item = &'a Quota> {
+        self.global_quotas.iter().chain(self.project_quotas)
+    }
+
+    /// Returns `true` if both global quotas and project quotas are empty.
+    pub fn is_empty(&self) -> bool {
+        self.global_quotas.is_empty() && self.project_quotas.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use relay_base_schema::metrics::MetricUnit;
     use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
+    use relay_quotas::{DataCategory, QuotaScope};
 
     use super::*;
+
+    fn mock_quota(id: &str) -> Quota {
+        Quota {
+            id: Some(id.into()),
+            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+            namespace: None,
+        }
+    }
 
     #[test]
     fn test_global_config_roundtrip() {
@@ -135,10 +179,12 @@ mod tests {
                 ],
                 max_custom_measurements: 5,
             }),
+
             options: Options {
                 unsampled_profiles_enabled: true,
                 ..Default::default()
             },
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
         };
 
         let serialized =
@@ -148,6 +194,26 @@ mod tests {
             .expect("failed to deserialize GlobalConfig");
 
         assert_eq!(deserialized, global_config);
+    }
+
+    #[test]
+    fn test_dynamic_quotas() {
+        let global_config = GlobalConfig {
+            measurements: None,
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            options: Options::default(),
+        };
+
+        let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
+
+        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+
+        for (expected_id, quota) in ["foo", "bar", "baz", "qux"]
+            .iter()
+            .zip(dynamic_quotas.iter())
+        {
+            assert_eq!(Some(expected_id.to_string()), quota.id);
+        }
     }
 
     #[test]
