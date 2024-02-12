@@ -19,7 +19,7 @@ pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
-    /// Configuration for measurements normalization.
+    /// Quotas that apply to all projects.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
     /// Sentry options passed down to Relay.
