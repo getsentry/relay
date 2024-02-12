@@ -121,12 +121,14 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
+        use crate::services::processor::Ungrouped;
+
         let mut envelope = Self::new_internal(
             envelope,
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Ungrouped,
+            ProcessingGroup::Ungrouped(Ungrouped),
         );
         envelope.context.done = true;
         envelope
