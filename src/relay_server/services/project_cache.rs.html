@@ -1384,12 +1384,21 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
@@ -1570,11 +1579,14 @@
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
-</span><span class="kw">pub struct </span>UpdateSpoolIndex(<span class="kw">pub </span>HashSet&lt;QueueKey&gt;);
+</span><span class="kw">pub struct </span>UpdateSpoolIndex {
+    project_key: ProjectKey,
+    keys: BTreeSet&lt;QueueKey&gt;,
+}
 
 <span class="kw">impl </span>UpdateSpoolIndex {
-    <span class="kw">pub fn </span>new(keys: HashSet&lt;QueueKey&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(keys)
+    <span class="kw">pub fn </span>new(project_key: ProjectKey, keys: BTreeSet&lt;QueueKey&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ project_key, keys }
     }
 }
 
@@ -1587,7 +1599,7 @@
 /// This index will be received only once shortly after startup and will trigger refresh for the
 /// project states for the project keys returned in the message.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>RefreshIndexCache(<span class="kw">pub </span>HashSet&lt;QueueKey&gt;);
+</span><span class="kw">pub struct </span>RefreshIndexCache(<span class="kw">pub </span>BTreeMap&lt;ProjectKey, BTreeSet&lt;QueueKey&gt;&gt;);
 
 <span class="doccomment">/// A cache for [`ProjectState`]s.
 ///
@@ -1876,7 +1888,7 @@
     buffer_tx: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
     <span class="doccomment">/// Index of the buffered project keys.
-    </span>index: HashSet&lt;QueueKey&gt;,
+    </span>index: BTreeMap&lt;ProjectKey, BTreeSet&lt;QueueKey&gt;&gt;,
     buffer_unspool_handle: SleepHandle,
     buffer_unspool_backoff: RetryBackoff,
     buffer: Addr&lt;Buffer&gt;,
@@ -1908,7 +1920,8 @@
 
     <span class="doccomment">/// Adds the value to the queue for the provided key.
     </span><span class="kw">pub fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, value: ManagedEnvelope) {
-        <span class="self">self</span>.index.insert(key);
+        <span class="self">self</span>.index.entry(key.own_key).or_default().insert(key);
+        <span class="self">self</span>.index.entry(key.sampling_key).or_default().insert(key);
         <span class="self">self</span>.buffer.send(Enqueue::new(key, value));
     }
 
@@ -1916,9 +1929,49 @@
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
-    </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;</span><span class="self">self</span>, keys: HashSet&lt;QueueKey&gt;) {
-        <span class="self">self</span>.buffer
-            .send(DequeueMany::new(keys, <span class="self">self</span>.buffer_tx.clone()))
+    </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partial_key: ProjectKey) {
+        <span class="comment">// If we don't yet have the global config, we will defer dequeuing until we do.
+        </span><span class="kw">if let </span>GlobalConfigStatus::Pending = <span class="self">self</span>.global_config {
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>queue_keys = <span class="self">self</span>.index.remove(<span class="kw-2">&amp;</span>partial_key).unwrap_or_default();
+        <span class="kw">let </span><span class="kw-2">mut </span>index = BTreeSet::new();
+
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(queue_key) = queue_keys.pop_first() {
+            <span class="comment">// We only have to check `other_key`, because we already know that the `partial_key`s `state`
+            // is valid and loaded.
+            </span><span class="kw">let </span>other_key = <span class="kw">if </span>queue_key.own_key == partial_key {
+                queue_key.sampling_key
+            } <span class="kw">else </span>{
+                queue_key.own_key
+            };
+
+            <span class="kw">if </span><span class="self">self
+                </span>.projects
+                .get(<span class="kw-2">&amp;</span>other_key)
+                <span class="comment">// Make sure we have only cached and valid state.
+                </span>.and_then(|p| p.valid_state())
+                .map_or(<span class="bool-val">false</span>, |s| !s.invalid())
+            {
+                result.push(queue_key);
+            } <span class="kw">else </span>{
+                index.insert(queue_key);
+            }
+        }
+
+        <span class="kw">if </span>!index.is_empty() {
+            <span class="self">self</span>.index.insert(partial_key, index);
+        }
+
+        <span class="kw">if </span>!result.is_empty() {
+            <span class="self">self</span>.buffer.send(DequeueMany::new(
+                partial_key,
+                result,
+                <span class="self">self</span>.buffer_tx.clone(),
+            ))
+        }
     }
 
     <span class="doccomment">/// Evict projects that are over its expiry date.
@@ -1938,12 +1991,7 @@
         <span class="comment">// Defer dropping the projects to a dedicated thread:
         </span><span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
         <span class="kw">for </span>(project_key, project) <span class="kw">in </span>expired {
-            <span class="kw">let </span>keys = <span class="self">self
-                </span>.index
-                .drain_filter(|key| key.own_key == project_key || key.sampling_key == project_key)
-                .collect::&lt;BTreeSet&lt;<span class="kw">_</span>&gt;&gt;();
-
-            <span class="kw">if </span>!keys.is_empty() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(keys) = <span class="self">self</span>.index.remove(<span class="kw-2">&amp;</span>project_key) {
                 <span class="self">self</span>.buffer.send(RemoveMany::new(project_key, keys))
             }
 
@@ -2216,7 +2264,7 @@
     }
 
     <span class="kw">fn </span>handle_buffer_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateSpoolIndex) {
-        <span class="self">self</span>.index.extend(message.<span class="number">0</span>);
+        <span class="self">self</span>.index.insert(message.project_key, message.keys);
     }
 
     <span class="kw">fn </span>handle_spool_health(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: Sender&lt;bool&gt;) {
@@ -2227,14 +2275,10 @@
         <span class="kw">let </span>RefreshIndexCache(index) = message;
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
 
-        <span class="kw">for </span>key <span class="kw">in </span>index {
-            <span class="self">self</span>.index.insert(key);
-            <span class="self">self</span>.get_or_create_project(key.own_key)
+        <span class="kw">for </span>(key, values) <span class="kw">in </span>index {
+            <span class="self">self</span>.index.entry(key).or_default().extend(values);
+            <span class="self">self</span>.get_or_create_project(key)
                 .prefetch(project_cache.clone(), <span class="bool-val">false</span>);
-            <span class="kw">if </span>key.own_key != key.sampling_key {
-                <span class="self">self</span>.get_or_create_project(key.sampling_key)
-                    .prefetch(project_cache.clone(), <span class="bool-val">false</span>);
-            }
         }
     }
 
@@ -2251,44 +2295,6 @@
         }
     }
 
-    <span class="doccomment">/// Returns `true` if the project state valid for the [`QueueKey`].
-    ///
-    /// Which includes the own key and the samplig key for the project.
-    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired or not
-    /// valid.
-    </span><span class="kw">fn </span>is_state_valid(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>QueueKey) -&gt; bool {
-        <span class="kw">let </span>QueueKey {
-            own_key,
-            sampling_key,
-        } = key;
-
-        <span class="kw">let </span>is_own_state_valid = <span class="self">self</span>.projects.get_mut(own_key).map_or(<span class="bool-val">false</span>, |project| {
-            <span class="comment">// Returns `Some` if the project is cached otherwise None and also triggers refresh
-            // in background.
-            </span>project
-                .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
-                <span class="comment">// Makes sure that the state also is valid.
-                </span>.map_or(<span class="bool-val">false</span>, |state| !state.invalid())
-        });
-
-        <span class="kw">let </span>is_sampling_state_valid = <span class="kw">if </span>own_key != sampling_key {
-            <span class="self">self</span>.projects
-                .get_mut(sampling_key)
-                .map_or(<span class="bool-val">false</span>, |project| {
-                    <span class="comment">// Returns `Some` if the project is cached otherwise None and also triggers refresh
-                    // in background.
-                    </span>project
-                        .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
-                        <span class="comment">// Makes sure that the state also is valid.
-                        </span>.map_or(<span class="bool-val">false</span>, |state| !state.invalid())
-                })
-        } <span class="kw">else </span>{
-            is_own_state_valid
-        };
-
-        is_own_state_valid &amp;&amp; is_sampling_state_valid
-    }
-
     <span class="doccomment">/// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
     /// state.
     ///
@@ -2297,34 +2303,41 @@
     </span><span class="kw">fn </span>handle_periodic_unspool(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.buffer_unspool_handle.reset();
 
-        <span class="comment">// If we don't yet have the global config, we will defer dequeuing until we do.
-        </span><span class="kw">if let </span>GlobalConfigStatus::Pending = <span class="self">self</span>.global_config {
-            <span class="self">self</span>.buffer_unspool_backoff.reset();
-            <span class="self">self</span>.schedule_unspool();
-            <span class="kw">return</span>;
-        }
         <span class="comment">// If there is nothing spooled, schedule the next check a little bit later.
-        // And do *not* attempt to unspool if the assigned permits over low watermark.
-        </span><span class="kw">if </span><span class="self">self</span>.index.is_empty() || !<span class="self">self</span>.buffer_guard.is_below_low_watermark() {
+        </span><span class="kw">if </span><span class="self">self</span>.index.is_empty() {
             <span class="self">self</span>.schedule_unspool();
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>index = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.index);
-        <span class="kw">let </span>values = index
-            .drain_filter(|key| <span class="self">self</span>.is_state_valid(key))
-            .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>keys = <span class="self">self</span>.index.keys().cloned().collect::&lt;Box&lt;[<span class="kw">_</span>]&gt;&gt;();
+        <span class="kw">let </span><span class="kw-2">mut </span>dequeued = <span class="bool-val">false</span>;
 
-        <span class="kw">if </span>!values.is_empty() {
-            <span class="self">self</span>.dequeue(values);
+        <span class="kw">for </span>project_key <span class="kw">in </span>keys.iter() {
+            <span class="kw">if </span><span class="self">self</span>.projects.get_mut(project_key).map_or(<span class="bool-val">false</span>, |project| {
+                <span class="comment">// Returns `Some` if the project is cache otherwise None and also triggers refresh
+                // in background.
+                </span>project
+                    .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
+                    <span class="comment">// Makes sure that the state also is valid.
+                    </span>.map_or(<span class="bool-val">false</span>, |state| !state.invalid())
+            }) {
+                <span class="comment">// Do *not* attempt to unspool if the assigned permits over low watermark.
+                </span><span class="kw">if </span>!<span class="self">self</span>.buffer_guard.is_below_low_watermark() {
+                    <span class="self">self</span>.schedule_unspool();
+                    <span class="kw">return</span>;
+                }
+
+                <span class="self">self</span>.dequeue(<span class="kw-2">*</span>project_key);
+                dequeued = <span class="bool-val">true</span>;
+            }
         }
 
-        <span class="comment">// Return all the un-used items to the index.
-        </span><span class="self">self</span>.index.extend(index);
-
+        <span class="comment">// If cannot dequeue for some reason, back off the next retry.
+        </span><span class="kw">if </span>dequeued {
+            <span class="self">self</span>.buffer_unspool_backoff.reset();
+        }
         <span class="comment">// Schedule unspool once we are done.
-        </span><span class="self">self</span>.buffer_unspool_backoff.reset();
-        <span class="self">self</span>.schedule_unspool();
+        </span><span class="self">self</span>.schedule_unspool();
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
@@ -2456,7 +2469,7 @@
                 state_tx,
                 buffer_tx,
                 buffer_guard,
-                index: HashSet::new(),
+                index: BTreeMap::new(),
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
@@ -2591,7 +2604,7 @@
                 state_tx,
                 buffer_tx,
                 buffer_guard,
-                index: HashSet::new(),
+                index: BTreeMap::new(),
                 buffer: buffer.clone(),
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
@@ -2633,7 +2646,8 @@
 
         <span class="comment">// All the messages should have been spooled to disk.
         </span><span class="macro">assert_eq!</span>(buffer_guard.available(), <span class="number">5</span>);
-        <span class="macro">assert_eq!</span>(broker.index.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
 
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap();
         <span class="kw">let </span>key = QueueKey {
@@ -2643,7 +2657,11 @@
         <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx) = mpsc::unbounded_channel();
 
         <span class="comment">// Check if we can also dequeue from the buffer directly.
-        </span>buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
+        </span>buffer_svc.send(spooler::DequeueMany::new(
+            project_key,
+            [key].into(),
+            tx.clone(),
+        ));
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
         <span class="comment">// We should be able to unspool 5 envelopes since we have 5 permits.
@@ -2661,10 +2679,11 @@
 
         <span class="comment">// Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
-        </span><span class="macro">assert_eq!</span>(broker.index.len(), <span class="number">1</span>);
+        </span><span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
 
         <span class="comment">// Check if we can also dequeue from the buffer directly.
-        </span>buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
+        </span>buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
         <span class="comment">// Cannot dequeue anymore, no more available permits.
         </span><span class="macro">assert!</span>(rx.try_recv().is_err());
@@ -2730,7 +2749,8 @@
                 <span class="macro">select! </span>{
 
                     <span class="prelude-val">Some</span>(assert) = rx_assert.recv() =&gt; {
-                        <span class="macro">assert_eq!</span>(broker.index.len(), assert);
+                        <span class="macro">assert_eq!</span>(broker.index.keys().len(), assert);
+                        <span class="macro">assert_eq!</span>(broker.index.values().count(), assert);
                     },
                     <span class="prelude-val">Some</span>(update) = rx_update.recv() =&gt; broker.merge_state(update),
                     () = <span class="kw-2">&amp;mut </span>broker.buffer_unspool_handle =&gt; broker.handle_periodic_unspool(),
