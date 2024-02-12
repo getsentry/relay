@@ -466,7 +466,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
@@ -474,7 +474,7 @@
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SessionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>received = state.managed_envelope.received_at();
     <span class="kw">let </span>extracted_metrics = <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics;
     <span class="kw">let </span>metrics_config = state.project_state.config().session_metrics;

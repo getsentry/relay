@@ -152,6 +152,9 @@
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -171,12 +174,15 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, ProcessingError};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="doccomment">/// Removes replays if the feature flag is not enabled.
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+</span><span class="kw">pub fn </span>process(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
     <span class="kw">let </span>replays_enabled = project_state.has_feature(Feature::SessionReplay);
     <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);

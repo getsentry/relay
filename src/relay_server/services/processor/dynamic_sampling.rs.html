@@ -736,6 +736,11 @@
 <a href="#735" id="735">735</a>
 <a href="#736" id="736">736</a>
 <a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -752,7 +757,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{profile, ProcessEnvelopeState};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{profile, ProcessEnvelopeState, TransactionGroup};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ItemAction, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -775,7 +780,7 @@
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-</span><span class="kw">pub fn </span>normalize(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+</span><span class="kw">pub fn </span>normalize(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
     <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; state.sampling_project_state.is_some() {
         <span class="kw">return</span>;
     }
@@ -796,7 +801,7 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
-</span><span class="kw">pub fn </span>run(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>run(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="comment">// Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
@@ -836,7 +841,7 @@
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
 </span><span class="kw">pub fn </span>sample_envelope_items(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
     config: <span class="kw-2">&amp;</span>Config,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) {
@@ -938,7 +943,7 @@
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-</span><span class="kw">pub fn </span>tag_error_with_sampling_decision(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -980,7 +985,10 @@
 }
 
 <span class="doccomment">/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-</span><span class="kw">fn </span>forward_unsampled_profiles(state: <span class="kw-2">&amp;</span>ProcessEnvelopeState, global_config: <span class="kw-2">&amp;</span>GlobalConfig) -&gt; bool {
+</span><span class="kw">fn </span>forward_unsampled_profiles(
+    state: <span class="kw-2">&amp;</span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+) -&gt; bool {
     <span class="kw">let </span>global_options = <span class="kw-2">&amp;</span>global_config.options;
 
     <span class="kw">if </span>!global_options.unsampled_profiles_enabled {
@@ -1007,6 +1015,7 @@
 </span><span class="kw">mod </span>tests {
 
     <span class="kw">use </span>std::collections::BTreeMap;
+    <span class="kw">use </span>std::marker::PhantomData;
     <span class="kw">use </span>std::sync::Arc;
 
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
@@ -1020,7 +1029,7 @@
 
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup, TransactionGroup};
     <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -1065,7 +1074,7 @@
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction,
+                ProcessingGroup::Transaction(TransactionGroup),
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -1211,11 +1220,12 @@
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Ungrouped,
+                    ProcessingGroup::Transaction(TransactionGroup),
                 ),
                 profile_id: <span class="prelude-val">None</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 reservoir: dummy_reservoir(),
+                _group: PhantomData::&lt;TransactionGroup&gt; {},
             }
         };
 

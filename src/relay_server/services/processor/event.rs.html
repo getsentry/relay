@@ -869,6 +869,15 @@
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -914,7 +923,10 @@
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-</span><span class="kw">pub fn </span>extract(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+</span><span class="kw">pub fn </span>extract&lt;G&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
     <span class="comment">// Remove all items first, and then process them. After this function returns, only
@@ -1007,7 +1019,10 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>finalize(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+<span class="kw">pub fn </span>finalize&lt;G&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>is_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
     <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
 
@@ -1136,7 +1151,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>filter(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+<span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
         <span class="prelude-val">Some</span>(event) =&gt; event,
         <span class="comment">// Some events are created by processing relays (e.g. unreal), so they do not yet
@@ -1160,7 +1175,7 @@
 <span class="doccomment">/// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-</span><span class="kw">pub fn </span>scrub(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+</span><span class="kw">pub fn </span>scrub&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw-2">&amp;mut </span>state.event;
     <span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.project_state.config;
 
@@ -1188,7 +1203,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>serialize(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+<span class="kw">pub fn </span>serialize&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>data = <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -1215,7 +1230,10 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">pub fn </span>store(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+</span><span class="kw">pub fn </span>store&lt;G&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>ProcessEnvelopeState {
         <span class="kw-2">ref mut </span>event,
         <span class="kw-2">ref </span>project_state,

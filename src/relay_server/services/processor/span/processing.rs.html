@@ -479,6 +479,8 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -503,11 +505,13 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, ProcessingError};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
     config: Arc&lt;Config&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) {
@@ -619,7 +623,7 @@
     });
 }
 
-<span class="kw">pub fn </span>extract_from_event(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+<span class="kw">pub fn </span>extract_from_event(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
     <span class="comment">// Only extract spans from transactions (not errors).
     </span><span class="kw">if </span>state.event_type() != <span class="prelude-val">Some</span>(EventType::Transaction) {
         <span class="kw">return</span>;

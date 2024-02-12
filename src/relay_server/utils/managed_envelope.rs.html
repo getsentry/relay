@@ -452,6 +452,8 @@
 <a href="#451" id="451">451</a>
 <a href="#452" id="452">452</a>
 <a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -575,12 +577,14 @@
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
     ) -&gt; <span class="self">Self </span>{
+        <span class="kw">use </span><span class="kw">crate</span>::services::processor::Ungrouped;
+
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(
             envelope,
             <span class="prelude-val">None</span>,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Ungrouped,
+            ProcessingGroup::Ungrouped(Ungrouped),
         );
         envelope.context.done = <span class="bool-val">true</span>;
         envelope

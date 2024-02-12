@@ -306,11 +306,11 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessEnvelopeState;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, TransactionGroup};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="doccomment">/// Removes profiles from the envelope if they can not be parsed.
-</span><span class="kw">pub fn </span>filter(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+</span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
     <span class="kw">let </span>transaction_count: usize = state
         .managed_envelope
         .envelope()
@@ -349,7 +349,7 @@
 <span class="doccomment">/// Transfers the profile ID from the profile item to the transaction item.
 ///
 /// If profile processing happens at a later stage, we remove the context again.
-</span><span class="kw">pub fn </span>transfer_id(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+</span><span class="kw">pub fn </span>transfer_id(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
         <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
             <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -365,7 +365,7 @@
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>found_profile_id = <span class="prelude-val">None</span>;
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {

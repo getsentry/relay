@@ -631,7 +631,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="doccomment">/// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -656,7 +656,7 @@
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 </span><span class="kw">pub fn </span>process_client_reports(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
     config: <span class="kw-2">&amp;</span>Config,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 ) {
@@ -804,7 +804,7 @@
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-</span><span class="kw">pub fn </span>process_user_reports(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+</span><span class="kw">pub fn </span>process_user_reports&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
     state.managed_envelope.retain_items(|item| {
         <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
             <span class="kw">return </span>ItemAction::Keep;
