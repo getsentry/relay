@@ -386,8 +386,12 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => Self::erase_name(dbg!(name)),
-            Statement::ReleaseSavepoint { name } => Self::erase_name(dbg!(name)),
+            Statement::Savepoint { name } => Self::erase_name(name),
+            Statement::ReleaseSavepoint { name } => Self::erase_name(name),
+            Statement::Rollback {
+                savepoint: Some(savepoint),
+                ..
+            } => Self::erase_name(savepoint),
             Statement::Declare { name, query, .. } => {
                 Self::erase_name(name);
                 self.transform_query(query);
