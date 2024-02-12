@@ -140,10 +140,11 @@ impl<'a> RedisQuota<'a> {
         let org = self.scoping.organization_id;
 
         format!(
-            "quota:{id}{{{org}}}{subscope}:{slot}",
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
             id = self.prefix,
             org = org,
             subscope = OptionalDisplay(subscope),
+            namespace = OptionalDisplay(self.namespace),
             slot = self.slot(),
         )
     }
