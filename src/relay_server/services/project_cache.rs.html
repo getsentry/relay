@@ -1383,7 +1383,6 @@
 <a href="#1382" id="1382">1382</a>
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
-<a href="#1385" id="1385">1385</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1392,7 +1391,6 @@
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_dynamic_config::GlobalConfig;
 <span class="kw">use </span>relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
@@ -1883,27 +1881,27 @@
     global_config: GlobalConfigStatus,
 }
 
-<span class="doccomment">/// Describes the current status of the [`GlobalConfig`]
+<span class="doccomment">/// Describes the current status of the `GlobalConfig`.
 ///
 /// Either it's ready to be used, or it contains the list of in-flight project keys,
 /// to be processed once the config arrives.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>GlobalConfigStatus {
     <span class="doccomment">/// Global config needed for envelope processing.
-    </span>Ready(Arc&lt;GlobalConfig&gt;),
+    </span>Ready,
     <span class="doccomment">/// The global config is not fetched yet.
     </span>Pending,
 }
 
 <span class="kw">impl </span>GlobalConfigStatus {
     <span class="kw">fn </span>is_ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, GlobalConfigStatus::Ready(<span class="kw">_</span>))
+        <span class="macro">matches!</span>(<span class="self">self</span>, GlobalConfigStatus::Ready)
     }
 }
 
 <span class="kw">impl </span>ProjectCacheBroker {
-    <span class="kw">fn </span>set_global_config(<span class="kw-2">&amp;mut </span><span class="self">self</span>, global_config: Arc&lt;GlobalConfig&gt;) {
-        <span class="self">self</span>.global_config = GlobalConfigStatus::Ready(global_config);
+    <span class="kw">fn </span>set_global_config_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.global_config = GlobalConfigStatus::Ready;
     }
 
     <span class="doccomment">/// Adds the value to the queue for the provided key.
@@ -2077,7 +2075,7 @@
     /// The following pre-conditions must be met before calling this function:
     /// - Envelope's project state must be cached and valid.
     /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - [`GlobalConfig`] from the [`GlobalConfigManager`] must be available.
+    /// - `GlobalConfig` from the [`GlobalConfigManager`] must be available.
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
@@ -2428,9 +2426,9 @@
             };
 
             <span class="kw">let </span>global_config = <span class="kw">match </span>subscription.borrow().clone() {
-                global_config::Status::Ready(global_config) =&gt; {
+                global_config::Status::Ready(<span class="kw">_</span>) =&gt; {
                     <span class="macro">relay_log::info!</span>(<span class="string">"global config received"</span>);
-                    GlobalConfigStatus::Ready(global_config)
+                    GlobalConfigStatus::Ready
                 }
                 global_config::Status::Pending =&gt; {
                     <span class="macro">relay_log::info!</span>(<span class="string">"waiting for global config"</span>);
@@ -2469,7 +2467,7 @@
 
                     <span class="prelude-val">Ok</span>(()) = subscription.changed() =&gt; {
                         <span class="kw">match </span>subscription.borrow().clone() {
-                            global_config::Status::Ready(global_config) =&gt; broker.set_global_config(global_config),
+                            global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
                             <span class="comment">// The watch should only be updated if it gets a new value.
                             // This would imply a logical bug.
                             </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
@@ -2698,7 +2696,7 @@
             project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
                 .<span class="kw">await</span>;
 
-        broker.global_config = GlobalConfigStatus::Ready(Default::default());
+        broker.global_config = GlobalConfigStatus::Ready;
         <span class="kw">let </span>(tx_update, <span class="kw-2">mut </span>rx_update) = mpsc::unbounded_channel();
         <span class="kw">let </span>(tx_assert, <span class="kw-2">mut </span>rx_assert) = mpsc::unbounded_channel();
 
