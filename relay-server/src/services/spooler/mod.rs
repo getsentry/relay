@@ -37,7 +37,6 @@ use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
 use hashbrown::HashSet;
-use itertools::Itertools;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
@@ -61,6 +60,9 @@ use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
+
+/// The number of keys to take from the [`ProjectCache`] index in one unspool operation.
+pub const BATCH_KEY_COUNT: usize = 2000;
 
 /// The predefined batch size for the SQL queries, when fetching anything from the on-disk spool.
 const BATCH_SIZE: i64 = 200;
@@ -640,20 +642,22 @@ impl OnDisk {
         }
 
         let mut unused_keys = HashSet::new();
-        // Chunk up the incoming keys in batches of size `BATCH_SIZE`.
-        let chunks: Vec<Vec<_>> = keys
-            .drain()
-            .chunks(BATCH_SIZE as usize)
-            .into_iter()
-            .map(|chunk| chunk.collect::<Vec<_>>())
-            .collect();
+        loop {
+            if keys.is_empty() {
+                break;
+            }
 
-        for chunk in chunks.into_iter() {
+            let chunk = keys
+                .extract_if(|_| true)
+                .take(BATCH_SIZE as usize)
+                .collect();
+
             // If the error with a key is returned we must save it for the next iteration.
             if let Err(failed_keys) = self.delete_and_fetch(chunk, sender.clone(), services).await {
                 unused_keys.extend(failed_keys);
             };
         }
+
         if !unused_keys.is_empty() {
             services
                 .project_cache
