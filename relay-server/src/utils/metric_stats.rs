@@ -3,6 +3,9 @@ use relay_statsd::metric;
 
 use crate::statsd::RelayCounters;
 
+/// Utility to aggregated stats about metrics by namespace.
+///
+/// Currently tracks count and cost of metrics.
 #[derive(Default)]
 #[must_use]
 pub struct MetricStats {
@@ -14,12 +17,14 @@ pub struct MetricStats {
 }
 
 impl MetricStats {
+    /// Creates a new `MetricStats` instance initialized with `buckets`.
     pub fn new(buckets: &[Bucket]) -> Self {
         let mut this = Self::default();
         this.update(buckets);
         this
     }
 
+    /// Adds additional metric bucket stats extracted from `buckets`.
     pub fn update(&mut self, buckets: &[Bucket]) {
         for bucket in buckets {
             let namespace = namespace(bucket);
@@ -27,6 +32,11 @@ impl MetricStats {
         }
     }
 
+    /// Emits the aggregated stats to the passed counters.
+    ///
+    /// - `calls`: incremented by one for each seen namespace.
+    /// - `count`: total amount of metric buckets by namespace.
+    /// - `cost`: total cost of metric buckets by namespace.
     pub fn emit(self, calls: RelayCounters, count: RelayCounters, cost: RelayCounters) {
         let stats = [
             (MetricNamespace::Custom, self.custom),
