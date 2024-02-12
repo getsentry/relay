@@ -481,7 +481,7 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
-    // Need hashbrown because drain_filter is not stable in std yet.
+    // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
@@ -546,14 +546,14 @@ impl ProjectCacheBroker {
 
         let expired = self
             .projects
-            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+            .extract_if(|_, entry| entry.last_updated_at() + delta <= eviction_start);
 
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
         for (project_key, project) in expired {
             let keys = self
                 .index
-                .drain_filter(|key| key.own_key == project_key || key.sampling_key == project_key)
+                .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
                 .collect::<BTreeSet<_>>();
 
             if !keys.is_empty() {
@@ -925,7 +925,7 @@ impl ProjectCacheBroker {
 
         let mut index = std::mem::take(&mut self.index);
         let values = index
-            .drain_filter(|key| self.is_state_valid(key))
+            .extract_if(|key| self.is_state_valid(key))
             .collect::<HashSet<_>>();
 
         if !values.is_empty() {
