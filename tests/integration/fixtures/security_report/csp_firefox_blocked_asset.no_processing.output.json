@@ -22,12 +22,18 @@
   },
   "culprit": "style-src http://cdn.example.com",
   "environment": "production",
+  "grouping_config": {
+    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+    "id": "legacy:2019-03-12"
+  },
+  "key_id": "123",
   "level": "error",
   "logentry": {
     "formatted": "Blocked 'style' from 'notlocalhost:8000'"
   },
   "logger": "csp",
   "platform": "other",
+  "project": 42,
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "request": {
     "headers": [
@@ -50,5 +56,6 @@
   ],
   "user": {
     "ip_address": "127.0.0.1"
-  }
+  },
+  "version": "7"
 }

@@ -126,7 +126,13 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     validate_event_timestamps(&mut event, &event_validation_config)?;
 
     let normalization_config = NormalizationConfig {
+        project_id: config.project_id,
+        client: config.client.clone(),
+        protocol_version: config.protocol_version.clone(),
+        key_id: config.key_id.clone(),
+        grouping_config: config.grouping_config.clone(),
         client_ip: config.client_ip.as_ref(),
+        client_sample_rate: config.client_sample_rate,
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),
             client_hints: config.client_hints.as_deref(),
@@ -144,6 +150,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
+        replay_id: config.replay_id,
     };
     normalize_event(&mut event, &normalization_config);
 

@@ -1108,8 +1108,30 @@ impl EnvelopeProcessorService {
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
             };
+
+            let key_id = state
+                .project_state
+                .get_public_key_config()
+                .and_then(|key| Some(key.numeric_id?.to_string()));
+            if key_id.is_none() {
+                relay_log::error!(
+                    "project state for key {} is missing key id",
+                    state.managed_envelope.envelope().meta().public_key()
+                );
+            }
+
             let normalization_config = NormalizationConfig {
+                project_id: Some(state.project_id.value()),
+                client: request_meta.client().map(str::to_owned),
+                key_id,
+                protocol_version: Some(request_meta.version().to_string()),
+                grouping_config: state.project_state.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                client_sample_rate: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.sample_rate),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
@@ -1144,6 +1166,11 @@ impl EnvelopeProcessorService {
                     state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
+                replay_id: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.replay_id),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {

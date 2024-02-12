@@ -7,19 +7,25 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::{
-    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
+    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricResourceIdentifier, MetricUnit,
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
-    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
-    Tags, Timestamp, User,
+    AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
+    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    MetricSummaryMapping, NelContext, ReplayContext, Request, SpanStatus, Tags, Timestamp,
+    TraceContext, User, VALID_PLATFORMS,
 };
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
+use relay_protocol::{
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
+    Value,
+};
 use smallvec::SmallVec;
+use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
@@ -33,11 +39,38 @@ use crate::{
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
 pub struct NormalizationConfig<'a> {
+    /// The identifier of the target project, which gets added to the payload.
+    pub project_id: Option<u64>,
+
+    /// The name and version of the SDK that sent the event.
+    pub client: Option<String>,
+
+    /// The internal identifier of the DSN, which gets added to the payload.
+    ///
+    /// Note that this is different from the DSN's public key. The ID is usually numeric.
+    pub key_id: Option<String>,
+
+    /// The version of the protocol.
+    ///
+    /// This is a deprecated field, as there is no more versioning of Relay event payloads.
+    pub protocol_version: Option<String>,
+
+    /// Configuration for issue grouping.
+    ///
+    /// This configuration is persisted into the event payload to achieve idempotency in the
+    /// processing pipeline and for reprocessing.
+    pub grouping_config: Option<serde_json::Value>,
+
     /// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
     /// `request` context, this IP address gets added to the `user` context.
     pub client_ip: Option<&'a IpAddr>,
+
+    /// The SDK's sample rate as communicated via envelope headers.
+    ///
+    /// It is persisted into the event payload.
+    pub client_sample_rate: Option<f64>,
 
     /// The user-agent and client hints obtained from the submission request headers.
     ///
@@ -102,12 +135,23 @@ pub struct NormalizationConfig<'a> {
     ///
     /// See the event schema for size declarations.
     pub enable_trimming: bool,
+
+    /// The identifier of the Replay running while this event was created.
+    ///
+    /// It is persisted into the event payload for correlation.
+    pub replay_id: Option<Uuid>,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
     fn default() -> Self {
         Self {
+            project_id: Default::default(),
+            client: Default::default(),
+            key_id: Default::default(),
+            protocol_version: Default::default(),
+            grouping_config: Default::default(),
             client_ip: Default::default(),
+            client_sample_rate: Default::default(),
             user_agent: Default::default(),
             max_name_and_unit_len: Default::default(),
             breakdowns_config: Default::default(),
@@ -122,6 +166,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
+            replay_id: Default::default(),
         }
     }
 }
@@ -225,6 +270,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     ); // Measurements are part of the metric extraction
     normalize_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+    normalize_default_attributes(event, meta, config);
 
     let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
@@ -237,6 +283,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
+        normalize_all_metrics_summaries(event);
     }
 
     if config.enrich_spans {
@@ -246,6 +293,61 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
                 max_tag_value_size: config.max_tag_value_length,
             },
         );
+    }
+
+    if let Some(context) = event.context_mut::<TraceContext>() {
+        context.client_sample_rate = Annotated::from(config.client_sample_rate);
+    }
+    normalize_replay_context(event, config.replay_id);
+}
+
+/// Normalizes all the metrics summaries across the event payload.
+fn normalize_all_metrics_summaries(event: &mut Event) {
+    if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
+        metrics_summary.update_value(normalize_metrics_summary_mris);
+    }
+
+    let Some(spans) = event.spans.value_mut() else {
+        return;
+    };
+
+    for span in spans.iter_mut() {
+        let metrics_summary = span
+            .value_mut()
+            .as_mut()
+            .and_then(|span| span._metrics_summary.value_mut().as_mut());
+
+        if let Some(ms) = metrics_summary {
+            ms.update_value(normalize_metrics_summary_mris);
+        }
+    }
+}
+
+/// Replaces all incoming metric identifiers in the metric summary with the correct MRI.
+///
+/// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
+/// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
+/// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
+fn normalize_metrics_summary_mris(m: MetricSummaryMapping) -> MetricSummaryMapping {
+    m.into_iter()
+        .map(|(key, value)| match MetricResourceIdentifier::parse(&key) {
+            Ok(mri) => (mri.to_string(), value),
+            Err(err) => (
+                key,
+                Annotated::from_error(Error::invalid(err), value.0.map(IntoValue::into_value)),
+            ),
+        })
+        .collect()
+}
+
+fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
+    if let Some(ref mut contexts) = event.contexts.value_mut() {
+        if let Some(replay_id) = replay_id {
+            contexts.add(ReplayContext {
+                replay_id: Annotated::new(EventId(replay_id)),
+                other: Object::default(),
+            });
+        }
     }
 }
 
@@ -884,6 +986,210 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
+fn normalize_default_attributes(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    let event_type = infer_event_type(event);
+    event.ty = Annotated::from(event_type);
+    event.project = Annotated::from(config.project_id);
+    event.key_id = Annotated::from(config.key_id.clone());
+    event.version = Annotated::from(config.protocol_version.clone());
+    event.grouping_config = config
+        .grouping_config
+        .clone()
+        .map_or(Annotated::empty(), |x| {
+            FromValue::from_value(Annotated::<Value>::from(x))
+        });
+
+    let _ = relay_event_schema::processor::apply(&mut event.platform, |platform, _| {
+        if is_valid_platform(platform) {
+            Ok(())
+        } else {
+            Err(ProcessingAction::DeleteValueSoft)
+        }
+    });
+
+    // Default required attributes, even if they have errors
+    event.errors.get_or_insert_with(Vec::new);
+    event.id.get_or_insert_with(EventId::new);
+    event.platform.get_or_insert_with(|| "other".to_string());
+    event.logger.get_or_insert_with(String::new);
+    event.extra.get_or_insert_with(Object::new);
+    event.level.get_or_insert_with(|| match event_type {
+        EventType::Transaction => Level::Info,
+        _ => Level::Error,
+    });
+    if event.client_sdk.value().is_none() {
+        event.client_sdk.set_value(get_sdk_info(config));
+    }
+
+    if event.platform.as_str() == Some("java") {
+        if let Some(event_logger) = event.logger.value_mut().take() {
+            let shortened = shorten_logger(event_logger, meta);
+            event.logger.set_value(Some(shortened));
+        }
+    }
+}
+
+/// Returns `true` if the given platform string is a known platform identifier.
+///
+/// See [`VALID_PLATFORMS`] for a list of all known platforms.
+pub fn is_valid_platform(platform: &str) -> bool {
+    VALID_PLATFORMS.contains(&platform)
+}
+
+/// Infers the `EventType` from the event's interfaces.
+fn infer_event_type(event: &Event) -> EventType {
+    // The event type may be set explicitly when constructing the event items from specific
+    // items. This is DEPRECATED, and each distinct event type may get its own base class. For
+    // the time being, this is only implemented for transactions, so be specific:
+    if event.ty.value() == Some(&EventType::Transaction) {
+        return EventType::Transaction;
+    }
+    if event.ty.value() == Some(&EventType::UserReportV2) {
+        return EventType::UserReportV2;
+    }
+
+    // The SDKs do not describe event types, and we must infer them from available attributes.
+    let has_exceptions = event
+        .exceptions
+        .value()
+        .and_then(|exceptions| exceptions.values.value())
+        .filter(|values| !values.is_empty())
+        .is_some();
+
+    if has_exceptions {
+        EventType::Error
+    } else if event.csp.value().is_some() {
+        EventType::Csp
+    } else if event.hpkp.value().is_some() {
+        EventType::Hpkp
+    } else if event.expectct.value().is_some() {
+        EventType::ExpectCt
+    } else if event.expectstaple.value().is_some() {
+        EventType::ExpectStaple
+    } else if event.context::<NelContext>().is_some() {
+        EventType::Nel
+    } else {
+        EventType::Default
+    }
+}
+
+/// Returns the SDK info from the config.
+fn get_sdk_info(config: &NormalizationConfig) -> Option<ClientSdkInfo> {
+    config.client.as_ref().and_then(|client| {
+        client
+            .splitn(2, '/')
+            .collect_tuple()
+            .or_else(|| client.splitn(2, ' ').collect_tuple())
+            .map(|(name, version)| ClientSdkInfo {
+                name: Annotated::new(name.to_owned()),
+                version: Annotated::new(version.to_owned()),
+                ..Default::default()
+            })
+    })
+}
+
+/// If the logger is longer than [`MaxChars::Logger`], it returns a String with
+/// a shortened version of the logger. If not, the same logger is returned as a
+/// String. The resulting logger is always trimmed.
+///
+/// To shorten the logger, all extra chars that don't fit into the maximum limit
+/// are removed, from the beginning of the logger.  Then, if the remaining
+/// substring contains a `.` somewhere but in the end, all chars until `.`
+/// (exclusive) are removed.
+///
+/// Additionally, the new logger is prefixed with `*`, to indicate it was
+/// shortened.
+fn shorten_logger(logger: String, meta: &mut Meta) -> String {
+    let original_len = bytecount::num_chars(logger.as_bytes());
+    let trimmed = logger.trim();
+    let logger_len = bytecount::num_chars(trimmed.as_bytes());
+    if logger_len <= MaxChars::Logger.limit() {
+        if trimmed == logger {
+            return logger;
+        } else {
+            if trimmed.is_empty() {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Removed,
+                    rule_id: "@logger:remove".to_owned(),
+                    range: Some((0, original_len)),
+                });
+            } else {
+                meta.add_remark(Remark {
+                    ty: RemarkType::Substituted,
+                    rule_id: "@logger:trim".to_owned(),
+                    range: None,
+                });
+            }
+            meta.set_original_length(Some(original_len));
+            return trimmed.to_string();
+        };
+    }
+
+    let mut tokens = trimmed.split("").collect_vec();
+    // Remove empty str tokens from the beginning and end.
+    tokens.pop();
+    tokens.reverse(); // Prioritize chars from the end of the string.
+    tokens.pop();
+
+    let word_cut = remove_logger_extra_chars(&mut tokens);
+    if word_cut {
+        remove_logger_word(&mut tokens);
+    }
+
+    tokens.reverse();
+    meta.add_remark(Remark {
+        ty: RemarkType::Substituted,
+        rule_id: "@logger:replace".to_owned(),
+        range: Some((0, logger_len - tokens.len())),
+    });
+    meta.set_original_length(Some(original_len));
+
+    format!("*{}", tokens.join(""))
+}
+
+/// Remove as many tokens as needed to match the maximum char limit defined in
+/// [`MaxChars::Logger`], and an extra token for the logger prefix. Returns
+/// whether a word has been cut.
+///
+/// A word is considered any non-empty substring that doesn't contain a `.`.
+fn remove_logger_extra_chars(tokens: &mut Vec<&str>) -> bool {
+    // Leave one slot of space for the prefix
+    let mut remove_chars = tokens.len() - MaxChars::Logger.limit() + 1;
+    let mut word_cut = false;
+    while remove_chars > 0 {
+        if let Some(c) = tokens.pop() {
+            if !word_cut && c != "." {
+                word_cut = true;
+            } else if word_cut && c == "." {
+                word_cut = false;
+            }
+        }
+        remove_chars -= 1;
+    }
+    word_cut
+}
+
+/// If the `.` token is present, removes all tokens from the end of the vector
+/// until `.`. If it isn't present, nothing is removed.
+fn remove_logger_word(tokens: &mut Vec<&str>) {
+    let mut delimiter_found = false;
+    for token in tokens.iter() {
+        if *token == "." {
+            delimiter_found = true;
+            break;
+        }
+    }
+    if !delimiter_found {
+        return;
+    }
+    while let Some(i) = tokens.last() {
+        if *i == "." {
+            break;
+        }
+        tokens.pop();
+    }
+}
+
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
@@ -1086,11 +1392,11 @@ mod tests {
 
     use std::collections::BTreeMap;
 
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_json_snapshot};
     use itertools::Itertools;
     use relay_event_schema::protocol::{
         Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
-        Request, Tags, Values,
+        MetricSummary, MetricsSummary, Request, Span, Tags, Values,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2817,5 +3123,172 @@ mod tests {
                 ),
             ),
         }"#);
+    }
+
+    #[test]
+    fn test_normalize_metrics_summary_metric_identifiers() {
+        let mut metric_tags = BTreeMap::new();
+        metric_tags.insert(
+            "transaction".to_string(),
+            Annotated::new("/hello".to_string()),
+        );
+
+        let metric_summary = vec![Annotated::new(MetricSummary {
+            min: Annotated::new(1.0),
+            max: Annotated::new(20.0),
+            sum: Annotated::new(21.0),
+            count: Annotated::new(2),
+            tags: Annotated::new(metric_tags),
+        })];
+
+        let mut metrics_summary = BTreeMap::new();
+        metrics_summary.insert(
+            "d:page_duration@millisecond".to_string(),
+            Annotated::new(metric_summary.clone()),
+        );
+        metrics_summary.insert(
+            "c:custom/page_click@none".to_string(),
+            Annotated::new(Default::default()),
+        );
+        metrics_summary.insert(
+            "s:user@none".to_string(),
+            Annotated::new(metric_summary.clone()),
+        );
+        metrics_summary.insert("invalid".to_string(), Annotated::new(metric_summary));
+        metrics_summary.insert(
+            "g:page_load@second".to_string(),
+            Annotated::new(Default::default()),
+        );
+        let metrics_summary = MetricsSummary(metrics_summary);
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("my_span".to_owned()),
+                _metrics_summary: Annotated::new(metrics_summary.clone()),
+                ..Default::default()
+            })]),
+            _metrics_summary: Annotated::new(metrics_summary),
+            ..Default::default()
+        });
+        normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
+        assert_json_snapshot!(SerializableAnnotated(&event), @r###"
+        {
+          "spans": [
+            {
+              "op": "my_span",
+              "_metrics_summary": {
+                "c:custom/page_click@none": [],
+                "d:custom/page_duration@millisecond": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ],
+                "g:custom/page_load@second": [],
+                "invalid": null,
+                "s:custom/user@none": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "_metrics_summary": {
+            "c:custom/page_click@none": [],
+            "d:custom/page_duration@millisecond": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ],
+            "g:custom/page_load@second": [],
+            "invalid": null,
+            "s:custom/user@none": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ]
+          },
+          "_meta": {
+            "_metrics_summary": {
+              "invalid": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "failed to parse metric"
+                      }
+                    ]
+                  ],
+                  "val": [
+                    {
+                      "count": 2,
+                      "max": 20.0,
+                      "min": 1.0,
+                      "sum": 21.0,
+                      "tags": {
+                        "transaction": "/hello"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "spans": {
+              "0": {
+                "_metrics_summary": {
+                  "invalid": {
+                    "": {
+                      "err": [
+                        [
+                          "invalid_data",
+                          {
+                            "reason": "failed to parse metric"
+                          }
+                        ]
+                      ],
+                      "val": [
+                        {
+                          "count": 2,
+                          "max": 20.0,
+                          "min": 1.0,
+                          "sum": 21.0,
+                          "tags": {
+                            "transaction": "/hello"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "###);
     }
 }

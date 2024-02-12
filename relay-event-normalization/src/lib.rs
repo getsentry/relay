@@ -170,17 +170,13 @@ pub struct StoreConfig {
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
 pub struct StoreProcessor {
     config: Arc<StoreConfig>,
-    normalize: normalize::StoreNormalizeProcessor,
 }
 
 impl StoreProcessor {
     /// Creates a new normalization processor.
     pub fn new(config: StoreConfig) -> Self {
         let config = Arc::new(config);
-        StoreProcessor {
-            normalize: normalize::StoreNormalizeProcessor::new(config.clone()),
-            config,
-        }
+        StoreProcessor { config }
     }
 
     /// Returns a reference to the config.
@@ -198,11 +194,6 @@ impl Processor for StoreProcessor {
     ) -> ProcessingResult {
         let is_renormalize = self.config.is_renormalize.unwrap_or(false);
         let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
-
-        if !is_renormalize {
-            // Normalize data in all interfaces
-            self.normalize.process_event(event, meta, state)?;
-        }
 
         if remove_other {
             // Remove unknown attributes at every level
