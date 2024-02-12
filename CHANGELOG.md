@@ -6,6 +6,10 @@
 
 - Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
 
+**Features**:
+
+- Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
+
 ## 24.1.2
 
 **Features**:
@@ -14,7 +18,6 @@
 - Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
 - Add `app_start_type` as a tag for self time and duration for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027)), ([#3066](https://github.com/getsentry/relay/pull/3066))
-- Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
 
 **Internal**:
 
