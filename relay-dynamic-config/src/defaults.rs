@@ -29,7 +29,7 @@ const MOBILE_OPS: &[&str] = &[
 /// A list of span descriptions that indicate top-level app start spans.
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 
-/// A list of patterns found in MongoDB queries
+/// A list of patterns found in MongoDB queries.
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
