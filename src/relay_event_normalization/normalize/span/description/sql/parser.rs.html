@@ -644,6 +644,9 @@
 <a href="#643" id="643">643</a>
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -674,19 +677,18 @@
     db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     query: <span class="kw-2">&amp;</span>str,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Statement&gt;, sqlparser::parser::ParserError&gt; {
-    <span class="kw">match </span>std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
-        <span class="prelude-val">Ok</span>(res) =&gt; res,
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-            <span class="macro">relay_log::error!</span>(
-                tags.db_system = db_system,
-                query = query,
-                <span class="string">"parse_query panicked"</span>,
-            );
-            <span class="prelude-val">Err</span>(sqlparser::parser::ParserError::ParserError(
+    relay_log::with_scope(
+        |scope| {
+            scope.set_tag(<span class="string">"db_system"</span>, db_system.unwrap_or_default());
+            scope.set_extra(<span class="string">"query"</span>, query.into());
+        },
+        || <span class="kw">match </span>std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
+            <span class="prelude-val">Ok</span>(res) =&gt; res,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(sqlparser::parser::ParserError::ParserError(
                 <span class="string">"panicked"</span>.to_string(),
-            ))
-        }
-    }
+            )),
+        },
+    )
 }
 
 <span class="kw">fn </span>parse_query_inner(
@@ -704,8 +706,12 @@
 }
 
 <span class="doccomment">/// Tries to parse a series of SQL queries into an AST and normalize it.
-</span><span class="kw">pub fn </span>normalize_parsed_queries(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ()&gt; {
+</span><span class="kw">pub fn </span>normalize_parsed_queries(
+    db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    string: <span class="kw-2">&amp;</span>str,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(String, Vec&lt;Statement&gt;), ()&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>parsed = parse_query(db_system, string).map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+    <span class="kw">let </span>original_ast = parsed.clone();
     parsed.visit(<span class="kw-2">&amp;mut </span>NormalizeVisitor);
     parsed.visit(<span class="kw-2">&amp;mut </span>MaxDepthVisitor::new());
 
@@ -717,7 +723,7 @@
     <span class="comment">// Insert placeholders that the SQL serializer cannot provide.
     </span><span class="kw">let </span>replaced = concatenated.replace(<span class="string">"___UPDATE_LHS___ = NULL"</span>, <span class="string">".."</span>);
 
-    <span class="prelude-val">Ok</span>(replaced)
+    <span class="prelude-val">Ok</span>((replaced, original_ast))
 }
 
 <span class="doccomment">/// A visitor that normalizes the SQL AST in-place.
@@ -1286,7 +1292,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_deep_expression() {
         <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
-        <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).as_deref(), <span class="prelude-val">Ok</span>(<span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"</span>));
+        <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>, <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"</span>);
     }
 }
 </code></pre></div></section></main></body></html>

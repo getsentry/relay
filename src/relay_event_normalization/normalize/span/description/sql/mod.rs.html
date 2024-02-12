@@ -1004,21 +1004,21 @@
 </span><span class="kw">static </span>ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"/\?|\$1|%s"</span>).unwrap());
 
 <span class="doccomment">/// Normalizes the given SQL-query-like string.
-</span><span class="kw">pub fn </span>scrub_queries(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+</span><span class="kw">pub fn </span>scrub_queries(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; (<span class="prelude-ty">Option</span>&lt;String&gt;, Mode) {
     <span class="kw">let </span>t = Instant::now();
     <span class="kw">let </span>(res, mode) = scrub_queries_inner(db_system, string);
     <span class="macro">relay_statsd::metric!</span>(
         timer(Timers::SpanDescriptionNormalizeSQL) = t.elapsed(),
         mode = mode.as_str(),
     );
-    res
+    (res, mode)
 }
 
 <span class="doccomment">/// The scrubbing mode that was applied to an SQL string.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>Mode {
+</span><span class="kw">pub enum </span>Mode {
     <span class="doccomment">/// The SQL parser was able to parse &amp; sanitize the string.
-    </span>Parser,
+    </span>Parsed(Vec&lt;sqlparser::ast::Statement&gt;),
     <span class="doccomment">/// SQL parsing failed and the scrubber fell back to a sequence of regexes.
     </span>Regex,
 }
@@ -1026,15 +1026,15 @@
 <span class="kw">impl </span>Mode {
     <span class="kw">fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            Mode::Parser =&gt; <span class="string">"parser"</span>,
+            Mode::Parsed(<span class="kw">_</span>) =&gt; <span class="string">"parser"</span>,
             Mode::Regex =&gt; <span class="string">"regex"</span>,
         }
     }
 }
 
 <span class="kw">fn </span>scrub_queries_inner(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; (<span class="prelude-ty">Option</span>&lt;String&gt;, Mode) {
-    <span class="kw">if let </span><span class="prelude-val">Ok</span>(queries) = normalize_parsed_queries(db_system, string) {
-        <span class="kw">return </span>(<span class="prelude-val">Some</span>(queries), Mode::Parser);
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>((queries, ast)) = normalize_parsed_queries(db_system, string) {
+        <span class="kw">return </span>(<span class="prelude-val">Some</span>(queries), Mode::Parsed(ast));
     }
 
     <span class="kw">let </span>mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
@@ -1090,7 +1090,7 @@
         (<span class="macro-nonterminal">$name</span>:ident, <span class="macro-nonterminal">$description_in</span>:expr, <span class="macro-nonterminal">$output</span>:literal) =&gt; {
             <span class="attr">#[test]
             </span><span class="kw">fn </span><span class="macro-nonterminal">$name</span>() {
-                <span class="kw">let </span>scrubbed = scrub_queries(<span class="prelude-val">None</span>, <span class="macro-nonterminal">$description_in</span>);
+                <span class="kw">let </span>(scrubbed, _mode) = scrub_queries(<span class="prelude-val">None</span>, <span class="macro-nonterminal">$description_in</span>);
                 <span class="macro">assert_eq!</span>(scrubbed.as_deref().unwrap_or_default(), <span class="macro-nonterminal">$output</span>);
             }
         };
@@ -1100,7 +1100,7 @@
         (<span class="macro-nonterminal">$name</span>:ident, <span class="macro-nonterminal">$db_system</span>:literal, <span class="macro-nonterminal">$description_in</span>:literal, <span class="macro-nonterminal">$output</span>:literal) =&gt; {
             <span class="attr">#[test]
             </span><span class="kw">fn </span><span class="macro-nonterminal">$name</span>() {
-                <span class="kw">let </span>scrubbed = scrub_queries(<span class="prelude-val">Some</span>(<span class="macro-nonterminal">$db_system</span>), <span class="macro-nonterminal">$description_in</span>);
+                <span class="kw">let </span>(scrubbed, _mode) = scrub_queries(<span class="prelude-val">Some</span>(<span class="macro-nonterminal">$db_system</span>), <span class="macro-nonterminal">$description_in</span>);
                 <span class="macro">assert_eq!</span>(scrubbed.as_deref().unwrap_or_default(), <span class="macro-nonterminal">$output</span>);
             }
         };
