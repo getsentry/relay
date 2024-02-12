@@ -20,7 +20,7 @@ use {crate::utils, relay_event_schema::protocol::Event, relay_protocol::Annotate
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders(state: &mut ProcessEnvelopeState) {
+pub fn create_placeholders<G>(state: &mut ProcessEnvelopeState<G>) {
     let envelope = state.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -43,7 +43,7 @@ pub fn create_placeholders(state: &mut ProcessEnvelopeState) {
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub(state: &mut ProcessEnvelopeState) {
+pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) {
     let envelope = state.managed_envelope.envelope_mut();
     if let Some(ref config) = state.project_state.config.pii_config {
         let minidump = envelope

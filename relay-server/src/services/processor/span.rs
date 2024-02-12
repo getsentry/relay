@@ -2,6 +2,7 @@
 
 use relay_dynamic_config::Feature;
 
+use crate::services::processor::SpanGroup;
 use crate::{envelope::ItemType, services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
@@ -9,7 +10,7 @@ mod processing;
 #[cfg(feature = "processing")]
 pub use processing::*;
 
-pub fn filter(state: &mut ProcessEnvelopeState) {
+pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let standalone_span_ingestion_enabled = state
         .project_state
         .has_feature(Feature::StandaloneSpanIngestion);

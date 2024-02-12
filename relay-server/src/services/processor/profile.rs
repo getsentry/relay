@@ -11,11 +11,11 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::ProcessEnvelopeState;
+use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
-pub fn filter(state: &mut ProcessEnvelopeState) {
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
     let transaction_count: usize = state
         .managed_envelope
         .envelope()
@@ -54,7 +54,7 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
 /// If profile processing happens at a later stage, we remove the context again.
-pub fn transfer_id(state: &mut ProcessEnvelopeState) {
+pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if let Some(event) = state.event.value_mut() {
         if event.ty.value() == Some(&EventType::Transaction) {
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -70,7 +70,7 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState) {
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
