@@ -144,10 +144,23 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the helper functions wrapping the SQL queries which will be run against
 //! the on-disk spool (currently backed by SQLite).
 
 </span><span class="kw">use </span>futures::stream::{Stream, StreamExt};
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>sqlx::query::Query;
 <span class="kw">use </span>sqlx::sqlite::SqliteArguments;
 <span class="kw">use </span>sqlx::{Pool, QueryBuilder, Sqlite};
@@ -163,25 +176,36 @@
 /// Keep it on the lower side for now.
 </span><span class="kw">const </span>SQLITE_LIMIT_VARIABLE_NUMBER: usize = <span class="number">999</span>;
 
+<span class="doccomment">/// Prepares a DELETE query, by properly genering IN clauses for provided keys.
+</span><span class="kw">pub fn </span>prepare_delete_query(keys: Vec&lt;QueueKey&gt;) -&gt; String {
+    <span class="kw">let </span>(own_keys, sampling_keys) = keys.iter().fold(
+        (Vec::new(), Vec::new()),
+        |(<span class="kw-2">mut </span>own_keys, <span class="kw-2">mut </span>sampling_keys), key| {
+            own_keys.push(<span class="macro">format!</span>(<span class="string">r#""{}""#</span>, key.own_key));
+            sampling_keys.push(<span class="macro">format!</span>(<span class="string">r#""{}""#</span>, key.sampling_key));
+            (own_keys, sampling_keys)
+        },
+    );
+
+    <span class="kw">let </span>own_keys = own_keys.into_iter().join(<span class="string">","</span>);
+    <span class="kw">let </span>sampling_keys = sampling_keys.into_iter().join(<span class="string">","</span>);
+
+    <span class="macro">format!</span>(
+        <span class="string">"DELETE FROM
+            envelopes
+         WHERE id IN (SELECT id FROM envelopes WHERE own_key in ({}) AND sampling_key in ({}) LIMIT ?)
+         RETURNING
+            received_at, own_key, sampling_key, envelope"</span>, own_keys, sampling_keys
+    )
+}
+
 <span class="doccomment">/// Creates a DELETE query binding to the provided [`QueueKey`] which returns the envelopes and
 /// timestamp.
 ///
 /// The query will perform the delete once executed returning deleted envelope and timestamp when
 /// the envelope was received. This will create a prepared statement which is cached and re-used.
-</span><span class="kw">pub fn </span>delete_and_fetch&lt;<span class="lifetime">'a</span>&gt;(
-    key: QueueKey,
-    batch_size: i64,
-) -&gt; Query&lt;<span class="lifetime">'a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">'a</span>&gt;&gt; {
-    sqlx::query(
-        <span class="string">"DELETE FROM
-            envelopes
-         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?)
-         RETURNING
-            received_at, own_key, sampling_key, envelope"</span>,
-    )
-    .bind(key.own_key.to_string())
-    .bind(key.sampling_key.to_string())
-    .bind(batch_size)
+</span><span class="kw">pub fn </span>delete_and_fetch(query: <span class="kw-2">&amp;</span>str, batch_size: i64) -&gt; Query&lt;<span class="lifetime">'_</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">'_</span>&gt;&gt; {
+    sqlx::query(query).bind(batch_size)
 }
 
 <span class="doccomment">/// Creates a DELETE query which returns the requested batch of the envelopes with the timestamp
