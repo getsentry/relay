@@ -10,8 +10,6 @@
 )]
 #![recursion_limit = "256"]
 
-use std::str::FromStr;
-
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{Ident, Lit, Meta, NestedMeta};
@@ -435,29 +433,6 @@ impl FieldAttrs {
                 pii: #pii,
                 retain: #retain,
             }
-        })
-    }
-}
-
-#[derive(Copy, Clone, Default)]
-enum SkipSerialization {
-    #[default]
-    Never,
-    Null(bool),
-    Empty(bool),
-}
-
-impl FromStr for SkipSerialization {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, ()> {
-        Ok(match s {
-            "never" => SkipSerialization::Never,
-            "null" => SkipSerialization::Null(false),
-            "null_deep" => SkipSerialization::Null(true),
-            "empty" => SkipSerialization::Empty(false),
-            "empty_deep" => SkipSerialization::Empty(true),
-            _ => return Err(()),
         })
     }
 }
