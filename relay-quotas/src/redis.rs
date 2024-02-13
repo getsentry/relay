@@ -388,10 +388,9 @@ mod tests {
     /// Tests that a quota with and without namespace are counted separately.
     #[test]
     fn test_non_global_namespace_quota() {
-        let id = format!("test_simple_quota_{}", uuid::Uuid::new_v4());
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
-                id: Some(id.clone()),
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
