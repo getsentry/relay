@@ -1383,6 +1383,10 @@
 <a href="#1382" id="1382">1382</a>
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1409,6 +1413,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::services::spooler::{
     <span class="self">self</span>, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
+    BATCH_KEY_COUNT,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::UpstreamRelay;
@@ -2311,6 +2316,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>index = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.index);
         <span class="kw">let </span>values = index
             .extract_if(|key| <span class="self">self</span>.is_state_valid(key))
+            .take(BATCH_KEY_COUNT)
             .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">if </span>!values.is_empty() {
@@ -2318,7 +2324,9 @@
         }
 
         <span class="comment">// Return all the un-used items to the index.
-        </span><span class="self">self</span>.index.extend(index);
+        </span><span class="kw">if </span>!index.is_empty() {
+            <span class="self">self</span>.index.extend(index);
+        }
 
         <span class="comment">// Schedule unspool once we are done.
         </span><span class="self">self</span>.buffer_unspool_backoff.reset();

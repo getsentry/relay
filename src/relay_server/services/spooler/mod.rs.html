@@ -1842,6 +1842,10 @@
 <a href="#1841" id="1841">1841</a>
 <a href="#1842" id="1842">1842</a>
 <a href="#1843" id="1843">1843</a>
+<a href="#1844" id="1844">1844</a>
+<a href="#1845" id="1845">1845</a>
+<a href="#1846" id="1846">1846</a>
+<a href="#1847" id="1847">1847</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1881,7 +1885,6 @@
 
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
 <span class="kw">use </span>hashbrown::HashSet;
-<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1905,6 +1908,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
 <span class="kw">mod </span>sql;
+
+<span class="doccomment">/// The number of keys to take from the [`ProjectCache`] index in one unspool operation.
+</span><span class="kw">pub const </span>BATCH_KEY_COUNT: usize = <span class="number">2000</span>;
 
 <span class="doccomment">/// The predefined batch size for the SQL queries, when fetching anything from the on-disk spool.
 </span><span class="kw">const </span>BATCH_SIZE: i64 = <span class="number">200</span>;
@@ -2484,20 +2490,22 @@
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>unused_keys = HashSet::new();
-        <span class="comment">// Chunk up the incoming keys in batches of size `BATCH_SIZE`.
-        </span><span class="kw">let </span>chunks: Vec&lt;Vec&lt;<span class="kw">_</span>&gt;&gt; = keys
-            .drain()
-            .chunks(BATCH_SIZE <span class="kw">as </span>usize)
-            .into_iter()
-            .map(|chunk| chunk.collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;())
-            .collect();
+        <span class="kw">loop </span>{
+            <span class="kw">if </span>keys.is_empty() {
+                <span class="kw">break</span>;
+            }
 
-        <span class="kw">for </span>chunk <span class="kw">in </span>chunks.into_iter() {
+            <span class="kw">let </span>chunk = keys
+                .extract_if(|<span class="kw">_</span>| <span class="bool-val">true</span>)
+                .take(BATCH_SIZE <span class="kw">as </span>usize)
+                .collect();
+
             <span class="comment">// If the error with a key is returned we must save it for the next iteration.
             </span><span class="kw">if let </span><span class="prelude-val">Err</span>(failed_keys) = <span class="self">self</span>.delete_and_fetch(chunk, sender.clone(), services).<span class="kw">await </span>{
                 unused_keys.extend(failed_keys);
             };
         }
+
         <span class="kw">if </span>!unused_keys.is_empty() {
             services
                 .project_cache

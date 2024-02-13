@@ -116,6 +116,7 @@
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_system::Addr;
@@ -161,7 +162,8 @@
             inner,
             capacity,
             high_watermark: <span class="number">0.8</span>,
-            low_watermark: <span class="number">0.5</span>,
+            <span class="comment">// Keep the low limit under 40%.
+            </span>low_watermark: <span class="number">0.40</span>,
         }
     }
 
