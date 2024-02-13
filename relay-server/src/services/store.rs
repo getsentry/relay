@@ -846,7 +846,6 @@ impl StoreService {
         send_combined_replay_envelope: bool,
     ) -> Result<(), StoreError> {
         if let Some(replay_event) = replay_event {
-            // always produce replay event
             self.produce_replay_event(
                 replay_id,
                 scoping.organization_id,
@@ -855,40 +854,27 @@ impl StoreService {
                 retention_days,
                 replay_event,
             )?;
+        }
 
-            if let Some(replay_recording) = replay_recording {
-                /*
-                produce replay recording with replay event if combined flag is set
-                otherwise produce replay recording without replay event
-                */
-                self.produce_replay_recording(
-                    Some(replay_id),
-                    scoping,
-                    replay_recording,
-                    if send_combined_replay_envelope {
-                        Some(replay_event)
-                    } else {
-                        None
-                    },
-                    start_time,
-                    retention_days,
-                )?;
-            }
-        } else if let Some(replay_recording) = replay_recording {
-            // this block in theory should never happen, as SDK always sends replay_event and recording together,
-            // but just in case, if we only receive a recording without an event, we'll still produce it.
+        if let Some(replay_recording) = replay_recording {
+            let combined_replay_event = if send_combined_replay_envelope && replay_event.is_some() {
+                replay_event
+            } else {
+                None
+            };
+
             self.produce_replay_recording(
                 Some(replay_id),
                 scoping,
                 replay_recording,
-                None,
+                combined_replay_event,
                 start_time,
                 retention_days,
             )?;
         }
+
         Ok(())
     }
-
     fn produce_check_in(
         &self,
         organization_id: u64,
