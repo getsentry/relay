@@ -506,10 +506,6 @@
 <a href="#505" id="505">505</a>
 <a href="#506" id="506">506</a>
 <a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -543,9 +539,6 @@
 
 <span class="doccomment">/// A list of patterns found in MongoDB queries.
 </span><span class="kw">const </span>MONGODB_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*\"$*"</span>, <span class="string">"{*"</span>, <span class="string">"*({*"</span>, <span class="string">"*[{*"</span>];
-
-<span class="doccomment">/// A list of PG queries we don't want to support.
-</span><span class="kw">const </span>DISABLE_SOME_PG_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*SAVEPOINT*"</span>];
 
 <span class="doccomment">/// A list of patterns for resource span ops we'd like to ingest.
 </span><span class="kw">const </span>RESOURCE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"resource.script"</span>, <span class="string">"resource.css"</span>, <span class="string">"resource.img"</span>];
@@ -581,8 +574,7 @@
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
         &amp; !(RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
             | RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
-            | RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES)
-            | RuleCondition::glob(<span class="string">"span.description"</span>, DISABLE_SOME_PG_QUERIES));
+            | RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">"span.op"</span>, RESOURCE_SPAN_OPS);
 
     <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">"span.op"</span>, MOBILE_OPS);
