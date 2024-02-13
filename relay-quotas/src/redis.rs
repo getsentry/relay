@@ -385,7 +385,7 @@ mod tests {
         );
     }
 
-    /// Tests that a quota with and without namespace are counted differently.
+    /// Tests that a quota with and without namespace are counted separately.
     #[test]
     fn test_non_global_namespace_quota() {
         let id = format!("test_simple_quota_{}", uuid::Uuid::new_v4());
