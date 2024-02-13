@@ -56,6 +56,10 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of bytes received by Relay for each individual envelope item type.
+    ///
+    /// Metric is tagged by the item type.
+    EnvelopeItemSize,
     /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
@@ -171,6 +175,7 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::EnvelopeItemSize => "event.item_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
@@ -595,6 +600,57 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
+    /// Number of times the batched metrics processing has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCalls,
+    /// Number of buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCount,
+    /// Bucket cost for all buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCost,
+    /// Number of times the metric encoding has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCalls,
+    /// Number of metric buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCount,
+    /// Bucket cost for all buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCost,
+    /// Number of times metric bucket rate limiting has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCalls,
+    /// Number of metric buckets rate limited in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCount,
+    /// Bucket cost for all buckets rate limited envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCost,
 }
 
 impl CounterMetric for RelayCounters {
@@ -633,6 +689,18 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
+            RelayCounters::ProcessorBatchedMetricsCalls => "processor.batched_metrics.calls",
+            RelayCounters::ProcessorBatchedMetricsCount => "processor.batched_metrics.count",
+            RelayCounters::ProcessorBatchedMetricsCost => "processor.batched_metrics.cost",
+            RelayCounters::ProcessorEncodeMetricsCalls => "processor.encode_metrics.calls",
+            RelayCounters::ProcessorEncodeMetricsCount => "processor.encode_metrics.count",
+            RelayCounters::ProcessorEncodeMetricsCost => "processor.encode_metrics.cost",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCalls => "processor.rate_limit_buckets.calls",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
         }
     }
 }
