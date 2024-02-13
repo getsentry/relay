@@ -310,6 +310,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
@@ -382,6 +383,92 @@ mod tests {
                 namespace: None,
             }]
         );
+    }
+
+    /// soo what do we wanna test here?
+    /// i guess that it sees a diff between with namespace and without?
+    #[test]
+    fn test_non_global_namespace_quota() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let quota_with_namespace = &[Quota {
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost_transaction")),
+            namespace: Some(MetricNamespace::Transactions),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: Some(MetricNamespace::Transactions),
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(42),
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespace: None,
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(42),
+                        reason_code: Some(ReasonCode::new("get_lost_transaction")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespace: Some(MetricNamespace::Transactions),
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
     }
 
     #[test]
