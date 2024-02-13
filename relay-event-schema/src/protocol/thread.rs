@@ -233,14 +233,7 @@ mod tests {
     #[test]
     fn test_thread_id() {
         assert_eq!(
-            ThreadId::String("testing".into()),
-            Annotated::<ThreadId>::from_json("\"testing\"")
-                .unwrap()
-                .0
-                .unwrap()
-        );
-        assert_eq!(
-            ThreadId::String("42".into()),
+            ThreadId(42),
             Annotated::<ThreadId>::from_json("\"42\"")
                 .unwrap()
                 .0
