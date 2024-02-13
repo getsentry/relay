@@ -1402,10 +1402,10 @@ def test_span_extraction(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
@@ -1856,10 +1856,10 @@ def test_span_extraction_with_ddm(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
@@ -1923,10 +1923,10 @@ def test_span_extraction_with_ddm_missing_values(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3

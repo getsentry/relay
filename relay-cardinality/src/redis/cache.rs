@@ -150,7 +150,7 @@ impl Inner {
 
         let expired = metric!(timer(CardinalityLimiterTimers::CacheVacuum), {
             self.cache
-                .drain_filter(|scope, cache| cache.current_slot < scope.active_slot(ts))
+                .extract_if(|scope, cache| cache.current_slot < scope.active_slot(ts))
                 .count()
         });
         metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as i64);
