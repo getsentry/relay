@@ -1,8 +1,24 @@
+//! ReplayVideo validator.
+//!
+//! ReplayVideo envelope-item types contain headers which must be present to complete processing.
 use bytes::Bytes;
 use serde::Deserialize;
 use serde_json;
 use std::fmt;
 
+/// Validates ReplayVideo envelope-item payloads.
+///
+/// # Usage
+///
+/// Accepts a borrowed reference to `Bytes` as input.
+///
+/// # Errors
+///
+/// This function will return errors if:
+///  - The message is empty.
+///  - If the header seperator character could not be found.
+///  - If the headers are invalid.
+///  - If the body value is empty.
 pub fn validate_replay_video(payload: &Bytes) -> Result<(), VideoError> {
     // Validate data was provided.
     if payload.is_empty() {
@@ -33,6 +49,7 @@ struct VideoHeaders {
     segment_id: u16,
 }
 
+/// Error returned from [`validate_replay_video`].
 #[derive(Debug)]
 pub enum VideoError {
     /// An error parsing the JSON payload.
