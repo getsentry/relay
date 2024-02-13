@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregator::{self, AggregatorConfig, ShiftKey};
 use crate::bucket::Bucket;
-use crate::statsd::{MetricCounters, MetricHistograms};
+use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -166,6 +166,18 @@ pub enum Aggregator {
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
 
+impl Aggregator {
+    /// Returns the name of the message variant.
+    fn variant(&self) -> &'static str {
+        match self {
+            Aggregator::AcceptsMetrics(_, _) => "AcceptsMetrics",
+            Aggregator::MergeBuckets(_) => "MergeBuckets",
+            #[cfg(test)]
+            Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
+        }
+    }
+}
+
 impl Interface for Aggregator {}
 
 impl FromMessage<AcceptsMetrics> for Aggregator {
@@ -303,15 +315,22 @@ impl AggregatorService {
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
-        match msg {
-            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.bucket_count())
+    fn handle_message(&mut self, message: Aggregator) {
+        let ty = message.variant();
+        relay_statsd::metric!(
+            timer(MetricTimers::AggregatorServiceDuration),
+            message = ty,
+            {
+                match message {
+                    Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+                    Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+                    #[cfg(test)]
+                    Aggregator::BucketCountInquiry(_, sender) => {
+                        sender.send(self.aggregator.bucket_count())
+                    }
+                }
             }
-        }
+        )
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {

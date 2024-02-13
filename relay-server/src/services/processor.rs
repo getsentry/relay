@@ -76,7 +76,7 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ExtractionMode, ManagedEnvelope, SamplingResult};
+use crate::utils::{self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult};
 
 mod attachment;
 mod dynamic_sampling;
@@ -1622,6 +1622,12 @@ impl EnvelopeProcessorService {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
 
+                    MetricStats::new(&buckets).emit(
+                        RelayCounters::ProcessorBatchedMetricsCalls,
+                        RelayCounters::ProcessorBatchedMetricsCount,
+                        RelayCounters::ProcessorBatchedMetricsCost,
+                    );
+
                     relay_log::trace!("merging metric buckets into project cache");
                     self.inner
                         .project_cache
@@ -1807,6 +1813,12 @@ impl EnvelopeProcessorService {
         let buckets = bucket_limiter.into_metrics();
 
         if !buckets.is_empty() {
+            MetricStats::new(&buckets).emit(
+                RelayCounters::ProcessorRateLimitBucketsCalls,
+                RelayCounters::ProcessorRateLimitBucketsCount,
+                RelayCounters::ProcessorRateLimitBucketsCost,
+            );
+
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -2164,6 +2176,16 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let mut stats = MetricStats::default();
+        for p in message.scopes.values() {
+            stats.update(&p.buckets);
+        }
+        stats.emit(
+            RelayCounters::ProcessorEncodeMetricsCalls,
+            RelayCounters::ProcessorEncodeMetricsCount,
+            RelayCounters::ProcessorEncodeMetricsCost,
+        );
+
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.store_forwarder {

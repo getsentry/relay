@@ -3702,6 +3702,7 @@ dependencies = [
  "relay-common",
  "relay-event-normalization",
  "relay-filter",
+ "relay-log",
  "relay-pii",
  "relay-protocol",
  "relay-quotas",
