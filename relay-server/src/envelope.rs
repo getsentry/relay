@@ -142,35 +142,50 @@ impl ItemType {
             }
         }
     }
+
+    /// Returns the variant name of the item type.
+    ///
+    /// Unlike [`Self::as_str`] this returns an unknown value as `unknown`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::Transaction => "transaction",
+            Self::Security => "security",
+            Self::Attachment => "attachment",
+            Self::FormData => "form_data",
+            Self::RawSecurity => "raw_security",
+            Self::Nel => "nel",
+            Self::UnrealReport => "unreal_report",
+            Self::UserReport => "user_report",
+            Self::UserReportV2 => "feedback",
+            Self::Session => "session",
+            Self::Sessions => "sessions",
+            Self::Statsd => "statsd",
+            Self::MetricBuckets => "metric_buckets",
+            Self::MetricMeta => "metric_meta",
+            Self::ClientReport => "client_report",
+            Self::Profile => "profile",
+            Self::ReplayEvent => "replay_event",
+            Self::ReplayRecording => "replay_recording",
+            Self::CheckIn => "check_in",
+            Self::Span => "span",
+            Self::OtelSpan => "otel_span",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    /// Returns the item type as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown(ref s) => s,
+            _ => self.name(),
+        }
+    }
 }
 
 impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Event => write!(f, "event"),
-            Self::Transaction => write!(f, "transaction"),
-            Self::Security => write!(f, "security"),
-            Self::Attachment => write!(f, "attachment"),
-            Self::FormData => write!(f, "form_data"),
-            Self::RawSecurity => write!(f, "raw_security"),
-            Self::Nel => write!(f, "nel"),
-            Self::UnrealReport => write!(f, "unreal_report"),
-            Self::UserReport => write!(f, "user_report"),
-            Self::UserReportV2 => write!(f, "feedback"),
-            Self::Session => write!(f, "session"),
-            Self::Sessions => write!(f, "sessions"),
-            Self::Statsd => write!(f, "statsd"),
-            Self::MetricBuckets => write!(f, "metric_buckets"),
-            Self::MetricMeta => write!(f, "metric_meta"),
-            Self::ClientReport => write!(f, "client_report"),
-            Self::Profile => write!(f, "profile"),
-            Self::ReplayEvent => write!(f, "replay_event"),
-            Self::ReplayRecording => write!(f, "replay_recording"),
-            Self::CheckIn => write!(f, "check_in"),
-            Self::Span => write!(f, "span"),
-            Self::OtelSpan => write!(f, "otel_span"),
-            Self::Unknown(s) => s.fmt(f),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -1452,6 +1467,16 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_item_type_names() {
+        assert_eq!(ItemType::Span.name(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).name(), "unknown");
+        assert_eq!(ItemType::Span.as_str(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
+        assert_eq!(&ItemType::Span.to_string(), "span");
+        assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
     }
 
     #[test]

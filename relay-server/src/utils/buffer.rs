@@ -43,7 +43,8 @@ impl BufferGuard {
             inner,
             capacity,
             high_watermark: 0.8,
-            low_watermark: 0.5,
+            // Keep the low limit under 40%.
+            low_watermark: 0.40,
         }
     }
 
