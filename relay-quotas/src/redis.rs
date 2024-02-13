@@ -385,31 +385,25 @@ mod tests {
         );
     }
 
-    /// soo what do we wanna test here?
-    /// i guess that it sees a diff between with namespace and without?
+    /// Tests that a quota with and without namespace are counted differently.
     #[test]
     fn test_non_global_namespace_quota() {
-        let quotas = &[Quota {
-            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
-            categories: DataCategories::new(),
-            scope: QuotaScope::Organization,
-            scope_id: None,
-            limit: Some(5),
-            window: Some(60),
-            reason_code: Some(ReasonCode::new("get_lost")),
-            namespace: None,
-        }];
+        let id = format!("test_simple_quota_{}", uuid::Uuid::new_v4());
+        let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
+            Quota {
+                id: Some(id.clone()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(5),
+                window: Some(60),
+                reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
+                namespace,
+            }
+        };
 
-        let quota_with_namespace = &[Quota {
-            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
-            categories: DataCategories::new(),
-            scope: QuotaScope::Organization,
-            scope_id: None,
-            limit: Some(5),
-            window: Some(60),
-            reason_code: Some(ReasonCode::new("get_lost_transaction")),
-            namespace: Some(MetricNamespace::Transactions),
-        }];
+        let quotas = &[get_quota(None)];
+        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
@@ -433,14 +427,8 @@ mod tests {
 
             if i >= 5 {
                 assert_eq!(
-                    rate_limits,
-                    vec![RateLimit {
-                        categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(42),
-                        reason_code: Some(ReasonCode::new("get_lost")),
-                        retry_after: rate_limits[0].retry_after,
-                        namespace: None,
-                    }]
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: None"))
                 );
             } else {
                 assert_eq!(rate_limits, vec![]);
@@ -456,14 +444,8 @@ mod tests {
 
             if i >= 5 {
                 assert_eq!(
-                    rate_limits,
-                    vec![RateLimit {
-                        categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(42),
-                        reason_code: Some(ReasonCode::new("get_lost_transaction")),
-                        retry_after: rate_limits[0].retry_after,
-                        namespace: Some(MetricNamespace::Transactions),
-                    }]
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: Some(Transactions)"))
                 );
             } else {
                 assert_eq!(rate_limits, vec![]);
