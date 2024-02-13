@@ -3,31 +3,32 @@ use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{RawStacktrace, Stacktrace};
 
-/// Represents a thread id.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+/// Represents a thread ID.
+///
+/// Thread IDs can come in either as strings or integers. Strings are silently coerced to integers.
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, IntoValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-#[serde(untagged)]
-pub enum ThreadId {
-    /// Integer representation of the thread id.
-    Int(u64),
-    /// String representation of the thread id.
-    String(String),
-}
+pub struct ThreadId(u64);
 
 impl FromValue for ThreadId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), meta) => {
-                Annotated(Some(ThreadId::String(value)), meta)
-            }
-            Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId::Int(value)), meta),
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(int) => Annotated(Some(ThreadId(int)), meta),
+                Err(_) => {
+                    meta.add_error(Error::expected("a thread id"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(Some(Value::U64(value)), meta) => Annotated(Some(ThreadId(value)), meta),
             Annotated(Some(Value::I64(value)), meta) => {
-                Annotated(Some(ThreadId::Int(value as u64)), meta)
+                Annotated(Some(ThreadId(value as u64)), meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
@@ -39,35 +40,12 @@ impl FromValue for ThreadId {
     }
 }
 
-impl IntoValue for ThreadId {
-    fn into_value(self) -> Value {
-        match self {
-            ThreadId::String(value) => Value::String(value),
-            ThreadId::Int(value) => Value::U64(value),
-        }
-    }
-
-    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: Serializer,
-    {
-        match *self {
-            ThreadId::String(ref value) => Serialize::serialize(value, s),
-            ThreadId::Int(value) => Serialize::serialize(&value, s),
-        }
-    }
-}
-
 impl ProcessValue for ThreadId {}
 
 impl Empty for ThreadId {
     #[inline]
     fn is_empty(&self) -> bool {
-        match self {
-            ThreadId::Int(_) => false,
-            ThreadId::String(string) => string.is_empty(),
-        }
+        false
     }
 }
 
