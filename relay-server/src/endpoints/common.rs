@@ -12,7 +12,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup, Ungrouped};
 use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
@@ -326,6 +326,13 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
+    for item in envelope.items() {
+        metric!(
+            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
+            item_type = item.ty().name()
+        )
+    }
+
     let buffer_guard = state.buffer_guard();
     let mut managed_envelope = buffer_guard
         .enter(
