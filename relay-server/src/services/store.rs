@@ -798,21 +798,32 @@ impl StoreService {
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // Map the event and video items to their byte messages.
+        // Map the event and video items to their byte payload values.
         let replay_event_payload = replay_event.map(|rv| rv.payload());
         let replay_video_payload = replay_video.map(|rv| rv.payload());
 
-        // Remaining bytes can be filled by the payload.
-        let mut max_payload_size = self.config.max_replay_message_size();
-        max_payload_size -= replay_event_payload.as_ref().map_or(0, |b| b.len());
-        max_payload_size -= replay_video_payload.as_ref().map_or(0, |b| b.len());
-        max_payload_size -= 2000; // Reserve 2KB for the message metadata.
+        // Maximum number of bytes accepted by the consumer.
+        let max_payload_size = self.config.max_replay_message_size();
+
+        // Size of the consumer message. We can be reasonably sure this won't overflow because
+        // of the request size validation provided by Nginx and Relay.
+        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
+        payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
+        payload_size += replay_video_payload.as_ref().map_or(0, |b| b.len());
+        payload_size += item.payload().len();
 
         // If the recording payload can not fit in to the message do not produce and quit early.
-        //
-        // TODO: Should we emit an outcome here?
-        if item.payload().len() >= max_payload_size {
+        if payload_size >= max_payload_size {
             relay_log::warn!("replay_recording over maximum size.");
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
             return Ok(());
         }
 
