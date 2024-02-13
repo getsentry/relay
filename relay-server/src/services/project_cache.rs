@@ -24,6 +24,7 @@ use crate::services::project_redis::RedisProjectSource;
 use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
+    BATCH_KEY_COUNT,
 };
 use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
@@ -926,6 +927,7 @@ impl ProjectCacheBroker {
         let mut index = std::mem::take(&mut self.index);
         let values = index
             .extract_if(|key| self.is_state_valid(key))
+            .take(BATCH_KEY_COUNT)
             .collect::<HashSet<_>>();
 
         if !values.is_empty() {
@@ -933,7 +935,9 @@ impl ProjectCacheBroker {
         }
 
         // Return all the un-used items to the index.
-        self.index.extend(index);
+        if !index.is_empty() {
+            self.index.extend(index);
+        }
 
         // Schedule unspool once we are done.
         self.buffer_unspool_backoff.reset();
