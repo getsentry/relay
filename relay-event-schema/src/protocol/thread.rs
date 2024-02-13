@@ -247,7 +247,7 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            ThreadId::Int(42),
+            ThreadId(42),
             Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
         );
     }
@@ -265,7 +265,7 @@ mod tests {
   "other": "value"
 }"#;
         let thread = Annotated::new(Thread {
-            id: Annotated::new(ThreadId::Int(42)),
+            id: Annotated::new(ThreadId(42)),
             name: Annotated::new("myname".to_string()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
@@ -324,7 +324,7 @@ mod tests {
   "other": "value"
 }"#;
         let thread = Annotated::new(Thread {
-            id: Annotated::new(ThreadId::Int(42)),
+            id: Annotated::new(ThreadId(42)),
             name: Annotated::new("myname".to_string()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
@@ -341,7 +341,7 @@ mod tests {
                         address: Annotated::empty(),
                         package_name: Annotated::new("io.sentry.samples".to_string()),
                         class_name: Annotated::new("MainActivity".to_string()),
-                        thread_id: Annotated::new(ThreadId::Int(7)),
+                        thread_id: Annotated::new(ThreadId(7)),
                         other: Default::default(),
                     }),
                 );
@@ -352,7 +352,7 @@ mod tests {
                         address: Annotated::empty(),
                         package_name: Annotated::new("android.database.sqlite".to_string()),
                         class_name: Annotated::new("SQLiteConnection".to_string()),
-                        thread_id: Annotated::new(ThreadId::Int(2)),
+                        thread_id: Annotated::new(ThreadId(2)),
                         other: Default::default(),
                     }),
                 );

@@ -601,7 +601,7 @@ mod tests {
                 address: Annotated::new("0x07d7437b".to_string()),
                 package_name: Annotated::new("io.sentry.samples".to_string()),
                 class_name: Annotated::new("MainActivity".to_string()),
-                thread_id: Annotated::new(ThreadId::Int(7)),
+                thread_id: Annotated::new(ThreadId(7)),
                 other: Default::default(),
             }),
             other: {

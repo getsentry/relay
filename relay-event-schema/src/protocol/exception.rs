@@ -93,7 +93,7 @@ mod tests {
             ty: Annotated::new("mytype".to_string()),
             value: Annotated::new("myvalue".to_string().into()),
             module: Annotated::new("mymodule".to_string()),
-            thread_id: Annotated::new(ThreadId::Int(42)),
+            thread_id: Annotated::new(ThreadId(42)),
             other: {
                 let mut map = Map::new();
                 map.insert(
