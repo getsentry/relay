@@ -6,7 +6,7 @@
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
 
-**Internal**
+**Internal**:
 
 - Add ability to use namespace in non-global quotas. ([#3090](https://github.com/getsentry/relay/pull/3090))
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
