@@ -13,7 +13,7 @@ use crate::protocol::{RawStacktrace, Stacktrace};
 /// Thread IDs can come in either as strings or integers. Strings are silently coerced to integers.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, IntoValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct ThreadId(u64);
+pub struct ThreadId(pub u64);
 
 impl FromValue for ThreadId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
