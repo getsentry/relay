@@ -885,7 +885,7 @@ impl StoreService {
             });
         }
 
-        self.produce_metrics_summary(scoping, start_time, item, &span);
+        self.produce_metrics_summary(scoping, item, &span);
 
         self.produce(
             KafkaTopic::Spans,
@@ -911,13 +911,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_metrics_summary(
-        &self,
-        scoping: Scoping,
-        start_time: Instant,
-        item: &Item,
-        span: &SpanKafkaMessage,
-    ) {
+    fn produce_metrics_summary(&self, scoping: Scoping, item: &Item, span: &SpanKafkaMessage) {
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
         let mut metrics_summary: SpanWithMetricsSummary = match serde_path_to_error::deserialize(d)
