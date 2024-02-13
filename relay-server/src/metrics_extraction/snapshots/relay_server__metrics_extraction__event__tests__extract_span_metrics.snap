@@ -597,6 +597,44 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -1085,42 +1123,6 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db",
         },
     },
 ]

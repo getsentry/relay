@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+
 **Features**:
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))

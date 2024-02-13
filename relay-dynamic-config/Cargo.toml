@@ -19,8 +19,9 @@ relay-auth = { path = "../relay-auth" }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-cardinality = { path = "../relay-cardinality" }
 relay-common = { path = "../relay-common" }
-relay-filter = { path = "../relay-filter" }
 relay-event-normalization = { path = "../relay-event-normalization" }
+relay-filter = { path = "../relay-filter" }
+relay-log = { path = "../relay-log" }
 relay-pii = { path = "../relay-pii" }
 relay-protocol  = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }

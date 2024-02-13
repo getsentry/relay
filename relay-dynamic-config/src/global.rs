@@ -19,7 +19,10 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Sentry options passed down to Relay.
-    #[serde(skip_serializing_if = "is_default")]
+    #[serde(
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
     pub options: Options,
 }
 
@@ -49,6 +52,7 @@ pub struct Options {
     /// of improving profile (function) metrics
     #[serde(
         rename = "profiling.profile_metrics.unsampled_profiles.platforms",
+        deserialize_with = "default_on_error",
         skip_serializing_if = "Vec::is_empty"
     )]
     pub profile_metrics_allowed_platforms: Vec<String>,
@@ -56,6 +60,7 @@ pub struct Options {
     /// Sample rate for tuning the amount of unsampled profiles that we "let through"
     #[serde(
         rename = "profiling.profile_metrics.unsampled_profiles.sample_rate",
+        deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub profile_metrics_sample_rate: f32,
@@ -63,6 +68,7 @@ pub struct Options {
     /// Kill switch for shutting down profile metrics
     #[serde(
         rename = "profiling.profile_metrics.unsampled_profiles.enabled",
+        deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub unsampled_profiles_enabled: bool,
@@ -70,6 +76,7 @@ pub struct Options {
     /// Kill switch for controlling the cardinality limiter.
     #[serde(
         rename = "relay.cardinality-limiter.mode",
+        deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub cardinality_limiter_mode: CardinalityLimiterMode,
@@ -80,6 +87,7 @@ pub struct Options {
     /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
     #[serde(
         rename = "relay.cardinality-limiter.error-sample-rate",
+        deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub cardinality_limiter_error_sample_rate: f32,
@@ -87,7 +95,11 @@ pub struct Options {
     /// Kill switch for disabling the span usage metric.
     ///
     /// This metric is converted into outcomes in a sentry-side consumer.
-    #[serde(rename = "relay.span-usage-metric", skip_serializing_if = "is_default")]
+    #[serde(
+        rename = "relay.span-usage-metric",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
     pub span_usage_metric: bool,
 
     /// All other unknown options.
@@ -115,6 +127,24 @@ pub enum CardinalityLimiterMode {
 /// Returns `true` if this value is equal to `Default::default()`.
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     *t == T::default()
+}
+
+fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+    T: Default + serde::de::DeserializeOwned,
+{
+    match T::deserialize(deserializer) {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            relay_log::error!(
+                error = %error,
+                "Error deserializing global config option: {}",
+                std::any::type_name::<T>(),
+            );
+            Ok(T::default())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -148,6 +178,21 @@ mod tests {
             .expect("failed to deserialize GlobalConfig");
 
         assert_eq!(deserialized, global_config);
+    }
+
+    #[test]
+    fn test_global_config_invalid_value_is_default() {
+        let options: Options = serde_json::from_str(
+            r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#,
+        )
+        .unwrap();
+
+        let expected = Options {
+            cardinality_limiter_mode: CardinalityLimiterMode::Passive,
+            ..Default::default()
+        };
+
+        assert_eq!(options, expected);
     }
 
     #[test]
