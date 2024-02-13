@@ -2953,6 +2953,28 @@
 <a href="#2952" id="2952">2952</a>
 <a href="#2953" id="2953">2953</a>
 <a href="#2954" id="2954">2954</a>
+<a href="#2955" id="2955">2955</a>
+<a href="#2956" id="2956">2956</a>
+<a href="#2957" id="2957">2957</a>
+<a href="#2958" id="2958">2958</a>
+<a href="#2959" id="2959">2959</a>
+<a href="#2960" id="2960">2960</a>
+<a href="#2961" id="2961">2961</a>
+<a href="#2962" id="2962">2962</a>
+<a href="#2963" id="2963">2963</a>
+<a href="#2964" id="2964">2964</a>
+<a href="#2965" id="2965">2965</a>
+<a href="#2966" id="2966">2966</a>
+<a href="#2967" id="2967">2967</a>
+<a href="#2968" id="2968">2968</a>
+<a href="#2969" id="2969">2969</a>
+<a href="#2970" id="2970">2970</a>
+<a href="#2971" id="2971">2971</a>
+<a href="#2972" id="2972">2972</a>
+<a href="#2973" id="2973">2973</a>
+<a href="#2974" id="2974">2974</a>
+<a href="#2975" id="2975">2975</a>
+<a href="#2976" id="2976">2976</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3031,7 +3053,7 @@
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, ManagedEnvelope, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult};
 
 <span class="kw">mod </span>attachment;
 <span class="kw">mod </span>dynamic_sampling;
@@ -4577,6 +4599,12 @@
                         clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
                     }
 
+                    MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
+                        RelayCounters::ProcessorBatchedMetricsCalls,
+                        RelayCounters::ProcessorBatchedMetricsCount,
+                        RelayCounters::ProcessorBatchedMetricsCost,
+                    );
+
                     <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
                     <span class="self">self</span>.inner
                         .project_cache
@@ -4762,6 +4790,12 @@
         <span class="kw">let </span>buckets = bucket_limiter.into_metrics();
 
         <span class="kw">if </span>!buckets.is_empty() {
+            MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
+                RelayCounters::ProcessorRateLimitBucketsCalls,
+                RelayCounters::ProcessorRateLimitBucketsCount,
+                RelayCounters::ProcessorRateLimitBucketsCost,
+            );
+
             <span class="self">self</span>.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -5119,6 +5153,16 @@
     }
 
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
+        <span class="kw">let </span><span class="kw-2">mut </span>stats = MetricStats::default();
+        <span class="kw">for </span>p <span class="kw">in </span>message.scopes.values() {
+            stats.update(<span class="kw-2">&amp;</span>p.buckets);
+        }
+        stats.emit(
+            RelayCounters::ProcessorEncodeMetricsCalls,
+            RelayCounters::ProcessorEncodeMetricsCount,
+            RelayCounters::ProcessorEncodeMetricsCost,
+        );
+
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.store_forwarder {

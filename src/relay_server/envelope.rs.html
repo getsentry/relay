@@ -1887,6 +1887,10 @@
 <a href="#1886" id="1886">1886</a>
 <a href="#1887" id="1887">1887</a>
 <a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2031,35 +2035,39 @@
             }
         }
     }
+
+    <span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Event =&gt; <span class="string">"event"</span>,
+            <span class="self">Self</span>::Transaction =&gt; <span class="string">"transaction"</span>,
+            <span class="self">Self</span>::Security =&gt; <span class="string">"security"</span>,
+            <span class="self">Self</span>::Attachment =&gt; <span class="string">"attachment"</span>,
+            <span class="self">Self</span>::FormData =&gt; <span class="string">"form_data"</span>,
+            <span class="self">Self</span>::RawSecurity =&gt; <span class="string">"raw_security"</span>,
+            <span class="self">Self</span>::Nel =&gt; <span class="string">"nel"</span>,
+            <span class="self">Self</span>::UnrealReport =&gt; <span class="string">"unreal_report"</span>,
+            <span class="self">Self</span>::UserReport =&gt; <span class="string">"user_report"</span>,
+            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"feedback"</span>,
+            <span class="self">Self</span>::Session =&gt; <span class="string">"session"</span>,
+            <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
+            <span class="self">Self</span>::Statsd =&gt; <span class="string">"statsd"</span>,
+            <span class="self">Self</span>::MetricBuckets =&gt; <span class="string">"metric_buckets"</span>,
+            <span class="self">Self</span>::MetricMeta =&gt; <span class="string">"metric_meta"</span>,
+            <span class="self">Self</span>::ClientReport =&gt; <span class="string">"client_report"</span>,
+            <span class="self">Self</span>::Profile =&gt; <span class="string">"profile"</span>,
+            <span class="self">Self</span>::ReplayEvent =&gt; <span class="string">"replay_event"</span>,
+            <span class="self">Self</span>::ReplayRecording =&gt; <span class="string">"replay_recording"</span>,
+            <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
+            <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
+            <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
+            <span class="self">Self</span>::Unknown(<span class="kw-2">ref </span>s) =&gt; s,
+        }
+    }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ItemType {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Event =&gt; <span class="macro">write!</span>(f, <span class="string">"event"</span>),
-            <span class="self">Self</span>::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">"transaction"</span>),
-            <span class="self">Self</span>::Security =&gt; <span class="macro">write!</span>(f, <span class="string">"security"</span>),
-            <span class="self">Self</span>::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">"attachment"</span>),
-            <span class="self">Self</span>::FormData =&gt; <span class="macro">write!</span>(f, <span class="string">"form_data"</span>),
-            <span class="self">Self</span>::RawSecurity =&gt; <span class="macro">write!</span>(f, <span class="string">"raw_security"</span>),
-            <span class="self">Self</span>::Nel =&gt; <span class="macro">write!</span>(f, <span class="string">"nel"</span>),
-            <span class="self">Self</span>::UnrealReport =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal_report"</span>),
-            <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">"user_report"</span>),
-            <span class="self">Self</span>::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">"feedback"</span>),
-            <span class="self">Self</span>::Session =&gt; <span class="macro">write!</span>(f, <span class="string">"session"</span>),
-            <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">"sessions"</span>),
-            <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">"statsd"</span>),
-            <span class="self">Self</span>::MetricBuckets =&gt; <span class="macro">write!</span>(f, <span class="string">"metric_buckets"</span>),
-            <span class="self">Self</span>::MetricMeta =&gt; <span class="macro">write!</span>(f, <span class="string">"metric_meta"</span>),
-            <span class="self">Self</span>::ClientReport =&gt; <span class="macro">write!</span>(f, <span class="string">"client_report"</span>),
-            <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">"profile"</span>),
-            <span class="self">Self</span>::ReplayEvent =&gt; <span class="macro">write!</span>(f, <span class="string">"replay_event"</span>),
-            <span class="self">Self</span>::ReplayRecording =&gt; <span class="macro">write!</span>(f, <span class="string">"replay_recording"</span>),
-            <span class="self">Self</span>::CheckIn =&gt; <span class="macro">write!</span>(f, <span class="string">"check_in"</span>),
-            <span class="self">Self</span>::Span =&gt; <span class="macro">write!</span>(f, <span class="string">"span"</span>),
-            <span class="self">Self</span>::OtelSpan =&gt; <span class="macro">write!</span>(f, <span class="string">"otel_span"</span>),
-            <span class="self">Self</span>::Unknown(s) =&gt; s.fmt(f),
-        }
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
     }
 }
 

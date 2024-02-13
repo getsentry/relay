@@ -499,6 +499,25 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
@@ -511,7 +530,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::aggregator::{<span class="self">self</span>, AggregatorConfig, ShiftKey};
 <span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
 <span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].
 </span><span class="kw">const </span>FLUSH_INTERVAL: Duration = Duration::from_millis(<span class="number">100</span>);
@@ -667,6 +686,18 @@
     </span>BucketCountInquiry(BucketCountInquiry, Sender&lt;usize&gt;),
 }
 
+<span class="kw">impl </span>Aggregator {
+    <span class="doccomment">/// Returns the name of the message variant.
+    </span><span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Aggregator::AcceptsMetrics(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"AcceptsMetrics"</span>,
+            Aggregator::MergeBuckets(<span class="kw">_</span>) =&gt; <span class="string">"MergeBuckets"</span>,
+            <span class="attr">#[cfg(test)]
+            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"BucketCountInquiry"</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>Interface <span class="kw">for </span>Aggregator {}
 
 <span class="kw">impl </span>FromMessage&lt;AcceptsMetrics&gt; <span class="kw">for </span>Aggregator {
@@ -804,15 +835,22 @@
             .merge_all(project_key, buckets, <span class="self">self</span>.max_total_bucket_bytes);
     }
 
-    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: Aggregator) {
-        <span class="kw">match </span>msg {
-            Aggregator::AcceptsMetrics(<span class="kw">_</span>, sender) =&gt; <span class="self">self</span>.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
-            <span class="attr">#[cfg(test)]
-            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
-                sender.send(<span class="self">self</span>.aggregator.bucket_count())
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(MetricTimers::AggregatorServiceDuration),
+            message = ty,
+            {
+                <span class="kw">match </span>message {
+                    Aggregator::AcceptsMetrics(<span class="kw">_</span>, sender) =&gt; <span class="self">self</span>.handle_accepts_metrics(sender),
+                    Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
+                    <span class="attr">#[cfg(test)]
+                    </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
+                        sender.send(<span class="self">self</span>.aggregator.bucket_count())
+                    }
+                }
             }
-        }
+        )
     }
 
     <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown) {

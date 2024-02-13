@@ -171,6 +171,12 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -256,12 +262,18 @@
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsScanDuration,
+    <span class="doccomment">/// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    </span>AggregatorServiceDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>MetricTimers {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::BucketsScanDuration =&gt; <span class="string">"metrics.buckets.scan_duration"</span>,
+            <span class="self">Self</span>::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
         }
     }
 }

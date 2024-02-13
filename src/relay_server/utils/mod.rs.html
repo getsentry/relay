@@ -37,11 +37,14 @@
 <a href="#36" id="36">36</a>
 <a href="#37" id="37">37</a>
 <a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>api;
 <span class="kw">mod </span>buffer;
 <span class="kw">mod </span>dynamic_sampling;
 <span class="kw">mod </span>garbage;
 <span class="kw">mod </span>managed_envelope;
+<span class="kw">mod </span>metric_stats;
 <span class="kw">mod </span>metrics_rate_limits;
 <span class="kw">mod </span>multipart;
 <span class="kw">mod </span>param_parser;
@@ -62,6 +65,7 @@
 <span class="kw">pub use </span><span class="self">self</span>::dynamic_sampling::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::garbage::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::managed_envelope::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::metric_stats::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::metrics_rate_limits::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::multipart::<span class="kw-2">*</span>;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
