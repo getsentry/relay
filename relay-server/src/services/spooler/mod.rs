@@ -133,6 +133,15 @@ impl QueueKey {
     }
 }
 
+/// The envelope with its key sent to project cache for processing.
+///
+/// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
+#[derive(Debug)]
+pub struct UnspooledEnvelope {
+    pub key: QueueKey,
+    pub managed_envelope: ManagedEnvelope,
+}
+
 /// Adds the envelope and the managed envelope to the internal buffer.
 #[derive(Debug)]
 pub struct Enqueue {
@@ -150,11 +159,11 @@ impl Enqueue {
 #[derive(Debug)]
 pub struct DequeueMany {
     keys: HashSet<QueueKey>,
-    sender: mpsc::UnboundedSender<ManagedEnvelope>,
+    sender: mpsc::UnboundedSender<UnspooledEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
+    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<UnspooledEnvelope>) -> Self {
         Self { keys, sender }
     }
 }
@@ -337,12 +346,21 @@ impl InMemory {
     }
 
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    fn dequeue(&mut self, keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
+    fn dequeue(
+        &mut self,
+        keys: HashSet<QueueKey>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
+    ) {
         for key in keys {
             for envelope in self.buffer.remove(&key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
                 self.envelope_count = self.envelope_count.saturating_sub(1);
-                sender.send(envelope).ok();
+                sender
+                    .send(UnspooledEnvelope {
+                        managed_envelope: envelope,
+                        key,
+                    })
+                    .ok();
             }
         }
         relay_statsd::metric!(
@@ -501,7 +519,7 @@ impl OnDisk {
     async fn delete_and_fetch(
         &mut self,
         mut keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
     ) -> Result<(), Vec<QueueKey>> {
         loop {
@@ -548,9 +566,14 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((_, managed_envelopes)) => {
+                    Ok((key, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender.send(managed_envelope).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -634,7 +657,7 @@ impl OnDisk {
     async fn dequeue(
         &mut self,
         mut keys: HashSet<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
     ) {
         if keys.is_empty() {
@@ -1353,7 +1376,10 @@ mod tests {
                 sender: tx.clone(),
             });
 
-            let managed_envelope = rx.recv().await.unwrap();
+            let UnspooledEnvelope {
+                key: _,
+                managed_envelope,
+            } = rx.recv().await.unwrap();
             let start_time = managed_envelope.envelope().meta().start_time();
 
             assert_eq!((Instant::now() - start_time).as_secs(), result);

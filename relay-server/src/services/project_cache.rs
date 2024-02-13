@@ -24,7 +24,7 @@ use crate::services::project_redis::RedisProjectSource;
 use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
-    BATCH_KEY_COUNT,
+    UnspooledEnvelope, BATCH_KEY_COUNT,
 };
 use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
@@ -487,7 +487,7 @@ struct ProjectCacheBroker {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+    buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     buffer_guard: Arc<BufferGuard>,
     /// Index of the buffered project keys.
     index: HashSet<QueueKey>,
@@ -687,15 +687,7 @@ impl ProjectCacheBroker {
     }
 
     /// Handles the processing of the provided envelope.
-    ///
-    /// The following pre-conditions must be met before calling this function:
-    /// - Envelope's project state must be cached and valid.
-    /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - `GlobalConfig` from the [`GlobalConfigManager`] must be available.
-    ///
-    /// Calling this function without envelope's project state available will cause the envelope to
-    /// be dropped and outcome will be logged.
-    fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
+    fn handle_processing(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
@@ -703,6 +695,11 @@ impl ProjectCacheBroker {
                 tags.project_key = %project_key,
                 "project could not be found in the cache",
             );
+
+            let mut project = Project::new(project_key, self.config.clone());
+            project.prefetch(self.services.project_cache.clone(), false);
+            self.projects.insert(project_key, project);
+            self.enqueue(key, managed_envelope);
             return;
         };
 
@@ -772,6 +769,8 @@ impl ProjectCacheBroker {
                 .filter(|st| !st.invalid())
         });
 
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
+
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if project_state.is_some()
@@ -779,10 +778,9 @@ impl ProjectCacheBroker {
             && !self.buffer_guard.is_over_high_watermark()
             && self.global_config.is_ready()
         {
-            return self.handle_processing(context);
+            return self.handle_processing(key, context);
         }
 
-        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.enqueue(key, context);
     }
 
@@ -1095,7 +1093,7 @@ impl Service for ProjectCacheService {
                     Some(message) = state_rx.recv() => broker.merge_state(message),
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
+                    Some(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() => broker.handle_processing(key, managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
                     Some(message) = rx.recv() => broker.handle_message(message),
@@ -1165,7 +1163,7 @@ mod tests {
         services: Services,
         buffer_guard: Arc<BufferGuard>,
         state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-        buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+        buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     ) -> (ProjectCacheBroker, Addr<Buffer>) {
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
@@ -1384,5 +1382,57 @@ mod tests {
         tx_assert.send(0).unwrap();
         // Make sure the last assert is tested.
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn handle_processing_without_project() {
+        let num_permits = 50;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, buffer_svc) = project_cache_broker_setup(
+            services.clone(),
+            buffer_guard.clone(),
+            state_tx,
+            buffer_tx.clone(),
+        )
+        .await;
+
+        let dsn = "111d836b15bb49d7bbf99e64295d995b";
+        let project_key = ProjectKey::parse(dsn).unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        let envelope = buffer_guard
+            .enter(
+                empty_envelope_with_dsn(dsn),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped(Ungrouped),
+            )
+            .unwrap();
+
+        // Index and projects are empty.
+        assert!(broker.projects.is_empty());
+        assert!(broker.index.is_empty());
+
+        // Since there is no project we should not process anything but create a project and spool
+        // the envelope.
+        broker.handle_processing(key, envelope);
+
+        // Assert that we have a new project and also added an index.
+        assert!(broker.projects.get(&project_key).is_some());
+        assert!(broker.index.contains(&key));
+
+        // Check is we actually spooled anything.
+        buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
+        let UnspooledEnvelope {
+            key: unspooled_key,
+            managed_envelope: _,
+        } = buffer_rx.recv().await.unwrap();
+
+        assert_eq!(key, unspooled_key);
     }
 }
