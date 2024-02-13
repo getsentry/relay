@@ -926,17 +926,8 @@ impl StoreService {
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
-                    "failed to parse span"
+                    "failed to parse metrics summary of span"
                 );
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::SpanIndexed,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
-                    quantity: 1,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: instant_to_date_time(start_time),
-                });
                 return;
             }
         };
