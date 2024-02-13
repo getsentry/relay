@@ -210,6 +210,7 @@ impl EnvelopeSummary {
             ItemType::Profile => &mut self.profile_quantity,
             ItemType::ReplayEvent => &mut self.replay_quantity,
             ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::ReplayVideo => &mut self.replay_quantity,
             ItemType::CheckIn => &mut self.checkin_quantity,
             _ => return,
         };
