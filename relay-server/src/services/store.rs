@@ -955,24 +955,6 @@ impl StoreService {
             trace_id,
             ..
         } = span;
-
-        metrics_summary.retain(|_, mut v| {
-            if let Some(v) = &mut v {
-                v.retain(|v| {
-                    if let Some(v) = v {
-                        return v.min.is_some()
-                            || v.max.is_some()
-                            || v.sum.is_some()
-                            || v.count.is_some();
-                    }
-                    false
-                });
-                !v.is_empty()
-            } else {
-                false
-            }
-        });
-
         let group = span
             .sentry_tags
             .as_ref()
@@ -994,6 +976,12 @@ impl StoreService {
                 else {
                     continue;
                 };
+
+                // If none of the values are there, the summary is invalid.
+                if count.is_none() && max.is_none() && min.is_none() && sum.is_none() {
+                    continue;
+                }
+
                 // Ignore immediate errors on produce.
                 if let Err(error) = self.produce(
                     KafkaTopic::MetricsSummaries,
