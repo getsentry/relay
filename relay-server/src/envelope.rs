@@ -113,6 +113,8 @@ pub enum ItemType {
     ReplayEvent,
     /// Replay Recording data.
     ReplayRecording,
+    /// Replay Video data.
+    ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
     /// A standalone span.
@@ -167,6 +169,7 @@ impl ItemType {
             Self::Profile => "profile",
             Self::ReplayEvent => "replay_event",
             Self::ReplayRecording => "replay_recording",
+            Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
@@ -213,6 +216,7 @@ impl std::str::FromStr for ItemType {
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
+            "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
@@ -652,7 +656,9 @@ impl Item {
             } else {
                 DataCategory::Profile
             }),
-            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                Some(DataCategory::Replay)
+            }
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan => Some(if indexed {
@@ -864,6 +870,7 @@ impl Item {
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
+            | ItemType::ReplayVideo
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
@@ -898,6 +905,7 @@ impl Item {
             ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
+            ItemType::ReplayVideo => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,
@@ -1731,6 +1739,22 @@ mod tests {
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_replay_video() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_video\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::ReplayVideo);
     }
 
     #[test]
