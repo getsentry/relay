@@ -9,6 +9,7 @@
 **Internal**
 
 - Add ability to use namespace in non-global quotas. ([#3090](https://github.com/getsentry/relay/pull/3090))
+- Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
 
 ## 24.1.2
 
