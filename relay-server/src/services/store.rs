@@ -962,8 +962,16 @@ impl StoreService {
                     continue;
                 };
 
+                let &mut Some(count) = count else {
+                    continue;
+                };
+
+                if count == 0 {
+                    continue;
+                }
+
                 // If none of the values are there, the summary is invalid.
-                if count.is_none() && max.is_none() && min.is_none() && sum.is_none() {
+                if max.is_none() && min.is_none() && sum.is_none() {
                     continue;
                 }
 
@@ -1362,8 +1370,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     span_id: &'a str,
     trace_id: &'a str,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    count: &'a Option<u64>,
+    count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     max: &'a Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
