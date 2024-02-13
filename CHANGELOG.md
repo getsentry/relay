@@ -13,6 +13,7 @@
 **Internal**:
 
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
+- Coerce all Thread IDs to integers. ([#3102](https://github.com/getsentry/relay/pull/3102))
 
 ## 24.1.2
 
