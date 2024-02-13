@@ -143,7 +143,10 @@ impl ItemType {
         }
     }
 
-    pub fn as_str(&self) -> &str {
+    /// Returns the variant name of the item type.
+    ///
+    /// Unlike [`Self::as_str`] this returns an unknown value as `unknown`.
+    pub fn name(&self) -> &'static str {
         match self {
             Self::Event => "event",
             Self::Transaction => "transaction",
@@ -167,7 +170,15 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    /// Returns the item type as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
             Self::Unknown(ref s) => s,
+            _ => self.name(),
         }
     }
 }
@@ -1440,6 +1451,16 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_item_type_names() {
+        assert_eq!(ItemType::Span.name(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).name(), "unknown");
+        assert_eq!(ItemType::Span.as_str(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
+        assert_eq!(&ItemType::Span.to_string(), "span");
+        assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
     }
 
     #[test]

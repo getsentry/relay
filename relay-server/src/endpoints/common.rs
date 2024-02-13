@@ -329,7 +329,7 @@ pub async fn handle_envelope(
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().as_str()
+            item_type = item.ty().name()
         )
     }
 
