@@ -4028,6 +4028,7 @@ name = "relay-replays"
 version = "24.1.2"
 dependencies = [
  "assert-json-diff",
+ "bytes",
  "criterion",
  "flate2",
  "insta",

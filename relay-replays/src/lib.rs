@@ -15,3 +15,4 @@
 
 pub mod recording;
 mod transform;
+pub mod video;
