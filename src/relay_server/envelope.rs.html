@@ -1891,6 +1891,27 @@
 <a href="#1890" id="1890">1890</a>
 <a href="#1891" id="1891">1891</a>
 <a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2036,7 +2057,10 @@
         }
     }
 
-    <span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+    <span class="doccomment">/// Returns the variant name of the item type.
+    ///
+    /// Unlike [`Self::as_str`] this returns an unknown value as `unknown`.
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Event =&gt; <span class="string">"event"</span>,
             <span class="self">Self</span>::Transaction =&gt; <span class="string">"transaction"</span>,
@@ -2060,7 +2084,15 @@
             <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
             <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
+            <span class="self">Self</span>::Unknown(<span class="kw">_</span>) =&gt; <span class="string">"unknown"</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the item type as a string.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Unknown(<span class="kw-2">ref </span>s) =&gt; s,
+            <span class="kw">_ </span>=&gt; <span class="self">self</span>.name(),
         }
     }
 }
@@ -3333,6 +3365,16 @@
         item.set_source_quantities(source_quantities);
 
         <span class="macro">assert_eq!</span>(item.source_quantities(), <span class="prelude-val">Some</span>(source_quantities));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_item_type_names() {
+        <span class="macro">assert_eq!</span>(ItemType::Span.name(), <span class="string">"span"</span>);
+        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).name(), <span class="string">"unknown"</span>);
+        <span class="macro">assert_eq!</span>(ItemType::Span.as_str(), <span class="string">"span"</span>);
+        <span class="macro">assert_eq!</span>(ItemType::Unknown(<span class="string">"test"</span>.to_owned()).as_str(), <span class="string">"test"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Span.to_string(), <span class="string">"span"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>ItemType::Unknown(<span class="string">"test"</span>.to_owned()).to_string(), <span class="string">"test"</span>);
     }
 
     <span class="attr">#[test]
