@@ -28,19 +28,18 @@ pub fn parse_query(
     db_system: Option<&str>,
     query: &str,
 ) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
-    match std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
-        Ok(res) => res,
-        Err(_) => {
-            relay_log::error!(
-                tags.db_system = db_system,
-                query = query,
-                "parse_query panicked",
-            );
-            Err(sqlparser::parser::ParserError::ParserError(
+    relay_log::with_scope(
+        |scope| {
+            scope.set_tag("db_system", db_system.unwrap_or_default());
+            scope.set_extra("query", query.into());
+        },
+        || match std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
+            Ok(res) => res,
+            Err(_) => Err(sqlparser::parser::ParserError::ParserError(
                 "panicked".to_string(),
-            ))
-        }
-    }
+            )),
+        },
+    )
 }
 
 fn parse_query_inner(
@@ -58,8 +57,12 @@ fn parse_query_inner(
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.
-pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result<String, ()> {
+pub fn normalize_parsed_queries(
+    db_system: Option<&str>,
+    string: &str,
+) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
+    let original_ast = parsed.clone();
     parsed.visit(&mut NormalizeVisitor);
     parsed.visit(&mut MaxDepthVisitor::new());
 
@@ -71,7 +74,7 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
     // Insert placeholders that the SQL serializer cannot provide.
     let replaced = concatenated.replace("___UPDATE_LHS___ = NULL", "..");
 
-    Ok(replaced)
+    Ok((replaced, original_ast))
 }
 
 /// A visitor that normalizes the SQL AST in-place.
@@ -640,6 +643,6 @@ mod tests {
     #[test]
     fn parse_deep_expression() {
         let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
-        assert_eq!(normalize_parsed_queries(None, query).as_deref(), Ok("SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"));
+        assert_eq!(normalize_parsed_queries(None, query).unwrap().0, "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s");
     }
 }

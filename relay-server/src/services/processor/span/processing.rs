@@ -17,15 +17,18 @@ use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Object};
+use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
+use crate::services::processor::{
+    ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+};
 use crate::utils::ItemAction;
 
 pub fn process(
-    state: &mut ProcessEnvelopeState,
+    state: &mut ProcessEnvelopeState<SpanGroup>,
     config: Arc<Config>,
     global_config: &GlobalConfig,
 ) {
@@ -58,15 +61,13 @@ pub fn process(
 
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
-            ItemType::OtelSpan => {
-                match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
-                    Ok(otel_span) => Annotated::new(otel_span.into()),
-                    Err(err) => {
-                        relay_log::debug!("failed to parse OTel span: {}", err);
-                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                    }
+            ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
+                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
+                Err(err) => {
+                    relay_log::debug!("failed to parse OTel span: {}", err);
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                 }
-            }
+            },
             ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
                 Ok(span) => span,
                 Err(err) => {
@@ -139,7 +140,7 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -218,7 +219,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 
     if extract_transaction_span {
         // Extract tags to add to this span as well
-        let shared_tags = tag_extraction::extract_shared_tags(event);
+        let mut shared_tags = tag_extraction::extract_shared_tags(event);
+
+        if let Some(span_op) = transaction_span.op.value() {
+            shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
+        }
+
         transaction_span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()

@@ -17,12 +17,15 @@ use relay_statsd::metric;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
+use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
-pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn process(
+    state: &mut ProcessEnvelopeState<ReplayGroup>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);

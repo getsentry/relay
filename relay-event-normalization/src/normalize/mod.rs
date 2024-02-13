@@ -2,19 +2,17 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use once_cell::sync::OnceCell;
-use regex::Regex;
 use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
-    MetricSummaryMapping, NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
+    ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
-    RuleCondition, Value,
+    Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -413,111 +411,6 @@ impl Processor for StoreNormalizeProcessor {
 
         Ok(())
     }
-
-    fn process_breadcrumb(
-        &mut self,
-        breadcrumb: &mut Breadcrumb,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        breadcrumb.process_child_values(self, state)?;
-
-        if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
-        }
-
-        if breadcrumb.level.value().is_none() {
-            breadcrumb.level.set_value(Some(Level::Info));
-        }
-
-        Ok(())
-    }
-
-    fn process_debug_image(
-        &mut self,
-        image: &mut DebugImage,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        match image {
-            DebugImage::Other(_) => {
-                meta.add_error(Error::invalid("unsupported debug image type"));
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn process_exception(
-        &mut self,
-        exception: &mut Exception,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        exception.process_child_values(self, state)?;
-
-        static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
-
-        if exception.ty.value().is_empty() {
-            if let Some(value_str) = exception.value.value_mut() {
-                let new_values = regex
-                    .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
-
-                if let Some((new_type, new_value)) = new_values {
-                    exception.ty.set_value(Some(new_type));
-                    *value_str = new_value;
-                }
-            }
-        }
-
-        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
-            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
-                error.insert("attribute", "type or value");
-            }));
-            return Err(ProcessingAction::DeleteValueSoft);
-        }
-
-        Ok(())
-    }
-
-    fn process_frame(
-        &mut self,
-        frame: &mut Frame,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        frame.process_child_values(self, state)?;
-
-        if frame.function.as_str() == Some("?") {
-            frame.function.set_value(None);
-        }
-
-        if frame.symbol.as_str() == Some("?") {
-            frame.symbol.set_value(None);
-        }
-
-        if let Some(lines) = frame.pre_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if let Some(lines) = frame.post_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if frame.context_line.value().is_none()
-            && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
-        {
-            frame.context_line.set_value(Some(String::new()));
-        }
-
-        Ok(())
-    }
 }
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -629,18 +522,19 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
-        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, Stacktrace,
-        TagEntry, Tags, TraceId, User, Values,
+        Context, ContextInner, Contexts, DebugImage, DebugMeta, Exception, Frame, Geo, IpAddr,
+        LenientString, LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request,
+        Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
+        assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
+    use crate::stacktrace::normalize_non_raw_frame;
     use crate::{
         normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
         GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
@@ -704,79 +598,6 @@ mod tests {
         // If both is available, pick the smallest number.
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
         assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
-    }
-
-    #[test]
-    fn test_handles_type_in_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError: unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError:unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-    }
-
-    #[test]
-    fn test_rejects_empty_exception_fields() {
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()));
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("".to_string().into()),
-            ty: Annotated::new("".to_string()),
-            ..Default::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        assert!(exception.value().is_none());
-        assert!(exception.meta().has_errors());
-    }
-
-    #[test]
-    fn test_json_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-            ..Exception::default()
-        });
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-
-        // Don't split a json-serialized value on the colon
-        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
-        assert_eq!(exception.ty.value(), None);
-    }
-
-    #[test]
-    fn test_exception_invalid() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception::default());
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
-            error.insert("attribute", "type or value");
-        });
-
-        assert_eq!(
-            exception.meta().iter_errors().collect_tuple(),
-            Some((&expected,))
-        );
     }
 
     #[test]
@@ -1340,8 +1161,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         let frame = frame.value().unwrap();
         assert_eq!(frame.context_line.as_str(), Some(""));
@@ -1377,8 +1197,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         assert_eq!(
             *get_value!(frame.pre_context!),

@@ -85,11 +85,16 @@ local results = {
 -- to all sets in `KEYS`.
 --
 -- Returns the total amount of values added to the 'working set'.
-local function sadd(t, offset, max)
+local function sadd(t, opts)
     local working_set_cardinality = 0
     local any_modifications = false
 
-    for i = 1, #KEYS do
+    opts = opts or {}
+    local key_offset = opts.skip_working_set and 1 or 0
+    local offset = opts.offset or 0
+    local max = opts.max
+
+    for i = 1 + key_offset, #KEYS do
         local is_working_set = i == 1
 
         for from, to in batches(#t, 7000, offset, max) do
@@ -119,7 +124,7 @@ local budget = math.max(0, max_cardinality - current_cardinality)
 
 -- Fast Path: we have enough budget to fit all elements
 if budget >= num_hashes then
-    local added, any_modifications = sadd(ARGV, HASHES_OFFSET)
+    local added, any_modifications = sadd(ARGV, { offset = HASHES_OFFSET })
     -- New current cardinality is current + amount of keys that have been added to the set
     current_cardinality = current_cardinality + added
 
@@ -140,7 +145,7 @@ local offset = HASHES_OFFSET
 local needs_expiry_bumped = false
 while budget > 0 and offset < #ARGV do
     local len = math.min(#ARGV - offset, budget)
-    local added, any_modifications = sadd(ARGV, offset, len)
+    local added, any_modifications = sadd(ARGV, { offset = offset, max = len })
 
     current_cardinality = current_cardinality + added
     needs_expiry_bumped = needs_expiry_bumped or any_modifications
@@ -159,16 +164,23 @@ results[1] = current_cardinality
 
 -- If we ran out of budget, check the remaining items for membership
 if budget <= 0 and offset < #ARGV then
+    local already_seen = {}
+
     for arg_i = offset + 1, #ARGV do
         local value = ARGV[arg_i]
 
         -- Can be optimized with `SMISMEMBER` once we switch to Redis 6.2.
         if redis.call('SISMEMBER', working_set, value) == 1 then
             table.insert(results, ACCEPTED)
+            table.insert(already_seen, value)
         else
             table.insert(results, REJECTED)
         end
     end
+
+    -- Make sure the accepted items are inserted into new granules.
+    local _, any_modifications = sadd(already_seen, { skip_working_set = true })
+    needs_expiry_bumped = needs_expiry_bumped or any_modifications
 end
 
 if needs_expiry_bumped then
