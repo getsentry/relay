@@ -197,6 +197,7 @@ impl StoreService {
 
         let mut replay_event = None;
         let mut replay_recording = None;
+        let mut replay_video = None;
         let mut send_combined_replay_envelope = false;
 
         for item in envelope.items() {
@@ -247,6 +248,7 @@ impl StoreService {
                     start_time,
                     item,
                 )?,
+                ItemType::ReplayVideo => replay_video = Some(item),
                 ItemType::ReplayRecording => {
                     if item.replay_combined_payload() {
                         send_combined_replay_envelope = true
@@ -277,6 +279,7 @@ impl StoreService {
         self.produce_replay_messages(
             replay_event,
             replay_recording,
+            replay_video,
             event_id.ok_or(StoreError::NoEventId)?,
             scoping,
             start_time,
@@ -784,52 +787,58 @@ impl StoreService {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn produce_replay_recording(
         &self,
         event_id: Option<EventId>,
         scoping: Scoping,
         item: &Item,
         replay_event: Option<&Item>,
+        replay_video: Option<&Item>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // 2000 bytes are reserved for the message metadata.
-        let max_message_metadata_size = 2000;
+        // Map the event and video items to their byte messages.
+        let replay_event_payload = replay_event.map(|rv| rv.payload());
+        let replay_video_payload = replay_video.map(|rv| rv.payload());
 
         // Remaining bytes can be filled by the payload.
-        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
+        let mut max_payload_size = self.config.max_replay_message_size();
+        max_payload_size -= replay_event_payload.as_ref().map_or(0, |b| b.len());
+        max_payload_size -= replay_video_payload.as_ref().map_or(0, |b| b.len());
+        max_payload_size -= 2000; // Reserve 2KB for the message metadata.
 
-        let mut replay_event_payload = None;
-        if let Some(replay_event) = replay_event {
-            replay_event_payload = Some(replay_event.payload());
+        // If the recording payload can not fit in to the message do not produce and quit early.
+        //
+        // TODO: Should we emit an outcome here?
+        if item.payload().len() >= max_payload_size {
+            relay_log::warn!("replay_recording over maximum size.");
+            return Ok(());
         }
 
-        if item.payload().len() < max_payload_size {
-            let message =
-                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                    replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    key_id: scoping.key_id,
-                    org_id: scoping.organization_id,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    retention_days: retention,
-                    payload: item.payload(),
-                    replay_event: replay_event_payload,
-                });
+        let message =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                payload: item.payload(),
+                replay_event: replay_event_payload,
+                replay_video: replay_video_payload,
+            });
 
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                message,
-            )?;
+        self.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )?;
 
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "replay_recording_not_chunked"
-            );
-        } else {
-            relay_log::warn!("replay_recording over maximum size.");
-        };
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_recording_not_chunked"
+        );
 
         Ok(())
     }
@@ -839,6 +848,7 @@ impl StoreService {
         &self,
         replay_event: Option<&Item>,
         replay_recording: Option<&Item>,
+        replay_video: Option<&Item>,
         replay_id: EventId,
         scoping: Scoping,
         start_time: Instant,
@@ -857,7 +867,8 @@ impl StoreService {
         }
 
         if let Some(replay_recording) = replay_recording {
-            let combined_replay_event = if send_combined_replay_envelope && replay_event.is_some() {
+            // We only combine if the feature-flag was enabled.
+            let combined_replay_event = if send_combined_replay_envelope {
                 replay_event
             } else {
                 None
@@ -868,6 +879,7 @@ impl StoreService {
                 scoping,
                 replay_recording,
                 combined_replay_event,
+                replay_video,
                 start_time,
                 retention_days,
             )?;
@@ -1177,6 +1189,7 @@ struct ReplayRecordingNotChunkedKafkaMessage {
     retention_days: u16,
     payload: Bytes,
     replay_event: Option<Bytes>,
+    replay_video: Option<Bytes>,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
