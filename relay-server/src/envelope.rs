@@ -143,7 +143,10 @@ impl ItemType {
         }
     }
 
-    pub fn as_str(&self) -> &str {
+    /// Returns the variant name of the item type.
+    ///
+    /// Unlike [`as_str`] this returns an unknown value as `unknown`.
+    pub fn name(&self) -> &'static str {
         match self {
             Self::Event => "event",
             Self::Transaction => "transaction",
@@ -167,7 +170,15 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    /// Returns the item type as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
             Self::Unknown(ref s) => s,
+            _ => self.name(),
         }
     }
 }
