@@ -1846,6 +1846,32 @@
 <a href="#1845" id="1845">1845</a>
 <a href="#1846" id="1846">1846</a>
 <a href="#1847" id="1847">1847</a>
+<a href="#1848" id="1848">1848</a>
+<a href="#1849" id="1849">1849</a>
+<a href="#1850" id="1850">1850</a>
+<a href="#1851" id="1851">1851</a>
+<a href="#1852" id="1852">1852</a>
+<a href="#1853" id="1853">1853</a>
+<a href="#1854" id="1854">1854</a>
+<a href="#1855" id="1855">1855</a>
+<a href="#1856" id="1856">1856</a>
+<a href="#1857" id="1857">1857</a>
+<a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1981,6 +2007,15 @@
     }
 }
 
+<span class="doccomment">/// The envelope with its key sent to project cache for processing.
+///
+/// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>UnspooledEnvelope {
+    <span class="kw">pub </span>key: QueueKey,
+    <span class="kw">pub </span>managed_envelope: ManagedEnvelope,
+}
+
 <span class="doccomment">/// Adds the envelope and the managed envelope to the internal buffer.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Enqueue {
@@ -1998,11 +2033,11 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>DequeueMany {
     keys: HashSet&lt;QueueKey&gt;,
-    sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
+    sender: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
 }
 
 <span class="kw">impl </span>DequeueMany {
-    <span class="kw">pub fn </span>new(keys: HashSet&lt;QueueKey&gt;, sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(keys: HashSet&lt;QueueKey&gt;, sender: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ keys, sender }
     }
 }
@@ -2185,12 +2220,21 @@
     }
 
     <span class="doccomment">/// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    </span><span class="kw">fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, keys: HashSet&lt;QueueKey&gt;, sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;) {
+    </span><span class="kw">fn </span>dequeue(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        keys: HashSet&lt;QueueKey&gt;,
+        sender: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
+    ) {
         <span class="kw">for </span>key <span class="kw">in </span>keys {
             <span class="kw">for </span>envelope <span class="kw">in </span><span class="self">self</span>.buffer.remove(<span class="kw-2">&amp;</span>key).unwrap_or_default() {
                 <span class="self">self</span>.used_memory -= envelope.estimated_size();
                 <span class="self">self</span>.envelope_count = <span class="self">self</span>.envelope_count.saturating_sub(<span class="number">1</span>);
-                sender.send(envelope).ok();
+                sender
+                    .send(UnspooledEnvelope {
+                        managed_envelope: envelope,
+                        key,
+                    })
+                    .ok();
             }
         }
         <span class="macro">relay_statsd::metric!</span>(
@@ -2349,7 +2393,7 @@
     </span><span class="kw">async fn </span>delete_and_fetch(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         <span class="kw-2">mut </span>keys: Vec&lt;QueueKey&gt;,
-        sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
+        sender: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
         services: <span class="kw-2">&amp;</span>Services,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Vec&lt;QueueKey&gt;&gt; {
         <span class="kw">loop </span>{
@@ -2396,9 +2440,14 @@
                 };
 
                 <span class="kw">match </span><span class="self">self</span>.extract_envelope(envelope, services) {
-                    <span class="prelude-val">Ok</span>((<span class="kw">_</span>, managed_envelopes)) =&gt; {
+                    <span class="prelude-val">Ok</span>((key, managed_envelopes)) =&gt; {
                         <span class="kw">for </span>managed_envelope <span class="kw">in </span>managed_envelopes {
-                            sender.send(managed_envelope).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::error!</span>(
@@ -2482,7 +2531,7 @@
     </span><span class="kw">async fn </span>dequeue(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         <span class="kw-2">mut </span>keys: HashSet&lt;QueueKey&gt;,
-        sender: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
+        sender: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
         services: <span class="kw-2">&amp;</span>Services,
     ) {
         <span class="kw">if </span>keys.is_empty() {
@@ -3201,7 +3250,10 @@
                 sender: tx.clone(),
             });
 
-            <span class="kw">let </span>managed_envelope = rx.recv().<span class="kw">await</span>.unwrap();
+            <span class="kw">let </span>UnspooledEnvelope {
+                key: <span class="kw">_</span>,
+                managed_envelope,
+            } = rx.recv().<span class="kw">await</span>.unwrap();
             <span class="kw">let </span>start_time = managed_envelope.envelope().meta().start_time();
 
             <span class="macro">assert_eq!</span>((Instant::now() - start_time).as_secs(), result);

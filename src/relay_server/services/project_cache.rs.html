@@ -1387,6 +1387,56 @@
 <a href="#1386" id="1386">1386</a>
 <a href="#1387" id="1387">1387</a>
 <a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
+<a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1413,7 +1463,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::services::spooler::{
     <span class="self">self</span>, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
-    BATCH_KEY_COUNT,
+    UnspooledEnvelope, BATCH_KEY_COUNT,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::UpstreamRelay;
@@ -1876,7 +1926,7 @@
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
-    buffer_tx: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
+    buffer_tx: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
     <span class="doccomment">/// Index of the buffered project keys.
     </span>index: HashSet&lt;QueueKey&gt;,
@@ -2076,15 +2126,7 @@
     }
 
     <span class="doccomment">/// Handles the processing of the provided envelope.
-    ///
-    /// The following pre-conditions must be met before calling this function:
-    /// - Envelope's project state must be cached and valid.
-    /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - `GlobalConfig` from the [`GlobalConfigManager`] must be available.
-    ///
-    /// Calling this function without envelope's project state available will cause the envelope to
-    /// be dropped and outcome will be logged.
-    </span><span class="kw">fn </span>handle_processing(<span class="kw-2">&amp;mut </span><span class="self">self</span>, managed_envelope: ManagedEnvelope) {
+    </span><span class="kw">fn </span>handle_processing(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, managed_envelope: ManagedEnvelope) {
         <span class="kw">let </span>project_key = managed_envelope.envelope().meta().public_key();
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(project) = <span class="self">self</span>.projects.get_mut(<span class="kw-2">&amp;</span>project_key) <span class="kw">else </span>{
@@ -2092,6 +2134,11 @@
                 tags.project_key = %project_key,
                 <span class="string">"project could not be found in the cache"</span>,
             );
+
+            <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, <span class="self">self</span>.config.clone());
+            project.prefetch(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>);
+            <span class="self">self</span>.projects.insert(project_key, project);
+            <span class="self">self</span>.enqueue(key, managed_envelope);
             <span class="kw">return</span>;
         };
 
@@ -2161,6 +2208,8 @@
                 .filter(|st| !st.invalid())
         });
 
+        <span class="kw">let </span>key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
+
         <span class="comment">// Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         </span><span class="kw">if </span>project_state.is_some()
@@ -2168,10 +2217,9 @@
             &amp;&amp; !<span class="self">self</span>.buffer_guard.is_over_high_watermark()
             &amp;&amp; <span class="self">self</span>.global_config.is_ready()
         {
-            <span class="kw">return </span><span class="self">self</span>.handle_processing(context);
+            <span class="kw">return </span><span class="self">self</span>.handle_processing(key, context);
         }
 
-        <span class="kw">let </span>key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         <span class="self">self</span>.enqueue(key, context);
     }
 
@@ -2484,7 +2532,7 @@
                     <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
                     <span class="comment">// Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    </span><span class="prelude-val">Some</span>(managed_envelope) = buffer_rx.recv() =&gt; broker.handle_processing(managed_envelope),
+                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() =&gt; broker.handle_processing(key, managed_envelope),
                     <span class="kw">_ </span>= ticker.tick() =&gt; broker.evict_stale_project_caches(),
                     () = <span class="kw-2">&amp;mut </span>broker.buffer_unspool_handle =&gt; broker.handle_periodic_unspool(),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message),
@@ -2554,7 +2602,7 @@
         services: Services,
         buffer_guard: Arc&lt;BufferGuard&gt;,
         state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
-        buffer_tx: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
+        buffer_tx: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
     ) -&gt; (ProjectCacheBroker, Addr&lt;Buffer&gt;) {
         <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
             <span class="string">"spool"</span>: {
@@ -2773,6 +2821,58 @@
         </span>tx_assert.send(<span class="number">0</span>).unwrap();
         <span class="comment">// Make sure the last assert is tested.
         </span>tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>handle_processing_without_project() {
+        <span class="kw">let </span>num_permits = <span class="number">50</span>;
+        <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(num_permits).into();
+        <span class="kw">let </span>services = mocked_services();
+        <span class="kw">let </span>(state_tx, <span class="kw">_</span>) = mpsc::unbounded_channel();
+        <span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
+        <span class="kw">let </span>(<span class="kw-2">mut </span>broker, buffer_svc) = project_cache_broker_setup(
+            services.clone(),
+            buffer_guard.clone(),
+            state_tx,
+            buffer_tx.clone(),
+        )
+        .<span class="kw">await</span>;
+
+        <span class="kw">let </span>dsn = <span class="string">"111d836b15bb49d7bbf99e64295d995b"</span>;
+        <span class="kw">let </span>project_key = ProjectKey::parse(dsn).unwrap();
+        <span class="kw">let </span>key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        <span class="kw">let </span>envelope = buffer_guard
+            .enter(
+                empty_envelope_with_dsn(dsn),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped(Ungrouped),
+            )
+            .unwrap();
+
+        <span class="comment">// Index and projects are empty.
+        </span><span class="macro">assert!</span>(broker.projects.is_empty());
+        <span class="macro">assert!</span>(broker.index.is_empty());
+
+        <span class="comment">// Since there is no project we should not process anything but create a project and spool
+        // the envelope.
+        </span>broker.handle_processing(key, envelope);
+
+        <span class="comment">// Assert that we have a new project and also added an index.
+        </span><span class="macro">assert!</span>(broker.projects.get(<span class="kw-2">&amp;</span>project_key).is_some());
+        <span class="macro">assert!</span>(broker.index.contains(<span class="kw-2">&amp;</span>key));
+
+        <span class="comment">// Check is we actually spooled anything.
+        </span>buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
+        <span class="kw">let </span>UnspooledEnvelope {
+            key: unspooled_key,
+            managed_envelope: <span class="kw">_</span>,
+        } = buffer_rx.recv().<span class="kw">await</span>.unwrap();
+
+        <span class="macro">assert_eq!</span>(key, unspooled_key);
     }
 }
 </code></pre></div></section></main></body></html>
