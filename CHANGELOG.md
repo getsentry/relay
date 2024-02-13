@@ -9,6 +9,7 @@
 **Features**:
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
+- Adds ReplayVideo envelope-item type to support mobile replays. ([#3105](https://github.com/getsentry/relay/pull/3105))
 
 **Internal**:
 
