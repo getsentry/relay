@@ -3591,15 +3591,12 @@ expression: "relay_event_schema::protocol::event_json_schema()"
       ]
     },
     "ThreadId": {
-      "description": " Represents a thread id.",
+      "description": " Represents a thread ID.\n\n Thread IDs can come in either as strings or integers. Strings are silently coerced to integers.",
       "anyOf": [
         {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
-        },
-        {
-          "type": "string"
         }
       ]
     },
