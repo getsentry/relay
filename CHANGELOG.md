@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+- Fix span metric ingestion for http spans. ([#3111](https://github.com/getsentry/relay/pull/3111))
 
 **Features**:
 
