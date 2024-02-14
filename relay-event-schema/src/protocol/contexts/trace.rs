@@ -203,7 +203,7 @@ impl FromValue for Route {
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("route"));
+                meta.add_error(Error::expected("route expected to be an object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
