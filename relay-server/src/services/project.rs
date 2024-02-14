@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
 use relay_cardinality::CardinalityLimit;
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
@@ -1047,6 +1047,11 @@ impl Project {
         self.flush_metric_meta(envelope_processor);
         // Check if the new sampling config got rid of any reservoir rules we have counters for.
         self.remove_expired_reservoir_rules();
+    }
+
+    /// Sets the scoping for the project.
+    pub fn set_scoping(&mut self, scoping: Scoping) {
+        self.scoping = Some(scoping);
     }
 
     /// Creates `Scoping` for this project if the state is loaded.

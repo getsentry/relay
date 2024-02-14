@@ -311,7 +311,7 @@ impl AggregatorService {
         let MergeBuckets {
             project_key,
             buckets,
-            scoping,
+            ..
         } = msg;
         self.aggregator
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
@@ -413,6 +413,11 @@ impl MergeBuckets {
     /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
+    }
+
+    /// Returns the `Scoping` for the the current `MergeBuckets` message.
+    pub fn scoping(&self) -> Option<Scoping> {
+        self.scoping
     }
 
     /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
