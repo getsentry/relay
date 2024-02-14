@@ -62,6 +62,52 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
+def test_metrics_proxy_mode(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+
+    metrics_item = envelope.items[0]
+    assert metrics_item.type == "metric_buckets"
+
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/bar@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
+
+
 def test_metrics(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 

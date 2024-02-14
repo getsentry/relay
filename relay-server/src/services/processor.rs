@@ -1569,7 +1569,7 @@ impl EnvelopeProcessorService {
                 relay_log::trace!("inserting metric buckets into project cache");
                 self.inner
                     .project_cache
-                    .send(MergeBuckets::new(scoping.project_key, buckets));
+                    .send(MergeBuckets::new_with_scoping(scoping, buckets));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(mut buckets) => {
@@ -1580,7 +1580,7 @@ impl EnvelopeProcessorService {
                         relay_log::trace!("merging metric buckets into project cache");
                         self.inner
                             .project_cache
-                            .send(MergeBuckets::new(scoping.project_key, buckets));
+                            .send(MergeBuckets::new_with_scoping(scoping, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!(
