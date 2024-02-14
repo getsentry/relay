@@ -5,10 +5,9 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
 use relay_cardinality::CardinalityLimit;
-use relay_config::Config;
+use relay_config::{Config, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
@@ -434,11 +433,15 @@ impl State {
         }
     }
 
-    fn new(config: AggregatorConfig) -> Self {
-        Self::Pending(Box::new(aggregator::Aggregator::named(
-            "metrics-buffer".to_string(),
-            config,
-        )))
+    fn new(config: &Config) -> Self {
+        if config.relay_mode() == RelayMode::Proxy {
+            Self::Cached(Arc::new(ProjectState::allowed()))
+        } else {
+            Self::Pending(Box::new(aggregator::Aggregator::named(
+                "metrics-buffer".to_string(),
+                config.permissive_aggregator_config(),
+            )))
+        }
     }
 }
 
@@ -470,7 +473,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: State::new(config.permissive_aggregator_config()),
+            state: State::new(&config),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
@@ -1418,7 +1421,7 @@ mod tests {
     async fn test_metrics_buffer_no_flush_without_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::new(Config::default().permissive_aggregator_config()),
+            state: State::new(&Config::default()),
             ..create_project(None)
         };
 
@@ -1443,7 +1446,7 @@ mod tests {
     async fn test_metrics_buffer_flush_with_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::new(Config::default().permissive_aggregator_config()),
+            state: State::new(&Config::default()),
             ..create_project(None)
         };
 
