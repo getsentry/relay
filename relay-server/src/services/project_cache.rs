@@ -236,6 +236,25 @@ pub enum ProjectCache {
     RefreshIndexCache(RefreshIndexCache),
 }
 
+impl ProjectCache {
+    pub fn variant(&self) -> &'static str {
+        match self {
+            Self::RequestUpdate(_) => "RequestUpdate",
+            Self::Get(_, _) => "Get",
+            Self::GetCached(_, _) => "GetCached",
+            Self::CheckEnvelope(_, _) => "CheckEnvelope",
+            Self::ValidateEnvelope(_) => "ValidateEnvelope",
+            Self::UpdateRateLimits(_) => "UpdateRateLimits",
+            Self::MergeBuckets(_) => "MergeBuckets",
+            Self::AddMetricMeta(_) => "AddMetricMeta",
+            Self::FlushBuckets(_) => "FlushBuckets",
+            Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
+            Self::SpoolHealth(_) => "SpoolHealth",
+            Self::RefreshIndexCache(_) => "RefreshIndexCache",
+        }
+    }
+}
+
 impl Interface for ProjectCache {}
 
 impl FromMessage<UpdateSpoolIndex> for ProjectCache {
@@ -943,24 +962,35 @@ impl ProjectCacheBroker {
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
-        match message {
-            ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
-            ProjectCache::Get(message, sender) => self.handle_get(message, sender),
-            ProjectCache::GetCached(message, sender) => {
-                sender.send(self.handle_get_cached(message))
+        let ty = message.variant();
+        metric!(
+            timer(RelayTimers::ProjectCacheMessageDuration),
+            message = ty,
+            {
+                match message {
+                    ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
+                    ProjectCache::Get(message, sender) => self.handle_get(message, sender),
+                    ProjectCache::GetCached(message, sender) => {
+                        sender.send(self.handle_get_cached(message))
+                    }
+                    ProjectCache::CheckEnvelope(message, sender) => {
+                        sender.send(self.handle_check_envelope(message))
+                    }
+                    ProjectCache::ValidateEnvelope(message) => {
+                        self.handle_validate_envelope(message)
+                    }
+                    ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
+                    ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
+                    ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
+                    ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
+                    ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
+                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+                    ProjectCache::RefreshIndexCache(message) => {
+                        self.handle_refresh_index_cache(message)
+                    }
+                }
             }
-            ProjectCache::CheckEnvelope(message, sender) => {
-                sender.send(self.handle_check_envelope(message))
-            }
-            ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
-            ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-            ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
-            ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
-            ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-            ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-            ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::RefreshIndexCache(message) => self.handle_refresh_index_cache(message),
-        }
+        )
     }
 }
 
