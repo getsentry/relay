@@ -2330,9 +2330,9 @@ checksum = "674456280908e444408d2370a6706371f0fe2b4fc9999814ba35e71c6e99c5ce"
 
 [[package]]
 name = "jsonschema"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e48354c4c4f088714424ddf090de1ff84acc82b2f08c192d46d226ae2529a465"
+checksum = "2a071f4f7efc9a9118dfb627a0a94ef247986e1ab8606a4c806ae2b3aa3b6978"
 dependencies = [
  "ahash 0.8.8",
  "anyhow",
@@ -4604,13 +4604,15 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.1.12"
+version = "0.1.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de4ca4ac219b3d4931537aec16352fd23cf5c46c3c05045ca086e52552561e27"
+checksum = "b3bfb557c82aaed97f4305030af5f6a01f1b2d7dd2863a80707256b3e9bb7417"
 dependencies = [
+ "jsonschema",
  "serde",
  "serde_json",
  "serde_yaml 0.9.17",
+ "thiserror",
 ]
 
 [[package]]
@@ -5348,18 +5350,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.40"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978c9a314bd8dc99be594bc3c175faaa9794be04a5a5e153caba6915336cebac"
+checksum = "6e3de26b0965292219b4287ff031fcba86837900fe9cd2b34ea8ad893c0953d2"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.40"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
+checksum = "268026685b2be38d7103e9e507c938a1fcb3d7e6eb15e87870b617bf37b6d581"
 dependencies = [
  "proc-macro2",
  "quote",
