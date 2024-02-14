@@ -1,6 +1,5 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use relay_config::RelayMode;
 use serde::{Deserialize, Serialize};
 
 use crate::extractors::{SignedBytes, StartTime};
