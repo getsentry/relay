@@ -260,6 +260,7 @@ fn queue_envelope(
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
+    let scoping = managed_envelope.scoping();
     let envelope = managed_envelope.envelope_mut();
 
     // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
@@ -270,9 +271,9 @@ fn queue_envelope(
         relay_log::trace!("sending metrics into processing queue");
         state.processor().send(ProcessMetrics {
             items: metric_items.into_vec(),
-            project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
             sent_at: envelope.sent_at(),
+            scoping,
         });
     }
 

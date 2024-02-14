@@ -160,6 +160,7 @@ impl StartedRouter {
             aggregator.send(MergeBuckets {
                 project_key: message.project_key,
                 buckets: group.collect(),
+                scoping: None,
             });
         }
     }

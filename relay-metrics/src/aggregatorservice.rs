@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
+use relay_quotas::Scoping;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
@@ -310,6 +311,7 @@ impl AggregatorService {
         let MergeBuckets {
             project_key,
             buckets,
+            scoping,
         } = msg;
         self.aggregator
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
@@ -386,6 +388,7 @@ impl Drop for AggregatorService {
 pub struct MergeBuckets {
     pub(crate) project_key: ProjectKey,
     pub(crate) buckets: Vec<Bucket>,
+    pub(crate) scoping: Option<Scoping>,
 }
 
 impl MergeBuckets {
@@ -394,6 +397,16 @@ impl MergeBuckets {
         Self {
             project_key,
             buckets,
+            scoping: None,
+        }
+    }
+
+    /// lol
+    pub fn new_with_scoping(scoping: Scoping, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key: scoping.project_key,
+            buckets,
+            scoping: Some(scoping),
         }
     }
 
@@ -503,6 +516,7 @@ mod tests {
         aggregator.send(MergeBuckets {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             buckets: vec![bucket],
+            scoping: todo!(),
         });
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();

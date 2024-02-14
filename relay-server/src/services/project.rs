@@ -460,6 +460,7 @@ pub struct Project {
     reservoir_counters: ReservoirCounters,
     metric_meta_aggregator: MetaAggregator,
     has_pending_metric_meta: bool,
+    scoping: Option<Scoping>,
 }
 
 impl Project {
@@ -478,6 +479,7 @@ impl Project {
             metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
             has_pending_metric_meta: false,
             config,
+            scoping: None,
         }
     }
 
@@ -692,9 +694,7 @@ impl Project {
         envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
-        if self.config.relay_mode() == RelayMode::Proxy {
-            aggregator.send(MergeBuckets::new(self.project_key, buckets));
-        } else if self.metrics_allowed() {
+        if self.metrics_allowed() {
             match &mut self.state {
                 State::Cached(state) => {
                     let state = Arc::clone(state);
@@ -1056,6 +1056,10 @@ impl Project {
     ///
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
+        if self.scoping.is_some() {
+            return self.scoping;
+        }
+
         let state = self.state_value()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
