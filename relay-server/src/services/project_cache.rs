@@ -817,15 +817,16 @@ impl ProjectCacheBroker {
         let project = self.get_or_create_project(message.project_key());
 
         if let Some(scoping) = message.scoping() {
-            project.set_scoping(scoping);
+            project.set_partial_scoping(scoping);
         }
 
-        project.prefetch(project_cache, false);
+        project.prefetch(project_cache.clone(), false);
         project.merge_buckets(
             aggregator,
             outcome_aggregator,
             envelope_processor,
             message.buckets(),
+            project_cache,
         );
     }
 
