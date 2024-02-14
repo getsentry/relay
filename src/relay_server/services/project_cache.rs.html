@@ -1437,6 +1437,36 @@
 <a href="#1436" id="1436">1436</a>
 <a href="#1437" id="1437">1437</a>
 <a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1673,6 +1703,25 @@
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender&lt;bool&gt;),
     RefreshIndexCache(RefreshIndexCache),
+}
+
+<span class="kw">impl </span>ProjectCache {
+    <span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::RequestUpdate(<span class="kw">_</span>) =&gt; <span class="string">"RequestUpdate"</span>,
+            <span class="self">Self</span>::Get(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"Get"</span>,
+            <span class="self">Self</span>::GetCached(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"GetCached"</span>,
+            <span class="self">Self</span>::CheckEnvelope(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"CheckEnvelope"</span>,
+            <span class="self">Self</span>::ValidateEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"ValidateEnvelope"</span>,
+            <span class="self">Self</span>::UpdateRateLimits(<span class="kw">_</span>) =&gt; <span class="string">"UpdateRateLimits"</span>,
+            <span class="self">Self</span>::MergeBuckets(<span class="kw">_</span>) =&gt; <span class="string">"MergeBuckets"</span>,
+            <span class="self">Self</span>::AddMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"AddMetricMeta"</span>,
+            <span class="self">Self</span>::FlushBuckets(<span class="kw">_</span>) =&gt; <span class="string">"FlushBuckets"</span>,
+            <span class="self">Self</span>::UpdateSpoolIndex(<span class="kw">_</span>) =&gt; <span class="string">"UpdateSpoolIndex"</span>,
+            <span class="self">Self</span>::SpoolHealth(<span class="kw">_</span>) =&gt; <span class="string">"SpoolHealth"</span>,
+            <span class="self">Self</span>::RefreshIndexCache(<span class="kw">_</span>) =&gt; <span class="string">"RefreshIndexCache"</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>ProjectCache {}
@@ -2382,24 +2431,35 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
-        <span class="kw">match </span>message {
-            ProjectCache::RequestUpdate(message) =&gt; <span class="self">self</span>.handle_request_update(message),
-            ProjectCache::Get(message, sender) =&gt; <span class="self">self</span>.handle_get(message, sender),
-            ProjectCache::GetCached(message, sender) =&gt; {
-                sender.send(<span class="self">self</span>.handle_get_cached(message))
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">metric!</span>(
+            timer(RelayTimers::ProjectCacheMessageDuration),
+            message = ty,
+            {
+                <span class="kw">match </span>message {
+                    ProjectCache::RequestUpdate(message) =&gt; <span class="self">self</span>.handle_request_update(message),
+                    ProjectCache::Get(message, sender) =&gt; <span class="self">self</span>.handle_get(message, sender),
+                    ProjectCache::GetCached(message, sender) =&gt; {
+                        sender.send(<span class="self">self</span>.handle_get_cached(message))
+                    }
+                    ProjectCache::CheckEnvelope(message, sender) =&gt; {
+                        sender.send(<span class="self">self</span>.handle_check_envelope(message))
+                    }
+                    ProjectCache::ValidateEnvelope(message) =&gt; {
+                        <span class="self">self</span>.handle_validate_envelope(message)
+                    }
+                    ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
+                    ProjectCache::MergeBuckets(message) =&gt; <span class="self">self</span>.handle_merge_buckets(message),
+                    ProjectCache::AddMetricMeta(message) =&gt; <span class="self">self</span>.handle_add_metric_meta(message),
+                    ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
+                    ProjectCache::UpdateSpoolIndex(message) =&gt; <span class="self">self</span>.handle_buffer_index(message),
+                    ProjectCache::SpoolHealth(sender) =&gt; <span class="self">self</span>.handle_spool_health(sender),
+                    ProjectCache::RefreshIndexCache(message) =&gt; {
+                        <span class="self">self</span>.handle_refresh_index_cache(message)
+                    }
+                }
             }
-            ProjectCache::CheckEnvelope(message, sender) =&gt; {
-                sender.send(<span class="self">self</span>.handle_check_envelope(message))
-            }
-            ProjectCache::ValidateEnvelope(message) =&gt; <span class="self">self</span>.handle_validate_envelope(message),
-            ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
-            ProjectCache::MergeBuckets(message) =&gt; <span class="self">self</span>.handle_merge_buckets(message),
-            ProjectCache::AddMetricMeta(message) =&gt; <span class="self">self</span>.handle_add_metric_meta(message),
-            ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
-            ProjectCache::UpdateSpoolIndex(message) =&gt; <span class="self">self</span>.handle_buffer_index(message),
-            ProjectCache::SpoolHealth(sender) =&gt; <span class="self">self</span>.handle_spool_health(sender),
-            ProjectCache::RefreshIndexCache(message) =&gt; <span class="self">self</span>.handle_refresh_index_cache(message),
-        }
+        )
     }
 }
 
