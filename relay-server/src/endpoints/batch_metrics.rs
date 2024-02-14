@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use relay_config::RelayMode;
 use serde::{Deserialize, Serialize};
 
 use crate::extractors::{SignedBytes, StartTime};
@@ -18,11 +19,14 @@ pub async fn handle(
         return StatusCode::FORBIDDEN.into_response();
     }
 
-    state.processor().send(ProcessBatchedMetrics {
-        payload: body.body,
-        start_time: start_time.into_inner(),
-        sent_at: None,
-    });
+    if state.config().relay_mode() == RelayMode::Proxy {
+    } else {
+        state.processor().send(ProcessBatchedMetrics {
+            payload: body.body,
+            start_time: start_time.into_inner(),
+            sent_at: None,
+        });
+    }
 
     (StatusCode::ACCEPTED, axum::Json(SendMetricsResponse {})).into_response()
 }
