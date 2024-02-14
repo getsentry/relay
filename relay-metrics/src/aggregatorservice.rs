@@ -401,7 +401,7 @@ impl MergeBuckets {
         }
     }
 
-    /// lol
+    /// Creates a new `MergeBuckets` with scoping set.
     pub fn new_with_scoping(scoping: Scoping, buckets: Vec<Bucket>) -> Self {
         Self {
             project_key: scoping.project_key,
@@ -516,7 +516,7 @@ mod tests {
         aggregator.send(MergeBuckets {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             buckets: vec![bucket],
-            scoping: todo!(),
+            scoping: None,
         });
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
