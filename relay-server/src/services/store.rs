@@ -274,15 +274,17 @@ impl StoreService {
             }
         }
 
-        self.produce_replay_messages(
-            replay_event,
-            replay_recording,
-            event_id.ok_or(StoreError::NoEventId)?,
-            scoping,
-            start_time,
-            retention,
-            send_combined_replay_envelope,
-        )?;
+        if replay_event.is_some() || replay_recording.is_some() {
+            self.produce_replay_messages(
+                replay_event,
+                replay_recording,
+                event_id.ok_or(StoreError::NoEventId)?,
+                scoping,
+                start_time,
+                retention,
+                send_combined_replay_envelope,
+            )?;
+        }
 
         if event_item.is_none() && attachments.is_empty() {
             // No event-related content. All done.
