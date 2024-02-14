@@ -618,7 +618,7 @@ pub struct ProcessMetrics {
     /// A list of metric items.
     pub items: Vec<Item>,
 
-    /// The target project.
+    /// Scoping for the target project.
     pub scoping: Scoping,
 
     /// The instant at which the request was received.

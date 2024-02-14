@@ -157,11 +157,7 @@ impl StartedRouter {
                 .and_then(|ns| self.secondary_aggregators.get(&ns))
                 .unwrap_or(&self.default_aggregator);
 
-            aggregator.send(MergeBuckets {
-                project_key: message.project_key,
-                buckets: group.collect(),
-                scoping: None,
-            });
+            aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
         }
     }
 }
