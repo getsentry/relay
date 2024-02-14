@@ -2975,6 +2975,24 @@
 <a href="#2974" id="2974">2974</a>
 <a href="#2975" id="2975">2975</a>
 <a href="#2976" id="2976">2976</a>
+<a href="#2977" id="2977">2977</a>
+<a href="#2978" id="2978">2978</a>
+<a href="#2979" id="2979">2979</a>
+<a href="#2980" id="2980">2980</a>
+<a href="#2981" id="2981">2981</a>
+<a href="#2982" id="2982">2982</a>
+<a href="#2983" id="2983">2983</a>
+<a href="#2984" id="2984">2984</a>
+<a href="#2985" id="2985">2985</a>
+<a href="#2986" id="2986">2986</a>
+<a href="#2987" id="2987">2987</a>
+<a href="#2988" id="2988">2988</a>
+<a href="#2989" id="2989">2989</a>
+<a href="#2990" id="2990">2990</a>
+<a href="#2991" id="2991">2991</a>
+<a href="#2992" id="2992">2992</a>
+<a href="#2993" id="2993">2993</a>
+<a href="#2994" id="2994">2994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3264,6 +3282,23 @@
         grouped_envelopes.extend(envelopes);
 
         grouped_envelopes
+    }
+
+    <span class="doccomment">/// Returns the name of the group.
+    </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            ProcessingGroup::Transaction(<span class="kw">_</span>) =&gt; <span class="string">"transaction"</span>,
+            ProcessingGroup::Error(<span class="kw">_</span>) =&gt; <span class="string">"error"</span>,
+            ProcessingGroup::Session(<span class="kw">_</span>) =&gt; <span class="string">"session"</span>,
+            ProcessingGroup::Standalone(<span class="kw">_</span>) =&gt; <span class="string">"standalone"</span>,
+            ProcessingGroup::ClientReport(<span class="kw">_</span>) =&gt; <span class="string">"client_report"</span>,
+            ProcessingGroup::Replay(<span class="kw">_</span>) =&gt; <span class="string">"replay"</span>,
+            ProcessingGroup::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
+            ProcessingGroup::Span(<span class="kw">_</span>) =&gt; <span class="string">"span"</span>,
+            ProcessingGroup::Metrics(<span class="kw">_</span>) =&gt; <span class="string">"metrics"</span>,
+            ProcessingGroup::ForwardUnknown(<span class="kw">_</span>) =&gt; <span class="string">"forward_unknown"</span>,
+            ProcessingGroup::Ungrouped(<span class="kw">_</span>) =&gt; <span class="string">"ungrouped"</span>,
+        }
     }
 }
 
@@ -4489,7 +4524,8 @@
         <span class="kw">let </span>wait_time = message.envelope.start_time().elapsed();
         <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
-        <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), {
+        <span class="kw">let </span>group = message.envelope.group().variant();
+        <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
             <span class="self">self</span>.process(message)
         });
         <span class="kw">match </span>result {
