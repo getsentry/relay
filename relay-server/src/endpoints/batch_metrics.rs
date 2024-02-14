@@ -19,14 +19,11 @@ pub async fn handle(
         return StatusCode::FORBIDDEN.into_response();
     }
 
-    if state.config().relay_mode() == RelayMode::Proxy {
-    } else {
-        state.processor().send(ProcessBatchedMetrics {
-            payload: body.body,
-            start_time: start_time.into_inner(),
-            sent_at: None,
-        });
-    }
+    state.processor().send(ProcessBatchedMetrics {
+        payload: body.body,
+        start_time: start_time.into_inner(),
+        sent_at: None,
+    });
 
     (StatusCode::ACCEPTED, axum::Json(SendMetricsResponse {})).into_response()
 }
