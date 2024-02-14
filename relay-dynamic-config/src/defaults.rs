@@ -139,10 +139,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 // Common tags:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
-                    .when(is_db.clone() | is_mobile.clone()), // groups by method + txn, e.g. `GET /users`
+                    .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
                 Tag::with_key("span.action")
                     .from_field("span.sentry_tags.action")
                     .when(is_db.clone()),
@@ -154,7 +156,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
@@ -206,7 +208,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             tags: vec![
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .when(is_mobile.clone()),
@@ -221,7 +225,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
