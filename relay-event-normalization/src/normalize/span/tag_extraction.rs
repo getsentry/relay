@@ -516,7 +516,7 @@ pub fn extract_measurements(span: &mut Span) {
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
             let mut try_measurement = |key: &str| {
-                if let Some(value) = measurement_from_data(data, key) {
+                if let Some(value) = measurement_from_data(data.other(), key) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
