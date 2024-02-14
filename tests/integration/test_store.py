@@ -173,6 +173,39 @@ def test_store_rate_limit(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "correct"}
 
 
+def test_no_outage_static_mode(mini_sentry, relay):
+    """
+    Checks that we don't experience a network outage after 60 seconds in static mode.
+    """
+    from time import sleep
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+
+    def configure_static_project(dir):
+        os.remove(dir.join("credentials.json"))
+        os.makedirs(dir.join("projects"))
+        dir.join("projects").join(f"{project_id}.json").write(
+            json.dumps(project_config)
+        )
+
+    relay_options = {"relay": {"mode": "static"}}
+    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
+
+    relay.send_event(project_id)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+    sleep(65)
+    relay.send_event(project_id, {"message": "123"})
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "123"}
+
+    if mini_sentry.test_failures:
+        raise AssertionError(
+            f"Exceptions happened in mini_sentry: {mini_sentry.format_failures()}"
+        )
+
+
 def test_store_static_config(mini_sentry, relay):
     from time import sleep
 
