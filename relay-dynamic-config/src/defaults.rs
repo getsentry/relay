@@ -73,6 +73,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
+    let is_http = RuleCondition::eq("span.op", "http.client");
+
     let is_allowed_browser = RuleCondition::eq(
         "span.sentry_tags.browser.name",
         vec!["Chrome", "Firefox", "Safari", "Edge", "Opera"],
@@ -110,9 +112,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     // `exclusive_time_light` is the metric with the most lenient condition.
-    let exclusive_time_light_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
-            & duration_condition.clone();
+    let exclusive_time_light_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_interaction
+        | is_http.clone())
+        & duration_condition.clone();
 
     [
         MetricSpec {
@@ -127,7 +132,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
                     & duration_condition.clone(),
             ),
             tags: vec![
