@@ -93,14 +93,14 @@ def test_metrics_proxy_mode(mini_sentry, relay):
     assert received_metrics == [
         {
             "timestamp": timestamp,
-            "width": 1,
+            "width": 0,
             "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": timestamp,
-            "width": 1,
+            "width": 0,
             "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
