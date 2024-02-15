@@ -1304,6 +1304,38 @@ impl Default for CardinalityLimiter {
     }
 }
 
+/// Settings to control Relay's health checks.
+///
+/// After breaching one of the configured thresholds, Relay will
+/// return an `unhealthy` status from its health endpoint.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Health {
+    /// Interval in which Relay will refresh system information, like current memory usage.
+    ///
+    /// Defaults to 3 seconds.
+    pub sys_info_refresh_interval_secs: u64,
+    /// Maximum memory watermark in bytes.
+    ///
+    /// By default there is no absolute limit set and the watermark
+    /// is only controlled by setting [`Self::max_memory_percent`].
+    pub max_memory_bytes: Option<ByteSize>,
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    ///
+    /// Defaults to `0.95` (95%).
+    pub max_memory_percent: f32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self {
+            sys_info_refresh_interval_secs: 3,
+            max_memory_bytes: None,
+            max_memory_percent: 0.95,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1342,6 +1374,8 @@ struct ConfigValues {
     geoip: GeoIpConfig,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
+    #[serde(default)]
+    health: Health,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2165,6 +2199,25 @@ impl Config {
     /// The cache will scan for expired values based on this interval.
     pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
+    }
+
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    pub fn health_sys_info_refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    }
+
+    /// Maximum memory watermark in bytes.
+    pub fn health_max_memory_watermark_bytes(&self) -> u64 {
+        self.values
+            .health
+            .max_memory_bytes
+            .as_ref()
+            .map_or(u64::MAX, |b| b.as_bytes() as u64)
+    }
+
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    pub fn health_max_memory_watermark_percent(&self) -> f32 {
+        self.values.health.max_memory_percent
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

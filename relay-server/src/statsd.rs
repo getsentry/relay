@@ -367,6 +367,11 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the processor does.
     ProjectCacheTaskDuration,
+    /// Timing in milliseconds for handling and responding to a health check request.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of the health check, `liveness` or `readiness`.
+    HealthCheckDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -405,6 +410,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
+            RelayTimers::HealthCheckDuration => "health.message.duration",
         }
     }
 }
