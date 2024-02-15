@@ -279,11 +279,11 @@ impl StoreService {
         }
 
         if let Some(recording) = replay_recording {
-            self.produce_replay_messages(
-                replay_event,
-                recording,
-                event_id.ok_or(StoreError::NoEventId)?,
+            self.produce_replay_recording(
+                event_id,
                 scoping,
+                recording,
+                replay_event,
                 start_time,
                 retention,
             )?;
@@ -842,26 +842,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_replay_messages(
-        &self,
-        replay_event: Option<&Item>,
-        replay_recording: &Item,
-        replay_id: EventId,
-        scoping: Scoping,
-        start_time: Instant,
-        retention_days: u16,
-    ) -> Result<(), StoreError> {
-        self.produce_replay_recording(
-            Some(replay_id),
-            scoping,
-            replay_recording,
-            replay_event,
-            start_time,
-            retention_days,
-        )?;
-
-        Ok(())
-    }
     fn produce_check_in(
         &self,
         organization_id: u64,
