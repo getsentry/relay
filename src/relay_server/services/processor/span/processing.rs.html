@@ -787,7 +787,7 @@
 
     <span class="kw">let </span>NormalizeSpanConfig {
         received_at,
-        timestamp_range: timestmap_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -811,7 +811,7 @@
     )<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
-        validate_span(span, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>timestmap_range))<span class="question-mark">?</span>;
+        validate_span(span, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>timestamp_range))<span class="question-mark">?</span>;
     }
     process_value(
         annotated_span,
