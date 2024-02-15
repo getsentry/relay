@@ -755,7 +755,7 @@ pub fn normalize_performance_score(
                         && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
                     continue;
                 }
