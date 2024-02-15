@@ -506,6 +506,15 @@
 <a href="#505" id="505">505</a>
 <a href="#506" id="506">506</a>
 <a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -581,6 +590,8 @@
 
     <span class="kw">let </span>is_mobile_sdk = RuleCondition::eq(<span class="string">"span.sentry_tags.mobile"</span>, <span class="string">"true"</span>);
 
+    <span class="kw">let </span>is_http = RuleCondition::eq(<span class="string">"span.op"</span>, <span class="string">"http.client"</span>);
+
     <span class="kw">let </span>is_allowed_browser = RuleCondition::eq(
         <span class="string">"span.sentry_tags.browser.name"</span>,
         <span class="macro">vec!</span>[<span class="string">"Chrome"</span>, <span class="string">"Firefox"</span>, <span class="string">"Safari"</span>, <span class="string">"Edge"</span>, <span class="string">"Opera"</span>],
@@ -618,9 +629,12 @@
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     <span class="comment">// `exclusive_time_light` is the metric with the most lenient condition.
-    </span><span class="kw">let </span>exclusive_time_light_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
-            &amp; duration_condition.clone();
+    </span><span class="kw">let </span>exclusive_time_light_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_interaction
+        | is_http.clone())
+        &amp; duration_condition.clone();
 
     [
         MetricSpec {
@@ -635,17 +649,19 @@
             mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
             field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
             condition: <span class="prelude-val">Some</span>(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
                     &amp; duration_condition.clone(),
             ),
             tags: <span class="macro">vec!</span>[
                 <span class="comment">// Common tags:
                 </span>Tag::with_key(<span class="string">"environment"</span>)
                     .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key(<span class="string">"transaction.method"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction.method"</span>)
-                    .when(is_db.clone() | is_mobile.clone()), <span class="comment">// groups by method + txn, e.g. `GET /users`
+                    .when(is_db.clone() | is_mobile.clone() | is_http.clone()), <span class="comment">// groups by method + txn, e.g. `GET /users`
                 </span>Tag::with_key(<span class="string">"span.action"</span>)
                     .from_field(<span class="string">"span.sentry_tags.action"</span>)
                     .when(is_db.clone()),
@@ -657,7 +673,7 @@
                     .always(),
                 Tag::with_key(<span class="string">"span.domain"</span>)
                     .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key(<span class="string">"span.group"</span>)
                     .from_field(<span class="string">"span.sentry_tags.group"</span>)
                     .always(),
@@ -709,7 +725,9 @@
             tags: <span class="macro">vec!</span>[
                 Tag::with_key(<span class="string">"environment"</span>)
                     .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key(<span class="string">"transaction.op"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
                     .when(is_mobile.clone()),
@@ -724,7 +742,7 @@
                     .always(),
                 Tag::with_key(<span class="string">"span.domain"</span>)
                     .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key(<span class="string">"span.group"</span>)
                     .from_field(<span class="string">"span.sentry_tags.group"</span>)
                     .always(),
