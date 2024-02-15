@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -172,16 +170,16 @@ impl Getter for Span {
 pub struct SpanData {
     // TODO: docs
     #[metastructure(field = "code.filepath")]
-    pub code_filepath: Annotated<String>,
+    pub code_filepath: Annotated<Value>,
     // TODO: docs
     #[metastructure(field = "code.lineno")]
-    pub code_lineno: Annotated<u64>,
+    pub code_lineno: Annotated<Value>,
     // TODO: docs
     #[metastructure(field = "code.function")]
-    pub code_function: Annotated<String>,
+    pub code_function: Annotated<Value>,
     // TODO: docs
     #[metastructure(field = "code.namespace")]
-    pub code_namespace: Annotated<String>,
+    pub code_namespace: Annotated<Value>,
 
     // TODO: docs
     #[metastructure(additional_properties, retain = "true")]
@@ -190,20 +188,37 @@ pub struct SpanData {
 
 impl SpanData {
     /// TODO: docs
+    ///
+    /// NOTE: This
     pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
-        self.other.get(key)
+        match key {
+            "code.filepath" => Some(&self.code_filepath),
+            "code.lineno" => Some(&self.code_lineno),
+            "code.function" => Some(&self.code_function),
+            "code.namespace" => Some(&self.code_namespace),
+            _ => self.other.get(key),
+        }
     }
 
-    pub fn other(&self) -> &Object<Value> {
-        &self.other
+    /// TODO: docs
+    pub fn insert(&mut self, key: String, value: Annotated<Value>) {
+        match key.as_str() {
+            "code.filepath" => self.code_filepath = value,
+            "code.lineno" => self.code_lineno = value,
+            "code.function" => self.code_function = value,
+            "code.namespace" => self.code_namespace = value,
+            _ => {
+                self.other.insert(key, value);
+            }
+        }
     }
 }
 
-impl From<Object<Value>> for SpanData {
-    fn from(map: Object<Value>) -> Self {
-        map.remove("code.location").map(|asdf|)
-    }
-}
+// impl From<Object<Value>> for SpanData {
+//     fn from(map: Object<Value>) -> Self {
+//         map.remove("code.location").map(|asdf|)
+//     }
+// }
 
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
