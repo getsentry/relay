@@ -25,6 +25,7 @@ pub enum IsHealthy {
 }
 
 impl IsHealthy {
+    /// Returns the name of the variant, either `liveness` or `healthy`.
     fn variant(&self) -> &'static str {
         match self {
             Self::Liveness => "liveness",
@@ -162,8 +163,6 @@ impl HealthCheckService {
             self.project_cache_probe(),
         );
 
-        dbg!(sys_mem, auth, agg, proj);
-
         Status::combined(&[sys_mem, auth, agg, proj])
     }
 
@@ -215,7 +214,7 @@ enum Status {
 
 impl Status {
     fn combined(s: &[Status]) -> Self {
-        s.into_iter()
+        s.iter()
             .copied()
             .reduce(Self::combine)
             .unwrap_or(Self::Unhealthy)
@@ -266,6 +265,7 @@ impl SystemInfo {
     pub fn memory(&mut self) -> Memory {
         self.refresh();
 
+        // Use the cgroup if available in case Relay is running in a container.
         if let Some(cgroup) = self.system.cgroup_limits() {
             Memory {
                 used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
@@ -299,5 +299,37 @@ pub struct Memory {
 impl Memory {
     pub fn used_percent(&self) -> f32 {
         (self.used as f32 / self.total as f32).clamp(0.0, 1.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_used_percent_total_0() {
+        let memory = Memory {
+            used: 100,
+            total: 0,
+        };
+        assert_eq!(memory.used_percent(), 1.0);
+    }
+
+    #[test]
+    fn test_memory_used_percent_zero() {
+        let memory = Memory {
+            used: 0,
+            total: 100,
+        };
+        assert_eq!(memory.used_percent(), 0.0);
+    }
+
+    #[test]
+    fn test_memory_used_percent_half() {
+        let memory = Memory {
+            used: 50,
+            total: 100,
+        };
+        assert_eq!(memory.used_percent(), 0.5);
     }
 }
