@@ -2820,6 +2820,87 @@
 <a href="#2819" id="2819">2819</a>
 <a href="#2820" id="2820">2820</a>
 <a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
+<a href="#2828" id="2828">2828</a>
+<a href="#2829" id="2829">2829</a>
+<a href="#2830" id="2830">2830</a>
+<a href="#2831" id="2831">2831</a>
+<a href="#2832" id="2832">2832</a>
+<a href="#2833" id="2833">2833</a>
+<a href="#2834" id="2834">2834</a>
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a>
+<a href="#2843" id="2843">2843</a>
+<a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a>
+<a href="#2848" id="2848">2848</a>
+<a href="#2849" id="2849">2849</a>
+<a href="#2850" id="2850">2850</a>
+<a href="#2851" id="2851">2851</a>
+<a href="#2852" id="2852">2852</a>
+<a href="#2853" id="2853">2853</a>
+<a href="#2854" id="2854">2854</a>
+<a href="#2855" id="2855">2855</a>
+<a href="#2856" id="2856">2856</a>
+<a href="#2857" id="2857">2857</a>
+<a href="#2858" id="2858">2858</a>
+<a href="#2859" id="2859">2859</a>
+<a href="#2860" id="2860">2860</a>
+<a href="#2861" id="2861">2861</a>
+<a href="#2862" id="2862">2862</a>
+<a href="#2863" id="2863">2863</a>
+<a href="#2864" id="2864">2864</a>
+<a href="#2865" id="2865">2865</a>
+<a href="#2866" id="2866">2866</a>
+<a href="#2867" id="2867">2867</a>
+<a href="#2868" id="2868">2868</a>
+<a href="#2869" id="2869">2869</a>
+<a href="#2870" id="2870">2870</a>
+<a href="#2871" id="2871">2871</a>
+<a href="#2872" id="2872">2872</a>
+<a href="#2873" id="2873">2873</a>
+<a href="#2874" id="2874">2874</a>
+<a href="#2875" id="2875">2875</a>
+<a href="#2876" id="2876">2876</a>
+<a href="#2877" id="2877">2877</a>
+<a href="#2878" id="2878">2878</a>
+<a href="#2879" id="2879">2879</a>
+<a href="#2880" id="2880">2880</a>
+<a href="#2881" id="2881">2881</a>
+<a href="#2882" id="2882">2882</a>
+<a href="#2883" id="2883">2883</a>
+<a href="#2884" id="2884">2884</a>
+<a href="#2885" id="2885">2885</a>
+<a href="#2886" id="2886">2886</a>
+<a href="#2887" id="2887">2887</a>
+<a href="#2888" id="2888">2888</a>
+<a href="#2889" id="2889">2889</a>
+<a href="#2890" id="2890">2890</a>
+<a href="#2891" id="2891">2891</a>
+<a href="#2892" id="2892">2892</a>
+<a href="#2893" id="2893">2893</a>
+<a href="#2894" id="2894">2894</a>
+<a href="#2895" id="2895">2895</a>
+<a href="#2896" id="2896">2896</a>
+<a href="#2897" id="2897">2897</a>
+<a href="#2898" id="2898">2898</a>
+<a href="#2899" id="2899">2899</a>
+<a href="#2900" id="2900">2900</a>
+<a href="#2901" id="2901">2901</a>
+<a href="#2902" id="2902">2902</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -3577,9 +3658,9 @@
                         &amp;&amp; !c.optional
                 }) {
                     <span class="comment">// All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
-                    </span><span class="kw">break</span>;
+                    </span><span class="kw">continue</span>;
                 }
                 <span class="kw">let </span><span class="kw-2">mut </span>score_total = <span class="number">0.0f64</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>weight_total = <span class="number">0.0f64</span>;
@@ -3595,7 +3676,7 @@
                 <span class="kw">if </span>weight_total.abs() &lt; f64::EPSILON {
                     <span class="comment">// All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    </span><span class="kw">break</span>;
+                    </span><span class="kw">continue</span>;
                 }
                 <span class="kw">for </span>component <span class="kw">in </span><span class="kw-2">&amp;</span>profile.score_components {
                     <span class="comment">// Optional measurements that are not present are given a weight of 0.
@@ -3629,7 +3710,6 @@
                         .into(),
                     );
                 }
-
                 <span class="kw">if </span>should_add_total {
                     measurements.insert(
                         <span class="string">"score.total"</span>.to_owned(),
@@ -3640,8 +3720,7 @@
                         .into(),
                     );
                 }
-                <span class="kw">break</span>; <span class="comment">// Measurements have successfully been added, skip any other profiles.
-            </span>}
+            }
         }
     }
 }
@@ -5375,6 +5454,89 @@
                   },
                 }),
               ))),
+            },
+          },
+        }
+        "###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_computed_performance_score_multiple_profiles() {
+        <span class="kw">let </span>json = <span class="string">r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+
+        <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
+            <span class="string">"profiles"</span>: [
+                {
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
+                        {
+                            <span class="string">"measurement"</span>: <span class="string">"cls"</span>,
+                            <span class="string">"weight"</span>: <span class="number">0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
+                        </span>},
+                    ],
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"and"</span>,
+                        <span class="string">"inner"</span>: []
+                    }
+                },
+                {
+                    <span class="string">"name"</span>: <span class="string">"Desktop"</span>,
+                    <span class="string">"scoreComponents"</span>: [
+                        {
+                            <span class="string">"measurement"</span>: <span class="string">"inp"</span>,
+                            <span class="string">"weight"</span>: <span class="number">1.0</span>,
+                            <span class="string">"p10"</span>: <span class="number">0.1</span>,
+                            <span class="string">"p50"</span>: <span class="number">0.25
+                        </span>},
+                    ],
+                    <span class="string">"condition"</span>: {
+                        <span class="string">"op"</span>:<span class="string">"and"</span>,
+                        <span class="string">"inner"</span>: []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
+
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
             },
           },
         }
