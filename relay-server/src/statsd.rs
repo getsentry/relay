@@ -359,6 +359,14 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     BufferMessageProcessDuration,
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `ty`: The type of the task the processor does.
+    ProjectCacheTaskDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -396,6 +404,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
+            RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
         }
     }
 }
