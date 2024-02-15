@@ -1,6 +1,6 @@
 [package]
 name = "relay-dashboard"
-version = "24.1.2"
+version = "24.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
