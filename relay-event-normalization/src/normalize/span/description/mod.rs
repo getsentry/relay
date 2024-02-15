@@ -20,6 +20,9 @@ use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 /// Dummy URL used to parse relative URLs.
 static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
 
+/// Very large SQL queries may cause stack overflows in the parser, so do not attempt to parse these.
+const MAX_DESCRIPTION_LENGTH: usize = 10_000;
+
 /// Maximum length of a resource URL segment.
 ///
 /// Segments longer than this are treated as identifiers.
@@ -37,6 +40,14 @@ pub(crate) fn scrub_span_description(
     let Some(description) = span.description.as_str() else {
         return (None, None);
     };
+
+    if description.len() > MAX_DESCRIPTION_LENGTH {
+        relay_log::error!(
+            description = description,
+            "Span description too large to parse"
+        );
+        return (None, None);
+    }
 
     let data = span.data.value();
 
@@ -421,7 +432,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
+        ($name:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -910,6 +921,17 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
+
+    span_description_test!(
+        long_description_none,
+        // Do not attempt to parse very long descriptions.
+        {
+            let repeated = "+1".repeat(5000);
+            &("SELECT 1".to_string() + &repeated)
+        },
+        "db.query",
+        ""
+    );
 
     #[test]
     fn informed_sql_parser() {

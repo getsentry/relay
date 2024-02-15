@@ -195,6 +195,9 @@ impl StoreService {
 
         let mut attachments = Vec::new();
 
+        let mut replay_event = None;
+        let mut replay_recording = None;
+
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
@@ -244,16 +247,22 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
-                    self.produce_replay_recording(event_id, scoping, item, start_time, retention)?
+                    replay_recording = Some(item);
                 }
-                ItemType::ReplayEvent => self.produce_replay_event(
-                    event_id.ok_or(StoreError::NoEventId)?,
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    retention,
-                    item,
-                )?,
+                ItemType::ReplayEvent => {
+                    if item.replay_combined_payload() {
+                        replay_event = Some(item);
+                    }
+
+                    self.produce_replay_event(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        start_time,
+                        retention,
+                        item,
+                    )?;
+                }
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
                     scoping.project_id,
@@ -267,6 +276,17 @@ impl StoreService {
                 }
                 _ => {}
             }
+        }
+
+        if let Some(recording) = replay_recording {
+            self.produce_replay_recording(
+                event_id,
+                scoping,
+                recording,
+                replay_event,
+                start_time,
+                retention,
+            )?;
         }
 
         if event_item.is_none() && attachments.is_empty() {
@@ -774,40 +794,59 @@ impl StoreService {
         event_id: Option<EventId>,
         scoping: Scoping,
         item: &Item,
+        replay_event: Option<&Item>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // 2000 bytes are reserved for the message metadata.
-        let max_message_metadata_size = 2000;
+        // Map the event item to it's byte payload value.
+        let replay_event_payload = replay_event.map(|rv| rv.payload());
 
-        // Remaining bytes can be filled by the payload.
-        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
+        // Maximum number of bytes accepted by the consumer.
+        let max_payload_size = self.config.max_replay_message_size();
 
-        if item.payload().len() < max_payload_size {
-            let message =
-                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                    replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    key_id: scoping.key_id,
-                    org_id: scoping.organization_id,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    retention_days: retention,
-                    payload: item.payload(),
-                });
+        // Size of the consumer message. We can be reasonably sure this won't overflow because
+        // of the request size validation provided by Nginx and Relay.
+        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
+        payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
+        payload_size += item.payload().len();
 
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                message,
-            )?;
-
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "replay_recording_not_chunked"
-            );
-        } else {
+        // If the recording payload can not fit in to the message do not produce and quit early.
+        if payload_size >= max_payload_size {
             relay_log::warn!("replay_recording over maximum size.");
-        };
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+            return Ok(());
+        }
+
+        let message =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                payload: item.payload(),
+                replay_event: replay_event_payload,
+            });
+
+        self.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_recording_not_chunked"
+        );
 
         Ok(())
     }
@@ -1072,7 +1111,6 @@ struct ReplayRecordingChunkKafkaMessage {
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
-
 #[derive(Debug, Serialize)]
 struct ReplayRecordingChunkMeta {
     /// The attachment ID within the event.
@@ -1114,6 +1152,7 @@ struct ReplayRecordingNotChunkedKafkaMessage {
     received: u64,
     retention_days: u16,
     payload: Bytes,
+    replay_event: Option<Bytes>,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.

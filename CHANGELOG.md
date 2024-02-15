@@ -5,6 +5,8 @@
 **Bug Fixes**:
 
 - Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+- Normalize route in trace context data field. ([#3104](https://github.com/getsentry/relay/pull/3104))
+- Limit the length of scrubbed span descriptions. ([#3115](https://github.com/getsentry/relay/pull/3115))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
 **Features**:
@@ -29,6 +31,7 @@
 - Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
 - Drop timestamp from metrics partition key. ([#3025](https://github.com/getsentry/relay/pull/3025))
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+- Add support for combining replay envelope items. ([#3035](https://github.com/getsentry/relay/pull/3035))
 - Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
 - Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
 - Upgrade sqlparser to 0.43.1.([#3057](https://github.com/getsentry/relay/pull/3057))
