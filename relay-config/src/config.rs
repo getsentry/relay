@@ -2201,7 +2201,7 @@ impl Config {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    /// Maximum memory watermark as a percentage of maximum system memory.
+    /// Interval to refresh system information.
     pub fn health_sys_info_refresh_interval(&self) -> Duration {
         Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
     }
