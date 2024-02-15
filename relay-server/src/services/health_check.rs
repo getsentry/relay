@@ -34,15 +34,50 @@ impl IsHealthy {
     }
 }
 
+/// Health check status.
+#[derive(Debug, Copy, Clone)]
+pub enum Status {
+    /// Relay is healthy.
+    Healthy,
+    /// Relay is unhealthy.
+    Unhealthy,
+}
+
+impl Status {
+    fn combined(s: &[Status]) -> Self {
+        s.iter()
+            .copied()
+            .reduce(Self::combine)
+            .unwrap_or(Self::Unhealthy)
+    }
+
+    fn combine(self, other: Self) -> Self {
+        if matches!(self, Self::Unhealthy) || matches!(other, Self::Unhealthy) {
+            Self::Unhealthy
+        } else {
+            Self::Healthy
+        }
+    }
+}
+
+impl From<bool> for Status {
+    fn from(value: bool) -> Self {
+        match value {
+            true => Self::Healthy,
+            false => Self::Unhealthy,
+        }
+    }
+}
+
 /// Service interface for the [`IsHealthy`] message.
-pub struct HealthCheck(IsHealthy, Sender<bool>);
+pub struct HealthCheck(IsHealthy, Sender<Status>);
 
 impl Interface for HealthCheck {}
 
 impl FromMessage<IsHealthy> for HealthCheck {
-    type Response = AsyncResponse<bool>;
+    type Response = AsyncResponse<Status>;
 
-    fn from_message(message: IsHealthy, sender: Sender<bool>) -> Self {
+    fn from_message(message: IsHealthy, sender: Sender<Status>) -> Self {
         Self(message, sender)
     }
 }
@@ -176,7 +211,7 @@ impl HealthCheckService {
             { self.handle_is_healthy(message).await }
         );
 
-        sender.send(response.to_bool());
+        sender.send(response);
     }
 }
 
@@ -203,42 +238,6 @@ impl Service for HealthCheckService {
                 }
             }
         });
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-enum Status {
-    Healthy,
-    Unhealthy,
-}
-
-impl Status {
-    fn combined(s: &[Status]) -> Self {
-        s.iter()
-            .copied()
-            .reduce(Self::combine)
-            .unwrap_or(Self::Unhealthy)
-    }
-
-    fn combine(self, other: Self) -> Self {
-        if matches!(self, Self::Unhealthy) || matches!(other, Self::Unhealthy) {
-            Self::Unhealthy
-        } else {
-            Self::Healthy
-        }
-    }
-
-    fn to_bool(self) -> bool {
-        matches!(self, Self::Healthy)
-    }
-}
-
-impl From<bool> for Status {
-    fn from(value: bool) -> Self {
-        match value {
-            true => Self::Healthy,
-            false => Self::Unhealthy,
-        }
     }
 }
 
