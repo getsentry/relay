@@ -1113,7 +1113,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        metric!(timer(RelayTimers::EventProcessingDeserialize), ty = "update_global_config", {
+                        metric!(timer(RelayTimers::EventProcessingDeserialize), task = "update_global_config", {
                             match subscription.borrow().clone() {
                                 global_config::Status::Ready(_) => broker.set_global_config_ready(),
                                 // The watch should only be updated if it gets a new value.
@@ -1123,29 +1123,29 @@ impl Service for ProjectCacheService {
                         })
                     },
                     Some(message) = state_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), ty = "merge_state", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "merge_state", {
                             broker.merge_state(message)
                         })
                     }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), ty = "handle_processing", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
                             broker.handle_processing(key, managed_envelope)
                         })
                     },
                     _ = ticker.tick() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), ty = "evict_project_caches", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "evict_project_caches", {
                             broker.evict_stale_project_caches()
                         })
                     }
                     () = &mut broker.buffer_unspool_handle => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), ty = "periodic_unspool", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
                             broker.handle_periodic_unspool()
                         })
                     }
                     Some(message) = rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), ty = "handle_message", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
                             broker.handle_message(message)
                         })
                     }

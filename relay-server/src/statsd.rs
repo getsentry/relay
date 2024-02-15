@@ -365,7 +365,7 @@ pub enum RelayTimers {
     /// `tokio::select` is a different task type.
     ///
     /// This metric is tagged with:
-    /// - `ty`: The type of the task the processor does.
+    /// - `task`: The type of the task the processor does.
     ProjectCacheTaskDuration,
 }
 
