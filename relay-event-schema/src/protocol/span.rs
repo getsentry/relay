@@ -168,30 +168,34 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
-    // TODO: docs
+    /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath")]
     pub code_filepath: Annotated<Value>,
-    // TODO: docs
+    /// The line number in `code.filepath` best representing the operation.
     #[metastructure(field = "code.lineno")]
     pub code_lineno: Annotated<Value>,
-    // TODO: docs
+    /// The method or function name, or equivalent.
+    ///
+    /// Usually rightmost part of the code unit's name.
     #[metastructure(field = "code.function")]
     pub code_function: Annotated<Value>,
-    // TODO: docs
+    /// The "namespace" within which `code.function` is defined.
+    ///
+    /// Usually the qualified class or module name, such that
+    /// `code.namespace + some separator + code.function`
+    /// form a unique identifier for the code unit.
     #[metastructure(field = "code.namespace")]
     pub code_namespace: Annotated<Value>,
 
     pub real_string: Annotated<String>,
 
-    // TODO: docs
+    /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
 }
 
 impl SpanData {
-    /// TODO: docs
-    ///
-    /// NOTE: This
+    /// Getter for compatibility with [`Object`].
     pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
         match key {
             "code.filepath" => Some(&self.code_filepath),
@@ -202,7 +206,7 @@ impl SpanData {
         }
     }
 
-    /// TODO: docs
+    /// Setter for compatibility with [`Object`].
     pub fn insert(&mut self, key: String, value: Annotated<Value>) {
         match key.as_str() {
             "code.filepath" => self.code_filepath = value,
@@ -215,12 +219,6 @@ impl SpanData {
         }
     }
 }
-
-// impl From<Object<Value>> for SpanData {
-//     fn from(map: Object<Value>) -> Self {
-//         map.remove("code.location").map(|asdf|)
-//     }
-// }
 
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
