@@ -562,7 +562,7 @@ fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
 /// If the string is short, it remains unchanged. If it's long, this method
 /// truncates it to the maximum allowed size and sets the last character to
 /// `*`.
-fn truncate_string(mut string: String, max_bytes: usize) -> String {
+pub fn truncate_string(mut string: String, max_bytes: usize) -> String {
     if string.len() <= max_bytes {
         return string;
     }

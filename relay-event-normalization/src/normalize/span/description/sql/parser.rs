@@ -54,7 +54,10 @@ fn parse_query_inner(
         .unwrap_or_else(|| Box::new(GenericDialect {}));
     let dialect = DialectWithParameters(dialect);
 
-    sqlparser::parser::Parser::parse_sql(&dialect, query)
+    sqlparser::parser::Parser::new(&dialect)
+        .with_recursion_limit(1)
+        .try_with_sql(query)?
+        .parse_statements()
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.

@@ -5,6 +5,10 @@ pub use parser::parse_query;
 use std::borrow::Cow;
 use std::time::Instant;
 
+/// Very large SQL queries may cause stack overflows in the parser, so do not attempt to parse these.
+const MAX_DESCRIPTION_LENGTH: usize = 20_000;
+
+use crate::span::tag_extraction::truncate_string;
 use crate::statsd::Timers;
 use once_cell::sync::Lazy;
 use parser::normalize_parsed_queries;
@@ -136,11 +140,17 @@ impl Mode {
 }
 
 fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
-    if let Ok((queries, ast)) = normalize_parsed_queries(db_system, string) {
+    let string = if string.len() > MAX_DESCRIPTION_LENGTH {
+        Cow::Owned(truncate_string(string.to_owned(), MAX_DESCRIPTION_LENGTH))
+    } else {
+        Cow::Borrowed(string)
+    };
+
+    if let Ok((queries, ast)) = normalize_parsed_queries(db_system, &string) {
         return (Some(queries), Mode::Parsed(ast));
     }
 
-    let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+    let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(&string);
 
     let mut string = Cow::from(string.trim());
 
