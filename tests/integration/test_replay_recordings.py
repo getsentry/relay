@@ -125,7 +125,7 @@ def test_nonchunked_replay_recordings_processing(
     relay.send_envelope(project_id, envelope)
 
     # Get the non-chunked replay-recording message from the kafka queue.
-    replay_recording = replay_recordings_consumer.get_not_chunked_replay()
+    replay_recording = replay_recordings_consumer.get_not_chunked_replay(timeout=10)
     assert replay_recording["replay_id"] == replay_id
     assert replay_recording["project_id"] == project_id
     assert replay_recording["key_id"] == 123

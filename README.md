@@ -152,7 +152,7 @@ make build
 
 #### Snapshot tests
 
-We use `insta` for snapshot testing. It will run as part of the `make test` command 
+We use `insta` for snapshot testing. It will run as part of the `make test` command
 to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
 ```bash
 cargo install cargo-insta
