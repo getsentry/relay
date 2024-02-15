@@ -55,10 +55,12 @@ pub fn process(
     let combined_envelope_items =
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
-    // If any envelope item is dropped the whole request should be abandoned.
+    // If any item in the envelope was dropped we record it.
     let mut item_dropped = false;
 
     state.managed_envelope.retain_items(|item| {
+        // If replays aren't enabled or an item was dropped - drop the remainder of the
+        // envelope.
         if !replays_enabled || item_dropped {
             return ItemAction::DropSilently;
         }
@@ -141,9 +143,10 @@ pub fn process(
         }
     });
 
-    // If an envelope-item was dropped return an error result to drop the entire envelope.
+    // If an item was dropped we emitted one failure outcome for the failing item and skipped
+    // the rest. We return an error to exit processing early.
     if item_dropped {
-        return Err(ProcessingError::PartiallyDroppedReplayEnvelope);
+        return Err(ProcessingError::IncompleteReplayEnvelope);
     }
 
     Ok(())

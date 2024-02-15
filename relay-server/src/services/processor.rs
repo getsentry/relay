@@ -346,10 +346,8 @@ pub enum ProcessingError {
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 
-    // A replay is made up of a maximum of three envelope items. If one of the items
-    // is dropped then the rest should be dropped with it.
-    #[error("one or more parts of the replay were dropped")]
-    PartiallyDroppedReplayEnvelope,
+    #[error("replay envelope was incomplete or partially dropped")]
+    IncompleteReplayEnvelope,
 }
 
 impl ProcessingError {
@@ -392,7 +390,7 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
 
             // Replay
-            Self::PartiallyDroppedReplayEnvelope => None,
+            Self::IncompleteReplayEnvelope => None,
         }
     }
 
