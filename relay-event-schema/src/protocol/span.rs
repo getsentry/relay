@@ -444,10 +444,18 @@ fn test_span_data() {
         .unwrap();
     insta::assert_debug_snapshot!(data, @r###"
     SpanData {
-        code_filepath: "task.py",
-        code_lineno: 123,
-        code_function: "fn()",
-        code_namespace: "ns",
+        code_filepath: String(
+            "task.py",
+        ),
+        code_lineno: I64(
+            123,
+        ),
+        code_function: String(
+            "fn()",
+        ),
+        code_namespace: String(
+            "ns",
+        ),
         other: {
             "bar": String(
                 "3",
