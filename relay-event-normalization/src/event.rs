@@ -757,7 +757,7 @@ pub fn normalize_performance_score(
                     // All non-optional measurements with a profile weight greater than 0 are
                     // required to exist on the event. Skip calculating performance scores if
                     // a measurement with weight is missing.
-                    break;
+                    continue;
                 }
                 let mut score_total = 0.0f64;
                 let mut weight_total = 0.0f64;
@@ -807,7 +807,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-
                 if should_add_total {
                     measurements.insert(
                         "score.total".to_owned(),
