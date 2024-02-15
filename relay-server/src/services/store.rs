@@ -810,32 +810,43 @@ impl StoreService {
         payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
         payload_size += item.payload().len();
 
-        if payload_size < max_payload_size {
-            let message =
-                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                    replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    key_id: scoping.key_id,
-                    org_id: scoping.organization_id,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    retention_days: retention,
-                    payload: item.payload(),
-                    replay_event: replay_event_payload,
-                });
-
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                message,
-            )?;
-
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "replay_recording_not_chunked"
-            );
-        } else {
+        // If the recording payload can not fit in to the message do not produce and quit early.
+        if payload_size >= max_payload_size {
             relay_log::warn!("replay_recording over maximum size.");
-        };
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+            return Ok(());
+        }
+
+        let message =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                payload: item.payload(),
+                replay_event: replay_event_payload,
+            });
+
+        self.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_recording_not_chunked"
+        );
 
         Ok(())
     }
