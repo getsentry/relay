@@ -181,8 +181,10 @@ pub struct SpanData {
     #[metastructure(field = "code.namespace")]
     pub code_namespace: Annotated<Value>,
 
+    pub real_string: Annotated<String>,
+
     // TODO: docs
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
 }
 
