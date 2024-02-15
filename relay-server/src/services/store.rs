@@ -806,8 +806,6 @@ impl StoreService {
 
         // Size of the consumer message. We can be reasonably sure this won't overflow because
         // of the request size validation provided by Nginx and Relay.
-        //
-        // NOTE: We could cast everything to `isize`.
         let mut payload_size = 2000; // Reserve 2KB for the message metadata.
         payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
         payload_size += item.payload().len();
