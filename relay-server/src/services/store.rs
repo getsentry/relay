@@ -198,7 +198,6 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
         let mut replay_video = None;
-        let mut send_combined_replay_envelope = false;
 
         for item in envelope.items() {
             match item.ty() {
@@ -250,16 +249,21 @@ impl StoreService {
                 )?,
                 ItemType::ReplayVideo => replay_video = Some(item),
                 ItemType::ReplayRecording => {
-                    if item.replay_combined_payload() {
-                        send_combined_replay_envelope = true
-                    }
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
                     if item.replay_combined_payload() {
-                        send_combined_replay_envelope = true
+                        replay_event = Some(item);
                     }
-                    replay_event = Some(item);
+
+                    self.produce_replay_event(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        start_time,
+                        retention,
+                        item,
+                    )?;
                 }
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
@@ -276,16 +280,15 @@ impl StoreService {
             }
         }
 
-        if replay_event.is_some() || replay_recording.is_some() {
-            self.produce_replay_messages(
-                replay_event,
-                replay_recording,
-                replay_video,
-                event_id.ok_or(StoreError::NoEventId)?,
+        if let Some(recording) = replay_recording {
+            self.produce_replay_recording(
+                event_id,
                 scoping,
+                recording,
+                replay_event,
+                replay_video,
                 start_time,
                 retention,
-                send_combined_replay_envelope,
             )?;
         }
 
@@ -856,50 +859,6 @@ impl StoreService {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn produce_replay_messages(
-        &self,
-        replay_event: Option<&Item>,
-        replay_recording: Option<&Item>,
-        replay_video: Option<&Item>,
-        replay_id: EventId,
-        scoping: Scoping,
-        start_time: Instant,
-        retention_days: u16,
-        send_combined_replay_envelope: bool,
-    ) -> Result<(), StoreError> {
-        if let Some(replay_event) = replay_event {
-            self.produce_replay_event(
-                replay_id,
-                scoping.organization_id,
-                scoping.project_id,
-                start_time,
-                retention_days,
-                replay_event,
-            )?;
-        }
-
-        if let Some(replay_recording) = replay_recording {
-            // We only combine if the feature-flag was enabled.
-            let combined_replay_event = if send_combined_replay_envelope {
-                replay_event
-            } else {
-                None
-            };
-
-            self.produce_replay_recording(
-                Some(replay_id),
-                scoping,
-                replay_recording,
-                combined_replay_event,
-                replay_video,
-                start_time,
-                retention_days,
-            )?;
-        }
-
-        Ok(())
-    }
     fn produce_check_in(
         &self,
         organization_id: u64,
