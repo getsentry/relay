@@ -1532,6 +1532,45 @@
 <a href="#1531" id="1531">1531</a>
 <a href="#1532" id="1532">1532</a>
 <a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1729,6 +1768,9 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>attachments = Vec::new();
 
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_event = <span class="prelude-val">None</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_recording = <span class="prelude-val">None</span>;
+
         <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
             <span class="kw">match </span>item.ty() {
                 ItemType::Attachment =&gt; {
@@ -1778,16 +1820,22 @@
                     item,
                 )<span class="question-mark">?</span>,
                 ItemType::ReplayRecording =&gt; {
-                    <span class="self">self</span>.produce_replay_recording(event_id, scoping, item, start_time, retention)<span class="question-mark">?
-                </span>}
-                ItemType::ReplayEvent =&gt; <span class="self">self</span>.produce_replay_event(
-                    event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    retention,
-                    item,
-                )<span class="question-mark">?</span>,
+                    replay_recording = <span class="prelude-val">Some</span>(item);
+                }
+                ItemType::ReplayEvent =&gt; {
+                    <span class="kw">if </span>item.replay_combined_payload() {
+                        replay_event = <span class="prelude-val">Some</span>(item);
+                    }
+
+                    <span class="self">self</span>.produce_replay_event(
+                        event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        start_time,
+                        retention,
+                        item,
+                    )<span class="question-mark">?</span>;
+                }
                 ItemType::CheckIn =&gt; <span class="self">self</span>.produce_check_in(
                     scoping.organization_id,
                     scoping.project_id,
@@ -1801,6 +1849,17 @@
                 </span>}
                 <span class="kw">_ </span>=&gt; {}
             }
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(recording) = replay_recording {
+            <span class="self">self</span>.produce_replay_recording(
+                event_id,
+                scoping,
+                recording,
+                replay_event,
+                start_time,
+                retention,
+            )<span class="question-mark">?</span>;
         }
 
         <span class="kw">if </span>event_item.is_none() &amp;&amp; attachments.is_empty() {
@@ -2308,40 +2367,59 @@
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         scoping: Scoping,
         item: <span class="kw-2">&amp;</span>Item,
+        replay_event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Item&gt;,
         start_time: Instant,
         retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="comment">// 2000 bytes are reserved for the message metadata.
-        </span><span class="kw">let </span>max_message_metadata_size = <span class="number">2000</span>;
+        <span class="comment">// Map the event item to it's byte payload value.
+        </span><span class="kw">let </span>replay_event_payload = replay_event.map(|rv| rv.payload());
 
-        <span class="comment">// Remaining bytes can be filled by the payload.
-        </span><span class="kw">let </span>max_payload_size = <span class="self">self</span>.config.max_replay_message_size() - max_message_metadata_size;
+        <span class="comment">// Maximum number of bytes accepted by the consumer.
+        </span><span class="kw">let </span>max_payload_size = <span class="self">self</span>.config.max_replay_message_size();
 
-        <span class="kw">if </span>item.payload().len() &lt; max_payload_size {
-            <span class="kw">let </span>message =
-                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                    replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
-                    project_id: scoping.project_id,
-                    key_id: scoping.key_id,
-                    org_id: scoping.organization_id,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    retention_days: retention,
-                    payload: item.payload(),
-                });
+        <span class="comment">// Size of the consumer message. We can be reasonably sure this won't overflow because
+        // of the request size validation provided by Nginx and Relay.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>payload_size = <span class="number">2000</span>; <span class="comment">// Reserve 2KB for the message metadata.
+        </span>payload_size += replay_event_payload.as_ref().map_or(<span class="number">0</span>, |b| b.len());
+        payload_size += item.payload().len();
 
-            <span class="self">self</span>.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                message,
-            )<span class="question-mark">?</span>;
-
-            <span class="macro">metric!</span>(
-                counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                event_type = <span class="string">"replay_recording_not_chunked"
-            </span>);
-        } <span class="kw">else </span>{
+        <span class="comment">// If the recording payload can not fit in to the message do not produce and quit early.
+        </span><span class="kw">if </span>payload_size &gt;= max_payload_size {
             <span class="macro">relay_log::warn!</span>(<span class="string">"replay_recording over maximum size."</span>);
-        };
+            <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                quantity: <span class="number">1</span>,
+                remote_addr: <span class="prelude-val">None</span>,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+
+        <span class="kw">let </span>message =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                payload: item.payload(),
+                replay_event: replay_event_payload,
+            });
+
+        <span class="self">self</span>.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )<span class="question-mark">?</span>;
+
+        <span class="macro">metric!</span>(
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">"replay_recording_not_chunked"
+        </span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2606,7 +2684,6 @@
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     </span>chunk_index: usize,
 }
-
 <span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>ReplayRecordingChunkMeta {
     <span class="doccomment">/// The attachment ID within the event.
@@ -2648,6 +2725,7 @@
     received: u64,
     retention_days: u16,
     payload: Bytes,
+    replay_event: <span class="prelude-ty">Option</span>&lt;Bytes&gt;,
 }
 
 <span class="doccomment">/// User report for an event wrapped up in a message ready for consumption in Kafka.
