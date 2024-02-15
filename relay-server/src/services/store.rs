@@ -810,7 +810,7 @@ impl StoreService {
         payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
         payload_size += item.payload().len();
 
-        if payload_size >= max_payload_size {
+        if payload_size < max_payload_size {
             let message =
                 KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
                     replay_id: event_id.ok_or(StoreError::NoEventId)?,
