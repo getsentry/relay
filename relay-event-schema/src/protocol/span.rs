@@ -169,25 +169,23 @@ impl Getter for Span {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
     /// The source code file name that identifies the code unit as uniquely as possible.
-    #[metastructure(field = "code.filepath")]
+    #[metastructure(field = "code.filepath", pii = "maybe")]
     pub code_filepath: Annotated<Value>,
     /// The line number in `code.filepath` best representing the operation.
-    #[metastructure(field = "code.lineno")]
+    #[metastructure(field = "code.lineno", pii = "maybe")]
     pub code_lineno: Annotated<Value>,
     /// The method or function name, or equivalent.
     ///
     /// Usually rightmost part of the code unit's name.
-    #[metastructure(field = "code.function")]
+    #[metastructure(field = "code.function", pii = "maybe")]
     pub code_function: Annotated<Value>,
     /// The "namespace" within which `code.function` is defined.
     ///
     /// Usually the qualified class or module name, such that
     /// `code.namespace + some separator + code.function`
     /// form a unique identifier for the code unit.
-    #[metastructure(field = "code.namespace")]
+    #[metastructure(field = "code.namespace", pii = "maybe")]
     pub code_namespace: Annotated<Value>,
-
-    pub real_string: Annotated<String>,
 
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
