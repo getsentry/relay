@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+- Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
 **Features**:
 
