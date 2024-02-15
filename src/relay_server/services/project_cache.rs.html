@@ -1467,6 +1467,28 @@
 <a href="#1466" id="1466">1466</a>
 <a href="#1467" id="1467">1467</a>
 <a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2582,20 +2604,42 @@
                     biased;
 
                     <span class="prelude-val">Ok</span>(()) = subscription.changed() =&gt; {
-                        <span class="kw">match </span>subscription.borrow().clone() {
-                            global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
-                            <span class="comment">// The watch should only be updated if it gets a new value.
-                            // This would imply a logical bug.
-                            </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
-                        }
+                        <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), task = <span class="string">"update_global_config"</span>, {
+                            <span class="kw">match </span>subscription.borrow().clone() {
+                                global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
+                                <span class="comment">// The watch should only be updated if it gets a new value.
+                                // This would imply a logical bug.
+                                </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
+                            }
+                        })
                     },
-                    <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; broker.merge_state(message),
+                    <span class="prelude-val">Some</span>(message) = state_rx.recv() =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"merge_state"</span>, {
+                            broker.merge_state(message)
+                        })
+                    }
                     <span class="comment">// Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() =&gt; broker.handle_processing(key, managed_envelope),
-                    <span class="kw">_ </span>= ticker.tick() =&gt; broker.evict_stale_project_caches(),
-                    () = <span class="kw-2">&amp;mut </span>broker.buffer_unspool_handle =&gt; broker.handle_periodic_unspool(),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; broker.handle_message(message),
+                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_processing"</span>, {
+                            broker.handle_processing(key, managed_envelope)
+                        })
+                    },
+                    <span class="kw">_ </span>= ticker.tick() =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"evict_project_caches"</span>, {
+                            broker.evict_stale_project_caches()
+                        })
+                    }
+                    () = <span class="kw-2">&amp;mut </span>broker.buffer_unspool_handle =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"periodic_unspool"</span>, {
+                            broker.handle_periodic_unspool()
+                        })
+                    }
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_message"</span>, {
+                            broker.handle_message(message)
+                        })
+                    }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
