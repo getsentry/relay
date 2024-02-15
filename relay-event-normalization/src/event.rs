@@ -773,7 +773,7 @@ pub fn normalize_performance_score(
                 if weight_total.abs() < f64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    break;
+                    continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -817,7 +817,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
