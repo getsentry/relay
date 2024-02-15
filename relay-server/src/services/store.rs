@@ -859,7 +859,7 @@ impl StoreService {
         }
 
         if let Some(replay_recording) = replay_recording {
-            let combined_replay_event = if send_combined_replay_envelope && replay_event.is_some() {
+            let combined_replay_event = if send_combined_replay_envelope {
                 replay_event
             } else {
                 None
