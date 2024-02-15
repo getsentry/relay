@@ -57,6 +57,7 @@ def processing_config(get_topic_name):
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
                 "profiles": get_topic_name("profiles"),
+                "metrics_summaries": get_topic_name("metrics_summaries"),
             }
 
         if not processing.get("redis"):
@@ -315,6 +316,13 @@ def profiles_consumer(kafka_consumer):
     return lambda: ProfileConsumer(*kafka_consumer("profiles"))
 
 
+@pytest.fixture
+def metrics_summaries_consumer(kafka_consumer):
+    return lambda timeout=None: MetricsSummariesConsumer(
+        timeout=timeout, *kafka_consumer("metrics_summaries")
+    )
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -469,3 +477,22 @@ class ProfileConsumer(ConsumerBase):
         assert message.error() is None
 
         return msgpack.loads(message.value()), message.headers()
+
+
+class MetricsSummariesConsumer(ConsumerBase):
+    def get_metrics_summary(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())
+
+    def get_metrics_summaries(self, timeout=None, max_attempts=100):
+        for _ in range(max_attempts):
+            message = self.poll(timeout=timeout)
+
+            if message is None:
+                return
+            else:
+                assert message.error() is None
+                yield json.loads(message.value())

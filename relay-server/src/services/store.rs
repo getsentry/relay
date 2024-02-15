@@ -910,6 +910,12 @@ impl StoreService {
             }
         };
 
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.event_id = event_id;
+        span.project_id = scoping.project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
                 v.as_ref()
@@ -918,30 +924,7 @@ impl StoreService {
             });
         }
 
-        if let Some(metrics_summary) = &mut span.metrics_summary {
-            metrics_summary.retain(|_, mut v| {
-                if let Some(v) = &mut v {
-                    v.retain(|v| {
-                        if let Some(v) = v {
-                            return v.min.is_some()
-                                || v.max.is_some()
-                                || v.sum.is_some()
-                                || v.count.is_some();
-                        }
-                        false
-                    });
-                    !v.is_empty()
-                } else {
-                    false
-                }
-            });
-        }
-
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
-        span.event_id = event_id;
-        span.project_id = scoping.project_id.value();
-        span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        self.produce_metrics_summary(scoping, item, &span);
 
         self.produce(
             KafkaTopic::Spans,
@@ -965,6 +948,102 @@ impl StoreService {
         );
 
         Ok(())
+    }
+
+    fn produce_metrics_summary(&self, scoping: Scoping, item: &Item, span: &SpanKafkaMessage) {
+        let payload = item.payload();
+        let d = &mut Deserializer::from_slice(&payload);
+        let mut metrics_summary: SpanWithMetricsSummary = match serde_path_to_error::deserialize(d)
+        {
+            Ok(span) => span,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse metrics summary of span"
+                );
+                return;
+            }
+        };
+        let Some(metrics_summary) = &mut metrics_summary.metrics_summary else {
+            return;
+        };
+        let &SpanKafkaMessage {
+            duration_ms,
+            end_timestamp,
+            is_segment,
+            project_id,
+            received,
+            retention_days,
+            segment_id,
+            span_id,
+            trace_id,
+            ..
+        } = span;
+        let group = span
+            .sentry_tags
+            .as_ref()
+            .and_then(|sentry_tags| sentry_tags.get("group"))
+            .map_or("", String::as_str);
+
+        for (mri, summaries) in metrics_summary {
+            let Some(summaries) = summaries else {
+                continue;
+            };
+            for summary in summaries {
+                let Some(SpanMetricsSummary {
+                    count,
+                    max,
+                    min,
+                    sum,
+                    tags,
+                }) = summary
+                else {
+                    continue;
+                };
+
+                let &mut Some(count) = count else {
+                    continue;
+                };
+
+                if count == 0 {
+                    continue;
+                }
+
+                // If none of the values are there, the summary is invalid.
+                if max.is_none() && min.is_none() && sum.is_none() {
+                    continue;
+                }
+
+                // Ignore immediate errors on produce.
+                if let Err(error) = self.produce(
+                    KafkaTopic::MetricsSummaries,
+                    scoping.organization_id,
+                    KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
+                        count,
+                        duration_ms,
+                        end_timestamp,
+                        group,
+                        is_segment,
+                        max,
+                        min,
+                        mri,
+                        project_id,
+                        received,
+                        retention_days,
+                        segment_id: segment_id.unwrap_or_default(),
+                        span_id,
+                        sum,
+                        tags,
+                        trace_id,
+                    }),
+                ) {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to push metrics summary to kafka",
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1251,22 +1330,6 @@ struct SpanMeasurement {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SpanMetricsSummary {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    count: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    max: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    min: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sum: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<BTreeMap<String, String>>,
-}
-
-type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
-
-#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
     start_timestamp: f64,
@@ -1286,13 +1349,6 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
-    #[serde(
-        borrow,
-        default,
-        rename = "_metrics_summary",
-        skip_serializing_if = "Option::is_none"
-    )]
-    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1308,13 +1364,60 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    sentry_tags: Option<&'a RawValue>,
+    sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpanMetricsSummary {
+    #[serde(default)]
+    count: Option<u64>,
+    #[serde(default)]
+    max: Option<f64>,
+    #[serde(default)]
+    min: Option<f64>,
+    #[serde(default)]
+    sum: Option<f64>,
+    #[serde(default)]
+    tags: BTreeMap<String, String>,
+}
+
+type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
+
+#[derive(Debug, Deserialize)]
+struct SpanWithMetricsSummary {
+    #[serde(default, rename(deserialize = "_metrics_summary"))]
+    metrics_summary: Option<BTreeMap<String, Option<SpanMetricsSummaries>>>,
+}
+
+#[derive(Debug, Serialize)]
+struct MetricsSummaryKafkaMessage<'a> {
+    duration_ms: u32,
+    end_timestamp: f64,
+    group: &'a str,
+    is_segment: bool,
+    mri: &'a str,
+    project_id: u64,
+    received: f64,
+    retention_days: u16,
+    segment_id: &'a str,
+    span_id: &'a str,
+    trace_id: &'a str,
+
+    count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sum: &'a Option<f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    tags: &'a BTreeMap<String, String>,
 }
 
 /// An enum over all possible ingest messages.
@@ -1338,6 +1441,7 @@ enum KafkaMessage<'a> {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
+    MetricsSummary(MetricsSummaryKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1354,6 +1458,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span(_) => "span",
+            KafkaMessage::MetricsSummary(_) => "metrics_summary",
         }
     }
 
@@ -1376,7 +1481,8 @@ impl Message for KafkaMessage<'_> {
             Self::Session(_)
             | Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_) => Uuid::nil(),
+            | Self::Span(_)
+            | Self::MetricsSummary(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1422,6 +1528,10 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
+            KafkaMessage::MetricsSummary(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
