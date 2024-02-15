@@ -795,18 +795,21 @@ impl StoreService {
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // 2000 bytes are reserved for the message metadata.
-        let max_message_metadata_size = 2000;
+        // Map the event item to it's byte payload value.
+        let replay_event_payload = replay_event.map(|rv| rv.payload());
 
-        // Remaining bytes can be filled by the payload.
-        let max_payload_size = self.config.max_replay_message_size() - max_message_metadata_size;
+        // Maximum number of bytes accepted by the consumer.
+        let max_payload_size = self.config.max_replay_message_size();
 
-        let mut replay_event_payload = None;
-        if let Some(replay_event) = replay_event {
-            replay_event_payload = Some(replay_event.payload());
-        }
+        // Size of the consumer message. We can be reasonably sure this won't overflow because
+        // of the request size validation provided by Nginx and Relay.
+        //
+        // NOTE: We could cast everything to `isize`.
+        let mut payload_size = 2000; // Reserve 2KB for the message metadata.
+        payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
+        payload_size += item.payload().len();
 
-        if item.payload().len() < max_payload_size {
+        if payload_size >= max_payload_size {
             let message =
                 KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
                     replay_id: event_id.ok_or(StoreError::NoEventId)?,
