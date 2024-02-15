@@ -16,6 +16,7 @@
 **Internal**:
 
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
+- Skip profiles without required measurements. ([#3112](https://github.com/getsentry/relay/pull/3112))
 - Push metrics summaries to their own topic. ([#3045](https://github.com/getsentry/relay/pull/3045))
 
 ## 24.1.2
