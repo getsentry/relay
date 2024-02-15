@@ -288,6 +288,23 @@ impl ProcessingGroup {
 
         grouped_envelopes
     }
+
+    /// Returns the name of the group.
+    pub fn variant(&self) -> &'static str {
+        match self {
+            ProcessingGroup::Transaction(_) => "transaction",
+            ProcessingGroup::Error(_) => "error",
+            ProcessingGroup::Session(_) => "session",
+            ProcessingGroup::Standalone(_) => "standalone",
+            ProcessingGroup::ClientReport(_) => "client_report",
+            ProcessingGroup::Replay(_) => "replay",
+            ProcessingGroup::CheckIn(_) => "check_in",
+            ProcessingGroup::Span(_) => "span",
+            ProcessingGroup::Metrics(_) => "metrics",
+            ProcessingGroup::ForwardUnknown(_) => "forward_unknown",
+            ProcessingGroup::Ungrouped(_) => "ungrouped",
+        }
+    }
 }
 
 /// An error returned when handling [`ProcessEnvelope`].
@@ -1518,7 +1535,8 @@ impl EnvelopeProcessorService {
         let wait_time = message.envelope.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
-        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+        let group = message.envelope.group().variant();
+        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
             self.process(message)
         });
         match result {
