@@ -196,6 +196,11 @@ impl UpdateSpoolIndex {
 #[derive(Debug)]
 pub struct SpoolHealth;
 
+pub struct SpoolHealthWrapper {
+    pub message: SpoolHealth,
+    pub sent_instant: Instant,
+}
+
 /// The current envelopes index fetched from the underlying buffer spool.
 ///
 /// This index will be received only once shortly after startup and will trigger refresh for the
@@ -232,7 +237,7 @@ pub enum ProjectCache {
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
-    SpoolHealth(Sender<bool>),
+    SpoolHealth(Sender<bool>, Instant),
     RefreshIndexCache(RefreshIndexCache),
 }
 
@@ -249,7 +254,7 @@ impl ProjectCache {
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
-            Self::SpoolHealth(_) => "SpoolHealth",
+            Self::SpoolHealth(_, _) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
         }
     }
@@ -351,11 +356,11 @@ impl FromMessage<FlushBuckets> for ProjectCache {
     }
 }
 
-impl FromMessage<SpoolHealth> for ProjectCache {
+impl FromMessage<SpoolHealthWrapper> for ProjectCache {
     type Response = relay_system::AsyncResponse<bool>;
 
-    fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
-        Self::SpoolHealth(sender)
+    fn from_message(message: SpoolHealthWrapper, sender: Sender<bool>) -> Self {
+        Self::SpoolHealth(sender, message.sent_instant)
     }
 }
 
@@ -850,8 +855,12 @@ impl ProjectCacheBroker {
         self.index.extend(message.0);
     }
 
-    fn handle_spool_health(&mut self, sender: Sender<bool>) {
-        self.buffer.send(spooler::Health(sender))
+    fn handle_spool_health(&mut self, sender: Sender<bool>, sent: Instant) {
+        relay_statsd::metric!(timer(RelayTimers::ProjectCacheReceivedDelay) = sent.elapsed());
+        self.buffer.send(spooler::HealthWrapper {
+            health: spooler::Health(sender),
+            sent_delay: Instant::now(),
+        })
     }
 
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
@@ -984,7 +993,9 @@ impl ProjectCacheBroker {
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+                    ProjectCache::SpoolHealth(sender, sent_instant) => {
+                        self.handle_spool_health(sender, sent_instant)
+                    }
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }

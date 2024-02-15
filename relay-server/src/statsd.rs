@@ -359,6 +359,29 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     BufferMessageProcessDuration,
+    /// Timing in milliseconds for responding a healthcheck message.
+    ///
+    /// This metric is tagged with:
+    /// - `kind`: The kind of healthcheck message.
+    HealthcheckEndpointCheckDuration,
+    /// Timing in milliseconds for the delay for the healthcheck endpoint to get the message.
+    HealthcheckServiceReceivedDelay,
+    /// Timing in milliseconds for the duration of the healthcheck service to respond to a message.
+    ///
+    /// This metric is tagged with:
+    /// - `kind`: The kind of healthcheck message.
+    HealthcheckServiceHandleDuration,
+    /// Timing in milliseconds for the duration the healthcheck service waits for a spool health.
+    HealthcheckServiceProjectcacheResponseDuration,
+    /// Timing in milliseconds for the delay for the project cache service to receive a spool health.
+    ProjectCacheReceivedDelay,
+    /// Timing in milliseconds for the delay of the spooler to receive a health message.
+    SpoolerHealthReceivedDelay,
+    /// Timing in milliseconds for the delay of the spooler to handle the health duration.
+    ///
+    /// This metric is tagged with:
+    /// - `variant`: The spooler state.
+    SpoolerHealthDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -396,6 +419,15 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
+            RelayTimers::HealthcheckEndpointCheckDuration => "health_check.endpoint.duration",
+            RelayTimers::HealthcheckServiceReceivedDelay => "health_check.service.received.delay",
+            RelayTimers::HealthcheckServiceHandleDuration => "health_check.service.handle.duration",
+            RelayTimers::HealthcheckServiceProjectcacheResponseDuration => {
+                "health_check.service.project_cache.duration"
+            }
+            RelayTimers::ProjectCacheReceivedDelay => "project_cache.received.delay",
+            RelayTimers::SpoolerHealthReceivedDelay => "spooler.received.delay",
+            RelayTimers::SpoolerHealthDuration => "spooler.health.duration",
         }
     }
 }

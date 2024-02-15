@@ -49,6 +49,7 @@ use sqlx::sqlite::{
 use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
@@ -188,6 +189,12 @@ impl RemoveMany {
 #[derive(Debug)]
 pub struct Health(pub Sender<bool>);
 
+#[derive(Debug)]
+pub struct HealthWrapper {
+    pub health: Health,
+    pub sent_delay: Instant,
+}
+
 /// Requests the index [`ProjectKey`] -> [`QueueKey`] of the data currently residing in the spool.
 ///
 /// This is a one time request, which is sent on startup.
@@ -218,7 +225,7 @@ pub enum Buffer {
     Enqueue(Enqueue),
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
-    Health(Health),
+    Health(HealthWrapper),
     RestoreIndex(RestoreIndex),
 }
 
@@ -260,10 +267,10 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
-impl FromMessage<Health> for Buffer {
+impl FromMessage<HealthWrapper> for Buffer {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: Health, _: ()) -> Self {
+    fn from_message(message: HealthWrapper, _: ()) -> Self {
         Self::Health(message)
     }
 }
@@ -835,6 +842,14 @@ impl BufferState {
         }
     }
 
+    fn variant(&self) -> &str {
+        match self {
+            BufferState::Memory(_) => "memory",
+            BufferState::MemoryFileStandby { .. } => "memory_file",
+            BufferState::Disk(_) => "disk",
+        }
+    }
+
     /// Becomes a different state, depending on the current state and the current conditions of
     /// underlying spool.
     async fn transition(self, config: &Config, services: &Services) -> Self {
@@ -1119,7 +1134,13 @@ impl BufferService {
     }
 
     /// Handles the health requests.
-    async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
+    async fn handle_health(&mut self, health: HealthWrapper) -> Result<(), BufferError> {
+        let HealthWrapper {
+            health,
+            sent_delay: sent,
+        } = health;
+        relay_statsd::metric!(timer(RelayTimers::SpoolerHealthReceivedDelay) = sent.elapsed());
+        let check_start = Instant::now();
         match self.state {
             BufferState::Memory(ref ram) => health.0.send(!ram.is_full()),
             BufferState::MemoryFileStandby { ref ram, ref disk } => health
@@ -1128,6 +1149,10 @@ impl BufferService {
 
             BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
         }
+        relay_statsd::metric!(
+            timer(RelayTimers::SpoolerHealthDuration) = check_start.elapsed(),
+            variant = self.state.variant(),
+        );
 
         Ok(())
     }
@@ -1613,7 +1638,7 @@ mod tests {
             tokio::spawn(async move {
                 loop {
                     tokio::select! {
-                        Some(TestHealth::SpoolHealth(sender)) = rx.recv() => self.buffer.send(Health(sender)),
+                        Some(TestHealth::SpoolHealth(sender)) = rx.recv() => self.buffer.send(HealthWrapper {health: Health(sender), sent_delay: tokio::time::Instant::now()}),
                         else => break,
                     }
                 }

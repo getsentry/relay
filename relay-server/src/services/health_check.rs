@@ -5,10 +5,11 @@ use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+use tokio::time::Instant;
 
-use crate::services::project_cache::{ProjectCache, SpoolHealth};
+use crate::services::project_cache::{ProjectCache, SpoolHealth, SpoolHealthWrapper};
 use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::statsd::RelayGauges;
+use crate::statsd::{RelayGauges, RelayTimers};
 
 /// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -22,15 +23,29 @@ pub enum IsHealthy {
     Readiness,
 }
 
+impl IsHealthy {
+    pub fn variant(&self) -> &str {
+        match self {
+            IsHealthy::Liveness => "liveness",
+            IsHealthy::Readiness => "readiness",
+        }
+    }
+}
+
+pub struct IsHealthyWrapper {
+    pub kind: IsHealthy,
+    pub received: Instant,
+}
+
 /// Service interface for the [`IsHealthy`] message.
-pub struct HealthCheck(IsHealthy, Sender<bool>);
+pub struct HealthCheck(IsHealthyWrapper, Sender<bool>);
 
 impl Interface for HealthCheck {}
 
-impl FromMessage<IsHealthy> for HealthCheck {
+impl FromMessage<IsHealthyWrapper> for HealthCheck {
     type Response = AsyncResponse<bool>;
 
-    fn from_message(message: IsHealthy, sender: Sender<bool>) -> Self {
+    fn from_message(message: IsHealthyWrapper, sender: Sender<bool>) -> Self {
         Self(message, sender)
     }
 }
@@ -98,17 +113,37 @@ impl HealthCheckService {
                     return false;
                 }
 
-                self.project_cache
-                    .send(SpoolHealth)
+                let project_cache_sent = Instant::now();
+                let result = self
+                    .project_cache
+                    .send(SpoolHealthWrapper {
+                        message: SpoolHealth,
+                        sent_instant: project_cache_sent,
+                    })
                     .await
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                relay_statsd::metric!(
+                    timer(RelayTimers::HealthcheckServiceProjectcacheResponseDuration) =
+                        project_cache_sent.elapsed(),
+                );
+
+                result
             }
         }
     }
 
     async fn handle_message(&self, message: HealthCheck) {
+        let handle_start = Instant::now();
         let HealthCheck(message, sender) = message;
-        let response = self.handle_is_healthy(message).await;
+        relay_statsd::metric!(
+            timer(RelayTimers::HealthcheckServiceReceivedDelay) = message.received.elapsed(),
+        );
+
+        let response = self.handle_is_healthy(message.kind).await;
+        relay_statsd::metric!(
+            timer(RelayTimers::HealthcheckServiceHandleDuration) = handle_start.elapsed(),
+            kind = message.kind.variant()
+        );
         sender.send(response);
     }
 }
