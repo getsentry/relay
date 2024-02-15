@@ -6,6 +6,7 @@
 
 - Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
 - Normalize route in trace context data field. ([#3104](https://github.com/getsentry/relay/pull/3104))
+- Limit the length of scrubbed span descriptions. ([#3115](https://github.com/getsentry/relay/pull/3115))
 
 **Features**:
 
