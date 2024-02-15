@@ -2558,6 +2558,89 @@ mod tests {
     }
 
     #[test]
+    fn test_computed_performance_score_multiple_profiles() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_normalization_removes_reprocessing_context() {
         let json = r#"{
             "contexts": {
