@@ -2598,10 +2598,11 @@ mod tests {
     }
 
     #[test]
-    fn test_user_data_moved() {
+    fn test_normalize_user() {
         let json = r#"{
             "user": {
                 "id": "123456",
+                "username": "john",
                 "other": "value"
             }
         }"#;
@@ -2618,6 +2619,7 @@ mod tests {
             Annotated::new(map)
         });
         assert_eq!(user.other, Object::new());
+        assert_eq!(user.username, Annotated::new("john".to_string()));
         assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 
