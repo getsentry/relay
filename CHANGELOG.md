@@ -12,6 +12,7 @@
 **Features**:
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
+- Add `user.sentry_user` computed field for the on demand metrics extraction pipeline. ([#3122](https://github.com/getsentry/relay/pull/3122))
 
 **Internal**:
 
