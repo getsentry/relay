@@ -2,7 +2,8 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
-pub use sql::parse_query;
+#[cfg(test)]
+pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -19,9 +20,6 @@ use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Dummy URL used to parse relative URLs.
 static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
-
-/// Very large SQL queries may cause stack overflows in the parser, so do not attempt to parse these.
-const MAX_DESCRIPTION_LENGTH: usize = 10_000;
 
 /// Maximum length of a resource URL segment.
 ///
@@ -40,14 +38,6 @@ pub(crate) fn scrub_span_description(
     let Some(description) = span.description.as_str() else {
         return (None, None);
     };
-
-    if description.len() > MAX_DESCRIPTION_LENGTH {
-        relay_log::error!(
-            description = description,
-            "Span description too large to parse"
-        );
-        return (None, None);
-    }
 
     let data = span.data.value();
 
@@ -921,17 +911,6 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
-
-    span_description_test!(
-        long_description_none,
-        // Do not attempt to parse very long descriptions.
-        {
-            let repeated = "+1".repeat(5000);
-            &("SELECT 1".to_string() + &repeated)
-        },
-        "db.query",
-        ""
-    );
 
     #[test]
     fn informed_sql_parser() {

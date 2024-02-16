@@ -755,9 +755,9 @@ pub fn normalize_performance_score(
                         && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
-                    break;
+                    continue;
                 }
                 let mut score_total = 0.0f64;
                 let mut weight_total = 0.0f64;
@@ -773,7 +773,7 @@ pub fn normalize_performance_score(
                 if weight_total.abs() < f64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    break;
+                    continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -807,7 +807,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-
                 if should_add_total {
                     measurements.insert(
                         "score.total".to_owned(),
@@ -818,7 +817,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
@@ -2553,6 +2551,89 @@ mod tests {
                   },
                 }),
               ))),
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_multiple_profiles() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
             },
           },
         }
