@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,13 +5,13 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
 use relay_cardinality::CardinalityLimit;
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
-    aggregator, Aggregator, Bucket, FlushBuckets, MergeBuckets, MetaAggregator, MetricMeta,
-    MetricNamespace, MetricResourceIdentifier,
+    aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
+    MetricResourceIdentifier,
 };
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -461,7 +460,6 @@ pub struct Project {
     reservoir_counters: ReservoirCounters,
     metric_meta_aggregator: MetaAggregator,
     has_pending_metric_meta: bool,
-    partial_scoping: Option<Scoping>,
 }
 
 impl Project {
@@ -480,7 +478,6 @@ impl Project {
             metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
             has_pending_metric_meta: false,
             config,
-            partial_scoping: None,
         }
     }
 
@@ -694,17 +691,8 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
         envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
-        project_cache: Addr<ProjectCache>,
     ) {
-        if self.config.relay_mode() == RelayMode::Proxy {
-            if let Some(scoping) = self.partial_scoping() {
-                let mut bucket_map = HashMap::new();
-                bucket_map.insert(scoping.project_key, buckets);
-                project_cache.send(FlushBuckets {
-                    buckets: bucket_map,
-                });
-            }
-        } else if self.metrics_allowed() {
+        if self.metrics_allowed() {
             match &mut self.state {
                 State::Cached(state) => {
                     let state = Arc::clone(state);
@@ -1059,16 +1047,6 @@ impl Project {
         self.remove_expired_reservoir_rules();
     }
 
-    /// Sets the scoping for the project.
-    pub fn set_partial_scoping(&mut self, scoping: Scoping) {
-        self.partial_scoping = Some(scoping);
-    }
-
-    ///
-    pub fn partial_scoping(&self) -> Option<Scoping> {
-        self.partial_scoping
-    }
-
     /// Creates `Scoping` for this project if the state is loaded.
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
@@ -1196,7 +1174,7 @@ impl Project {
             return CheckedBuckets::ProjectDisabled(len);
         }
 
-        let Some(scoping) = self.scoping().or(self.partial_scoping()) else {
+        let Some(scoping) = self.scoping() else {
             return CheckedBuckets::NoScoping(len);
         };
 
@@ -1452,14 +1430,7 @@ mod tests {
         let buckets = vec![create_transaction_bucket()];
         let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-        project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
-            buckets,
-            project_cache,
-        );
+        project.merge_buckets(aggregator, outcome_aggregator, envelope_processor, buckets);
         handle.await.unwrap();
 
         let buckets_received = *bucket_state.lock().unwrap();
@@ -1484,13 +1455,11 @@ mod tests {
         let buckets = vec![create_transaction_bucket()];
         let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         project.merge_buckets(
             aggregator.clone(),
             outcome_aggregator.clone(),
             envelope_processor.clone(),
             buckets.clone(),
-            project_cache,
         );
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(1));

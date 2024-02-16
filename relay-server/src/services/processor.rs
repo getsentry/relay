@@ -17,7 +17,7 @@ use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -231,6 +231,15 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Span(SpanGroup),
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+        let metric_items = envelope.take_items_by(is_metric);
+        if !metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Metrics(MetricsGroup),
+                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -1393,13 +1402,16 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay(ReplayGroup) => run!(process_replays),
             ProcessingGroup::CheckIn(CheckInGroup) => run!(process_checkins),
             ProcessingGroup::Span(SpanGroup) => run!(process_spans),
-            // Currently is not used.
             ProcessingGroup::Metrics(MetricsGroup) => {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                    "received metrics in the process_state"
-                );
+                // In proxy mode we simply forward the metrics.
+                // This group shouldn't be used outside of proxy mode.
+                if self.inner.config.relay_mode() != RelayMode::Proxy {
+                    relay_log::error!(
+                        tags.project = %project_id,
+                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                        "received metrics in the process_state"
+                    );
+                }
                 Ok(ProcessingStateResult {
                     managed_envelope,
                     extracted_metrics: Default::default(),

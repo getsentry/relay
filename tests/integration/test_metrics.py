@@ -86,26 +86,9 @@ def test_metrics_proxy_mode(mini_sentry, relay):
     assert len(envelope.items) == 1
 
     metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
+    assert metrics_item.type == "statsd"
 
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
-    assert received_metrics == [
-        {
-            "timestamp": timestamp,
-            "width": 0,
-            "name": "c:transactions/bar@none",
-            "value": 17.0,
-            "type": "c",
-        },
-        {
-            "timestamp": timestamp,
-            "width": 0,
-            "name": "c:transactions/foo@none",
-            "value": 42.0,
-            "type": "c",
-        },
-    ]
+    assert metrics_item.get_bytes().decode() == metrics_payload
 
 
 def test_metrics(mini_sentry, relay):

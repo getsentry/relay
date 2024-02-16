@@ -815,18 +815,12 @@ impl ProjectCacheBroker {
         let envelope_processor = self.services.envelope_processor.clone();
 
         let project = self.get_or_create_project(message.project_key());
-
-        if let Some(scoping) = message.scoping() {
-            project.set_partial_scoping(scoping);
-        }
-
         project.prefetch(project_cache.clone(), false);
         project.merge_buckets(
             aggregator,
             outcome_aggregator,
             envelope_processor,
             message.buckets(),
-            project_cache,
         );
     }
 
