@@ -197,9 +197,9 @@ pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::get_event_user_tag;
     use relay_event_schema::protocol::User;
     use relay_protocol::Annotated;
-    use crate::utils::get_event_user_tag;
 
     #[test]
     fn test_get_event_user_tag() {
@@ -214,10 +214,7 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(
-            get_event_user_tag(&user).unwrap(),
-            "id:ident"
-        );
+        assert_eq!(get_event_user_tag(&user).unwrap(), "id:ident");
 
         let user = User {
             username: Annotated::new("username".to_owned()),
@@ -226,10 +223,7 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(
-            get_event_user_tag(&user).unwrap(),
-            "username:username"
-        );
+        assert_eq!(get_event_user_tag(&user).unwrap(), "username:username");
 
         let user = User {
             email: Annotated::new("email".to_owned()),
@@ -237,20 +231,14 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(
-            get_event_user_tag(&user).unwrap(),
-            "email:email"
-        );
+        assert_eq!(get_event_user_tag(&user).unwrap(), "email:email");
 
         let user = User {
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()
         };
 
-        assert_eq!(
-            get_event_user_tag(&user).unwrap(),
-            "ip:127.0.0.1"
-        );
+        assert_eq!(get_event_user_tag(&user).unwrap(), "ip:127.0.0.1");
 
         let user = User::default();
 
