@@ -76,6 +76,10 @@ pub struct User {
     #[metastructure(skip_serialization = "empty")]
     pub segment: Annotated<String>,
 
+    /// The user string representation as handled in Sentry.
+    #[metastructure(skip_serialization = "empty")]
+    pub sentry_user: Annotated<String>,
+
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
     #[metastructure(pii = "true", skip_serialization = "empty")]

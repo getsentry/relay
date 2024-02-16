@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, get_eventuser_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
@@ -203,7 +203,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
-    normalize_user(&mut event.user);
+    normalize_user(event);
     normalize_logentry(&mut event.logentry, meta);
     normalize_debug_meta(event);
     normalize_breadcrumbs(event);
@@ -373,14 +373,20 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_user(user: &mut Annotated<User>) {
-    let Annotated(Some(user), _) = user else {
+fn normalize_user(event: &mut Event) {
+    let Annotated(Some(user), _) = &mut event.user else {
         return;
     };
+
     if !user.other.is_empty() {
         let data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(&mut user.other));
     }
+
+    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    let eventuser_tag = get_eventuser_tag(user);
+    user.sentry_user.set_value(eventuser_tag);
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {

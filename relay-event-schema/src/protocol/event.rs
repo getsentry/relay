@@ -642,6 +642,7 @@ impl Getter for Event {
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)
+            "user" => self.user.value()?.sentry_user.as_str()?.into(),
             "user.email" => or_none(&self.user.value()?.email)?.into(),
             "user.id" => or_none(&self.user.value()?.id)?.into(),
             "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
@@ -1081,6 +1082,7 @@ mod tests {
                 ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
+                sentry_user: Annotated::new("id:user-id".into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -1157,6 +1159,10 @@ mod tests {
         assert_eq!(
             Some(Val::String("user-id")),
             event.get_value("event.user.id")
+        );
+        assert_eq!(
+            Some(Val::String("id:user-id")),
+            event.get_value("event.user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),
