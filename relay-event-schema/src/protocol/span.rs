@@ -69,7 +69,7 @@ pub struct Span {
     /// Arbitrary additional data on a span.
     ///
     /// Besides arbitrary user data, this object also contains SDK-provided fields used by the
-    /// product (see https://develop.sentry.dev/sdk/performance/span-data-conventions/).
+    /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
     #[metastructure(pii = "true")]
     pub data: Annotated<SpanData>,
 
@@ -171,7 +171,7 @@ impl Getter for Span {
 /// Arbitrary additional data on a span.
 ///
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
-/// product (see https://develop.sentry.dev/sdk/performance/span-data-conventions/).
+/// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
