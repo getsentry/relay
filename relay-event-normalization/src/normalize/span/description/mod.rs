@@ -2,7 +2,8 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
-pub use sql::parse_query;
+#[cfg(test)]
+pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
 use std::path::Path;
