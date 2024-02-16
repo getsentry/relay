@@ -452,7 +452,7 @@ impl TransactionExtractor<'_> {
 
         // User
         if let Some(user) = event.user.value() {
-            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
+            if let Some(value) = user.sentry_user.value() {
                 metrics
                     .project_metrics
                     .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
@@ -1858,7 +1858,7 @@ mod tests {
         };
 
         assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            normalize_utils::get_event_user_tag(&user).unwrap(),
             "id:ident"
         );
 
@@ -1870,7 +1870,7 @@ mod tests {
         };
 
         assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            normalize_utils::get_event_user_tag(&user).unwrap(),
             "username:username"
         );
 
@@ -1881,7 +1881,7 @@ mod tests {
         };
 
         assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            normalize_utils::get_event_user_tag(&user).unwrap(),
             "email:email"
         );
 
@@ -1891,13 +1891,13 @@ mod tests {
         };
 
         assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            normalize_utils::get_event_user_tag(&user).unwrap(),
             "ip:127.0.0.1"
         );
 
         let user = User::default();
 
-        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
+        assert!(normalize_utils::get_event_user_tag(&user).is_none());
     }
 
     #[test]
