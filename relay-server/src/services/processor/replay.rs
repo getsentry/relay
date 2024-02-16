@@ -51,11 +51,16 @@ pub fn process(
         user_agent: meta.user_agent(),
         client_hints: meta.client_hints().as_deref(),
     };
+    let combined_envelope_items =
+        project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ReplayEvent => {
             if !replays_enabled {
                 return ItemAction::DropSilently;
+            }
+            if combined_envelope_items {
+                item.set_replay_combined_payload(true);
             }
 
             match process_replay_event(&item.payload(), project_config, client_addr, user_agent) {
@@ -86,6 +91,9 @@ pub fn process(
         ItemType::ReplayRecording => {
             if !replays_enabled {
                 return ItemAction::DropSilently;
+            }
+            if combined_envelope_items {
+                item.set_replay_combined_payload(true);
             }
 
             // XXX: Processing is there just for data scrubbing. Skip the entire expensive

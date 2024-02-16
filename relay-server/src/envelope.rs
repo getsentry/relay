@@ -504,6 +504,11 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Indicates that this item should be combined into one payload with other replay item.
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    replay_combined_payload: bool,
+
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -591,6 +596,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                replay_combined_payload: false,
                 source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -754,6 +760,17 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
+    /// Returns if the payload's replay items should be combined into one kafka message.
+    #[cfg(feature = "processing")]
+    pub fn replay_combined_payload(&self) -> bool {
+        self.headers.replay_combined_payload
+    }
+
+    /// Sets the replay_combined_payload for this item.
+    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
+        self.headers.replay_combined_payload = combined_payload;
+    }
+
     /// Sets sample rates for this item.
     pub fn set_sample_rates(&mut self, sample_rates: Value) {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
@@ -873,7 +890,6 @@ impl Item {
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
-
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
