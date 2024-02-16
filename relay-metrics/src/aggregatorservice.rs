@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
-use relay_quotas::Scoping;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
@@ -388,7 +387,6 @@ impl Drop for AggregatorService {
 pub struct MergeBuckets {
     pub(crate) project_key: ProjectKey,
     pub(crate) buckets: Vec<Bucket>,
-    pub(crate) scoping: Option<Scoping>,
 }
 
 impl MergeBuckets {
@@ -397,27 +395,12 @@ impl MergeBuckets {
         Self {
             project_key,
             buckets,
-            scoping: None,
-        }
-    }
-
-    /// Creates a new `MergeBuckets` with scoping set.
-    pub fn new_with_scoping(scoping: Scoping, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key: scoping.project_key,
-            buckets,
-            scoping: Some(scoping),
         }
     }
 
     /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
-    }
-
-    /// Returns the `Scoping` for the the current `MergeBuckets` message.
-    pub fn scoping(&self) -> Option<Scoping> {
-        self.scoping
     }
 
     /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the

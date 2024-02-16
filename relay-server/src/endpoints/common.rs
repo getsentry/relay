@@ -261,7 +261,7 @@ fn queue_envelope(
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
-    let scoping = managed_envelope.scoping();
+    let project_key = managed_envelope.scoping().project_key;
     let envelope = managed_envelope.envelope_mut();
 
     if state.config().relay_mode() != RelayMode::Proxy {
@@ -275,7 +275,7 @@ fn queue_envelope(
                 items: metric_items.into_vec(),
                 start_time: envelope.meta().start_time(),
                 sent_at: envelope.sent_at(),
-                scoping,
+                project_key,
             });
         }
 

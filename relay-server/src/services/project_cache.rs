@@ -815,7 +815,7 @@ impl ProjectCacheBroker {
         let envelope_processor = self.services.envelope_processor.clone();
 
         let project = self.get_or_create_project(message.project_key());
-        project.prefetch(project_cache.clone(), false);
+        project.prefetch(project_cache, false);
         project.merge_buckets(
             aggregator,
             outcome_aggregator,

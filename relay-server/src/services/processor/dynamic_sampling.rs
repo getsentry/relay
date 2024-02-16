@@ -295,41 +295,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn sampling_debug() {
-        let evaluator = SamplingEvaluator::new(Utc::now());
-
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: Some(0.5),
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-
-        let sampling_config = SamplingConfig {
-            rules: vec![SamplingRule {
-                condition: RuleCondition::all(),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Trace,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: DecayingFunction::Constant,
-            }],
-            ..SamplingConfig::new()
-        };
-
-        let rules = sampling_config.filter_rules(RuleType::Trace);
-        let x = evaluator.match_rules(dsc.trace_id, &dsc, rules);
-        dbg!(&x);
-        dbg!(SamplingResult::from(x));
-    }
-
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
             id: Annotated::new(EventId::new()),

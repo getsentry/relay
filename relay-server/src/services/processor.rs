@@ -627,8 +627,8 @@ pub struct ProcessMetrics {
     /// A list of metric items.
     pub items: Vec<Item>,
 
-    /// Scoping for the target project.
-    pub scoping: Scoping,
+    /// The target project.
+    pub project_key: ProjectKey,
 
     /// The instant at which the request was received.
     pub start_time: Instant,
@@ -1570,7 +1570,7 @@ impl EnvelopeProcessorService {
             items,
             start_time,
             sent_at,
-            scoping,
+            project_key,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1599,7 +1599,7 @@ impl EnvelopeProcessorService {
                 relay_log::trace!("inserting metric buckets into project cache");
                 self.inner
                     .project_cache
-                    .send(MergeBuckets::new_with_scoping(scoping, buckets));
+                    .send(MergeBuckets::new(project_key, buckets));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(mut buckets) => {
@@ -1610,7 +1610,7 @@ impl EnvelopeProcessorService {
                         relay_log::trace!("merging metric buckets into project cache");
                         self.inner
                             .project_cache
-                            .send(MergeBuckets::new_with_scoping(scoping, buckets));
+                            .send(MergeBuckets::new(project_key, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!(
