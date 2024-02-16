@@ -170,7 +170,7 @@ pub enum ProcessingGroup {
     ///
     /// Includes transactions, related attachments, profiles.
     Transaction,
-    /// All the items which require g events.
+    /// All the items which require (have or create) events.
     ///
     /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
@@ -190,7 +190,7 @@ pub enum ProcessingGroup {
     Span,
     /// Metrics.
     Metrics,
-    /// Unknown item types will be forwarded upstream g, where we will
+    /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     ForwardUnknown,
     /// All the items in the envelope that could not be grouped.
