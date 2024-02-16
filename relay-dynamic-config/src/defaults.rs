@@ -73,6 +73,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
+    let is_http = RuleCondition::eq("span.op", "http.client");
+
     let is_allowed_browser = RuleCondition::eq(
         "span.sentry_tags.browser.name",
         vec![
@@ -117,9 +119,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     // `exclusive_time_light` is the metric with the most lenient condition.
-    let exclusive_time_light_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
-            & duration_condition.clone();
+    let exclusive_time_light_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_interaction
+        | is_http.clone())
+        & duration_condition.clone();
 
     [
         MetricSpec {
@@ -134,17 +139,19 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
                     & duration_condition.clone(),
             ),
             tags: vec![
                 // Common tags:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
-                    .when(is_db.clone() | is_mobile.clone()), // groups by method + txn, e.g. `GET /users`
+                    .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
                 Tag::with_key("span.action")
                     .from_field("span.sentry_tags.action")
                     .when(is_db.clone()),
@@ -156,7 +163,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
@@ -208,7 +215,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             tags: vec![
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
+                    .when(
+                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                    ),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .when(is_mobile.clone()),
@@ -223,7 +232,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(is_db.clone() | is_resource.clone()),
+                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
