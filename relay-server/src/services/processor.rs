@@ -157,6 +157,12 @@ pub struct ForwardUnknownGroup;
 #[derive(Clone, Copy, Debug)]
 pub struct Ungrouped;
 
+/// Processed group type marker.
+///
+/// Marks the envelopes which passed through the processing pipeline.
+#[derive(Clone, Copy, Debug)]
+pub struct Processed;
+
 /// Describes the groups of the processable items.
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingGroup {
@@ -578,7 +584,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
 /// The view out of the [`ProcessEnvelopeState`] after processing.
 #[derive(Debug)]
 struct ProcessingStateResult {
-    managed_envelope: ManagedEnvelope,
+    managed_envelope: TypedEnvelope<Processed>,
     extracted_metrics: ExtractedMetrics,
 }
 
@@ -590,7 +596,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<ManagedEnvelope>,
+    pub envelope: Option<TypedEnvelope<Processed>>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -688,7 +694,7 @@ pub struct EncodeMetricMeta {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: ManagedEnvelope,
+    pub envelope: TypedEnvelope<Processed>,
 }
 
 /// Sends a client report to the upstream.
@@ -1365,7 +1371,7 @@ impl EnvelopeProcessorService {
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> Result<ProcessingStateResult, (ProcessingError, ManagedEnvelope)> {
+    ) -> Result<ProcessingStateResult, (ProcessingError, TypedEnvelope<Processed>)> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
@@ -1381,10 +1387,10 @@ impl EnvelopeProcessorService {
                 );
                 match self.$fn(&mut state) {
                     Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope.into_inner(),
+                        managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    Err(e) => Err((e, state.managed_envelope.into_inner())),
+                    Err(e) => Err((e, state.managed_envelope.into_processed())),
                 }
             }};
         }
@@ -1408,7 +1414,7 @@ impl EnvelopeProcessorService {
                     "received metrics in the process_state"
                 );
                 Ok(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1420,7 +1426,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
                 Ok(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1428,7 +1434,7 @@ impl EnvelopeProcessorService {
             //
             // This will later be forwarded to upstream.
             ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
-                managed_envelope,
+                managed_envelope: managed_envelope.into_typed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -1792,7 +1798,9 @@ impl EnvelopeProcessorService {
             self.inner.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
-        self.handle_submit_envelope(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     /// Check and apply rate limits to metrics buckets.
@@ -2107,7 +2115,9 @@ impl EnvelopeProcessorService {
                         histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                     );
 
-                    self.handle_submit_envelope(SubmitEnvelope { envelope });
+                    self.handle_submit_envelope(SubmitEnvelope {
+                        envelope: envelope.into_typed(),
+                    });
                     num_batches += 1;
                 }
 
@@ -2251,7 +2261,9 @@ impl EnvelopeProcessorService {
             self.inner.test_store.clone(),
             ProcessingGroup::Metrics,
         );
-        self.handle_submit_envelope(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     #[cfg(feature = "processing")]
@@ -2361,7 +2373,7 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    envelope: ManagedEnvelope,
+    envelope: TypedEnvelope<Processed>,
     body: Bytes,
     http_encoding: HttpEncoding,
     project_cache: Addr<ProjectCache>,

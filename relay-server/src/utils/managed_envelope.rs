@@ -13,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::ProcessingGroup;
+use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -76,8 +76,12 @@ impl<G> TypedEnvelope<G> {
         Self(managed_envelope, PhantomData::<G> {})
     }
 
-    pub fn into_inner(self) -> ManagedEnvelope {
-        self.0
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self.0)
+    }
+
+    pub fn accept(self) {
+        self.0.accept()
     }
 }
 
