@@ -503,7 +503,6 @@ mod tests {
         MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
         PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
-    use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
 
