@@ -30,10 +30,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     if let Some(status_code) = span
         .data
         .value()
-        .and_then(|v| {
-            v.get("http.response.status_code")
-                .or_else(|| v.get("status_code"))
-        })
+        .and_then(|data| data.http_response_status_code.value())
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
     {

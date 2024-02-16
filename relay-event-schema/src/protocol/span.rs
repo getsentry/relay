@@ -175,6 +175,14 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
+    /// TODO: docs
+    #[metastructure(field = "app_start_type")] // TODO: no dot?
+    pub app_start_type: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "browser.name")]
+    pub browser_name: Annotated<Value>,
+
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
     pub code_filepath: Annotated<Value>,
@@ -194,23 +202,68 @@ pub struct SpanData {
     #[metastructure(field = "code.namespace", pii = "maybe")]
     pub code_namespace: Annotated<Value>,
 
+    /// TODO: docs
+    #[metastructure(field = "db.operation")]
+    pub db_operation: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "db.system")]
+    pub db_system: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "environment")]
+    pub environment: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "http.decoded_response_content_length")]
+    pub http_decoded_response_content_length: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(
+        field = "http.request_method",
+        legacy_alias = "http.method",
+        legacy_alias = "method"
+    )]
+    pub http_request_method: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "http.response_content_length")]
+    pub http_response_content_length: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "http.response_transfer_size")]
+    pub http_response_transfer_size: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "resource.render_blocking_status")]
+    pub resource_render_blocking_status: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "server.address")]
+    pub server_address: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
+    pub http_response_status_code: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "thread.name")]
+    pub thread_name: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "ui.component_name")]
+    pub ui_component_name: Annotated<Value>,
+
+    /// TODO: docs
+    #[metastructure(field = "url.scheme")]
+    pub url_scheme: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
 }
 
 impl SpanData {
-    /// Getter for compatibility with [`Object`].
-    pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
-        match key {
-            "code.filepath" => Some(&self.code_filepath),
-            "code.lineno" => Some(&self.code_lineno),
-            "code.function" => Some(&self.code_function),
-            "code.namespace" => Some(&self.code_namespace),
-            _ => self.other.get(key),
-        }
-    }
-
     /// Setter for compatibility with [`Object`].
     pub fn insert(&mut self, key: String, value: Annotated<Value>) {
         match key.as_str() {
@@ -222,6 +275,17 @@ impl SpanData {
                 self.other.insert(key, value);
             }
         }
+    }
+
+    /// Gets a floating point measurement value from data.
+    pub fn measurement(&self, key: &str) -> Option<f64> {
+        let value = self.other.get(key)?.value()?;
+        Some(match value {
+            Value::I64(n) => *n as f64,
+            Value::U64(n) => *n as f64,
+            Value::F64(f) => *f,
+            _ => return None,
+        })
     }
 }
 

@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
-            get_path!(annotated_span.data["environment"]),
+            get_path!(annotated_span.data.environment),
             Some(&Annotated::new("test".into()))
         );
     }
