@@ -175,11 +175,13 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
-    /// TODO: docs
+    /// Mobile app start variant.
+    ///
+    /// Can be either "cold" or "warm".
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
-    /// TODO: docs
+    /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<Value>,
 
@@ -202,23 +204,28 @@ pub struct SpanData {
     #[metastructure(field = "code.namespace", pii = "maybe")]
     pub code_namespace: Annotated<Value>,
 
-    /// TODO: docs
+    /// The name of the operation being executed.
+    ///
+    /// E.g. the MongoDB command name such as findAndModify, or the SQL keyword.
+    /// Based on [OpenTelemetry's call level db attributes](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#call-level-attributes).
     #[metastructure(field = "db.operation")]
     pub db_operation: Annotated<Value>,
 
-    /// TODO: docs
+    /// An identifier for the database management system (DBMS) product being used.
+    ///
+    /// See [OpenTelemetry docs for a list of well-known identifiers](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem).
     #[metastructure(field = "db.system")]
     pub db_system: Annotated<Value>,
 
-    /// TODO: docs
+    /// The sentry environment.
     #[metastructure(field = "environment")]
     pub environment: Annotated<Value>,
 
-    /// TODO: docs
+    /// The decoded body size of the response (in bytes).
     #[metastructure(field = "http.decoded_response_content_length")]
     pub http_decoded_response_content_length: Annotated<Value>,
 
-    /// TODO: docs
+    /// The HTTP method used.
     #[metastructure(
         field = "http.request_method",
         legacy_alias = "http.method",
@@ -226,35 +233,35 @@ pub struct SpanData {
     )]
     pub http_request_method: Annotated<Value>,
 
-    /// TODO: docs
+    /// The encoded body size of the response (in bytes).
     #[metastructure(field = "http.response_content_length")]
     pub http_response_content_length: Annotated<Value>,
 
-    /// TODO: docs
+    /// The transfer size of the response (in bytes).
     #[metastructure(field = "http.response_transfer_size")]
     pub http_response_transfer_size: Annotated<Value>,
 
-    /// TODO: docs
+    /// The render blocking status of the resource.
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<Value>,
 
-    /// TODO: docs
+    /// Name of the database host.
     #[metastructure(field = "server.address")]
     pub server_address: Annotated<Value>,
 
-    /// TODO: docs
+    /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
-    /// TODO: docs
+    /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
-    /// TODO: docs
+    /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
     pub ui_component_name: Annotated<Value>,
 
-    /// TODO: docs
+    /// The URL scheme, e.g. `"https"`.
     #[metastructure(field = "url.scheme")]
     pub url_scheme: Annotated<Value>,
 
