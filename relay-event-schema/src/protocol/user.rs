@@ -178,6 +178,7 @@ mod tests {
                 );
                 map
             },
+            ..Default::default()
         });
 
         assert_eq!(user, Annotated::from_json(json).unwrap());

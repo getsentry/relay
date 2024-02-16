@@ -2599,22 +2599,16 @@ mod tests {
 
     #[test]
     fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
+        let json = r#"{
+            "user": {
+                "id": "123456",
+                "other": "value"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
 
-        normalize_user(&mut user);
-
-        let user = user.value().unwrap();
-
+        let user = event.value().unwrap().user.value().unwrap();
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
@@ -2623,8 +2617,8 @@ mod tests {
             );
             Annotated::new(map)
         });
-
         assert_eq!(user.other, Object::new());
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 
     #[test]

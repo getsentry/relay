@@ -642,7 +642,6 @@ impl Getter for Event {
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)
-            "user" => self.user.value()?.sentry_user.as_str()?.into(),
             "user.email" => or_none(&self.user.value()?.email)?.into(),
             "user.id" => or_none(&self.user.value()?.id)?.into(),
             "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
@@ -670,6 +669,9 @@ impl Getter for Event {
                 .into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
+
+            // Computed fields (after light normalization).
+            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
@@ -1162,7 +1164,7 @@ mod tests {
         );
         assert_eq!(
             Some(Val::String("id:user-id")),
-            event.get_value("event.user")
+            event.get_value("event.sentry_user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),
