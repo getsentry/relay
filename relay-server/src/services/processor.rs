@@ -1568,9 +1568,9 @@ impl EnvelopeProcessorService {
     fn handle_process_metrics(&self, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
+            project_key: public_key,
             start_time,
             sent_at,
-            project_key: public_key,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
