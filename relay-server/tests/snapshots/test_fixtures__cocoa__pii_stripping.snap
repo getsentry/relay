@@ -15,7 +15,8 @@ expression: SerializableAnnotated(&event)
   "dist": "1",
   "user": {
     "id": "1234",
-    "email": "08C2CF67C31871F7BAD220E0702F5C61461C822B"
+    "email": "08C2CF67C31871F7BAD220E0702F5C61461C822B",
+    "sentry_user": "id:1234"
   },
   "contexts": {
     "app": {

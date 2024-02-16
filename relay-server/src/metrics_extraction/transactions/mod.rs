@@ -453,9 +453,13 @@ impl TransactionExtractor<'_> {
         // User
         if let Some(user) = event.user.value() {
             if let Some(value) = user.sentry_user.value() {
-                metrics
-                    .project_metrics
-                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+                metrics.project_metrics.push(
+                    TransactionMetric::User {
+                        value: value.clone(),
+                        tags,
+                    }
+                    .into_metric(timestamp),
+                );
             }
         }
 
