@@ -275,10 +275,16 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: ~,
             origin: ~,
             profile_id: ~,
-            data: {
-                "app_start_type": String(
-                    "cold",
-                ),
+            data: SpanData {
+                code_filepath: ~,
+                code_lineno: ~,
+                code_function: ~,
+                code_namespace: ~,
+                other: {
+                    "app_start_type": String(
+                        "cold",
+                    ),
+                },
             },
             sentry_tags: {
                 "app_start_type": "cold",

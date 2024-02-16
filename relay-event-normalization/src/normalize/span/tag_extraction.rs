@@ -8,7 +8,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, SpanData, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -535,7 +536,7 @@ pub fn extract_measurements(span: &mut Span) {
     }
 }
 
-fn measurement_from_data(data: &BTreeMap<String, Annotated<Value>>, key: &str) -> Option<f64> {
+fn measurement_from_data(data: &SpanData, key: &str) -> Option<f64> {
     let value = data.get(key)?.value()?;
     Some(match value {
         Value::I64(n) => *n as f64,
