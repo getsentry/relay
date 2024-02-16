@@ -270,18 +270,18 @@ pub struct SpanData {
     other: Object<Value>,
 }
 
-impl SpanData {
-    /// Gets a floating point measurement value from data.
-    pub fn measurement(&self, key: &str) -> Option<f64> {
-        let value = self.other.get(key)?.value()?;
-        Some(match value {
-            Value::I64(n) => *n as f64,
-            Value::U64(n) => *n as f64,
-            Value::F64(f) => *f,
-            _ => return None,
-        })
-    }
-}
+// impl SpanData {
+//     /// Gets a floating point measurement value from data.
+//     pub fn measurement(&self, key: &str) -> Option<f64> {
+//         let value = self.other.get(key)?.value()?;
+//         Some(match value {
+//             Value::I64(n) => *n as f64,
+//             Value::U64(n) => *n as f64,
+//             Value::F64(f) => *f,
+//             _ => return None,
+//         })
+//     }
+// }
 
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {

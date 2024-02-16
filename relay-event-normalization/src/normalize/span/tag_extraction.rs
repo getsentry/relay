@@ -10,7 +10,7 @@ use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -511,8 +511,26 @@ pub fn extract_measurements(span: &mut Span) {
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
-            let mut try_measurement = |key: &str| {
-                if let Some(value) = data.measurement(key) {
+            for (field, key) in [
+                (
+                    &data.http_decoded_response_content_length,
+                    "http.decoded_response_content_length",
+                ),
+                (
+                    &data.http_response_content_length,
+                    "http.response_content_length",
+                ),
+                (
+                    &data.http_response_transfer_size,
+                    "http.response_transfer_size",
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -523,10 +541,7 @@ pub fn extract_measurements(span: &mut Span) {
                         .into(),
                     );
                 }
-            };
-            try_measurement("http.response_content_length");
-            try_measurement("http.decoded_response_content_length");
-            try_measurement("http.response_transfer_size");
+            }
         }
     }
 }
