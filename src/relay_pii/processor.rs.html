@@ -1575,6 +1575,33 @@
 <a href="#1574" id="1574">1574</a>
 <a href="#1575" id="1575">1575</a>
 <a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::mem;
@@ -2052,6 +2079,7 @@
     <span class="kw">use </span>relay_protocol::{
         assert_annotated_snapshot, get_value, Annotated, FromValue, Object, Value,
     };
+    <span class="kw">use </span>serde_json::json;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -2070,7 +2098,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_original_value() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
+            <span class="macro">json!</span>({
                 <span class="string">"user"</span>: {
                     <span class="string">"username"</span>: <span class="string">"hey  man 73.133.27.120"</span>, <span class="comment">// should be stripped despite not being "known ip field"
                     </span><span class="string">"ip_address"</span>: <span class="string">"is this an ip address? 73.133.27.120"</span>, <span class="comment">//  &lt;--------
@@ -2322,7 +2350,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ignore_user_agent_ip_scrubbing() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
+            <span class="macro">json!</span>({
                 <span class="string">"request"</span>: {
                     <span class="string">"headers"</span>: [
                         [<span class="string">"User-Agent"</span>, <span class="string">"127.0.0.1"</span>],
@@ -2890,6 +2918,32 @@
     }
 
     <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_span_data_pii() {
+        <span class="kw">let </span><span class="kw-2">mut </span>span = Span::from_value(
+            <span class="macro">json!</span>({
+                <span class="string">"data"</span>: {
+                    <span class="string">"code.filepath"</span>: <span class="string">"src/sentry/api/authentication.py"</span>,
+                }
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>ds_config = DataScrubbingConfig {
+            scrub_data: <span class="bool-val">true</span>,
+            scrub_defaults: <span class="bool-val">true</span>,
+            ..Default::default()
+        };
+        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+        processor::process_value(<span class="kw-2">&amp;mut </span>span, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(span.data.<span class="macro">code_filepath!</span>).as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"src/sentry/api/authentication.py"</span>)
+        );
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_not_scrubbed() {
         <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
             <span class="string">r#"{
@@ -3000,7 +3054,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_graphql_response_data_with_variables() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
+            <span class="macro">json!</span>({
               <span class="string">"request"</span>: {
                 <span class="string">"data"</span>: {
                   <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
@@ -3034,7 +3088,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scrub_graphql_response_data_without_variables() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
+            <span class="macro">json!</span>({
               <span class="string">"request"</span>: {
                 <span class="string">"data"</span>: {
                   <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"
@@ -3064,7 +3118,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_scrub_if_no_graphql() {
         <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-            <span class="macro">serde_json::json!</span>({
+            <span class="macro">json!</span>({
               <span class="string">"request"</span>: {
                 <span class="string">"data"</span>: {
                   <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,

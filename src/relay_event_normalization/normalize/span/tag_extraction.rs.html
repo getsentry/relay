@@ -1430,6 +1430,7 @@
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1440,7 +1441,8 @@
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_base_schema::metrics::{InformationUnit, MetricUnit};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, SpanData, Timestamp,
+    TraceContext,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
@@ -1967,7 +1969,7 @@
     }
 }
 
-<span class="kw">fn </span>measurement_from_data(data: <span class="kw-2">&amp;</span>BTreeMap&lt;String, Annotated&lt;Value&gt;&gt;, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+<span class="kw">fn </span>measurement_from_data(data: <span class="kw-2">&amp;</span>SpanData, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
     <span class="kw">let </span>value = data.get(key)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
     <span class="prelude-val">Some</span>(<span class="kw">match </span>value {
         Value::I64(n) =&gt; <span class="kw-2">*</span>n <span class="kw">as </span>f64,

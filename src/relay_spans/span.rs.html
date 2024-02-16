@@ -285,13 +285,17 @@
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
 
-<span class="kw">use </span>relay_event_schema::protocol::{Span <span class="kw">as </span>EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
-<span class="kw">use </span>relay_protocol::{Annotated, Object, Value};
+<span class="kw">use </span>relay_event_schema::protocol::{
+    Span <span class="kw">as </span>EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+};
+<span class="kw">use </span>relay_protocol::Annotated;
 
 <span class="kw">use </span><span class="kw">crate</span>::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 <span class="kw">use </span><span class="kw">crate</span>::otel_trace::{status::StatusCode <span class="kw">as </span>OtelStatusCode, Span <span class="kw">as </span>OtelSpan};
@@ -352,7 +356,7 @@
 <span class="doccomment">/// Transform an OtelSpan to a Sentry span.
 </span><span class="kw">pub fn </span>otel_to_sentry_span(otel_span: OtelSpan) -&gt; EventSpan {
     <span class="kw">let </span><span class="kw-2">mut </span>exclusive_time_ms = <span class="number">0f64</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>data: Object&lt;Value&gt; = Object::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>data = SpanData::default();
     <span class="kw">let </span>start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano <span class="kw">as </span>i64);
     <span class="kw">let </span>end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano <span class="kw">as </span>i64);
     <span class="kw">let </span>OtelSpan {
