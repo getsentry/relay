@@ -1,6 +1,5 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 mod parser;
-pub use parser::parse_query;
 
 use std::borrow::Cow;
 use std::time::Instant;
