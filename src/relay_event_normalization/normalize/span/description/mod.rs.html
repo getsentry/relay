@@ -1017,32 +1017,12 @@
 <a href="#1016" id="1016">1016</a>
 <a href="#1017" id="1017">1017</a>
 <a href="#1018" id="1018">1018</a>
-<a href="#1019" id="1019">1019</a>
-<a href="#1020" id="1020">1020</a>
-<a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">pub use </span>sql::parse_query;
+<span class="attr">#[cfg(test)]
+</span><span class="kw">pub use </span>sql::{scrub_queries, Mode};
 
 <span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::path::Path;
@@ -1059,9 +1039,6 @@
 
 <span class="doccomment">/// Dummy URL used to parse relative URLs.
 </span><span class="kw">static </span>DUMMY_BASE_URL: Lazy&lt;Url&gt; = Lazy::new(|| <span class="string">"http://replace_me"</span>.parse().unwrap());
-
-<span class="doccomment">/// Very large SQL queries may cause stack overflows in the parser, so do not attempt to parse these.
-</span><span class="kw">const </span>MAX_DESCRIPTION_LENGTH: usize = <span class="number">10_000</span>;
 
 <span class="doccomment">/// Maximum length of a resource URL segment.
 ///
@@ -1080,14 +1057,6 @@
     <span class="kw">let </span><span class="prelude-val">Some</span>(description) = span.description.as_str() <span class="kw">else </span>{
         <span class="kw">return </span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
     };
-
-    <span class="kw">if </span>description.len() &gt; MAX_DESCRIPTION_LENGTH {
-        <span class="macro">relay_log::error!</span>(
-            description = description,
-            <span class="string">"Span description too large to parse"
-        </span>);
-        <span class="kw">return </span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-    }
 
     <span class="kw">let </span>data = span.data.value();
 
@@ -1961,17 +1930,6 @@
     </span>);
 
     <span class="macro">span_description_test!</span>(db_prisma, <span class="string">"User find"</span>, <span class="string">"db.sql.prisma"</span>, <span class="string">"User find"</span>);
-
-    <span class="macro">span_description_test!</span>(
-        long_description_none,
-        <span class="comment">// Do not attempt to parse very long descriptions.
-        </span>{
-            <span class="kw">let </span>repeated = <span class="string">"+1"</span>.repeat(<span class="number">5000</span>);
-            <span class="kw-2">&amp;</span>(<span class="string">"SELECT 1"</span>.to_string() + <span class="kw-2">&amp;</span>repeated)
-        },
-        <span class="string">"db.query"</span>,
-        <span class="string">""
-    </span>);
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>informed_sql_parser() {

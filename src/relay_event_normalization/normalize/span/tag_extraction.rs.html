@@ -1428,6 +1428,8 @@
 <a href="#1427" id="1427">1427</a>
 <a href="#1428" id="1428">1428</a>
 <a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -2162,7 +2164,7 @@
     <span class="kw">use </span>relay_protocol::{get_value, Annotated};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::span::description::parse_query;
+    <span class="kw">use </span><span class="kw">crate</span>::span::description::{scrub_queries, Mode};
     <span class="kw">use crate</span>::{normalize_event, NormalizationConfig};
 
     <span class="attr">#[test]
@@ -2275,11 +2277,19 @@
         <span class="string">"POST"
     </span>);
 
+    <span class="kw">fn </span>sql_tables_from_parsed_query(dialect: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, query: <span class="kw-2">&amp;</span>str) -&gt; String {
+        <span class="kw">let </span>Mode::Parsed(ast) = scrub_queries(dialect, query).<span class="number">1 </span><span class="kw">else </span>{
+            <span class="macro">panic!</span>()
+        };
+        sql_tables_from_query(query, <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(ast)).unwrap()
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select() {
         <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM "a.b" WHERE "x" = 1"#</span>;
+
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query),
             <span class="string">",b,"
         </span>);
     }
@@ -2287,17 +2297,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select_nested() {
         <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#</span>;
-        <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">None</span>, query).ok()).unwrap(),
-            <span class="string">",b,"
-        </span>);
+        <span class="macro">assert_eq!</span>(sql_tables_from_parsed_query(<span class="prelude-val">None</span>, query), <span class="string">",b,"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_multiple() {
         <span class="kw">let </span>query = <span class="string">r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query),
             <span class="string">",a,b,c,"
         </span>);
     }
@@ -2307,7 +2314,7 @@
         <span class="kw">let </span>query =
             <span class="string">r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"mysql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"mysql"</span>), query),
             <span class="string">",a,b,c,"
         </span>);
     }
@@ -2338,7 +2345,7 @@ WHERE (
 LIMIT 1
             "#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query),
             <span class="string">",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         </span>);
     }
@@ -2346,17 +2353,14 @@ LIMIT 1
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_delete() {
         <span class="kw">let </span>query = <span class="string">r#"DELETE FROM "a.b" WHERE "x" = 1"#</span>;
-        <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">None</span>, query).ok()).unwrap(),
-            <span class="string">",b,"
-        </span>);
+        <span class="macro">assert_eq!</span>(sql_tables_from_parsed_query(<span class="prelude-val">None</span>, query), <span class="string">",b,"</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_insert() {
         <span class="kw">let </span>query = <span class="string">r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query),
             <span class="string">",a,"
         </span>);
     }
@@ -2365,7 +2369,7 @@ LIMIT 1
     </span><span class="kw">fn </span>extract_table_update() {
         <span class="kw">let </span>query = <span class="string">r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#</span>;
         <span class="macro">assert_eq!</span>(
-            sql_tables_from_query(query, <span class="kw-2">&amp;</span>parse_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(<span class="prelude-val">Some</span>(<span class="string">"postgresql"</span>), query),
             <span class="string">",a,"
         </span>);
     }
