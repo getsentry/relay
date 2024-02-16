@@ -194,3 +194,66 @@ fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
 pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
     0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_event_schema::protocol::User;
+    use relay_protocol::Annotated;
+    use crate::utils::get_event_user_tag;
+
+    #[test]
+    fn test_get_event_user_tag() {
+        // Note: If this order changes,
+        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
+        // has to be changed. Though it is probably not a good idea!
+        let user = User {
+            id: Annotated::new("ident".to_owned().into()),
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(
+            get_event_user_tag(&user).unwrap(),
+            "id:ident"
+        );
+
+        let user = User {
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(
+            get_event_user_tag(&user).unwrap(),
+            "username:username"
+        );
+
+        let user = User {
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(
+            get_event_user_tag(&user).unwrap(),
+            "email:email"
+        );
+
+        let user = User {
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(
+            get_event_user_tag(&user).unwrap(),
+            "ip:127.0.0.1"
+        );
+
+        let user = User::default();
+
+        assert!(get_event_user_tag(&user).is_none());
+    }
+}
