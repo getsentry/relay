@@ -310,7 +310,6 @@ impl AggregatorService {
         let MergeBuckets {
             project_key,
             buckets,
-            ..
         } = msg;
         self.aggregator
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);

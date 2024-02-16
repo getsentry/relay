@@ -3895,7 +3895,6 @@ dependencies = [
  "relay-cardinality",
  "relay-common",
  "relay-log",
- "relay-quotas",
  "relay-redis",
  "relay-statsd",
  "relay-system",

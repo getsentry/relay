@@ -26,7 +26,6 @@ relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis", optional = true }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
-relay-quotas = { path = "../relay-quotas" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }

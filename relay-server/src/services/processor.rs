@@ -1570,7 +1570,7 @@ impl EnvelopeProcessorService {
             items,
             start_time,
             sent_at,
-            project_key,
+            project_key: public_key,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1599,7 +1599,7 @@ impl EnvelopeProcessorService {
                 relay_log::trace!("inserting metric buckets into project cache");
                 self.inner
                     .project_cache
-                    .send(MergeBuckets::new(project_key, buckets));
+                    .send(MergeBuckets::new(public_key, buckets));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(mut buckets) => {
@@ -1610,7 +1610,7 @@ impl EnvelopeProcessorService {
                         relay_log::trace!("merging metric buckets into project cache");
                         self.inner
                             .project_cache
-                            .send(MergeBuckets::new(project_key, buckets));
+                            .send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!(

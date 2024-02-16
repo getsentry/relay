@@ -13,7 +13,7 @@
 **Internal**:
 
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
-- Allow metrics to be forwarded with just partial scoping. ([#3106](https://github.com/getsentry/relay/pull/3106))
+- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 
 ## 24.1.2
 
