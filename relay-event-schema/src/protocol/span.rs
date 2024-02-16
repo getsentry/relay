@@ -264,19 +264,6 @@ pub struct SpanData {
 }
 
 impl SpanData {
-    /// Setter for compatibility with [`Object`].
-    pub fn insert(&mut self, key: String, value: Annotated<Value>) {
-        match key.as_str() {
-            "code.filepath" => self.code_filepath = value,
-            "code.lineno" => self.code_lineno = value,
-            "code.function" => self.code_function = value,
-            "code.namespace" => self.code_namespace = value,
-            _ => {
-                self.other.insert(key, value);
-            }
-        }
-    }
-
     /// Gets a floating point measurement value from data.
     pub fn measurement(&self, key: &str) -> Option<f64> {
         let value = self.other.get(key)?.value()?;
@@ -496,11 +483,10 @@ mod tests {
 
         assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.800131)));
     }
-}
 
-#[test]
-fn test_span_data() {
-    let data = r#"{
+    #[test]
+    fn test_span_data() {
+        let data = r#"{
         "foo": 2,
         "bar": "3",
         "db.system": "mysql",
@@ -509,11 +495,11 @@ fn test_span_data() {
         "code.function": "fn()",
         "code.namespace": "ns"
     }"#;
-    let data = Annotated::<SpanData>::from_json(data)
-        .unwrap()
-        .into_value()
-        .unwrap();
-    insta::assert_debug_snapshot!(data, @r###"
+        let data = Annotated::<SpanData>::from_json(data)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        insta::assert_debug_snapshot!(data, @r###"
     SpanData {
         code_filepath: String(
             "task.py",
@@ -541,11 +527,12 @@ fn test_span_data() {
     }
     "###);
 
-    assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
-    assert_eq!(data.get_value("bar"), Some(Val::String("3")));
-    assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
-    assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
-    assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
-    assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
-    assert_eq!(data.get_value("unknown"), None);
+        assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
+        assert_eq!(data.get_value("bar"), Some(Val::String("3")));
+        assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
+        assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
+        assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
+        assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
+        assert_eq!(data.get_value("unknown"), None);
+    }
 }
