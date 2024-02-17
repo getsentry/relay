@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
+- Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
 ## 24.2.0
 
@@ -13,7 +14,6 @@
 - Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
 - Fix span metric ingestion for http spans. ([#3111](https://github.com/getsentry/relay/pull/3111))
 - Normalize route in trace context data field. ([#3104](https://github.com/getsentry/relay/pull/3104))
-- Limit the length of scrubbed span descriptions. ([#3115](https://github.com/getsentry/relay/pull/3115))
 
 **Features**:
 

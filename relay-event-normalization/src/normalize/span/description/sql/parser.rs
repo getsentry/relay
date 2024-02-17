@@ -63,7 +63,6 @@ pub fn normalize_parsed_queries(
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    let original_ast = parsed.clone();
     parsed.visit(&mut NormalizeVisitor);
     parsed.visit(&mut MaxDepthVisitor::new());
 
@@ -75,7 +74,7 @@ pub fn normalize_parsed_queries(
     // Insert placeholders that the SQL serializer cannot provide.
     let replaced = concatenated.replace("___UPDATE_LHS___ = NULL", "..");
 
-    Ok((replaced, original_ast))
+    Ok((replaced, parsed))
 }
 
 /// A visitor that normalizes the SQL AST in-place.

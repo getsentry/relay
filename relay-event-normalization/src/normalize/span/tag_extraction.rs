@@ -8,7 +8,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, SpanData, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -535,7 +536,7 @@ pub fn extract_measurements(span: &mut Span) {
     }
 }
 
-fn measurement_from_data(data: &BTreeMap<String, Annotated<Value>>, key: &str) -> Option<f64> {
+fn measurement_from_data(data: &SpanData, key: &str) -> Option<f64> {
     let value = data.get(key)?.value()?;
     Some(match value {
         Value::I64(n) => *n as f64,
@@ -732,7 +733,7 @@ mod tests {
     use relay_protocol::{get_value, Annotated};
 
     use super::*;
-    use crate::span::description::parse_query;
+    use crate::span::description::{scrub_queries, Mode};
     use crate::{normalize_event, NormalizationConfig};
 
     #[test]
@@ -845,11 +846,19 @@ mod tests {
         "POST"
     );
 
+    fn sql_tables_from_parsed_query(dialect: Option<&str>, query: &str) -> String {
+        let Mode::Parsed(ast) = scrub_queries(dialect, query).1 else {
+            panic!()
+        };
+        sql_tables_from_query(query, &Some(ast)).unwrap()
+    }
+
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
+
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",b,"
         );
     }
@@ -857,17 +866,14 @@ mod tests {
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(
-            sql_tables_from_query(query, &parse_query(None, query).ok()).unwrap(),
-            ",b,"
-        );
+        assert_eq!(sql_tables_from_parsed_query(None, query), ",b,");
     }
 
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,b,c,"
         );
     }
@@ -877,7 +883,7 @@ mod tests {
         let query =
             r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("mysql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("mysql"), query),
             ",a,b,c,"
         );
     }
@@ -908,7 +914,7 @@ WHERE (
 LIMIT 1
             "#;
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         );
     }
@@ -916,17 +922,14 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(
-            sql_tables_from_query(query, &parse_query(None, query).ok()).unwrap(),
-            ",b,"
-        );
+        assert_eq!(sql_tables_from_parsed_query(None, query), ",b,");
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,"
         );
     }
@@ -935,7 +938,7 @@ LIMIT 1
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(
-            sql_tables_from_query(query, &parse_query(Some("postgresql"), query).ok()).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,"
         );
     }
