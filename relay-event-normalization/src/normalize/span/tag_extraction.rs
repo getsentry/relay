@@ -451,6 +451,18 @@ pub fn extract_tags(
                 }
             }
         }
+        if let Some(measurements) = span.measurements.value() {
+            if span_op.starts_with("ui.interaction") && measurements.contains_key("inp") {
+                if let Some(transaction) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get("transaction"))
+                    .and_then(|transaction| transaction.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Transaction, transaction.into());
+                }
+            }
+        }
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
