@@ -265,8 +265,8 @@ fn queue_envelope(
 
     if state.config().relay_mode() != RelayMode::Proxy {
         // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
-        let metric_items = envelope.take_items_by(is_metric);
+        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
+        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
 
         if !metric_items.is_empty() {
             relay_log::trace!("sending metrics into processing queue");

@@ -62,7 +62,9 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
-def test_metrics_proxy_mode(mini_sentry, relay):
+def test_metrics_proxy_mode(mini_sentry, relay, metrics_consumer):
+    metrics_consumer = metrics_consumer()
+
     relay = relay(
         mini_sentry,
         options={
@@ -77,18 +79,59 @@ def test_metrics_proxy_mode(mini_sentry, relay):
     )
 
     project_id = 42
+    now = int(datetime.now(tz=timezone.utc).timestamp())
 
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    # statsd
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{now}"
     relay.send_metrics(project_id, metrics_payload)
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "statsd"
+    assert metric_meta_item.get_bytes().decode() == metrics_payload
+
+    # buckets payload
+    bucket = {
+        "org_id": 1,
+        "project_id": project_id,
+        "timestamp": int(datetime.utcnow().timestamp()),
+        "name": "d:transactions/measurements.lcp@millisecond",
+        "type": "d",
+        "value": [1.0],
+        "width": 1,
+    }
+    relay.send_metrics_buckets(project_id, [bucket])
+    produced_bucket = [m for m, _ in metrics_consumer.get_metrics()][0]
+    assert bucket == produced_bucket
+
+    # metrics meta
+
+    location = {
+        "type": "location",
+        "function": "_scan_for_suspect_projects",
+        "module": "sentry.tasks.low_priority_symbolication",
+        "filename": "sentry/tasks/low_priority_symbolication.py",
+        "abs_path": "/usr/src/sentry/src/sentry/tasks/low_priority_symbolication.py",
+        "lineno": 45,
+    }
+
+    envelope = Envelope()
+    meta_payload = {
+        "timestamp": now.isoformat(),
+        "mapping": {
+            "d:custom/sentry.process_profile.track_outcome@second": [
+                location,
+            ]
+        },
+    }
+    envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
+    relay.send_envelope(project_id, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
-
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "statsd"
-
-    assert metrics_item.get_bytes().decode() == metrics_payload
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "metric_meta"
+    assert metric_meta_item.get_bytes().decode() == meta_payload
 
 
 def test_metrics(mini_sentry, relay):

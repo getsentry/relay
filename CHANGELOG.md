@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
+
 ## 24.2.0
 
 **Bug Fixes**:
@@ -16,7 +22,6 @@
 **Internal**:
 
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
-- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Skip profiles without required measurements. ([#3112](https://github.com/getsentry/relay/pull/3112))
 - Push metrics summaries to their own topic. ([#3045](https://github.com/getsentry/relay/pull/3045))
 

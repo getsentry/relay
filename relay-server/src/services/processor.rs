@@ -234,8 +234,11 @@ impl ProcessingGroup {
             ))
         }
 
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
-        let metric_items = envelope.take_items_by(is_metric);
+        // Exract all metric items.
+        //
+        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
+        // a separate pipeline.
+        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
         if !metric_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Metrics(MetricsGroup),
