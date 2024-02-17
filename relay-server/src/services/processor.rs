@@ -76,7 +76,7 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ExtractionMode, ManagedEnvelope, SamplingResult};
+use crate::utils::{self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult};
 
 mod attachment;
 mod dynamic_sampling;
@@ -287,6 +287,23 @@ impl ProcessingGroup {
         grouped_envelopes.extend(envelopes);
 
         grouped_envelopes
+    }
+
+    /// Returns the name of the group.
+    pub fn variant(&self) -> &'static str {
+        match self {
+            ProcessingGroup::Transaction(_) => "transaction",
+            ProcessingGroup::Error(_) => "error",
+            ProcessingGroup::Session(_) => "session",
+            ProcessingGroup::Standalone(_) => "standalone",
+            ProcessingGroup::ClientReport(_) => "client_report",
+            ProcessingGroup::Replay(_) => "replay",
+            ProcessingGroup::CheckIn(_) => "check_in",
+            ProcessingGroup::Span(_) => "span",
+            ProcessingGroup::Metrics(_) => "metrics",
+            ProcessingGroup::ForwardUnknown(_) => "forward_unknown",
+            ProcessingGroup::Ungrouped(_) => "ungrouped",
+        }
     }
 }
 
@@ -1514,7 +1531,8 @@ impl EnvelopeProcessorService {
         let wait_time = message.envelope.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
-        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+        let group = message.envelope.group().variant();
+        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
             self.process(message)
         });
         match result {
@@ -1623,6 +1641,12 @@ impl EnvelopeProcessorService {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
+
+                    MetricStats::new(&buckets).emit(
+                        RelayCounters::ProcessorBatchedMetricsCalls,
+                        RelayCounters::ProcessorBatchedMetricsCount,
+                        RelayCounters::ProcessorBatchedMetricsCost,
+                    );
 
                     relay_log::trace!("merging metric buckets into project cache");
                     self.inner
@@ -1812,6 +1836,12 @@ impl EnvelopeProcessorService {
         let buckets = bucket_limiter.into_metrics();
 
         if !buckets.is_empty() {
+            MetricStats::new(&buckets).emit(
+                RelayCounters::ProcessorRateLimitBucketsCalls,
+                RelayCounters::ProcessorRateLimitBucketsCount,
+                RelayCounters::ProcessorRateLimitBucketsCost,
+            );
+
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -2167,6 +2197,16 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let mut stats = MetricStats::default();
+        for p in message.scopes.values() {
+            stats.update(&p.buckets);
+        }
+        stats.emit(
+            RelayCounters::ProcessorEncodeMetricsCalls,
+            RelayCounters::ProcessorEncodeMetricsCount,
+            RelayCounters::ProcessorEncodeMetricsCost,
+        );
+
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.store_forwarder {

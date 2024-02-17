@@ -2,7 +2,8 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
-pub use sql::parse_query;
+#[cfg(test)]
+pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -421,7 +422,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
+        ($name:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(

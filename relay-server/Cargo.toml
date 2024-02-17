@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.2.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -99,7 +99,7 @@ rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
-sqlx = { version = "0.7.0", features = [
+sqlx = { version = "0.7.3", features = [
     "macros",
     "migrate",
     "sqlite",

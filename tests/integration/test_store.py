@@ -1402,10 +1402,10 @@ def test_span_extraction(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
@@ -1812,12 +1812,14 @@ def test_span_ingestion(
     ]
 
 
-def test_span_extraction_with_ddm(
+def test_span_extraction_with_metrics_summary(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
+    metrics_summaries_consumer,
 ):
     spans_consumer = spans_consumer()
+    metrics_summaries_consumer = metrics_summaries_consumer()
 
     relay = relay_with_processing()
     project_id = 42
@@ -1827,8 +1829,9 @@ def test_span_extraction_with_ddm(
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    mri = "c:spans/some_metric@none"
     metrics_summary = {
-        "c:spans/some_metric@none": [
+        mri: [
             {
                 "min": 1.0,
                 "max": 2.0,
@@ -1856,19 +1859,21 @@ def test_span_extraction_with_ddm(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "_metrics_summary": metrics_summary,
     }
 
     spans_consumer.assert_empty()
+    metrics_summary = metrics_summaries_consumer.get_metrics_summary()
+
+    assert metrics_summary["mri"] == mri
 
 
 def test_span_extraction_with_ddm_missing_values(
@@ -1923,16 +1928,15 @@ def test_span_extraction_with_ddm_missing_values(
         "project_id": 42,
         "retention_days": 90,
         "description": "hi",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 2000,
         "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "_metrics_summary": metrics_summary,
         "measurements": {},
     }
 

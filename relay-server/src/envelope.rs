@@ -142,35 +142,50 @@ impl ItemType {
             }
         }
     }
+
+    /// Returns the variant name of the item type.
+    ///
+    /// Unlike [`Self::as_str`] this returns an unknown value as `unknown`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::Transaction => "transaction",
+            Self::Security => "security",
+            Self::Attachment => "attachment",
+            Self::FormData => "form_data",
+            Self::RawSecurity => "raw_security",
+            Self::Nel => "nel",
+            Self::UnrealReport => "unreal_report",
+            Self::UserReport => "user_report",
+            Self::UserReportV2 => "feedback",
+            Self::Session => "session",
+            Self::Sessions => "sessions",
+            Self::Statsd => "statsd",
+            Self::MetricBuckets => "metric_buckets",
+            Self::MetricMeta => "metric_meta",
+            Self::ClientReport => "client_report",
+            Self::Profile => "profile",
+            Self::ReplayEvent => "replay_event",
+            Self::ReplayRecording => "replay_recording",
+            Self::CheckIn => "check_in",
+            Self::Span => "span",
+            Self::OtelSpan => "otel_span",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    /// Returns the item type as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown(ref s) => s,
+            _ => self.name(),
+        }
+    }
 }
 
 impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Event => write!(f, "event"),
-            Self::Transaction => write!(f, "transaction"),
-            Self::Security => write!(f, "security"),
-            Self::Attachment => write!(f, "attachment"),
-            Self::FormData => write!(f, "form_data"),
-            Self::RawSecurity => write!(f, "raw_security"),
-            Self::Nel => write!(f, "nel"),
-            Self::UnrealReport => write!(f, "unreal_report"),
-            Self::UserReport => write!(f, "user_report"),
-            Self::UserReportV2 => write!(f, "feedback"),
-            Self::Session => write!(f, "session"),
-            Self::Sessions => write!(f, "sessions"),
-            Self::Statsd => write!(f, "statsd"),
-            Self::MetricBuckets => write!(f, "metric_buckets"),
-            Self::MetricMeta => write!(f, "metric_meta"),
-            Self::ClientReport => write!(f, "client_report"),
-            Self::Profile => write!(f, "profile"),
-            Self::ReplayEvent => write!(f, "replay_event"),
-            Self::ReplayRecording => write!(f, "replay_recording"),
-            Self::CheckIn => write!(f, "check_in"),
-            Self::Span => write!(f, "span"),
-            Self::OtelSpan => write!(f, "otel_span"),
-            Self::Unknown(s) => s.fmt(f),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -489,6 +504,11 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Indicates that this item should be combined into one payload with other replay item.
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    replay_combined_payload: bool,
+
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -576,6 +596,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                replay_combined_payload: false,
                 source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -739,6 +760,17 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
+    /// Returns if the payload's replay items should be combined into one kafka message.
+    #[cfg(feature = "processing")]
+    pub fn replay_combined_payload(&self) -> bool {
+        self.headers.replay_combined_payload
+    }
+
+    /// Sets the replay_combined_payload for this item.
+    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
+        self.headers.replay_combined_payload = combined_payload;
+    }
+
     /// Sets sample rates for this item.
     pub fn set_sample_rates(&mut self, sample_rates: Value) {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
@@ -858,7 +890,6 @@ impl Item {
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
-
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
@@ -1436,6 +1467,16 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_item_type_names() {
+        assert_eq!(ItemType::Span.name(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).name(), "unknown");
+        assert_eq!(ItemType::Span.as_str(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
+        assert_eq!(&ItemType::Span.to_string(), "span");
+        assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
     }
 
     #[test]

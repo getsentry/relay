@@ -2,13 +2,31 @@
 
 ## Unreleased
 
-**Internal**
+**Bug Fixes**:
+
+- Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
+
+**Internal**:
 
 - Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
+
+## 24.2.0
+
+**Bug Fixes**:
+
+- Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+- Fix span metric ingestion for http spans. ([#3111](https://github.com/getsentry/relay/pull/3111))
+- Normalize route in trace context data field. ([#3104](https://github.com/getsentry/relay/pull/3104))
 
 **Features**:
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
+
+**Internal**:
+
+- Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
+- Skip profiles without required measurements. ([#3112](https://github.com/getsentry/relay/pull/3112))
+- Push metrics summaries to their own topic. ([#3045](https://github.com/getsentry/relay/pull/3045))
 
 ## 24.1.2
 
@@ -24,6 +42,7 @@
 - Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
 - Drop timestamp from metrics partition key. ([#3025](https://github.com/getsentry/relay/pull/3025))
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+- Add support for combining replay envelope items. ([#3035](https://github.com/getsentry/relay/pull/3035))
 - Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
 - Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
 - Upgrade sqlparser to 0.43.1.([#3057](https://github.com/getsentry/relay/pull/3057))

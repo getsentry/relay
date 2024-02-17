@@ -3,8 +3,10 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
-use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
-use relay_protocol::{Annotated, Object, Value};
+use relay_event_schema::protocol::{
+    Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+};
+use relay_protocol::Annotated;
 
 use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
@@ -65,7 +67,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
-    let mut data: Object<Value> = Object::new();
+    let mut data = SpanData::default();
     let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {

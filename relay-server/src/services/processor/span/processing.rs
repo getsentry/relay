@@ -13,10 +13,10 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Object};
+use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -219,7 +219,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 
     if extract_transaction_span {
         // Extract tags to add to this span as well
-        let shared_tags = tag_extraction::extract_shared_tags(event);
+        let mut shared_tags = tag_extraction::extract_shared_tags(event);
+
+        if let Some(span_op) = transaction_span.op.value() {
+            shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
+        }
+
         transaction_span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()
@@ -294,7 +299,7 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range: timestmap_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -318,7 +323,7 @@ fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(&timestmap_range))?;
+        validate_span(span, Some(&timestamp_range))?;
     }
     process_value(
         annotated_span,
@@ -335,7 +340,7 @@ fn normalize(
         .and_then(|contexts| contexts.get::<BrowserContext>())
         .and_then(|v| v.name.value())
     {
-        let data = span.data.value_mut().get_or_insert_with(Object::new);
+        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
         data.insert(
             "browser.name".into(),
             Annotated::new(browser_name.to_owned().into()),

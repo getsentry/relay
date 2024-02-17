@@ -56,6 +56,10 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of bytes received by Relay for each individual envelope item type.
+    ///
+    /// Metric is tagged by the item type.
+    EnvelopeItemSize,
     /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
@@ -171,6 +175,7 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::EnvelopeItemSize => "event.item_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
@@ -343,12 +348,25 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     ProcessMessageDuration,
+    /// Timing in milliseconds for handling a project cache message.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    ProjectCacheMessageDuration,
     /// Timing in milliseconds for processing a message in the buffer service.
     ///
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
     BufferMessageProcessDuration,
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the processor does.
+    ProjectCacheTaskDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -384,7 +402,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
+            RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
+            RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
         }
     }
 }
@@ -595,6 +615,57 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
+    /// Number of times the batched metrics processing has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCalls,
+    /// Number of buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCount,
+    /// Bucket cost for all buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCost,
+    /// Number of times the metric encoding has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCalls,
+    /// Number of metric buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCount,
+    /// Bucket cost for all buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCost,
+    /// Number of times metric bucket rate limiting has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCalls,
+    /// Number of metric buckets rate limited in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCount,
+    /// Bucket cost for all buckets rate limited envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCost,
 }
 
 impl CounterMetric for RelayCounters {
@@ -633,6 +704,18 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
+            RelayCounters::ProcessorBatchedMetricsCalls => "processor.batched_metrics.calls",
+            RelayCounters::ProcessorBatchedMetricsCount => "processor.batched_metrics.count",
+            RelayCounters::ProcessorBatchedMetricsCost => "processor.batched_metrics.cost",
+            RelayCounters::ProcessorEncodeMetricsCalls => "processor.encode_metrics.calls",
+            RelayCounters::ProcessorEncodeMetricsCount => "processor.encode_metrics.count",
+            RelayCounters::ProcessorEncodeMetricsCost => "processor.encode_metrics.cost",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCalls => "processor.rate_limit_buckets.calls",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
         }
     }
 }

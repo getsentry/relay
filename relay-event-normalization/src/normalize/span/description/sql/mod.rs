@@ -1,6 +1,5 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 mod parser;
-pub use parser::parse_query;
 
 use std::borrow::Cow;
 use std::time::Instant;
@@ -316,6 +315,98 @@ mod tests {
         savepoint_quoted,
         "SAVEPOINT 'single_quoted_identifier'",
         "SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        savepoint_mysql,
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        savepoint_mysql_informed,
+        "mysql",
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint,
+        r#"ReLease SaVePoInT name"#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_mysql,
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        release_savepoint_mysql_informed,
+        "mysql",
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase,
+        "RELEASE SAVEPOINT unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase_semicolon,
+        "RELEASE SAVEPOINT unquoted_identifier;",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_lowercase,
+        "release savepoint unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted,
+        "RELEASE SAVEPOINT 'single_quoted_identifier'",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted_backtick,
+        "RELEASE SAVEPOINT `backtick_quoted_identifier`",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase_semicolon,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier;",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_lowercase,
+        "rollback to savepoint unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted,
+        "ROLLBACK TO SAVEPOINT 'single_quoted_identifier'",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted_backtick,
+        "ROLLBACK TO SAVEPOINT `backtick_quoted_identifier`",
+        "ROLLBACK TO SAVEPOINT %s"
     );
 
     scrub_sql_test!(
