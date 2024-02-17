@@ -32,6 +32,7 @@ use chrono::Utc;
 use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, TransactionMetricsConfig};
+use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
 use relay_server::envelope::AttachmentType;
@@ -49,24 +50,33 @@ use uuid::Uuid;
 pub mod mini_sentry;
 pub mod relay;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RawEnvelope {
     pub http_headers: HashMap<String, String>,
     pub project_id: ProjectId,
-    pub dsn_public_key: ProjectKey,
     pub headers: HashMap<String, Value>,
     pub items: Vec<RawItem>,
 }
 
-impl RawEnvelope {
-    pub fn new(dsn: ProjectKey) -> Self {
+impl Default for RawEnvelope {
+    fn default() -> Self {
         Self {
             project_id: ProjectId::new(42),
-            dsn_public_key: dsn,
             http_headers: Default::default(),
             headers: Default::default(),
             items: Default::default(),
         }
+    }
+}
+
+impl RawEnvelope {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn is_sampled(&self) -> Option<bool> {
+        dbg!(self);
+        todo!()
     }
 
     pub fn parse_dsn(dsn: &str) -> (ProjectKey, ProjectId) {
@@ -102,8 +112,7 @@ impl RawEnvelope {
             .into_iter()
             .collect();
 
-        let (public_key, project_id) =
-            Self::parse_dsn(&envelope_headers.get("dsn").unwrap().to_string());
+        let (_, project_id) = Self::parse_dsn(&envelope_headers.get("dsn").unwrap().to_string());
 
         let item_headers: Value = serde_json::from_str(parts[1]).unwrap();
         let item_headers: HashMap<String, Value> = item_headers
@@ -120,7 +129,6 @@ impl RawEnvelope {
         Self {
             http_headers: Default::default(),
             project_id,
-            dsn_public_key: public_key,
             headers: envelope_headers,
             items: vec![item],
         }
@@ -299,13 +307,13 @@ impl RawEnvelope {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PayLoad {
     Json(Value),
     Bytes(Vec<u8>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RawItem {
     headers: HashMap<String, Value>,
     payload: PayLoad,
@@ -326,6 +334,31 @@ impl RawItem {
             headers,
             payload: PayLoad::Bytes(vec),
         }
+    }
+
+    pub fn sampled(&self) -> Option<bool> {
+        dbg!(self);
+        self.payload()
+            .as_object()?
+            .get("contexts")?
+            .as_object()?
+            .get("trace")?
+            .as_object()?
+            .get("sampled")?
+            .as_bool()
+    }
+
+    pub fn event_id(&self) -> Option<EventId> {
+        let as_str = self
+            .payload()
+            .as_object()
+            .unwrap()
+            .get("event_id")?
+            .to_string();
+        let as_str = as_str.trim_matches('\"');
+        let id = Uuid::parse_str(as_str).unwrap();
+
+        Some(EventId(id))
     }
 
     pub fn from_parts(headers: HashMap<String, Value>, payload: PayLoad) -> Self {
@@ -356,6 +389,10 @@ impl RawItem {
             PayLoad::Json(json) => json.to_string(),
             PayLoad::Bytes(bytes) => String::from_utf8(bytes.clone()).unwrap(),
         }
+    }
+
+    pub fn payload(&self) -> Value {
+        serde_json::from_str(&self.payload_string()).unwrap()
     }
 
     pub fn inferred_content_type(&self) -> &'static str {
@@ -509,6 +546,9 @@ impl Default for TempDir {
 impl TempDir {
     pub fn create(&mut self, name: &str) -> PathBuf {
         let dir_path = self.base_dir.join(name);
+        if dir_path.exists() {
+            panic!("IT ALREADY EXISTS!!");
+        }
         std::fs::create_dir(&dir_path).expect("Failed to create config dir");
 
         dir_path
@@ -810,20 +850,6 @@ pub fn x_create_transaction_item(transaction: Option<&str>) -> (RawItem, Uuid, U
 
     let item = RawItem::from_json(item).set_type(ItemType::Transaction);
     (item, trace_id, event_id)
-}
-
-pub fn is_envelope_sampled(envelope: &Envelope) -> bool {
-    let bytes = &envelope.items().next().unwrap().payload();
-    let x: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-    dbg!(&x);
-    x.get("contexts")
-        .unwrap()
-        .get("trace")
-        .unwrap()
-        .get("sampled")
-        .unwrap()
-        .as_bool()
-        .unwrap()
 }
 
 pub fn get_topic_name(topic: &str) -> String {

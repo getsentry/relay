@@ -1,14 +1,15 @@
 use no_deadlocks::Mutex;
-use relay_event_schema::protocol::{Event, EventId};
-use relay_protocol::Annotated;
+use relay_event_schema::protocol::EventId;
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::{
+    random_port, ProjectResponse, RawEnvelope, RawItem, StateBuilder, DEFAULT_DSN_PUBLIC_KEY,
+};
 use axum::body::Bytes;
 use axum::response::Json;
 use axum::routing::{get, post};
@@ -22,8 +23,8 @@ use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
 use relay_sampling::config::SamplingRule;
 use relay_sampling::SamplingConfig;
-use relay_server::envelope::Envelope;
-use relay_server::envelope::Item;
+use relay_server::envelope::Envelope as RelayEnvelope;
+use relay_server::envelope::ItemType;
 use relay_server::services::outcome::OutcomeId;
 use relay_server::services::outcome::TrackRawOutcome;
 use relay_server::services::project::ProjectState;
@@ -115,7 +116,7 @@ impl CapturedOutcomes {
 
 #[derive(Default, Clone)]
 pub struct CapturedEnvelopes {
-    inner: Arc<Mutex<Vec<Envelope>>>,
+    inner: Arc<Mutex<Vec<RawEnvelope>>>,
 }
 
 impl CapturedEnvelopes {
@@ -128,24 +129,21 @@ impl CapturedEnvelopes {
         self
     }
 
-    pub fn pop(&self) -> Option<Envelope> {
+    pub fn pop(&self) -> Option<RawEnvelope> {
         self.inner.lock().unwrap().pop()
     }
 
-    pub fn push(&self, envelope: Envelope) {
+    pub fn push(&self, envelope: RawEnvelope) {
         self.inner.lock().unwrap().push(envelope);
     }
 
-    pub fn get_index(&self, idx: usize) -> Envelope {
+    pub fn get_index(&self, idx: usize) -> RawEnvelope {
         self.inner.lock().unwrap().remove(idx)
     }
 
     pub fn assert_all_sampled_status(&self, sampled_status: bool) -> &Self {
-        let guard = &self.inner.lock().unwrap();
-
-        for envelope in guard.iter() {
-            dbg!(&envelope);
-            assert_eq!(is_envelope_sampled(envelope), sampled_status);
+        for item in self.get_items() {
+            assert_eq!(item.sampled().unwrap(), sampled_status);
         }
 
         self
@@ -157,28 +155,16 @@ impl CapturedEnvelopes {
     }
 
     pub fn assert_item_qty(&self, qty: usize) -> &Self {
-        let guard = &self.inner.lock().unwrap();
-
-        let mut items = 0;
-
-        for envelope in guard.iter() {
-            items += Self::get_raw_items(envelope).len()
-        }
-
-        assert_eq!(items, qty);
-
+        assert_eq!(self.get_items().len(), qty);
         self
     }
 
     /// Fails if any itemtype is different than the given item type.
     pub fn assert_all_item_types(&self, ty: ItemType) -> &Self {
-        let guard = self.inner.lock().unwrap();
-
-        for envelope in guard.iter() {
-            for item in Self::get_raw_items(envelope) {
-                assert_eq!(item.ty(), ty);
-            }
+        for item in self.get_items() {
+            assert_eq!(item.ty(), ty);
         }
+
         self
     }
 
@@ -187,21 +173,9 @@ impl CapturedEnvelopes {
 
         let mut events = vec![];
         for envelope in guard.iter() {
-            events.push(RawEnvelope::from_envelope(envelope));
+            events.push(envelope.clone());
         }
         events
-    }
-
-    fn get_some_items(envelope: &Envelope) -> Vec<Item> {
-        envelope.items().cloned().collect()
-    }
-
-    fn get_raw_items(envelope: &Envelope) -> Vec<RawItem> {
-        Self::get_some_items(envelope)
-            .iter()
-            .map(|item| item.payload())
-            .map(RawItem::from_bytes)
-            .collect()
     }
 
     pub fn wait_for_n_envelope(&self, n: usize, timeout: u64) -> &Self {
@@ -227,87 +201,6 @@ impl CapturedEnvelopes {
         items
     }
 
-    /*
-
-    /// Checks if any of the items matches a given list of fields with their values in the payload.
-    ///
-    /// If `None` is provided as a value, it checks that the key is not there, since
-    /// it gets removed during deserialization of the payload.
-    pub fn assert_contains_item_payload<'a>(
-        &self,
-        payload_match: &[(&str, impl Into<Option<&'a str>> + Copy)],
-    ) -> &Self {
-        for item in self.get_items() {
-            // Assuming `item.payload` is a `String` containing JSON.
-            let item_payload = serde_json::from_slice::<serde_json::Value>(&item.payload())
-                .expect("Failed to deserialize payload");
-            let item_payload = item_payload
-                .as_object()
-                .expect("Payload is not a JSON object");
-
-            if payload_match
-                .iter()
-                .all(|&(field, expected_value)| match expected_value.into() {
-                    Some(expected) => item_payload
-                        .get(field)
-                        .map_or(false, |val| val.as_str() == Some(expected)),
-                    None => !item_payload.contains_key(field),
-                })
-            {
-                return self;
-            }
-        }
-
-        panic!("no items found with given payload values");
-    }
-
-
-    /// Checks if any of the items matches a given list of fields with their value.
-    ///
-    /// If `None` is provided as a value, it checks that the key is not there, since
-    /// it gets removed during deserialization.
-    pub fn assert_contains_item_header_value<'a>(&self, field: &str, value: Value) -> &Self {
-        for item in self.get_items() {
-            let item_headers = serde_json::to_value(&item.headers).unwrap();
-            let item_headers = item_headers.as_object().unwrap();
-            if let Some(x) = item_headers.get(field) {
-                if x == &value {
-                    return self;
-                }
-            }
-        }
-
-        panic!("no items found with given item headers values");
-    }
-
-    /// Checks if any of the items matches a given list of fields with their value.
-    ///
-    /// If `None` is provided as a value, it checks that the key is not there, since
-    /// it gets removed during deserialization.
-    pub fn assert_contains_item_headers<'a>(
-        &self,
-        header_match: &[(&str, impl Into<Option<&'a str>> + Copy)],
-    ) -> &Self {
-        for item in self.get_items() {
-            let item_headers = serde_json::to_value(&item.headers).unwrap();
-            let item_headers = item_headers.as_object().unwrap();
-
-            if header_match
-                .iter()
-                .all(|&(field, expected_value)| match expected_value.into() {
-                    Some(expected) => item_headers.get(field).is_some_and(|val| val == expected),
-                    None => !item_headers.contains_key(field),
-                })
-            {
-                return self;
-            }
-        }
-
-        panic!("no items found with given item headers values");
-    }
-
-    */
-
     pub fn assert_n_item_types(&self, ty: ItemType, n: usize) -> &Self {
         let mut matches = 0;
 
@@ -320,27 +213,6 @@ impl CapturedEnvelopes {
 
         assert_eq!(matches, n);
         self
-    }
-
-    fn _val_getter(val: Value, path: &str) -> Option<String> {
-        let segments: Vec<&str> = path.split('/').collect();
-
-        let mut current_val = &val;
-        for segment in segments {
-            if segment.is_empty() {
-                continue;
-            }
-
-            current_val = match current_val {
-                Value::Object(obj) => obj.get(segment),
-                _ => return None,
-            }?;
-        }
-
-        match current_val {
-            Value::String(s) => Some(s.clone()),
-            _ => current_val.to_string().into(),
-        }
     }
 
     pub fn wait_for_envelope(&self, timeout: u64) -> &Self {
@@ -358,22 +230,14 @@ impl CapturedEnvelopes {
     }
 
     pub fn assert_empty(&self) -> &Self {
-        self.assert_envelope_qty(0);
-        self
+        self.assert_envelope_qty(0)
     }
 
     /// Checks if any item corresponds to the given event id.
     pub fn assert_contains_event_id(&self, event_id: EventId) -> &Self {
-        let guard = &self.inner.lock().unwrap();
-
-        for envelope in guard.iter() {
-            for item in Self::get_some_items(envelope) {
-                let bytes = &item.payload();
-                let as_val: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-                let as_str = as_val.get("event_id").unwrap().as_str().unwrap();
-                let item_event_id = EventId::from_str(as_str).unwrap();
-
-                if dbg!(item_event_id) == dbg!(event_id) {
+        for item in self.get_items() {
+            if let Some(id) = item.event_id() {
+                if id == event_id {
                     return self;
                 }
             }
@@ -383,22 +247,10 @@ impl CapturedEnvelopes {
     }
 }
 
-pub fn event_from_json_payload(item: &Item) -> Event {
-    let event = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-
-    event.into_value().unwrap()
-}
-
-use relay_server::envelope::ItemType;
-
 pub struct MiniSentry {
     pub inner: Arc<Mutex<MiniSentryInner>>,
 }
 
-use crate::{
-    is_envelope_sampled, random_port, ProjectResponse, RawEnvelope, RawItem, StateBuilder,
-    DEFAULT_DSN_PUBLIC_KEY,
-};
 pub struct MiniSentryInner {
     server_address: SocketAddr,
     captured_envelopes: CapturedEnvelopes,
@@ -467,28 +319,11 @@ impl MiniSentry {
         self.inner.lock().unwrap().captured_outcomes.clone()
     }
 
-    pub fn try_get_captured_envelope(&self, timeout: u64) -> Option<Envelope> {
-        self.get_captured_envelopes(timeout).unwrap().pop()
-    }
-
-    pub fn get_captured_envelope(&self, timeout: u64) -> Envelope {
-        self.try_get_captured_envelope(timeout).unwrap()
-    }
-
     fn _take_n_envelopes<const N: usize>(&self) -> [RawEnvelope; N] {
         let envelopes = self.captured_envelopes().get_envelopes();
         assert_eq!(envelopes.len(), N);
 
         envelopes.try_into().unwrap()
-    }
-
-    pub fn get_captured_envelope_items(&self, timeout: u64) -> Vec<Item> {
-        let envelope = self.get_captured_envelope(timeout);
-        let mut items = vec![];
-        for item in envelope.items() {
-            items.push(item.clone());
-        }
-        items
     }
 
     pub fn add_sampling_rule(self, rule: SamplingRule) -> Self {
@@ -545,18 +380,6 @@ impl MiniSentry {
         let binding = self.inner.lock().unwrap();
         let x = binding.project_configs.get(&project_id)?;
         x.public_keys[0].clone().into()
-    }
-
-    pub fn dsn_public_key(&self) -> ProjectKey {
-        self.get_dsn_public_key_configs(ProjectId::new(42))
-            .unwrap()
-            .public_key
-    }
-
-    pub fn get_dsn_public_key(&self, project_id: ProjectId) -> ProjectKey {
-        self.get_dsn_public_key_configs(project_id)
-            .unwrap()
-            .public_key
     }
 
     pub fn new() -> Self {
@@ -725,7 +548,8 @@ fn make_handle_envelope(
         let mini_sentry = mini_sentry.clone();
         Box::pin(async move {
             let decompressed = decompress(&bytes).unwrap_or(bytes.to_vec());
-            let envelope: Envelope = *Envelope::parse_bytes(decompressed.into()).unwrap();
+            let envelope: RelayEnvelope = *RelayEnvelope::parse_bytes(decompressed.into()).unwrap();
+            let envelope = RawEnvelope::from_envelope(&envelope);
             mini_sentry
                 .lock()
                 .unwrap()

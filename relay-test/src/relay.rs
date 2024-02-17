@@ -31,9 +31,10 @@ pub trait Upstream {
     fn url(&self) -> String;
     fn internal_error_dsn(&self) -> String;
     fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey);
+    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey;
 }
 
-impl Upstream for Relay {
+impl<U: Upstream> Upstream for Relay<'_, U> {
     fn url(&self) -> String {
         self.url()
     }
@@ -44,6 +45,10 @@ impl Upstream for Relay {
 
     fn insert_known_relay(&self, _relay_id: Uuid, _public_key: PublicKey) {
         // idk man
+    }
+
+    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
+        self.upstream.public_dsn_key(id)
     }
 }
 
@@ -67,6 +72,10 @@ impl Upstream for MiniSentry {
                 internal: true,
             },
         );
+    }
+
+    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
+        self.get_dsn_public_key_configs(id).unwrap().public_key
     }
 }
 
@@ -110,19 +119,6 @@ fn default_opts(url: String, internal_error_dsn: String, port: u16, host: String
     })
 }
 
-pub struct Relay {
-    server_address: SocketAddr,
-    _process: BackgroundProcess,
-    _relay_id: Uuid,
-    _secret_key: SecretKey,
-    _health_check_passed: bool,
-    _config: Arc<Config>,
-    _client: reqwest::Client,
-    upstream_dsn: String,
-}
-
-impl Relay {}
-
 pub struct RelayBuilder<'a, U: Upstream> {
     pub config: serde_json::Value,
     mini_version: Option<RelayVersion>,
@@ -163,14 +159,14 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
         self
     }
 
-    pub fn build(self) -> Relay {
+    pub fn build(self) -> Relay<'a, U> {
         let config = Config::from_json_value(self.config).unwrap();
         let relay_bin = get_relay_binary().unwrap();
 
         let mut dir = TempDir::default();
         let dir = dbg!(dir.create("relay"));
 
-        let credentials = Relay::load_credentials(&config, &dir);
+        let credentials = load_credentials(&config, &dir);
 
         self.upstream
             .insert_known_relay(credentials.id, credentials.public_key);
@@ -186,7 +182,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
         );
 
         // We need this delay before we start sending to relay.
-        std::thread::sleep(Duration::from_millis(300));
+        std::thread::sleep(Duration::from_millis(500));
 
         Relay {
             _process: process,
@@ -197,11 +193,24 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
             _config: Arc::new(config),
             _client: reqwest::Client::new(),
             upstream_dsn: self.upstream.internal_error_dsn(),
+            upstream: self.upstream,
         }
     }
 }
 
-impl Relay {
+pub struct Relay<'a, U: Upstream> {
+    server_address: SocketAddr,
+    _process: BackgroundProcess,
+    _relay_id: Uuid,
+    _secret_key: SecretKey,
+    _health_check_passed: bool,
+    _config: Arc<Config>,
+    _client: reqwest::Client,
+    upstream_dsn: String,
+    upstream: &'a U,
+}
+
+impl<'a, U: Upstream> Relay<'a, U> {
     pub fn server_address(&self) -> SocketAddr {
         self.server_address
     }
@@ -214,42 +223,11 @@ impl Relay {
         format!("http://{public_key}:@{host}:{port}/42")
     }
 
-    fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
-        dbg!(&relay_dir);
-        let relay_bin = get_relay_binary().unwrap();
-        let config_path = relay_dir.join("config.yml");
-
-        std::fs::write(
-            config_path.as_path(),
-            serde_yaml::to_string(&config.values).unwrap(),
-        )
-        .unwrap();
-
-        dbg!(&relay_bin);
-        dbg!(&config_path.parent());
-        let output = std::process::Command::new(relay_bin.as_path())
-            .arg("-c")
-            .arg(config_path.parent().unwrap())
-            .arg("credentials")
-            .arg("generate")
-            .output()
-            .unwrap();
-
-        if !output.status.success() {
-            dbg!(&output);
-            panic!("Command execution failed");
-        }
-        let credentials_path = relay_dir.join("credentials.json");
-
-        let credentials_str = std::fs::read_to_string(credentials_path).unwrap();
-        serde_json::from_str(&credentials_str).expect("Failed to parse JSON")
-    }
-
-    pub fn new<U: Upstream + 'static>(upstream: &U) -> Self {
+    pub fn new(upstream: &'a U) -> Relay<'a, U> {
         Self::builder(upstream).build()
     }
 
-    pub fn builder<U: Upstream + 'static>(upstream: &U) -> RelayBuilder<U> {
+    pub fn builder(upstream: &U) -> RelayBuilder<U> {
         let host = "127.0.0.1".into();
         let port = random_port();
         let url = upstream.url();
@@ -292,9 +270,11 @@ impl Relay {
             "Content-Type",
             HeaderValue::from_static("application/x-sentry-envelope"),
         );
+
+        let dsn_key = self.public_dsn_key(envelope.project_id);
         headers.insert(
             "X-Sentry-Auth",
-            HeaderValue::from_str(&self.get_auth_header(envelope.dsn_public_key)).unwrap(),
+            HeaderValue::from_str(&self.get_auth_header(dsn_key)).unwrap(),
         );
 
         let data = envelope.serialize();
@@ -379,4 +359,35 @@ fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     }
 
     Ok(download_path)
+}
+
+fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
+    dbg!(&relay_dir);
+    let relay_bin = get_relay_binary().unwrap();
+    let config_path = relay_dir.join("config.yml");
+
+    std::fs::write(
+        config_path.as_path(),
+        serde_yaml::to_string(&config.values).unwrap(),
+    )
+    .unwrap();
+
+    dbg!(&relay_bin);
+    dbg!(&config_path.parent());
+    let output = std::process::Command::new(relay_bin.as_path())
+        .arg("-c")
+        .arg(config_path.parent().unwrap())
+        .arg("credentials")
+        .arg("generate")
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        dbg!(&output);
+        panic!("Command execution failed");
+    }
+    let credentials_path = relay_dir.join("credentials.json");
+
+    let credentials_str = std::fs::read_to_string(credentials_path).unwrap();
+    serde_json::from_str(&credentials_str).expect("Failed to parse JSON")
 }
