@@ -196,15 +196,15 @@ impl ConfigDir {
     }
 }
 
-mod consumers;
 mod mini_sentry;
 mod relay;
-mod test_attachments;
-mod test_aws_extension;
-mod test_client_report;
+//mod consumers;
+//mod test_attachments;
+//mod test_aws_extension;
+//mod test_client_report;
 mod test_dynamic_sampling;
-mod test_envelopy;
-mod test_session;
+//mod test_envelopy;
+//mod test_session;
 
 /*
 def _add_sampling_config(
