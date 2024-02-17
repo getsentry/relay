@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError};
 
 use hyper::http::HeaderName;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use axum::http::HeaderMap;
 use relay_auth::{PublicKey, RelayVersion, SecretKey};
@@ -11,7 +11,12 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_config::Credentials;
 use relay_config::RelayInfo;
+use reqwest::{self, Response};
 use serde_json::{json, Value};
+use std::env;
+use std::fs::{self, File};
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -19,7 +24,7 @@ use uuid::Uuid;
 use crate::mini_sentry::MiniSentry;
 use crate::{
     merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, RawEnvelope,
-    TempDir, DEFAULT_DSN_PUBLIC_KEY,
+    TempDir,
 };
 
 pub trait Upstream {
@@ -159,36 +164,29 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
     }
 
     pub fn build(self) -> Relay {
-        dbg!();
         let config = Config::from_json_value(self.config).unwrap();
         let relay_bin = get_relay_binary().unwrap();
-        dbg!();
 
         let mut dir = TempDir::default();
         let dir = dbg!(dir.create("relay"));
 
         let credentials = Relay::load_credentials(&config, &dir);
-        dbg!();
 
         self.upstream
             .insert_known_relay(credentials.id, credentials.public_key);
-        dbg!();
 
         let process = BackgroundProcess::new(
             relay_bin.as_path().to_str().unwrap(),
             &["-c", dir.as_path().to_str().unwrap(), "run"],
         );
-        dbg!();
 
         let server_address = SocketAddr::new(
             std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             config.values.relay.port,
         );
-        dbg!();
 
         // We need this delay before we start sending to relay.
-        std::thread::sleep(Duration::from_secs(1));
-        dbg!();
+        std::thread::sleep(Duration::from_millis(300));
 
         Relay {
             _process: process,
@@ -329,11 +327,6 @@ impl Relay {
         self.send_envelope_to_url(envelope, &url);
     }
 }
-use reqwest::{self, Response};
-use std::env;
-use std::fs::{self, File};
-use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let version = "latest";

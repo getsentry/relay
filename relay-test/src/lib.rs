@@ -23,34 +23,31 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use no_deadlocks::Mutex;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
 use std::process::Child;
 
 use chrono::Utc;
-use lazy_static::lazy_static;
 use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, TransactionMetricsConfig};
-use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
-use relay_server::envelope::ContentType;
+use relay_server::envelope::AttachmentType;
 use relay_server::envelope::Envelope;
-use relay_server::envelope::Item;
 use relay_server::envelope::ItemType;
-use relay_server::extractors::PartialDsn;
 use relay_server::services::project::ProjectState;
 use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::str::FromStr;
 use tokio::task::JoinHandle;
-use uuid::fmt::Simple;
 use uuid::Uuid;
+
+pub mod mini_sentry;
+pub mod relay;
 
 #[derive(Debug)]
 pub struct RawEnvelope {
@@ -302,9 +299,6 @@ impl RawEnvelope {
     }
 }
 
-use relay_server::envelope::AttachmentType;
-use std::str::FromStr;
-
 #[derive(Debug)]
 pub enum PayLoad {
     Json(Value),
@@ -339,12 +333,8 @@ impl RawItem {
     }
 
     pub fn ty(&self) -> ItemType {
-        dbg!(self);
         let as_str = self.headers.get("type").unwrap().to_string();
-        dbg!(&as_str);
         let as_str = as_str.trim_matches('\"');
-        dbg!(&as_str);
-
         ItemType::from_str(as_str).unwrap()
     }
 
@@ -471,21 +461,11 @@ pub fn random_port() -> u16 {
 
 pub const DEFAULT_DSN_PUBLIC_KEY: &str = "31a5a894b4524f74a9a8d0e27e21ba91";
 
-lazy_static! {
-    static ref KNOWN_RELAYS: Mutex<HashMap<String, RelayInfo>> = Mutex::new(HashMap::new());
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectResponse {
     configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
     pending: Vec<ProjectKey>,
     global: Option<GlobalConfig>,
-}
-
-pub fn dsn(public_key: ProjectKey) -> PartialDsn {
-    format!("https://{}:@sentry.io/42", public_key)
-        .parse()
-        .unwrap()
 }
 
 pub struct BackgroundProcess {
@@ -534,9 +514,6 @@ impl TempDir {
         dir_path
     }
 }
-
-pub mod mini_sentry;
-pub mod relay;
 
 #[derive(Clone)]
 pub struct StateBuilder {
@@ -682,7 +659,6 @@ pub fn new_sampling_rule(
     user_segments: Option<()>,
     environments: Option<()>,
 ) -> SamplingRule {
-    // let releases: Vec<String> = releases.iter().map(|x| x.to_string()).collect();
     let releases: Vec<String> = releases.iter().map(|x| format!("{:.1}", x)).collect();
 
     let rule_type = rule_type.unwrap_or(RuleType::Trace);
@@ -737,71 +713,6 @@ pub fn new_sampling_rule(
     .unwrap()
 }
 
-pub fn get_trace_info(
-    trace_id: Uuid,
-    public_key: ProjectKey,
-    release: Option<String>,
-    user_segment: Option<String>,
-    client_sample_rate: Option<f32>,
-    transaction: Option<String>,
-    sampled: Option<bool>,
-) -> Value {
-    let mut trace_info = Map::new();
-    trace_info.insert("trace_id".to_string(), json!(trace_id.to_string()));
-    trace_info.insert("public_key".to_string(), json!(public_key));
-
-    if let Some(release) = release {
-        trace_info.insert("release".to_string(), json!(release));
-    }
-
-    if let Some(user_segment) = user_segment {
-        trace_info.insert("user_segment".to_string(), json!(user_segment));
-    }
-
-    if let Some(client_sample_rate) = client_sample_rate {
-        trace_info.insert("client_sample_rate".to_string(), json!(client_sample_rate));
-    }
-
-    if let Some(transaction) = transaction {
-        trace_info.insert("transaction".to_string(), json!(transaction));
-    }
-
-    if let Some(sampled) = sampled {
-        trace_info.insert("sampled".to_string(), json!(sampled));
-    }
-
-    Value::Object(trace_info)
-}
-
-pub fn create_transaction_item(
-    trace_id: Option<Uuid>,
-    event_id: Option<EventId>,
-    transaction: Option<&str>,
-) -> (Item, Simple, EventId) {
-    let trace_id = trace_id.unwrap_or(Uuid::new_v4()).simple();
-    let event_id = event_id.unwrap_or_default();
-    let payload = json!(
-    {
-    "event_id": event_id,
-    "type": "transaction",
-    "transaction": transaction.unwrap_or("tr1"),
-    "start_timestamp": 1597976392.6542819,
-    "timestamp": 1597976400.6189718,
-    "contexts": {
-        "trace": {
-            "trace_id": trace_id,
-            "span_id": "FA90FDEAD5F74052",
-            "type": "trace",
-        }
-    },
-    "spans": [],
-    "extra": {"id": event_id},
-    });
-    let mut item = Item::new(ItemType::Transaction);
-    item.set_payload(ContentType::Json, payload.to_string());
-    (item, trace_id, event_id)
-}
-
 pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
     dbg!(&base, &merge_value, &keys);
     let mut base_map = base.as_object_mut().expect("base should be an object");
@@ -837,56 +748,6 @@ pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
     }
 
     base
-}
-
-///
-///
-/// we wanna merge two maps of Value
-/// we should use get_or_insert_with or smth
-///
-///
-///
-
-pub fn get_nested_value(val: &Value, path: &str) -> Value {
-    let keys: Vec<&str> = path
-        .split('/')
-        .map(|s| s.trim()) // Trimming whitespace from each key
-        .collect();
-    keys.iter()
-        .fold(val, |acc, key| acc.as_object().unwrap().get(*key).unwrap())
-        .clone() // Cloning the final result to get an owned Value
-}
-
-pub fn get_nested_bool(val: &Value, path: &str) -> bool {
-    get_nested_value(val, path).as_bool().unwrap()
-}
-
-pub fn get_nested_float(val: &Value, path: &str) -> f64 {
-    get_nested_value(val, path).as_f64().unwrap()
-}
-
-pub fn get_nested_int(val: &Value, path: &str) -> i64 {
-    get_nested_value(val, path).as_i64().unwrap()
-}
-
-pub fn get_nested_string(val: &Value, path: &str) -> String {
-    get_nested_value(val, path).to_string()
-}
-
-pub fn merge_maps(base: &mut Map<String, Value>, mut merge: Map<String, Value>) {
-    let key: Vec<&String> = merge.keys().take(1).collect();
-    let key = key[0].to_owned();
-
-    dbg!(&key, &base);
-
-    let base_inner = base.get_mut(&key).unwrap().as_object_mut().unwrap();
-    let merge_inner = merge.get_mut(&key).unwrap().as_object().unwrap();
-
-    for (key, val) in merge_inner.iter() {
-        base_inner.insert(key.to_owned(), val.clone());
-    }
-
-    dbg!(&base);
 }
 
 pub fn outcomes_enabled_config() -> Value {
