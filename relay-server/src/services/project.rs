@@ -703,24 +703,22 @@ impl Project {
 
                 let buckets = self.rate_limit_metrics(&state, buckets, outcome_aggregator.clone());
 
-                if buckets.is_empty() {
-                    return;
+                if !buckets.is_empty() {
+                    // We can send metrics straight to the aggregator.
+                    relay_log::debug!("sending metrics straight to aggregator");
+
+                    // TODO: When the state is present but expired, we should send buckets
+                    // to the metrics buffer instead. In practice, the project state should be
+                    // refreshed at the time when the buckets emerge from the aggregator though.
+
+                    self.rate_limit_and_merge_buckets(
+                        state,
+                        buckets,
+                        aggregator,
+                        envelope_processor,
+                        outcome_aggregator,
+                    );
                 }
-
-                // We can send metrics straight to the aggregator.
-                relay_log::debug!("sending metrics straight to aggregator");
-
-                // TODO: When the state is present but expired, we should send buckets
-                // to the metrics buffer instead. In practice, the project state should be
-                // refreshed at the time when the buckets emerge from the aggregator though.
-
-                self.rate_limit_and_merge_buckets(
-                    state,
-                    buckets,
-                    aggregator,
-                    envelope_processor,
-                    outcome_aggregator,
-                );
             }
             State::Pending(inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.

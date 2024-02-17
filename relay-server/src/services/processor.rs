@@ -986,7 +986,7 @@ impl EnvelopeProcessorService {
         // remove it from the processing state eventually.
         let mut envelope_limiter =
             EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas.iter(), item_scope, quantity, false)
+                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
             });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
@@ -1787,7 +1787,7 @@ impl EnvelopeProcessorService {
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                quotas.iter(),
+                quotas,
                 item_scoping,
                 bucket_limiter.transaction_count(),
                 over_accept_once,
@@ -1823,7 +1823,7 @@ impl EnvelopeProcessorService {
         &'a self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        dynamic_quotas: DynamicQuotas<'a>,
+        quotas: DynamicQuotas<'a>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1844,14 +1844,8 @@ impl EnvelopeProcessorService {
                     namespace: Some(namespace),
                 };
 
-                (!self.rate_limit_buckets(
-                    item_scoping,
-                    &buckets,
-                    dynamic_quotas.iter(),
-                    mode,
-                    rate_limiter,
-                ))
-                .then_some(buckets)
+                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
+                    .then_some(buckets)
             })
             .flatten()
             .collect()
@@ -1863,7 +1857,7 @@ impl EnvelopeProcessorService {
         &'a self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: impl Iterator<Item = &'a Quota>,
+        quotas: impl IntoIterator<Item = &'a Quota>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {

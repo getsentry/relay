@@ -122,6 +122,7 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
 }
 
 /// Container for global and project level [`Quota`].
+#[derive(Copy, Clone)]
 pub struct DynamicQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
@@ -136,14 +137,27 @@ impl<'a> DynamicQuotas<'a> {
         }
     }
 
-    /// Returns the combination of global and project quotas.
-    pub fn iter(&self) -> impl Iterator<Item = &'a Quota> {
-        self.global_quotas.iter().chain(self.project_quotas)
-    }
-
     /// Returns `true` if both global quotas and project quotas are empty.
     pub fn is_empty(&self) -> bool {
-        self.global_quotas.is_empty() && self.project_quotas.is_empty()
+        self.len() == 0
+    }
+
+    /// Returns the number of both global and project quotas.
+    pub fn len(&self) -> usize {
+        self.global_quotas.len() + self.project_quotas.len()
+    }
+}
+
+use std::iter::Chain;
+use std::slice::Iter;
+
+// Implementing IntoIterator for &DynamicQuotas to allow iterating over the quotas.
+impl<'a> IntoIterator for DynamicQuotas<'a> {
+    type Item = &'a Quota;
+    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.global_quotas.iter().chain(self.project_quotas.iter())
     }
 }
 
@@ -207,10 +221,7 @@ mod tests {
 
         let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
 
-        for (expected_id, quota) in ["foo", "bar", "baz", "qux"]
-            .iter()
-            .zip(dynamic_quotas.iter())
-        {
+        for (expected_id, quota) in ["foo", "bar", "baz", "qux"].iter().zip(dynamic_quotas) {
             assert_eq!(Some(expected_id.to_string()), quota.id);
         }
     }

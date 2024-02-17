@@ -213,7 +213,7 @@ impl RedisRateLimiter {
     /// useful to check for required quotas in a different data category.
     pub fn is_rate_limited<'a>(
         &self,
-        quotas: impl Iterator<Item = &'a Quota>,
+        quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
         over_accept_once: bool,
@@ -366,7 +366,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited(quotas.iter(), scoping, 1, false)
+            .is_rate_limited(quotas, scoping, 1, false)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -411,7 +411,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas.iter(), scoping, 1, false)
+                .is_rate_limited(quotas, scoping, 1, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -461,7 +461,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas.iter(), scoping, 1, false)
+                .is_rate_limited(quotas, scoping, 1, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -511,25 +511,25 @@ mod tests {
 
         // limit is 1, so first call not rate limited
         assert!(!rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 1, false)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
 
         // quota is now exhausted
         assert!(rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 1, false)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 0, false)
+            .is_rate_limited(quotas, scoping, 0, false)
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 1, false)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
     }
@@ -562,28 +562,28 @@ mod tests {
 
         // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 1, true)
+            .is_rate_limited(quotas, scoping, 1, true)
             .unwrap()
             .is_limited();
         assert!(!is_limited);
 
         // go over limit, but first call is over-accepted
         let is_limited = rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 2, true)
+            .is_rate_limited(quotas, scoping, 2, true)
             .unwrap()
             .is_limited();
         assert!(!is_limited);
 
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 0, true)
+            .is_rate_limited(quotas, scoping, 0, true)
             .unwrap()
             .is_limited();
         assert!(is_limited);
 
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
-            .is_rate_limited(quotas.iter(), scoping, 1, true)
+            .is_rate_limited(quotas, scoping, 1, true)
             .unwrap()
             .is_limited();
         assert!(is_limited);
@@ -651,7 +651,7 @@ mod tests {
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas.iter(), scoping, 1, false)
+                .is_rate_limited(quotas, scoping, 1, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -701,7 +701,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas.iter(), scoping, 100, false)
+                .is_rate_limited(quotas, scoping, 100, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
