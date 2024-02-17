@@ -62,7 +62,7 @@ fn test_it_does_not_sample_error() {
     let sentry = MiniSentry::new().add_project_state(project_state);
     let relay = Relay::builder(&sentry).enable_outcomes().build();
 
-    let (item, trace_id, event_id) = create_error_item(public_key);
+    let (item, trace_id, event_id) = create_error_item();
 
     // create an envelope with a trace context that is initiated by this project (for simplicity)
     let envelope = RawEnvelope::new(sentry.dsn_public_key())
