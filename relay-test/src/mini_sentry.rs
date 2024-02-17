@@ -1,10 +1,11 @@
 use no_deadlocks::Mutex;
 use relay_event_schema::protocol::{Event, EventId};
-use relay_protocol::{Annotated, Getter};
+use relay_protocol::Annotated;
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,15 +19,15 @@ use relay_auth::{
 };
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
 use relay_sampling::config::SamplingRule;
 use relay_sampling::SamplingConfig;
-use relay_server::actors::outcome::OutcomeId;
-use relay_server::actors::outcome::TrackRawOutcome;
-use relay_server::actors::project::ProjectState;
 use relay_server::envelope::Envelope;
 use relay_server::envelope::Item;
-use serde_json::{json, Value};
+use relay_server::services::outcome::OutcomeId;
+use relay_server::services::outcome::TrackRawOutcome;
+use relay_server::services::project::ProjectState;
+use serde_json::Value;
 use std::future::Future;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
@@ -161,7 +162,7 @@ impl CapturedEnvelopes {
         let mut items = 0;
 
         for envelope in guard.iter() {
-            items += envelope.items.len();
+            items += Self::get_raw_items(envelope).len()
         }
 
         assert_eq!(items, qty);
@@ -174,62 +175,33 @@ impl CapturedEnvelopes {
         let guard = self.inner.lock().unwrap();
 
         for envelope in guard.iter() {
-            for item in &envelope.items {
-                assert_eq!(item.headers.ty, ty);
+            for item in Self::get_raw_items(envelope) {
+                assert_eq!(item.ty(), ty);
             }
         }
         self
     }
 
-    pub fn get_envelopes(&self) -> Vec<Envelope> {
+    pub fn get_envelopes(&self) -> Vec<RawEnvelope> {
         let guard = self.inner.lock().unwrap();
 
         let mut events = vec![];
         for envelope in guard.iter() {
-            events.push(envelope.clone());
+            events.push(RawEnvelope::from_envelope(envelope));
         }
         events
     }
 
-    pub fn get_events(&self) -> Vec<Event> {
-        let guard = self.inner.lock().unwrap();
-
-        let mut events = vec![];
-        for envelope in guard.iter() {
-            for item in &envelope.items {
-                if item.headers.ty == ItemType::Event {
-                    let event = event_from_json_payload(item);
-                    events.push(event);
-                }
-            }
-        }
-        events
+    fn get_some_items(envelope: &Envelope) -> Vec<Item> {
+        envelope.items().cloned().collect()
     }
 
-    pub fn assert_logentries(&self, val: &str) -> &Self {
-        for event in self.get_events() {
-            dbg!(&event);
-            let log = event.logentry.value().unwrap().formatted.as_str().unwrap();
-            assert_eq!(log, val);
-        }
-        self
-    }
-
-    pub fn assert_event_value(&self, path: &str, value: &str) -> &Self {
-        let guard = self.inner.lock().unwrap();
-
-        for envelope in guard.iter() {
-            for item in &envelope.items {
-                if item.headers.ty == ItemType::Event {
-                    let event = event_from_json_payload(item);
-                    dbg!(&event);
-                    let x = event.get_value(path).unwrap().as_str().unwrap();
-
-                    assert_eq!(x, value);
-                }
-            }
-        }
-        self
+    fn get_raw_items(envelope: &Envelope) -> Vec<RawItem> {
+        Self::get_some_items(envelope)
+            .iter()
+            .map(|item| item.payload())
+            .map(RawItem::from_bytes)
+            .collect()
     }
 
     pub fn wait_for_n_envelope(&self, n: usize, timeout: u64) -> &Self {
@@ -243,18 +215,19 @@ impl CapturedEnvelopes {
         panic!("timed out while waiting for envelope");
     }
 
-    fn get_items(&self) -> Vec<Item> {
-        let guard = self.inner.lock().unwrap();
+    fn get_items(&self) -> Vec<RawItem> {
         let mut items = vec![];
 
-        for envelope in guard.iter() {
-            for item in &envelope.items {
-                items.push(item.clone());
+        for envelope in self.get_envelopes() {
+            for item in envelope.items {
+                items.push(item);
             }
         }
 
         items
     }
+
+    /*
 
     /// Checks if any of the items matches a given list of fields with their values in the payload.
     ///
@@ -266,7 +239,7 @@ impl CapturedEnvelopes {
     ) -> &Self {
         for item in self.get_items() {
             // Assuming `item.payload` is a `String` containing JSON.
-            let item_payload = serde_json::from_slice::<serde_json::Value>(&item.payload)
+            let item_payload = serde_json::from_slice::<serde_json::Value>(&item.payload())
                 .expect("Failed to deserialize payload");
             let item_payload = item_payload
                 .as_object()
@@ -288,9 +261,6 @@ impl CapturedEnvelopes {
         panic!("no items found with given payload values");
     }
 
-    pub fn assert_contains_transaction_value(&self, transaction: &str) -> &Self {
-        self.assert_contains_item_payload(&[("transaction", transaction)])
-    }
 
     /// Checks if any of the items matches a given list of fields with their value.
     ///
@@ -336,11 +306,14 @@ impl CapturedEnvelopes {
         panic!("no items found with given item headers values");
     }
 
+    */
+
     pub fn assert_n_item_types(&self, ty: ItemType, n: usize) -> &Self {
         let mut matches = 0;
 
         for item in self.get_items() {
-            if item.headers.ty == ty {
+            dbg!(&item);
+            if dbg!(item.ty()) == ty {
                 matches += 1;
             }
         }
@@ -349,7 +322,7 @@ impl CapturedEnvelopes {
         self
     }
 
-    fn val_getter(val: Value, path: &str) -> Option<String> {
+    fn _val_getter(val: Value, path: &str) -> Option<String> {
         let segments: Vec<&str> = path.split('/').collect();
 
         let mut current_val = &val;
@@ -394,8 +367,8 @@ impl CapturedEnvelopes {
         let guard = &self.inner.lock().unwrap();
 
         for envelope in guard.iter() {
-            for item in &envelope.items {
-                let bytes = &item.payload;
+            for item in Self::get_some_items(envelope) {
+                let bytes = &item.payload();
                 let as_val: serde_json::Value = serde_json::from_slice(bytes).unwrap();
                 let as_str = as_val.get("event_id").unwrap().as_str().unwrap();
                 let item_event_id = EventId::from_str(as_str).unwrap();
@@ -423,7 +396,8 @@ pub struct MiniSentry {
 }
 
 use crate::{
-    dsn, is_envelope_sampled, random_port, ProjectResponse, StateBuilder, DEFAULT_DSN_PUBLIC_KEY,
+    is_envelope_sampled, random_port, ProjectResponse, RawEnvelope, RawItem, StateBuilder,
+    DEFAULT_DSN_PUBLIC_KEY,
 };
 pub struct MiniSentryInner {
     server_address: SocketAddr,
@@ -433,6 +407,7 @@ pub struct MiniSentryInner {
     server_handle: Option<tokio::task::JoinHandle<()>>,
     runtime: Runtime,
     project_configs: HashMap<ProjectId, ProjectState>,
+    pub global_config: GlobalConfig,
 }
 
 impl MiniSentryInner {
@@ -455,6 +430,12 @@ impl MiniSentryInner {
     }
 }
 
+impl Default for MiniSentry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MiniSentry {
     pub fn get_captured_envelopes(&self, timeout: u64) -> Option<CapturedEnvelopes> {
         let mut i = 0;
@@ -473,6 +454,11 @@ impl MiniSentry {
         }
     }
 
+    pub fn set_global_options(self, options: Options) -> Self {
+        self.inner.lock().unwrap().global_config.options = options;
+        self
+    }
+
     pub fn captured_envelopes(&self) -> CapturedEnvelopes {
         self.inner.lock().unwrap().captured_envelopes.clone()
     }
@@ -489,7 +475,7 @@ impl MiniSentry {
         self.try_get_captured_envelope(timeout).unwrap()
     }
 
-    fn take_n_envelopes<const N: usize>(&self) -> [Envelope; N] {
+    fn _take_n_envelopes<const N: usize>(&self) -> [RawEnvelope; N] {
         let envelopes = self.captured_envelopes().get_envelopes();
         assert_eq!(envelopes.len(), N);
 
@@ -547,7 +533,7 @@ impl MiniSentry {
             .lock()
             .unwrap()
             .project_configs
-            .get(&ProjectId(42))
+            .get(&ProjectId::new(42))
             .as_ref()
             .unwrap()
             .public_keys[0]
@@ -562,7 +548,7 @@ impl MiniSentry {
     }
 
     pub fn dsn_public_key(&self) -> ProjectKey {
-        self.get_dsn_public_key_configs(ProjectId(42))
+        self.get_dsn_public_key_configs(ProjectId::new(42))
             .unwrap()
             .public_key
     }
@@ -587,6 +573,7 @@ impl MiniSentry {
             server_handle: None,
             runtime: Runtime::new().unwrap(),
             project_configs: HashMap::new(),
+            global_config: Default::default(),
         }));
 
         let mini_sentry = Self { inner: mini_sentry };
@@ -607,8 +594,8 @@ impl MiniSentry {
                 post(|| async { dbg!(Json(register_response())) }),
             )
             .route("/api/0/relays/outcomes/", post(outcome_handler))
-            .route("/api/0/relays/projectconfigs/", post(config_handler))
-            .route("/api/0/relays/publickeys/", post(public_key_handler));
+            .route("/api/0/relays/publickeys/", post(public_key_handler))
+            .route("/api/0/relays/projectconfigs/", post(config_handler));
 
         println!("Listening on {}", addr);
 
@@ -701,8 +688,7 @@ fn make_handle_public_keys(
     }
 }
 
-use relay_server::actors::relays::GetRelaysResponse;
-use relay_server::actors::relays::PublicKeysResultCompatibility;
+use relay_server::services::relays::GetRelaysResponse;
 
 fn make_handle_project_config(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,
@@ -720,12 +706,14 @@ fn make_handle_project_config(
                 configs.insert(key, ErrorBoundary::Ok(Some(project_state.clone())));
             }
 
-            let x = ProjectResponse {
+            let global = Some(mini_sentry.lock().unwrap().global_config.clone());
+
+            let response = ProjectResponse {
                 configs,
                 pending: vec![],
-                global: Some(GlobalConfig::default()),
+                global,
             };
-            Json(x)
+            Json(response)
         })
     }
 }
@@ -762,13 +750,6 @@ fn register_response() -> RegisterResponse {
         relay_id,
         token,
         version,
-    }
-}
-
-fn register_challenge() -> RegisterChallenge {
-    RegisterChallenge {
-        relay_id: Uuid::new_v4(),
-        token: SignedRegisterState("123 foobar".into()),
     }
 }
 
@@ -829,4 +810,4 @@ async fn is_live() -> &'static str {
     dbg!("is_healthy: true")
 }
 
-use relay_server::actors::project::PublicKeyConfig;
+use relay_server::services::project::PublicKeyConfig;

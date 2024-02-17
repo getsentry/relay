@@ -76,7 +76,7 @@ pub struct OutcomeId(u8);
 impl OutcomeId {
     // This is not an enum because we still want to forward unknown outcome IDs transparently
     const ACCEPTED: OutcomeId = OutcomeId(0);
-    const FILTERED: OutcomeId = OutcomeId(1);
+    pub const FILTERED: OutcomeId = OutcomeId(1);
     const RATE_LIMITED: OutcomeId = OutcomeId(2);
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
@@ -432,29 +432,29 @@ impl fmt::Display for DiscardReason {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
-    timestamp: String,
+    pub timestamp: String,
     /// Organization id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    org_id: Option<u64>,
+    pub org_id: Option<u64>,
     /// Project id.
-    project_id: ProjectId,
+    pub project_id: ProjectId,
     /// The DSN project key id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    key_id: Option<u64>,
+    pub key_id: Option<u64>,
     /// The outcome.
-    outcome: OutcomeId,
+    pub outcome: OutcomeId,
     /// Reason for the outcome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
+    pub reason: Option<String>,
     /// The event id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    event_id: Option<EventId>,
+    pub event_id: Option<EventId>,
     /// The client ip address.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    remote_addr: Option<String>,
+    pub remote_addr: Option<String>,
     /// The source of the outcome (which Relay sent it)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    source: Option<String>,
+    pub source: Option<String>,
     /// The event's data category.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<u8>,

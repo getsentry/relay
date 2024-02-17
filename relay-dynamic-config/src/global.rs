@@ -104,7 +104,7 @@ pub struct Options {
 
     /// All other unknown options.
     #[serde(flatten)]
-    other: HashMap<String, Value>,
+    pub other: HashMap<String, Value>,
 }
 
 /// Kill switch for controlling the cardinality limiter.

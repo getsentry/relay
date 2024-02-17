@@ -10,7 +10,7 @@
 //!
 //! ```
 //! #[test]
-//! fn my_test() {
+//! pub fn my_test() {
 //!     relay_test::setup();
 //!
 //!     relay_log::debug!("hello, world!");
@@ -23,58 +23,413 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use hyper::Error;
-use std::collections::{BTreeMap, HashMap};
+use no_deadlocks::Mutex;
+use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
 use std::process::Child;
-use std::str::FromStr;
-//use std::sync::Mutex;
-use no_deadlocks::Mutex;
 
 use chrono::Utc;
 use lazy_static::lazy_static;
 use relay_auth::PublicKey;
-use relay_base_schema::events::EventType;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_config::HttpEncoding;
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, TransactionMetricsConfig};
-use relay_event_schema::protocol::{Event, LogEntry};
-use relay_event_schema::protocol::{EventId, LenientString};
-use relay_protocol::IntoValue;
-use relay_protocol::Value as RelayValue;
-use relay_quotas::Scoping;
+use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
-use relay_sampling::dsc::TraceUserContext;
 use relay_sampling::SamplingConfig;
-use relay_server::actors::envelopes::SendEnvelope;
-use relay_server::actors::project::ProjectState;
-use relay_server::actors::project::PublicKeyConfig;
-use relay_server::actors::upstream::UpstreamRequest;
 use relay_server::envelope::ContentType;
 use relay_server::envelope::Envelope;
-use relay_server::envelope::EnvelopeHeaders;
 use relay_server::envelope::Item;
 use relay_server::envelope::ItemType;
-use relay_server::envelope::Items;
 use relay_server::extractors::PartialDsn;
-use relay_server::extractors::RequestMeta;
+use relay_server::services::project::ProjectState;
+use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use uuid::fmt::Simple; // It's better to use Tokio's Mutex in async contexts.
+use uuid::fmt::Simple;
 use uuid::Uuid;
 
-use crate::mini_sentry::MiniSentry;
-use crate::relay::Relay;
-use crate::test_envelopy::RawItem;
+#[derive(Debug)]
+pub struct RawEnvelope {
+    pub http_headers: HashMap<String, String>,
+    pub project_id: ProjectId,
+    pub dsn_public_key: ProjectKey,
+    pub headers: HashMap<String, Value>,
+    pub items: Vec<RawItem>,
+}
 
-pub struct System {
-    relay: Relay,
-    sentry: MiniSentry,
+impl RawEnvelope {
+    pub fn new(dsn: ProjectKey) -> Self {
+        Self {
+            project_id: ProjectId::new(42),
+            dsn_public_key: dsn,
+            http_headers: Default::default(),
+            headers: Default::default(),
+            items: Default::default(),
+        }
+    }
+
+    pub fn parse_dsn(dsn: &str) -> (ProjectKey, ProjectId) {
+        let trimmed_dsn = dsn.trim_matches('"');
+        let trimmed_dsn = trimmed_dsn.trim_start_matches("http://");
+
+        let parts: Vec<&str> = trimmed_dsn.split([':', '@', '/']).collect();
+        let public_key = parts[0].to_string();
+        let _host = parts[2];
+        let _port = parts[3];
+        let project_id_str = parts[4];
+
+        let project_id = project_id_str.parse::<u64>().unwrap();
+
+        let public_key = ProjectKey::from_str(&public_key).unwrap();
+        let project_id = ProjectId::new(project_id);
+
+        (public_key, project_id)
+    }
+
+    pub fn from_envelope(envelope: &Envelope) -> Self {
+        let mut writer = vec![];
+        envelope.serialize(&mut writer).unwrap();
+
+        let serialized_envelope: String = String::from_utf8(writer.clone()).unwrap();
+
+        let parts: Vec<&str> = serialized_envelope.split('\n').collect();
+        let envelope_headers: Value = serde_json::from_str(parts[0]).unwrap();
+        let envelope_headers: HashMap<String, Value> = envelope_headers
+            .as_object()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect();
+
+        let (public_key, project_id) =
+            Self::parse_dsn(&envelope_headers.get("dsn").unwrap().to_string());
+
+        let item_headers: Value = serde_json::from_str(parts[1]).unwrap();
+        let item_headers: HashMap<String, Value> = item_headers
+            .as_object()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect();
+
+        let payload: Value = serde_json::from_str(parts[2]).unwrap();
+
+        let item = RawItem::from_parts(item_headers, PayLoad::Json(payload));
+
+        Self {
+            http_headers: Default::default(),
+            project_id,
+            dsn_public_key: public_key,
+            headers: envelope_headers,
+            items: vec![item],
+        }
+    }
+
+    pub fn add_transaction_and_trace_info(
+        self,
+        public_key: ProjectKey,
+        transaction: Option<&str>,
+    ) -> Self {
+        let (item, trace_id, _) = x_create_transaction_item(transaction);
+
+        self.add_raw_item(item)
+            .add_trace_info_simple(trace_id, public_key)
+    }
+
+    pub fn add_transaction_and_trace_info_not_simple(
+        self,
+        public_key: ProjectKey,
+        transaction: Option<&str>,
+        client_sample_rate: Option<f32>,
+    ) -> Self {
+        let (item, trace_id, _) = x_create_transaction_item(transaction);
+
+        self.add_raw_item(item).add_trace_info(
+            trace_id,
+            public_key,
+            None,
+            None,
+            client_sample_rate,
+            transaction,
+        )
+    }
+
+    pub fn add_trace_info_simple(mut self, trace_id: Uuid, public_key: ProjectKey) -> Self {
+        let trace_info = json!({
+            "trace_id": dbg!(trace_id.simple().to_string()),
+            "public_key": public_key,
+        });
+
+        self.headers.insert("trace".into(), trace_info);
+        self
+    }
+
+    pub fn add_error_event_with_trace_info(self, public_key: ProjectKey) -> Self {
+        let (item, trace_id, event_id) = create_error_item();
+
+        self.add_raw_item(item)
+            .set_event_id(event_id)
+            .add_trace_info(
+                trace_id,
+                public_key,
+                Some(1.0),
+                Some(true),
+                Some(1.0),
+                Some("/transaction"),
+            )
+    }
+
+    pub fn add_trace_info(
+        mut self,
+        trace_id: Uuid,
+        public_key: ProjectKey,
+        release: Option<f32>,
+        sampled: Option<bool>,
+        client_sample_rate: Option<f32>,
+        transaction: Option<&str>,
+    ) -> Self {
+        let mut x = json!({
+            "trace_id": dbg!(trace_id.simple().to_string()),
+            "public_key": public_key,
+        });
+
+        let trace_info = x.as_object_mut().unwrap();
+
+        if let Some(release) = release {
+            let release = format!("{:.1}", release);
+            trace_info.insert("release".to_string(), release.into());
+        }
+
+        if let Some(sample_rate) = client_sample_rate {
+            let sample_rate = format!("{:.5}", sample_rate);
+            trace_info.insert("sample_rate".to_string(), sample_rate.into());
+        }
+
+        if let Some(transaction) = transaction {
+            trace_info.insert("transaction".to_string(), transaction.into());
+        }
+
+        if let Some(sampled) = sampled {
+            trace_info.insert("sampled".to_string(), sampled.into());
+        }
+
+        dbg!(&trace_info);
+
+        self.headers.insert(
+            "trace".into(),
+            serde_json::Value::Object(trace_info.to_owned()),
+        );
+        self
+    }
+
+    pub fn set_project_id(mut self, id: ProjectId) -> Self {
+        self.project_id = id;
+        self
+    }
+
+    pub fn set_event_id(self, id: Uuid) -> Self {
+        self.add_header("event_id", &id.to_string())
+    }
+
+    pub fn add_header(mut self, key: &str, val: &str) -> Self {
+        self.headers.insert(key.into(), val.into());
+        self
+    }
+
+    pub fn add_http_header(mut self, key: &str, val: &str) -> Self {
+        self.http_headers.insert(key.into(), val.into());
+        self
+    }
+
+    pub fn add_raw_item(mut self, item: RawItem) -> Self {
+        self.items.push(item);
+        self
+    }
+
+    pub fn add_item_from_json(mut self, payload: Value, ty: ItemType) -> Self {
+        let item = RawItem::from_json(payload).set_type(ty);
+        self.items.push(item);
+        self
+    }
+
+    pub fn add_item(mut self, payload: &str, ty: ItemType) -> Self {
+        let item = RawItem::from_json(payload.into()).set_type(ty);
+        self.items.push(item);
+        self
+    }
+
+    pub fn add_attachment(mut self, payload: &str, ty: impl Into<Option<AttachmentType>>) -> Self {
+        let ty = ty.into();
+        let mut item = RawItem::from_json(payload.into()).set_type(ItemType::Attachment);
+
+        if let Some(ty) = ty {
+            item = item.add_header("attachment_type", &ty.to_string());
+        };
+
+        self.items.push(item);
+        self
+    }
+
+    pub fn add_transaction(mut self, payload: Value) -> Self {
+        let item = RawItem::from_json(payload).set_type(ItemType::Event);
+        self.items.push(item);
+        self
+    }
+
+    pub fn add_event(mut self, payload: &str) -> Self {
+        let item = RawItem::from_bytes(payload.to_string()).set_type(ItemType::Event);
+        self.items.push(item);
+        self
+    }
+
+    pub fn serialize(&self) -> String {
+        let mut serialized = String::new();
+
+        // Serialize envelope-level headers as JSON
+        let headers_json = serde_json::to_string(&self.headers).unwrap();
+        serialized.push_str(&format!("{}\n", headers_json));
+
+        // Serialize items, which are already adjusted to include JSON headers
+        for item in &self.items {
+            serialized.push_str(item.serialize().as_str());
+        }
+
+        serialized
+    }
+}
+
+use relay_server::envelope::AttachmentType;
+use std::str::FromStr;
+
+#[derive(Debug)]
+pub enum PayLoad {
+    Json(Value),
+    Bytes(Vec<u8>),
+}
+
+#[derive(Debug)]
+pub struct RawItem {
+    headers: HashMap<String, Value>,
+    payload: PayLoad,
+}
+
+impl RawItem {
+    pub fn from_bytes(payload: impl Into<Vec<u8>>) -> Self {
+        let vec = payload.into();
+        let value: Value = serde_json::from_slice(vec.as_slice()).unwrap();
+
+        let mut headers = HashMap::default();
+
+        for (key, value) in value.as_object().unwrap().iter() {
+            headers.insert(key.clone(), value.clone());
+        }
+
+        Self {
+            headers,
+            payload: PayLoad::Bytes(vec),
+        }
+    }
+
+    pub fn from_parts(headers: HashMap<String, Value>, payload: PayLoad) -> Self {
+        Self { headers, payload }
+    }
+
+    pub fn ty(&self) -> ItemType {
+        dbg!(self);
+        let as_str = self.headers.get("type").unwrap().to_string();
+        dbg!(&as_str);
+        let as_str = as_str.trim_matches('\"');
+        dbg!(&as_str);
+
+        ItemType::from_str(as_str).unwrap()
+    }
+
+    pub fn from_json(payload: Value) -> Self {
+        let mut headers = HashMap::default();
+
+        for (key, value) in payload.as_object().unwrap().iter() {
+            headers.insert(key.clone(), value.clone());
+        }
+
+        Self {
+            headers,
+            payload: PayLoad::Json(payload),
+        }
+    }
+
+    pub fn payload_string(&self) -> String {
+        match &self.payload {
+            PayLoad::Json(json) => json.to_string(),
+            PayLoad::Bytes(bytes) => String::from_utf8(bytes.clone()).unwrap(),
+        }
+    }
+
+    pub fn inferred_content_type(&self) -> &'static str {
+        match self.payload {
+            PayLoad::Json(_) => "application/json",
+            PayLoad::Bytes(_) => "application/octet-stream",
+        }
+    }
+
+    pub fn add_header_from_json(mut self, key: &str, val: Value) -> Self {
+        self.headers.insert(key.into(), val);
+        self
+    }
+
+    pub fn add_header(mut self, key: &str, val: &str) -> Self {
+        self.headers.insert(key.into(), val.into());
+        self
+    }
+
+    pub fn set_type(mut self, ty: ItemType) -> Self {
+        let ty: String = ty.to_string();
+        self.headers.insert("type".into(), ty.into());
+        self
+    }
+
+    // Serialize the RawItem for inclusion in RawEnvelope's serialization
+    pub fn serialize(&self) -> String {
+        let mut headers = self.headers.clone();
+        // Assuming payload length is desired in bytes, considering UTF-8 encoding
+        let payload = self.payload_string();
+        headers.insert(
+            "length".to_owned(),
+            serde_json::Value::Number(payload.len().into()),
+        );
+
+        headers.insert(
+            "content_type".to_owned(),
+            self.inferred_content_type().into(),
+        );
+
+        // Serialize headers to JSON string
+        dbg!(&headers);
+        let headers_json = serde_json::to_string(&headers).unwrap();
+        dbg!(&headers_json);
+        let serialized = format!("{}\n{}\n", headers_json, payload);
+
+        dbg!(serialized)
+    }
+}
+
+pub fn create_error_item() -> (RawItem, Uuid, Uuid) {
+    let trace_id = Uuid::new_v4();
+    let event_id = Uuid::new_v4();
+    let error_event = json!({
+        "event_id": event_id.simple(),
+        "message": "This is an error.",
+        "extra": {"msg_text": "This is an error", "id": event_id.simple()},
+        "type": "error",
+        "environment": "production",
+        "release": "foo@1.2.3",
+    });
+
+    let item = RawItem::from_json(error_event).set_type(ItemType::Event);
+    (item, trace_id, event_id)
 }
 
 /// Setup the test environment.
@@ -116,14 +471,6 @@ pub fn random_port() -> u16 {
 
 pub const DEFAULT_DSN_PUBLIC_KEY: &str = "31a5a894b4524f74a9a8d0e27e21ba91";
 
-/*
-    def internal_error_dsn(self):
-        """DSN whose events make the test fail."""
-        return "http://{}@{}:{}/666".format(
-            self.default_dsn_public_key, *self.server_address
-        )
-*/
-
 lazy_static! {
     static ref KNOWN_RELAYS: Mutex<HashMap<String, RelayInfo>> = Mutex::new(HashMap::new());
 }
@@ -135,14 +482,10 @@ pub struct ProjectResponse {
     global: Option<GlobalConfig>,
 }
 
-fn dsn(public_key: ProjectKey) -> PartialDsn {
+pub fn dsn(public_key: ProjectKey) -> PartialDsn {
     format!("https://{}:@sentry.io/42", public_key)
         .parse()
         .unwrap()
-}
-
-fn request_meta(public_key: ProjectKey) -> RequestMeta {
-    RequestMeta::newer(dsn(public_key))
 }
 
 pub struct BackgroundProcess {
@@ -169,107 +512,34 @@ impl Drop for BackgroundProcess {
     }
 }
 
-pub struct ConfigDir {
+pub struct TempDir {
     base_dir: PathBuf,
-    counters: HashMap<String, usize>,
 }
 
-impl ConfigDir {
-    pub fn new() -> Self {
-        ConfigDir {
+impl Default for TempDir {
+    fn default() -> Self {
+        TempDir {
             base_dir: tempfile::tempdir()
                 .expect("Failed to create temp dir")
                 .into_path(),
-            counters: HashMap::new(),
         }
     }
+}
 
+impl TempDir {
     pub fn create(&mut self, name: &str) -> PathBuf {
-        let count = self.counters.entry(name.to_string()).or_insert(0);
-        *count += 1;
-
-        let dir_name = format!("{}-{}", name, count);
-        let dir_path = self.base_dir.join(dir_name);
+        let dir_path = self.base_dir.join(name);
         std::fs::create_dir(&dir_path).expect("Failed to create config dir");
 
         dir_path
     }
 }
 
-mod mini_sentry;
-mod relay;
-//mod consumers;
-//mod test_attachments;
-//mod test_aws_extension;
-//mod test_client_report;
-mod test_dynamic_sampling;
-//mod test_envelopy;
-//mod test_session;
-
-/*
-def _add_sampling_config(
-    config,
-    sample_rate,
-    rule_type,
-    releases=None,
-    user_segments=None,
-    environments=None,
-):
-    """
-    Adds a sampling configuration rule to a project configuration
-    """
-    ds = config["config"].setdefault("sampling", {})
-    ds.setdefault("version", 2)
-    # We set the rules as empty array, and we add rules to it.
-    rules = ds.setdefault("rules", [])
-
-    if rule_type is None:
-        rule_type = "trace"
-    conditions = []
-    field_prefix = "trace." if rule_type == "trace" else "event."
-    if releases is not None:
-        conditions.append(
-            {
-                "op": "glob",
-                "name": field_prefix + "release",
-                "value": releases,
-            }
-        )
-    if user_segments is not None:
-        conditions.append(
-            {
-                "op": "eq",
-                "name": field_prefix + "user",
-                "value": user_segments,
-                "options": {
-                    "ignoreCase": True,
-                },
-            }
-        )
-    if environments is not None:
-        conditions.append(
-            {
-                "op": "eq",
-                "name": field_prefix + "environment",
-                "value": environments,
-                "options": {
-                    "ignoreCase": True,
-                },
-            }
-        )
-
-    rule = {
-        "samplingValue": {"type": "sampleRate", "value": sample_rate},
-        "type": rule_type,
-        "condition": {"op": "and", "inner": conditions},
-        "id": len(rules) + 1,
-    }
-    rules.append(rule)
-    return rules
- */
+pub mod mini_sentry;
+pub mod relay;
 
 #[derive(Clone)]
-struct StateBuilder {
+pub struct StateBuilder {
     project_id: ProjectId,
     trusted_relays: Vec<PublicKey>,
     dsn_public_key_config: PublicKeyConfig,
@@ -285,9 +555,9 @@ impl From<StateBuilder> for ProjectState {
 }
 
 impl StateBuilder {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            project_id: ProjectId(42),
+            project_id: ProjectId::new(42),
             trusted_relays: vec![],
             dsn_public_key_config: {
                 let public_key: ProjectKey = Uuid::new_v4().simple().to_string().parse().unwrap();
@@ -304,11 +574,11 @@ impl StateBuilder {
         }
     }
 
-    fn public_key(&self) -> ProjectKey {
+    pub fn public_key(&self) -> ProjectKey {
         self.dsn_public_key_config.public_key
     }
 
-    fn enable_outcomes(mut self) -> Self {
+    pub fn enable_outcomes(mut self) -> Self {
         self.outcomes = Some(json!({
             "outcomes": {
             "emit_outcomes": true,
@@ -319,43 +589,43 @@ impl StateBuilder {
         self
     }
 
-    fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
+    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
         let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
         self.add_sampling_rule(rule)
     }
 
-    fn set_transaction_metrics_version(mut self, version: u32) -> Self {
+    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
         self.transaction_metrics_version = Some(version);
         self
     }
 
-    fn set_project_id(mut self, id: ProjectId) -> Self {
+    pub fn set_project_id(mut self, id: ProjectId) -> Self {
         self.project_id = id;
         self
     }
 
-    fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
+    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
         self.trusted_relays.extend(relays);
         self
     }
 
-    fn add_sampling_rules(mut self, rules: Vec<SamplingRule>) -> Self {
+    pub fn add_sampling_rules(mut self, rules: Vec<SamplingRule>) -> Self {
         self.sampling_rules.extend(rules);
         self
     }
 
-    fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
+    pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
         self.sampling_rules.push(rule);
         self
     }
 
-    fn add_basic_sampling_rule(mut self, rule_type: RuleType, sample_rate: f32) -> Self {
+    pub fn add_basic_sampling_rule(mut self, rule_type: RuleType, sample_rate: f32) -> Self {
         let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
         self.sampling_rules.push(rule);
         self
     }
 
-    fn build(self) -> ProjectState {
+    pub fn build(self) -> ProjectState {
         let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
@@ -405,7 +675,7 @@ impl Default for StateBuilder {
     }
 }
 
-fn new_sampling_rule(
+pub fn new_sampling_rule(
     sample_rate: f32,
     rule_type: Option<RuleType>,
     releases: Vec<f32>,
@@ -467,7 +737,7 @@ fn new_sampling_rule(
     .unwrap()
 }
 
-fn get_trace_info(
+pub fn get_trace_info(
     trace_id: Uuid,
     public_key: ProjectKey,
     release: Option<String>,
@@ -503,13 +773,13 @@ fn get_trace_info(
     Value::Object(trace_info)
 }
 
-fn create_transaction_item(
+pub fn create_transaction_item(
     trace_id: Option<Uuid>,
     event_id: Option<EventId>,
     transaction: Option<&str>,
 ) -> (Item, Simple, EventId) {
     let trace_id = trace_id.unwrap_or(Uuid::new_v4()).simple();
-    let event_id = event_id.unwrap_or(EventId::new());
+    let event_id = event_id.unwrap_or_default();
     let payload = json!(
     {
     "event_id": event_id,
@@ -532,7 +802,7 @@ fn create_transaction_item(
     (item, trace_id, event_id)
 }
 
-fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
+pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
     dbg!(&base, &merge_value, &keys);
     let mut base_map = base.as_object_mut().expect("base should be an object");
 
@@ -577,7 +847,7 @@ fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
 ///
 ///
 
-fn get_nested_value(val: &Value, path: &str) -> Value {
+pub fn get_nested_value(val: &Value, path: &str) -> Value {
     let keys: Vec<&str> = path
         .split('/')
         .map(|s| s.trim()) // Trimming whitespace from each key
@@ -587,23 +857,23 @@ fn get_nested_value(val: &Value, path: &str) -> Value {
         .clone() // Cloning the final result to get an owned Value
 }
 
-fn get_nested_bool(val: &Value, path: &str) -> bool {
+pub fn get_nested_bool(val: &Value, path: &str) -> bool {
     get_nested_value(val, path).as_bool().unwrap()
 }
 
-fn get_nested_float(val: &Value, path: &str) -> f64 {
+pub fn get_nested_float(val: &Value, path: &str) -> f64 {
     get_nested_value(val, path).as_f64().unwrap()
 }
 
-fn get_nested_int(val: &Value, path: &str) -> i64 {
+pub fn get_nested_int(val: &Value, path: &str) -> i64 {
     get_nested_value(val, path).as_i64().unwrap()
 }
 
-fn get_nested_string(val: &Value, path: &str) -> String {
+pub fn get_nested_string(val: &Value, path: &str) -> String {
     get_nested_value(val, path).to_string()
 }
 
-fn merge_maps(base: &mut Map<String, Value>, mut merge: Map<String, Value>) {
+pub fn merge_maps(base: &mut Map<String, Value>, mut merge: Map<String, Value>) {
     let key: Vec<&String> = merge.keys().take(1).collect();
     let key = key[0].to_owned();
 
@@ -619,7 +889,7 @@ fn merge_maps(base: &mut Map<String, Value>, mut merge: Map<String, Value>) {
     dbg!(&base);
 }
 
-fn outcomes_enabled_config() -> Value {
+pub fn outcomes_enabled_config() -> Value {
     json!({
         "outcomes": {
             "emit_outcomes": true,
@@ -629,22 +899,7 @@ fn outcomes_enabled_config() -> Value {
     }})
 }
 
-fn intovalue_str(x: impl IntoValue) -> String {
-    let x: RelayValue = x.into_value();
-    let x: Value = x.into();
-    serde_json::to_string(&x).unwrap()
-}
-
-fn into_item(item_type: ItemType, value: impl IntoValue) -> Item {
-    let x: RelayValue = value.into_value();
-    let x: Value = x.into();
-    let x: String = serde_json::to_string(&x).unwrap();
-    let mut item = Item::new(ItemType::Event);
-    item.set_payload(ContentType::Json, x);
-    item
-}
-
-fn opt_create_transaction_item(
+pub fn opt_create_transaction_item(
     transaction: Option<&str>,
     trace_id: Option<Uuid>,
     event_id: Option<Uuid>,
@@ -672,7 +927,7 @@ fn opt_create_transaction_item(
     (item, trace_id, event_id)
 }
 
-fn x_create_transaction_item(transaction: Option<&str>) -> (RawItem, Uuid, Uuid) {
+pub fn x_create_transaction_item(transaction: Option<&str>) -> (RawItem, Uuid, Uuid) {
     let trace_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
 
@@ -696,220 +951,8 @@ fn x_create_transaction_item(transaction: Option<&str>) -> (RawItem, Uuid, Uuid)
     (item, trace_id, event_id)
 }
 
-fn create_transaction_envelope(public_key: ProjectKey) -> EnvelopeBuilder {
-    let (item, trace_id, event_id) = create_transaction_item(None, None, None);
-
-    EnvelopeBuilder::new(event_id, public_key)
-        .set_item(item)
-        .add_trace_info(
-            trace_id,
-            public_key,
-            Some("1.0".to_string()),
-            None,
-            Some(1.0),
-            Some("/transaction".into()),
-            Some(true),
-        )
-}
-
-fn x_create_transaction_envelope(
-    public_key: ProjectKey,
-    trace_id: Option<Uuid>,
-    event_id: Option<Uuid>,
-) -> EnvelopeBuilder {
-    let event_id = event_id.map(|id| EventId(id));
-    let (item, trace_id, event_id) = create_transaction_item(trace_id, event_id, None);
-
-    EnvelopeBuilder::new(event_id, public_key)
-        .set_item(item)
-        .add_trace_info(
-            trace_id,
-            public_key,
-            Some("1.0".to_string()),
-            None,
-            Some(1.0),
-            Some("/transaction".into()),
-            Some(true),
-        )
-}
-
-fn create_error_envelope(public_key: ProjectKey) -> EnvelopeBuilder {
-    let event_id = EventId::new();
-    let trace_id = Uuid::new_v4().simple();
-
-    let event = Event {
-        ty: EventType::Error.into(),
-        environment: "production".to_string().into(),
-        id: event_id.into(),
-        release: LenientString::from("foo@1.2.3".to_string()).into(),
-        ..Default::default()
-    };
-
-    let item = into_item(ItemType::Event, event);
-
-    EnvelopeBuilder::new(event_id, public_key)
-        .set_item(item)
-        .add_trace_info(
-            trace_id,
-            public_key,
-            Some("1.0".to_string()),
-            None,
-            Some(1.0),
-            Some("/transaction".into()),
-            Some(true),
-        )
-}
-
-pub struct EnvelopeBuilder {
-    pub headers: EnvelopeHeaders,
-    pub items: Vec<Item>,
-}
-
-impl From<EnvelopeBuilder> for Envelope {
-    fn from(value: EnvelopeBuilder) -> Self {
-        value.into_envelope()
-    }
-}
-
-impl EnvelopeBuilder {
-    fn new(event_id: EventId, public_key: ProjectKey) -> Self {
-        Self {
-            headers: Self::default_headers(event_id, public_key),
-            items: vec![],
-        }
-    }
-
-    fn create(public_key: ProjectKey) -> Self {
-        let event_id = EventId::default();
-        Self::new(event_id, public_key)
-    }
-
-    pub fn add_event(self, payload: &str) -> Self {
-        let event = Event {
-            logentry: LogEntry::from(payload.to_string()).into(),
-            ty: EventType::Error.into(),
-            ..Default::default()
-        };
-
-        let item = into_item(ItemType::Event, event);
-
-        self.set_item(item)
-    }
-
-    fn event_id(&self) -> EventId {
-        self.headers.event_id.unwrap()
-    }
-
-    fn set_item(mut self, item: Item) -> Self {
-        self.items.push(item);
-        self
-    }
-    fn set_headers(&mut self, headers: EnvelopeHeaders) {
-        self.headers = headers;
-    }
-
-    fn set_event_id(mut self, event_id: EventId) -> Self {
-        self.headers.event_id = Some(event_id);
-        self
-    }
-
-    fn set_item_from_payload(mut self, payload: Value, ty: ItemType) -> Self {
-        let mut item = Item::new(ty);
-        item.set_payload(ContentType::Json, serde_json::to_vec(&payload).unwrap());
-        self
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn add_trace_info(
-        mut self,
-        trace_id: Simple,
-        public_key: ProjectKey,
-        release: Option<String>,
-        user_segment: Option<String>,
-        client_sample_rate: Option<f64>,
-        transaction: Option<String>,
-        sampled: Option<bool>,
-    ) -> Self {
-        let mut trace = match self.headers.trace.clone().unwrap_or_default() {
-            ErrorBoundary::Ok(t) => t,
-            _ => panic!(),
-        };
-
-        trace.trace_id = trace_id.into();
-        trace.public_key = public_key;
-
-        if release.is_some() {
-            trace.release = release;
-        }
-
-        if let Some(segment) = user_segment {
-            trace.user = TraceUserContext {
-                user_segment: segment,
-                user_id: String::new(),
-            };
-        }
-
-        if client_sample_rate.is_some() {
-            trace.sample_rate = client_sample_rate;
-        }
-
-        if transaction.is_some() {
-            trace.transaction = transaction;
-        }
-
-        if sampled.is_some() {
-            trace.sampled = sampled;
-        }
-
-        self.headers.trace = Some(ErrorBoundary::Ok(trace));
-        self
-    }
-
-    fn default_headers(
-        event_id: impl Into<Option<EventId>>,
-        public_key: ProjectKey,
-    ) -> EnvelopeHeaders {
-        EnvelopeHeaders {
-            event_id: event_id.into(),
-            meta: request_meta(public_key),
-            retention: None,
-            sent_at: None,
-            other: BTreeMap::new(),
-            trace: None,
-        }
-    }
-
-    fn into_envelope(self) -> Envelope {
-        let mut x = Items::new();
-        for item in self.items {
-            x.push(item);
-        }
-        Envelope {
-            headers: self.headers,
-            items: x,
-        }
-    }
-}
-
-fn envelope_to_request(envelope: Envelope, scoping: Scoping) -> impl UpstreamRequest {
-    let envelope_body = envelope.to_vec().unwrap();
-    dbg!(String::from_utf8(envelope_body.clone()).unwrap());
-    let (tx, _) = oneshot::channel();
-
-    SendEnvelope {
-        envelope_body,
-        envelope_meta: envelope.meta().clone(),
-        project_cache: Addr::dummy(),
-        scoping,
-        http_encoding: HttpEncoding::Identity,
-        response_sender: tx,
-        project_key: scoping.project_key,
-        partition_key: None,
-    }
-}
-
-fn is_envelope_sampled(envelope: &Envelope) -> bool {
-    let bytes = &envelope.items().next().unwrap().payload;
+pub fn is_envelope_sampled(envelope: &Envelope) -> bool {
+    let bytes = &envelope.items().next().unwrap().payload();
     let x: serde_json::Value = serde_json::from_slice(bytes).unwrap();
     dbg!(&x);
     x.get("contexts")
@@ -922,9 +965,39 @@ fn is_envelope_sampled(envelope: &Envelope) -> bool {
         .unwrap()
 }
 
-fn event_id_from_item(item: &Item) -> EventId {
-    let bytes = &item.payload;
-    let x: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-    let s = x.get("event_id").unwrap().as_str().unwrap();
-    EventId::from_str(s).unwrap()
+pub fn get_topic_name(topic: &str) -> String {
+    let random = Uuid::new_v4().simple().to_string();
+    format!("relay-test-{}-{}", topic, random)
+}
+
+pub fn processing_config() -> Value {
+    let bootstrap_servers =
+        std::env::var("KAFKA_BOOTSTRAP_SERVER").unwrap_or_else(|_| "127.0.0.1:49092".to_string());
+
+    json!({
+        "processing": {
+            "enabled": true,
+            "kafka_config": [
+                {
+                    "name": "bootstrap.servers",
+                    "value": bootstrap_servers
+                }
+            ],
+            "topics": {
+                "events": get_topic_name("events"),
+                "attachments": get_topic_name("attachments"),
+                "transactions": get_topic_name("transactions"),
+                "outcomes": get_topic_name("outcomes"),
+                "sessions": get_topic_name("sessions"),
+                "metrics": get_topic_name("metrics"),
+                "metrics_generic": get_topic_name("metrics"),
+                "replay_events": get_topic_name("replay_events"),
+                "replay_recordings": get_topic_name("replay_recordings"),
+                "monitors": get_topic_name("monitors"),
+                "spans": get_topic_name("spans")
+            },
+            "redis": "redis://127.0.0.1",
+            "projectconfig_cache_prefix": format!("relay-test-relayconfig-{}", uuid::Uuid::new_v4())
+        }
+    })
 }

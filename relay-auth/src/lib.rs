@@ -434,7 +434,7 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
 /// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be
 /// supplied.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SignedRegisterState(String);
+pub struct SignedRegisterState(pub String);
 
 impl SignedRegisterState {
     /// Creates an Hmac instance for signing the `RegisterState`.
@@ -612,8 +612,8 @@ impl RegisterRequest {
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
-    relay_id: RelayId,
-    token: SignedRegisterState,
+    pub relay_id: RelayId,
+    pub token: SignedRegisterState,
 }
 
 impl RegisterChallenge {
@@ -643,10 +643,10 @@ impl RegisterChallenge {
 /// successfully, this Relay authenticates with the upstream.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
-    relay_id: RelayId,
-    token: SignedRegisterState,
+    pub relay_id: RelayId,
+    pub token: SignedRegisterState,
     #[serde(default)]
-    version: RelayVersion,
+    pub version: RelayVersion,
 }
 
 impl RegisterResponse {

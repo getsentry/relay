@@ -3,40 +3,23 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError};
 
 use hyper::http::HeaderName;
-use no_deadlocks::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use axum::body::Bytes;
 use axum::http::HeaderMap;
-use axum::response::Json;
-use chrono::Utc;
-use lazy_static::lazy_static;
-use relay_auth::{
-    PublicKey, RegisterChallenge, RegisterResponse, RelayVersion, SecretKey, SignedRegisterState,
-};
+use relay_auth::{PublicKey, RelayVersion, SecretKey};
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_common::Scheme;
 use relay_config::Config;
 use relay_config::Credentials;
 use relay_config::RelayInfo;
-use relay_config::UpstreamDescriptor;
-use relay_sampling::config::{RuleType, SamplingRule};
-use relay_system::{channel, Addr, Interface};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
-use std::future::Future;
+use serde_json::{json, Value};
 use tokio::runtime::Runtime;
-use tokio::sync::{oneshot, Mutex as TokioMutex};
-use tokio::task::JoinHandle;
-use uuid::fmt::Simple; // It's better to use Tokio's Mutex in async contexts.
 use uuid::Uuid;
 
-use crate::consumers::processing_config;
-use crate::mini_sentry::{MiniSentry, MiniSentryInner};
-use crate::test_envelopy::RawEnvelope;
+//use crate::consumers::processing_config;
+use crate::mini_sentry::MiniSentry;
 use crate::{
-    envelope_to_request, merge, outcomes_enabled_config, random_port, BackgroundProcess, ConfigDir,
-    EnvelopeBuilder, DEFAULT_DSN_PUBLIC_KEY,
+    merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, RawEnvelope,
+    TempDir, DEFAULT_DSN_PUBLIC_KEY,
 };
 
 pub trait Upstream {
@@ -54,7 +37,7 @@ impl Upstream for Relay {
         self.upstream_dsn.clone()
     }
 
-    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
+    fn insert_known_relay(&self, _relay_id: Uuid, _public_key: PublicKey) {
         // idk man
     }
 }
@@ -124,12 +107,12 @@ fn default_opts(url: String, internal_error_dsn: String, port: u16, host: String
 
 pub struct Relay {
     server_address: SocketAddr,
-    process: BackgroundProcess,
-    relay_id: Uuid,
-    secret_key: SecretKey,
-    health_check_passed: bool,
-    config: Arc<Config>,
-    client: reqwest::Client,
+    _process: BackgroundProcess,
+    _relay_id: Uuid,
+    _secret_key: SecretKey,
+    _health_check_passed: bool,
+    _config: Arc<Config>,
+    _client: reqwest::Client,
     upstream_dsn: String,
 }
 
@@ -143,12 +126,6 @@ pub struct RelayBuilder<'a, U: Upstream> {
 
 impl<'a, U: Upstream> RelayBuilder<'a, U> {
     pub fn enable_processing(mut self) -> Self {
-        let proc = json!( {"processing": {
-            "enabled": true,
-            "kafka_config": [],
-            "redis": "redis://127.0.0.1",
-        }});
-
         let proc = processing_config();
 
         self.config = merge(self.config, proc, vec![]);
@@ -184,11 +161,10 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
     pub fn build(self) -> Relay {
         dbg!();
         let config = Config::from_json_value(self.config).unwrap();
-        let version = &self.mini_version;
         let relay_bin = get_relay_binary().unwrap();
         dbg!();
 
-        let mut dir = ConfigDir::new();
+        let mut dir = TempDir::default();
         let dir = dbg!(dir.create("relay"));
 
         let credentials = Relay::load_credentials(&config, &dir);
@@ -215,23 +191,19 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
         dbg!();
 
         Relay {
-            process,
-            relay_id: credentials.id,
-            secret_key: credentials.secret_key,
+            _process: process,
+            _relay_id: credentials.id,
+            _secret_key: credentials.secret_key,
             server_address,
-            health_check_passed: true,
-            config: Arc::new(config),
-            client: reqwest::Client::new(),
+            _health_check_passed: true,
+            _config: Arc::new(config),
+            _client: reqwest::Client::new(),
             upstream_dsn: self.upstream.internal_error_dsn(),
         }
     }
 }
 
-impl<'a> Relay {
-    fn descriptor(&'a self, host: &'a str) -> UpstreamDescriptor<'a> {
-        UpstreamDescriptor::new(host, self.config.values.relay.port, Scheme::Http)
-    }
-
+impl Relay {
     pub fn server_address(&self) -> SocketAddr {
         self.server_address
     }
@@ -297,7 +269,7 @@ impl<'a> Relay {
     fn url(&self) -> String {
         format!(
             "http://{}:{}",
-            self.server_address.ip().to_string(),
+            self.server_address.ip(),
             self.server_address.port()
         )
     }
@@ -414,19 +386,4 @@ fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     }
 
     Ok(download_path)
-}
-
-fn get_auth_header() -> String {
-    let dsn_key = DEFAULT_DSN_PUBLIC_KEY;
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-    let client_name = "my-rust-client/1.0.0";
-    let sentry_version = "7"; // or "5", depending on your Sentry server version
-
-    format!(
-        "Sentry sentry_version={},sentry_timestamp={},sentry_client={},sentry_key={}",
-        sentry_version, timestamp, client_name, dsn_key
-    )
 }
