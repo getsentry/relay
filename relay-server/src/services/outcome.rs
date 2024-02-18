@@ -76,7 +76,7 @@ pub struct OutcomeId(u8);
 impl OutcomeId {
     // This is not an enum because we still want to forward unknown outcome IDs transparently
     const ACCEPTED: OutcomeId = OutcomeId(0);
-    pub const FILTERED: OutcomeId = OutcomeId(1);
+    const FILTERED: OutcomeId = OutcomeId(1);
     const RATE_LIMITED: OutcomeId = OutcomeId(2);
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);

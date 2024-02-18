@@ -1,8 +1,7 @@
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::RuleType;
-use relay_server::services::outcome::OutcomeId;
-use relay_test::mini_sentry::MiniSentry;
+use relay_test::mini_sentry::{MiniSentry, Outcome};
 use relay_test::relay::Relay;
 use serde_json::json;
 use uuid::Uuid;
@@ -37,7 +36,7 @@ fn test_it_removes_events() {
         .captured_outcomes()
         .wait_for_outcome(30)
         .assert_outcome_qty(1)
-        .assert_all_outcome_id(OutcomeId::FILTERED)
+        .assert_all_outcome_id(Outcome::FILTERED)
         .assert_all_outcome_reasons("Sampled:1");
 }
 

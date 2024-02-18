@@ -18,8 +18,6 @@ use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
-use relay_server::services::outcome::OutcomeId;
-use relay_server::services::outcome::TrackRawOutcome;
 use serde_json::{json, Value};
 use std::future::Future;
 use tokio::runtime::Runtime;
@@ -27,7 +25,7 @@ use uuid::Uuid;
 
 #[derive(Default, Clone)]
 pub struct CapturedOutcomes {
-    inner: Arc<Mutex<Vec<TrackRawOutcome>>>,
+    inner: Arc<Mutex<Vec<Outcome>>>,
 }
 
 impl CapturedOutcomes {
@@ -40,19 +38,19 @@ impl CapturedOutcomes {
         self
     }
 
-    pub fn pop(&self) -> Option<TrackRawOutcome> {
+    pub fn pop(&self) -> Option<Outcome> {
         self.inner.lock().unwrap().pop()
     }
 
-    pub fn extend(&self, outcomes: Vec<TrackRawOutcome>) {
+    pub fn extend(&self, outcomes: Vec<Outcome>) {
         self.inner.lock().unwrap().extend(outcomes);
     }
 
-    pub fn push(&self, outcome: TrackRawOutcome) {
+    pub fn push(&self, outcome: Outcome) {
         self.inner.lock().unwrap().push(outcome);
     }
 
-    pub fn take_index(&self, idx: usize) -> TrackRawOutcome {
+    pub fn take_index(&self, idx: usize) -> Outcome {
         self.inner.lock().unwrap().remove(idx)
     }
 
@@ -65,16 +63,16 @@ impl CapturedOutcomes {
         let guard = self.inner.lock().unwrap();
 
         for outcome in guard.iter() {
-            assert_eq!(outcome.reason.clone().unwrap().as_str(), reason);
+            assert_eq!(outcome.reason(), reason);
         }
         self
     }
 
-    pub fn assert_all_outcome_id(&self, ty: OutcomeId) -> &Self {
+    pub fn assert_all_outcome_id(&self, outcome_id: u64) -> &Self {
         let guard = self.inner.lock().unwrap();
 
         for outcome in guard.iter() {
-            assert_eq!(outcome.outcome, ty);
+            assert_eq!(outcome.outcome(), outcome_id);
         }
         self
     }
@@ -235,6 +233,39 @@ impl CapturedEnvelopes {
         }
 
         panic!("No items with event id: {}", event_id);
+    }
+}
+
+#[derive(Debug)]
+pub struct Outcome(serde_json::Map<String, Value>);
+
+impl Outcome {
+    pub fn new(val: serde_json::Value) -> Self {
+        Self(val.as_object().unwrap().to_owned())
+    }
+
+    pub fn reason(&self) -> &str {
+        self.0.get("reason").unwrap().as_str().unwrap()
+    }
+
+    pub fn outcome(&self) -> u64 {
+        self.0.get("outcome").unwrap().as_u64().unwrap()
+    }
+
+    pub const ACCEPTED: u64 = 0;
+    pub const FILTERED: u64 = 1;
+    pub const RATE_LIMITED: u64 = 2;
+    pub const INVALID: u64 = 3;
+    pub const ABUSE: u64 = 4;
+    pub const CLIENT_DISCARD: u64 = 5;
+}
+
+impl Serialize for Outcome {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Value::Object(self.0.clone()).serialize(serializer)
     }
 }
 
@@ -475,14 +506,14 @@ fn make_handle_outcomes(
         let mini_sentry = mini_sentry.clone();
 
         Box::pin(async move {
-            let outcomes: Vec<TrackRawOutcome> = serde_json::from_slice::<Value>(&bytes)
+            let outcomes: Vec<Outcome> = serde_json::from_slice::<Value>(&bytes)
                 .unwrap()
                 .get("outcomes")
                 .unwrap()
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|val| serde_json::from_value(val.clone()).unwrap())
+                .map(|val| Outcome::new(val.clone()))
                 .collect();
 
             mini_sentry
@@ -542,13 +573,13 @@ fn make_handle_project_config(
         Box::pin(async move {
             let mut configs = HashMap::new();
 
-            let guard = mini_sentry.lock().unwrap();
-            for project_state in guard.project_configs.values() {
+            let binding = mini_sentry.lock().unwrap();
+            for project_state in binding.project_configs.values() {
                 let key = project_state.public_key();
                 configs.insert(key, ErrorBoundary::Ok(Some(project_state)));
             }
 
-            let global = Some(guard.global_config.clone());
+            let global = Some(binding.global_config.clone());
 
             let response = json!({
                 "configs": configs,
