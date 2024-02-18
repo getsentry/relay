@@ -15,9 +15,7 @@ use axum::response::Json;
 use axum::routing::{get, post};
 use axum::Router;
 use flate2::read::GzDecoder;
-use relay_auth::{
-    PublicKey, RegisterChallenge, RegisterResponse, RelayId, RelayVersion, SignedRegisterState,
-};
+use relay_auth::{PublicKey, RelayId, RelayVersion, SignedRegisterState};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
@@ -28,7 +26,8 @@ use relay_server::envelope::ItemType;
 use relay_server::services::outcome::OutcomeId;
 use relay_server::services::outcome::TrackRawOutcome;
 use relay_server::services::project::ProjectState;
-use serde_json::Value;
+use relay_server::services::project::PublicKeyConfig;
+use serde_json::{json, Value};
 use std::future::Future;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
@@ -205,8 +204,7 @@ impl CapturedEnvelopes {
         let mut matches = 0;
 
         for item in self.get_items() {
-            dbg!(&item);
-            if dbg!(item.ty()) == ty {
+            if item.ty() == ty {
                 matches += 1;
             }
         }
@@ -289,6 +287,16 @@ impl Default for MiniSentry {
 }
 
 impl MiniSentry {
+    pub fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
+        self.inner.lock().unwrap().known_relays.insert(
+            relay_id,
+            RelayInfo {
+                public_key,
+                internal: true,
+            },
+        );
+    }
+
     pub fn get_captured_envelopes(&self, timeout: u64) -> Option<CapturedEnvelopes> {
         let mut i = 0;
         loop {
@@ -297,7 +305,6 @@ impl MiniSentry {
                 return Some(envelopes);
             }
             std::thread::sleep(Duration::from_secs(1));
-            dbg!(i);
             i += 1;
 
             if i == timeout {
@@ -385,7 +392,6 @@ impl MiniSentry {
     pub fn new() -> Self {
         let port = random_port();
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
-        dbg!(&addr);
 
         // Initialize your mini_sentry state here
         let mini_sentry = Arc::new(Mutex::new(MiniSentryInner {
@@ -414,7 +420,7 @@ impl MiniSentry {
             .route("/api/0/relays/register/challenge/", post(challenge_handler))
             .route(
                 "/api/0/relays/register/response/",
-                post(|| async { dbg!(Json(register_response())) }),
+                post(|| async { Json(register_response()) }),
             )
             .route("/api/0/relays/outcomes/", post(outcome_handler))
             .route("/api/0/relays/publickeys/", post(public_key_handler))
@@ -480,9 +486,6 @@ fn make_handle_public_keys(
         Box::pin(async move {
             let x = serde_json::from_slice::<Value>(&bytes).unwrap();
 
-            dbg!("minisentry public keys");
-            dbg!(&x);
-
             let mut keys = HashMap::new();
             let mut relays = HashMap::new();
 
@@ -496,7 +499,6 @@ fn make_handle_public_keys(
             {
                 let relay_id: RelayId = id.as_str().unwrap().parse().unwrap();
                 let guard = mini_sentry.lock().unwrap();
-                dbg!(&guard.known_relays);
                 if let Some(relay) = guard.known_relays.get(&relay_id).cloned() {
                     keys.insert(relay_id, Some(relay.public_key.clone()));
                     relays.insert(relay_id, Some(relay));
@@ -504,7 +506,6 @@ fn make_handle_public_keys(
             }
 
             let x = GetRelaysResponse { relays };
-            dbg!(&x);
 
             Json(x)
         })
@@ -519,9 +520,7 @@ fn make_handle_project_config(
     move |_bytes| {
         let mini_sentry = mini_sentry.clone();
 
-        dbg!("!!!!!!!!!!!!!!!!!!!!!");
         Box::pin(async move {
-            dbg!("@@@@@@@@@@@@@@@@@@@@@");
             let mut configs = HashMap::new();
 
             for project_state in mini_sentry.lock().unwrap().project_configs.values() {
@@ -565,26 +564,25 @@ async fn handler() -> &'static str {
     "Hello, mini_sentry!"
 }
 
-fn register_response() -> RegisterResponse {
+fn register_response() -> Value {
     let relay_id = Uuid::new_v4();
     let token = SignedRegisterState("abc".into());
     let version = RelayVersion::current();
 
-    RegisterResponse {
-        relay_id,
-        token,
-        version,
-    }
+    json!({
+        "relay_id": relay_id,
+        "token": token,
+        "version": version,
+    })
 }
 
 fn make_handle_register_challenge(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,
-) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<RegisterChallenge>> + Send>> + Clone {
+) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<Value>> + Send>> + Clone {
     move |bytes| {
         let mini_sentry = mini_sentry.clone();
 
         Box::pin(async move {
-            dbg!("register challenge!!!! :D ");
             let x = serde_json::from_slice::<Value>(&bytes).unwrap();
 
             let relay_id: RelayId = x
@@ -607,9 +605,6 @@ fn make_handle_register_challenge(
                 .parse()
                 .unwrap();
 
-            dbg!(&mini_sentry.lock().unwrap().known_relays);
-            dbg!(relay_id, &public_key);
-
             let relay_info = RelayInfo {
                 public_key,
                 internal: true,
@@ -620,18 +615,14 @@ fn make_handle_register_challenge(
                 .known_relays
                 .insert(relay_id, relay_info);
 
-            dbg!(&x);
-
-            Json(RegisterChallenge {
-                relay_id,
-                token: SignedRegisterState("123 foobar".into()),
-            })
+            Json(json! ({
+                "relay_id": relay_id,
+                "token": SignedRegisterState("123 foobar".into()),
+            }))
         })
     }
 }
 
 async fn is_live() -> &'static str {
-    dbg!("is_healthy: true")
+    "is_healthy: true"
 }
-
-use relay_server::services::project::PublicKeyConfig;

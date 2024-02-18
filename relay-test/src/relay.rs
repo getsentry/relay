@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError};
 
@@ -43,8 +43,8 @@ impl<U: Upstream> Upstream for Relay<'_, U> {
         self.upstream_dsn.clone()
     }
 
-    fn insert_known_relay(&self, _relay_id: Uuid, _public_key: PublicKey) {
-        // idk man
+    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
+        self.upstream.insert_known_relay(relay_id, public_key);
     }
 
     fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
@@ -164,7 +164,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
         let relay_bin = get_relay_binary().unwrap();
 
         let mut dir = TempDir::default();
-        let dir = dbg!(dir.create("relay"));
+        let dir = dir.create("relay");
 
         let credentials = load_credentials(&config, &dir);
 
@@ -176,10 +176,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
             &["-c", dir.as_path().to_str().unwrap(), "run"],
         );
 
-        let server_address = SocketAddr::new(
-            std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            config.values.relay.port,
-        );
+        let server_address = config.listen_addr();
 
         // We need this delay before we start sending to relay.
         std::thread::sleep(Duration::from_millis(500));
@@ -233,7 +230,7 @@ impl<'a, U: Upstream> Relay<'a, U> {
         let url = upstream.url();
         let internal_error_dsn = upstream.internal_error_dsn();
 
-        let config = default_opts(dbg!(url), dbg!(internal_error_dsn), port, host);
+        let config = default_opts(url, internal_error_dsn, port, host);
 
         RelayBuilder {
             config,
@@ -287,18 +284,14 @@ impl<'a, U: Upstream> Relay<'a, U> {
             );
         }
 
-        dbg!("sending envelope!");
-        dbg!(&url, &headers, &data);
         Runtime::new().unwrap().block_on(async {
-            dbg!(
-                reqwest::Client::new()
-                    .post(url)
-                    .headers(headers)
-                    .body(data)
-                    .send()
-                    .await
-            )
-            .unwrap()
+            reqwest::Client::new()
+                .post(url)
+                .headers(headers)
+                .body(data)
+                .send()
+                .await
+                .unwrap()
         })
     }
 
@@ -362,18 +355,11 @@ fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
-    dbg!(&relay_dir);
     let relay_bin = get_relay_binary().unwrap();
     let config_path = relay_dir.join("config.yml");
 
-    std::fs::write(
-        config_path.as_path(),
-        serde_yaml::to_string(&config.values).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(config_path.as_path(), config.to_yaml_string().unwrap()).unwrap();
 
-    dbg!(&relay_bin);
-    dbg!(&config_path.parent());
     let output = std::process::Command::new(relay_bin.as_path())
         .arg("-c")
         .arg(config_path.parent().unwrap())

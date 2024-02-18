@@ -612,8 +612,8 @@ impl RegisterRequest {
 /// Represents the response the server is supposed to send to a register request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
-    pub relay_id: RelayId,
-    pub token: SignedRegisterState,
+    relay_id: RelayId,
+    token: SignedRegisterState,
 }
 
 impl RegisterChallenge {
@@ -643,10 +643,10 @@ impl RegisterChallenge {
 /// successfully, this Relay authenticates with the upstream.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
-    pub relay_id: RelayId,
-    pub token: SignedRegisterState,
+    relay_id: RelayId,
+    token: SignedRegisterState,
     #[serde(default)]
-    pub version: RelayVersion,
+    version: RelayVersion,
 }
 
 impl RegisterResponse {

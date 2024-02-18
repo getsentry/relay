@@ -18,7 +18,7 @@ use relay_test::{
 fn test_it_removes_events() {
     let sample_rate = 0.0;
     let project_state = StateBuilder::new()
-        // add a sampling rule to project config htat removes lal transactions (sample_rate=0)
+        // add a sampling rule to project config that removes all transactions (sample_rate=0)
         .add_basic_sampling_rule(RuleType::Transaction, sample_rate)
         .set_transaction_metrics_version(1);
 

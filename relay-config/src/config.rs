@@ -1302,9 +1302,9 @@ impl Default for CardinalityLimiter {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct ConfigValues {
+struct ConfigValues {
     #[serde(default)]
-    pub relay: Relay,
+    relay: Relay,
     #[serde(default)]
     http: Http,
     #[serde(default)]
@@ -1353,7 +1353,7 @@ impl ConfigObject for ConfigValues {
 
 /// Config struct.
 pub struct Config {
-    pub values: ConfigValues,
+    values: ConfigValues,
     credentials: Option<Credentials>,
     path: PathBuf,
 }
