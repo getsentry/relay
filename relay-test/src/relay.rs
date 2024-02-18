@@ -1,5 +1,3 @@
-use std::env;
-use std::error::Error;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -251,27 +249,28 @@ fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
         .expect("Failed to get absolute path"))
 }
 
-fn get_relay_binary() -> Result<PathBuf, Box<dyn Error>> {
-    let relay_bin_path =
-        dbg!(env::var("RELAY_BIN")).unwrap_or_else(|_| "target/debug/relay".to_string());
-
-    dbg!(std::env::current_dir().unwrap());
-
-    let path_buf = PathBuf::from(relay_bin_path);
-
-    // Convert the relative path to an absolute path, similar to os.path.abspath in Python
-    let absolute_path_buf = if path_buf.is_absolute() {
-        path_buf
-    } else {
-        env::current_dir()?.join(path_buf)
-    };
-
-    // Check for existence before attempting to canonicalize
-    if !absolute_path_buf.exists() {
-        return Err(format!("Path does not exist: {:?}", absolute_path_buf).into());
+fn print_directory_contents(dir: &Path) {
+    if dir.is_dir() {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                println!("Directory: {}", path.display());
+            } else {
+                println!("File: {}", path.display());
+            }
+        }
     }
+}
 
-    absolute_path_buf.canonicalize().map_err(Into::into)
+fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let x = std::env::var("RELAY_BIN").map_or_else(|_| "target/debug/relay".into(), PathBuf::from);
+    dbg!(&x);
+
+    let path = std::env::current_dir().unwrap();
+    print_directory_contents(path.as_path());
+
+    Ok(x.canonicalize()?)
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {

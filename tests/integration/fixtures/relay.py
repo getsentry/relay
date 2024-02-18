@@ -53,9 +53,6 @@ class Relay(SentryLike):
 def get_relay_binary():
     def inner(version="latest"):
         if version == "latest":
-            print("PATH DEBUG")
-            print(RELAY_BIN)
-            assert False
             return RELAY_BIN
 
         if sys.platform == "linux" or sys.platform == "linux2":
