@@ -1,12 +1,13 @@
-use relay_base_schema::project::ProjectId;
-use relay_event_schema::protocol::EventId;
-use relay_sampling::config::RuleType;
-use relay_test::mini_sentry::{MiniSentry, Outcome, ProjectState};
-use relay_test::relay::Relay;
 use serde_json::json;
 use uuid::Uuid;
 
-use relay_test::{create_error_item, new_sampling_rule, Envelope};
+use relay_base_schema::project::ProjectId;
+use relay_event_schema::protocol::EventId;
+use relay_sampling::config::RuleType;
+use relay_test::{
+    create_error_item, mini_sentry::MiniSentry, new_sampling_rule, relay::Relay, Envelope, Outcome,
+    ProjectState,
+};
 
 /// Tests that when sampling is set to 0% for the trace context project the events are removed.
 #[test]

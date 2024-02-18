@@ -28,12 +28,14 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
 use std::process::Child;
 
+use chrono::Utc;
 use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_system::{channel, Addr, Interface};
-use serde_json::{json, Map, Value};
+use serde::{Serialize, Serializer};
+use serde_json::{json, to_value, Map, Value};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -423,7 +425,6 @@ impl RawItem {
     // Serialize the RawItem for inclusion in RawEnvelope's serialization
     pub fn serialize(&self) -> String {
         let mut headers = self.headers.clone();
-        // Assuming payload length is desired in bytes, considering UTF-8 encoding
         let payload = self.payload_string();
         headers.insert(
             "length".to_owned(),
@@ -435,12 +436,9 @@ impl RawItem {
             self.inferred_content_type().into(),
         );
 
-        // Serialize headers to JSON string
-        dbg!(&headers);
         let headers_json = serde_json::to_string(&headers).unwrap();
-        let serialized = format!("{}\n{}\n", headers_json, payload);
 
-        dbg!(serialized)
+        format!("{}\n{}\n", headers_json, payload)
     }
 }
 
@@ -584,7 +582,6 @@ pub fn new_sampling_rule(
 }
 
 pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
-    //    dbg!(&base, &merge_value, &keys);
     let mut base_map = base.as_object_mut().expect("base should be an object");
 
     // Navigate down the nested structure to the final map where the merge should occur
@@ -692,4 +689,189 @@ pub fn processing_config() -> Value {
             "projectconfig_cache_prefix": format!("relay-test-relayconfig-{}", uuid::Uuid::new_v4())
         }
     })
+}
+
+#[derive(Clone, Debug)]
+pub struct ProjectState(serde_json::Map<String, Value>);
+
+impl Serialize for ProjectState {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Value::Object(self.0.clone()).serialize(serializer)
+    }
+}
+
+impl Default for ProjectState {
+    fn default() -> Self {
+        let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
+        let json = json!(
+        {
+            "projectId": ProjectId::new(42),
+            "slug": "python",
+            "publicKeys": [{
+                "publicKey": Uuid::new_v4().simple().to_string().parse::<ProjectKey>().unwrap(),
+            }],
+            "rev": "5ceaea8c919811e8ae7daae9fe877901",
+            "disabled": false,
+            "lastFetch": last_fetch,
+            "lastChange": last_change,
+            "config": {
+                "allowedDomains": ["*"],
+                "piiConfig": {
+                    "rules": {},
+                    "applications": {
+                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "$object": ["@password"],
+                        },
+                    },
+                }
+            }
+        );
+
+        Self::from_value(serde_json::from_value(json).unwrap())
+    }
+}
+
+impl ProjectState {
+    pub fn from_value(val: serde_json::Value) -> Self {
+        Self(val.as_object().unwrap().to_owned())
+    }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn config(&mut self) -> &mut Map<String, Value> {
+        self.0.get_mut("config").unwrap().as_object_mut().unwrap()
+    }
+
+    fn sampling_rules(&mut self) -> &mut Vec<Value> {
+        self.config()
+            .entry("sampling")
+            .or_insert_with(|| {
+                Value::Object({
+                    let mut map = Map::new();
+                    map.insert("rules".to_string(), Value::Array(vec![]));
+                    map
+                })
+            })
+            .as_object_mut()
+            .unwrap()
+            .get_mut("rules")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+    }
+
+    pub fn project_id(&self) -> ProjectId {
+        let id = self.0.get("projectId").unwrap().as_u64().unwrap();
+
+        ProjectId::new(id)
+    }
+
+    pub fn public_key(&self) -> ProjectKey {
+        let project_key = self
+            .0
+            .get("publicKeys")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .first()
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("publicKey")
+            .unwrap()
+            .as_str()
+            .unwrap();
+
+        ProjectKey::parse(project_key).unwrap()
+    }
+
+    pub fn enable_outcomes(mut self) -> Self {
+        let outcomes = json!({
+            "outcomes": {
+            "emit_outcomes": true,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "relay"
+ }       });
+
+        self.config().insert("outcomes".to_string(), outcomes);
+
+        self
+    }
+
+    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
+        let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
+        self.add_sampling_rule(rule)
+    }
+
+    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
+        self.config().insert(
+            "transactionMetrics".to_string(),
+            json!({"version": version}),
+        );
+        self
+    }
+
+    pub fn set_project_id(mut self, id: ProjectId) -> Self {
+        self.0
+            .insert("projectId".to_string(), to_value(id).unwrap());
+        self
+    }
+
+    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
+        self.config()
+            .insert("trustedRelays".to_string(), to_value(relays).unwrap());
+        self
+    }
+
+    pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
+        self.sampling_rules()
+            .push(serde_json::to_value(rule).unwrap());
+        self
+    }
+
+    pub fn add_basic_sampling_rule(self, rule_type: RuleType, sample_rate: f32) -> Self {
+        let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
+        self.add_sampling_rule(rule)
+    }
+}
+
+#[derive(Debug)]
+pub struct Outcome(serde_json::Map<String, Value>);
+
+impl Outcome {
+    pub fn new(val: serde_json::Value) -> Self {
+        Self(val.as_object().unwrap().to_owned())
+    }
+
+    pub fn reason(&self) -> &str {
+        self.0.get("reason").unwrap().as_str().unwrap()
+    }
+
+    pub fn outcome(&self) -> u64 {
+        self.0.get("outcome").unwrap().as_u64().unwrap()
+    }
+
+    pub const ACCEPTED: u64 = 0;
+    pub const FILTERED: u64 = 1;
+    pub const RATE_LIMITED: u64 = 2;
+    pub const INVALID: u64 = 3;
+    pub const ABUSE: u64 = 4;
+    pub const CLIENT_DISCARD: u64 = 5;
+}
+
+impl Serialize for Outcome {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Value::Object(self.0.clone()).serialize(serializer)
+    }
 }

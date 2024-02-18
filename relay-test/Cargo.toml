@@ -15,7 +15,6 @@ relay-system = { path = "../relay-system" }
 tokio = { workspace = true, features = ["full"]}
 serde = { workspace = true }
 serde_json = { workspace = true }
-relay-server = { path = "../relay-server" }
 relay-base-schema = { path = "../relay-base-schema" }
 uuid = { workspace = true }
 reqwest = { version = "0.11", features = ["blocking"] }
@@ -23,8 +22,6 @@ tempfile = "3.8.0"
 serde_yaml = { workspace = true }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-sampling = { path = "../relay-sampling" }
-relay-protocol = { path = "../relay-protocol" }
-relay-common = { path = "../relay-common" }
 relay-quotas = { path = "../relay-quotas" }
 chrono = "0.4"
 hyper = "0.14"
@@ -32,7 +29,6 @@ lazy_static = "1.4"
 relay-dynamic-config = { path = "../relay-dynamic-config" }
 relay-config = { path = "../relay-config" }
 relay-auth = { path = "../relay-auth" }
-no_deadlocks = "1.3.2"
 flate2 = "1.0.19"
 axum = { version = "0.6.20", features = [
     "headers",

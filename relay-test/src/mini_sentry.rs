@@ -1,29 +1,29 @@
-use chrono::Utc;
-use no_deadlocks::Mutex;
-use relay_event_schema::protocol::EventId;
-use relay_sampling::config::{RuleType, SamplingRule};
-use serde::{Serialize, Serializer};
 use std::collections::HashMap;
+use std::future::Future;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::{Arc, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use crate::{new_sampling_rule, random_port, Envelope, RawItem, Upstream, DEFAULT_DSN_PUBLIC_KEY};
 use axum::body::Bytes;
 use axum::response::Json;
 use axum::routing::{get, post};
 use axum::Router;
 use flate2::read::GzDecoder;
+use serde_json::{json, Value};
+use tokio::runtime::Runtime;
+use uuid::Uuid;
+
 use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
-use serde_json::{json, to_value, Map, Value};
-use std::future::Future;
-use tokio::runtime::Runtime;
-use uuid::Uuid;
+use relay_event_schema::protocol::EventId;
+
+use crate::{
+    random_port, Envelope, Outcome, ProjectState, RawItem, Upstream, DEFAULT_DSN_PUBLIC_KEY,
+};
 
 #[derive(Default, Clone)]
 pub struct CapturedOutcomes {
@@ -211,7 +211,7 @@ impl CapturedEnvelopes {
     }
 
     pub fn debug(&self) -> &Self {
-        dbg!(self.get_envelopes());
+        println!("{:?}", self.get_envelopes());
         self
     }
 
@@ -235,193 +235,6 @@ impl CapturedEnvelopes {
         }
 
         panic!("No items with event id: {}", event_id);
-    }
-}
-
-#[derive(Debug)]
-pub struct Outcome(serde_json::Map<String, Value>);
-
-impl Outcome {
-    pub fn new(val: serde_json::Value) -> Self {
-        Self(val.as_object().unwrap().to_owned())
-    }
-
-    pub fn reason(&self) -> &str {
-        self.0.get("reason").unwrap().as_str().unwrap()
-    }
-
-    pub fn outcome(&self) -> u64 {
-        self.0.get("outcome").unwrap().as_u64().unwrap()
-    }
-
-    pub const ACCEPTED: u64 = 0;
-    pub const FILTERED: u64 = 1;
-    pub const RATE_LIMITED: u64 = 2;
-    pub const INVALID: u64 = 3;
-    pub const ABUSE: u64 = 4;
-    pub const CLIENT_DISCARD: u64 = 5;
-}
-
-impl Serialize for Outcome {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Value::Object(self.0.clone()).serialize(serializer)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ProjectState(serde_json::Map<String, Value>);
-
-impl Serialize for ProjectState {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Value::Object(self.0.clone()).serialize(serializer)
-    }
-}
-
-impl Default for ProjectState {
-    fn default() -> Self {
-        let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-        let json = json!(
-        {
-            "projectId": ProjectId::new(42),
-            "slug": "python",
-            "publicKeys": [{
-                "publicKey": Uuid::new_v4().simple().to_string().parse::<ProjectKey>().unwrap(),
-            }],
-            "rev": "5ceaea8c919811e8ae7daae9fe877901",
-            "disabled": false,
-            "lastFetch": last_fetch,
-            "lastChange": last_change,
-            "config": {
-                "allowedDomains": ["*"],
-                "piiConfig": {
-                    "rules": {},
-                    "applications": {
-                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "$object": ["@password"],
-                        },
-                    },
-                }
-            }
-        );
-
-        Self::from_value(serde_json::from_value(json).unwrap())
-    }
-}
-
-impl ProjectState {
-    pub fn from_value(val: serde_json::Value) -> Self {
-        Self(val.as_object().unwrap().to_owned())
-    }
-
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn config(&mut self) -> &mut Map<String, Value> {
-        self.0.get_mut("config").unwrap().as_object_mut().unwrap()
-    }
-
-    fn sampling_rules(&mut self) -> &mut Vec<Value> {
-        self.config()
-            .entry("sampling")
-            .or_insert_with(|| {
-                Value::Object({
-                    let mut map = Map::new();
-                    map.insert("rules".to_string(), Value::Array(vec![]));
-                    map
-                })
-            })
-            .as_object_mut()
-            .unwrap()
-            .get_mut("rules")
-            .unwrap()
-            .as_array_mut()
-            .unwrap()
-    }
-
-    pub fn project_id(&self) -> ProjectId {
-        dbg!(&self);
-        let id = self.0.get("projectId").unwrap().as_u64().unwrap();
-
-        ProjectId::new(id)
-    }
-
-    pub fn public_key(&self) -> ProjectKey {
-        dbg!(self);
-        let project_key = self
-            .0
-            .get("publicKeys")
-            .unwrap()
-            .as_array()
-            .unwrap()
-            .first()
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .get("publicKey")
-            .unwrap()
-            .as_str()
-            .unwrap();
-
-        ProjectKey::parse(project_key).unwrap()
-    }
-
-    pub fn enable_outcomes(mut self) -> Self {
-        let outcomes = json!({
-            "outcomes": {
-            "emit_outcomes": true,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "relay"
- }       });
-
-        self.config().insert("outcomes".to_string(), outcomes);
-
-        self
-    }
-
-    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
-        let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
-        self.add_sampling_rule(rule)
-    }
-
-    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
-        self.config().insert(
-            "transactionMetrics".to_string(),
-            json!({"version": version}),
-        );
-        self
-    }
-
-    pub fn set_project_id(mut self, id: ProjectId) -> Self {
-        self.0
-            .insert("projectId".to_string(), to_value(id).unwrap());
-        self
-    }
-
-    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
-        self.config()
-            .insert("trustedRelays".to_string(), to_value(relays).unwrap());
-        self
-    }
-
-    pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
-        self.sampling_rules()
-            .push(serde_json::to_value(rule).unwrap());
-        self
-    }
-
-    pub fn add_basic_sampling_rule(self, rule_type: RuleType, sample_rate: f32) -> Self {
-        let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
-        self.add_sampling_rule(rule)
     }
 }
 
