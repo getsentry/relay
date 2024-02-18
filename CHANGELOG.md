@@ -6,6 +6,10 @@
 
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
+**Internal**:
+
+- Rewrite dynamic sampling integration tests to rust and add basic rust testing framework. ([#3133](https://github.com/getsentry/relay/pull/3133))
+
 ## 24.2.0
 
 **Bug Fixes**:
