@@ -264,20 +264,15 @@ fn print_directory_contents(dir: &Path) {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let x =
-        std::env::var("RELAY_BIN").map_or_else(|_| "../target/debug/relay".into(), PathBuf::from);
+    let x = std::env::var("RELAY_BIN").map_or_else(|_| "../target/debug/".into(), PathBuf::from);
+    let x = x.canonicalize().unwrap();
     dbg!(&x);
 
-    let path = std::env::current_dir().unwrap();
-    dbg!(&path);
-    print_directory_contents(path.as_path());
+    let curr = std::env::current_dir().unwrap();
+    dbg!(&curr);
+    print_directory_contents(x.as_path());
 
-    let abs = x.canonicalize().unwrap();
-    dbg!(&abs);
-
-    dbg!(abs.exists());
-
-    Ok(abs)
+    Ok(x)
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
