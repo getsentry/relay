@@ -242,11 +242,25 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
     }
 }
 
-fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn x_get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(std::env::var("RELAY_BIN")
         .map_or_else(|_| "../target/debug/relay".into(), PathBuf::from)
         .canonicalize()
         .expect("Failed to get absolute path"))
+}
+
+fn get_relay_binary() -> Result<PathBuf, Box<dyn Error>> {
+    let path = env::var("RELAY_BIN").unwrap_or_else(|_| "../target/debug/relay".to_string());
+    let path_buf = PathBuf::from(path);
+
+    dbg!(&path_buf);
+
+    // Check if the path exists before canonicalizing
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {:?}", path_buf).into());
+    }
+
+    path_buf.canonicalize().map_err(|e| e.into())
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
