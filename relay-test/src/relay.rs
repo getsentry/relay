@@ -1,16 +1,19 @@
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, PoisonError};
+use std::sync::Arc;
 
 use hyper::http::HeaderName;
 use std::time::Duration;
 
+use crate::{
+    merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, Envelope,
+    TempDir, Upstream,
+};
 use axum::http::HeaderMap;
-use relay_auth::{PublicKey, SecretKey};
+use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_config::Credentials;
-use relay_config::RelayInfo;
 use reqwest::{self, Response};
 use serde_json::{json, Value};
 use std::env;
@@ -19,19 +22,6 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
-
-use crate::mini_sentry::MiniSentry;
-use crate::{
-    merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, RawEnvelope,
-    TempDir,
-};
-
-pub trait Upstream {
-    fn url(&self) -> String;
-    fn internal_error_dsn(&self) -> String;
-    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey);
-    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey;
-}
 
 impl<U: Upstream> Upstream for Relay<'_, U> {
     fn url(&self) -> String {
@@ -48,33 +38,6 @@ impl<U: Upstream> Upstream for Relay<'_, U> {
 
     fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
         self.upstream.public_dsn_key(id)
-    }
-}
-
-impl Upstream for MiniSentry {
-    fn url(&self) -> String {
-        self.inner.lock().unwrap().url()
-    }
-
-    fn internal_error_dsn(&self) -> String {
-        self.inner
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .internal_error_dsn()
-    }
-
-    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
-        self.inner.lock().unwrap().known_relays.insert(
-            relay_id,
-            RelayInfo {
-                public_key,
-                internal: true,
-            },
-        );
-    }
-
-    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
-        self.get_dsn_public_key_configs(id).unwrap().public_key
     }
 }
 
@@ -119,7 +82,7 @@ fn default_opts(url: String, internal_error_dsn: String, port: u16, host: String
 }
 
 pub struct RelayBuilder<'a, U: Upstream> {
-    pub config: serde_json::Value,
+    config: serde_json::Value,
     upstream: &'a U,
 }
 
@@ -231,7 +194,7 @@ impl<'a, U: Upstream> Relay<'a, U> {
         format!("{}{}", self.url(), endpoint)
     }
 
-    pub fn send_envelope_to_url(&self, envelope: RawEnvelope, url: &str) -> Response {
+    pub fn send_envelope_to_url(&self, envelope: Envelope, url: &str) -> Response {
         use reqwest::header::HeaderValue;
 
         let mut headers = HeaderMap::new();
@@ -267,7 +230,7 @@ impl<'a, U: Upstream> Relay<'a, U> {
         })
     }
 
-    pub fn send_envelope(&self, envelope: RawEnvelope) {
+    pub fn send_envelope(&self, envelope: Envelope) {
         let url = self.envelope_url(envelope.project_id);
         self.send_envelope_to_url(envelope, &url);
     }

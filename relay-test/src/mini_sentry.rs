@@ -4,16 +4,16 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
-use crate::{random_port, RawEnvelope, RawItem, StateBuilder, DEFAULT_DSN_PUBLIC_KEY};
+use crate::{random_port, Envelope, RawItem, StateBuilder, Upstream, DEFAULT_DSN_PUBLIC_KEY};
 use axum::body::Bytes;
 use axum::response::Json;
 use axum::routing::{get, post};
 use axum::Router;
 use flate2::read::GzDecoder;
-use relay_auth::{PublicKey, RelayId, RelayVersion, SignedRegisterState};
+use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
@@ -112,7 +112,7 @@ impl CapturedOutcomes {
 
 #[derive(Default, Clone)]
 pub struct CapturedEnvelopes {
-    inner: Arc<Mutex<Vec<RawEnvelope>>>,
+    inner: Arc<Mutex<Vec<Envelope>>>,
 }
 
 impl CapturedEnvelopes {
@@ -125,15 +125,15 @@ impl CapturedEnvelopes {
         self
     }
 
-    pub fn pop(&self) -> Option<RawEnvelope> {
+    pub fn pop(&self) -> Option<Envelope> {
         self.inner.lock().unwrap().pop()
     }
 
-    pub fn push(&self, envelope: RawEnvelope) {
+    pub fn push(&self, envelope: Envelope) {
         self.inner.lock().unwrap().push(envelope);
     }
 
-    pub fn get_index(&self, idx: usize) -> RawEnvelope {
+    pub fn get_index(&self, idx: usize) -> Envelope {
         self.inner.lock().unwrap().remove(idx)
     }
 
@@ -164,7 +164,7 @@ impl CapturedEnvelopes {
         self
     }
 
-    pub fn get_envelopes(&self) -> Vec<RawEnvelope> {
+    pub fn get_envelopes(&self) -> Vec<Envelope> {
         let guard = self.inner.lock().unwrap();
 
         let mut events = vec![];
@@ -283,6 +283,33 @@ impl Default for MiniSentry {
     }
 }
 
+impl Upstream for MiniSentry {
+    fn url(&self) -> String {
+        self.inner.lock().unwrap().url()
+    }
+
+    fn internal_error_dsn(&self) -> String {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .internal_error_dsn()
+    }
+
+    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
+        self.inner.lock().unwrap().known_relays.insert(
+            relay_id,
+            RelayInfo {
+                public_key,
+                internal: true,
+            },
+        );
+    }
+
+    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
+        self.get_dsn_public_key_configs(id).unwrap().public_key
+    }
+}
+
 impl MiniSentry {
     pub fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
         self.inner.lock().unwrap().known_relays.insert(
@@ -321,13 +348,6 @@ impl MiniSentry {
 
     pub fn captured_outcomes(&self) -> CapturedOutcomes {
         self.inner.lock().unwrap().captured_outcomes.clone()
-    }
-
-    fn _take_n_envelopes<const N: usize>(&self) -> [RawEnvelope; N] {
-        let envelopes = self.captured_envelopes().get_envelopes();
-        assert_eq!(envelopes.len(), N);
-
-        envelopes.try_into().unwrap()
     }
 
     pub fn add_sampling_rule(self, rule: SamplingRule) -> Self {
@@ -530,7 +550,7 @@ fn make_handle_envelope(
         let mini_sentry = mini_sentry.clone();
         Box::pin(async move {
             let decompressed = decompress(&bytes).unwrap_or(bytes.to_vec());
-            let envelope = RawEnvelope::from_utf8(decompressed);
+            let envelope = Envelope::from_utf8(decompressed);
             mini_sentry
                 .lock()
                 .unwrap()

@@ -23,6 +23,30 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use std::collections::HashMap;
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
+use std::path::PathBuf;
+use std::process::Child;
+
+use chrono::Utc;
+use relay_auth::PublicKey;
+use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_dynamic_config::TransactionMetricsConfig;
+use relay_event_schema::protocol::EventId;
+use relay_sampling::config::{RuleType, SamplingRule};
+use relay_sampling::SamplingConfig;
+use relay_server::envelope::ItemType;
+use relay_server::services::project::ProjectState;
+use relay_server::services::project::PublicKeyConfig;
+use relay_system::{channel, Addr, Interface};
+use serde_json::{json, Map, Value};
+use std::str::FromStr;
+use tokio::task::JoinHandle;
+use uuid::Uuid;
+
+pub mod mini_sentry;
+pub mod relay;
+
 /// Setup the test environment.
 ///
 ///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
@@ -50,71 +74,47 @@ where
     (addr, handle)
 }
 
-use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
-use std::path::PathBuf;
-use std::process::Child;
+pub trait Upstream {
+    fn url(&self) -> String;
+    fn internal_error_dsn(&self) -> String;
+    fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey);
+    fn public_dsn_key(&self, id: ProjectId) -> ProjectKey;
+}
 
-use chrono::Utc;
-use relay_auth::PublicKey;
-use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_dynamic_config::TransactionMetricsConfig;
-use relay_event_schema::protocol::EventId;
-use relay_sampling::config::{RuleType, SamplingRule};
-use relay_sampling::SamplingConfig;
-use relay_server::envelope::AttachmentType;
-use relay_server::envelope::ItemType;
-use relay_server::services::project::ProjectState;
-use relay_server::services::project::PublicKeyConfig;
-use relay_system::{channel, Addr, Interface};
-use serde_json::{json, Map, Value};
-use std::str::FromStr;
-use tokio::task::JoinHandle;
-use uuid::Uuid;
-
-pub mod mini_sentry;
-pub mod relay;
-
+/// All information needed to send an envelope request to relay.
 #[derive(Debug, Clone)]
-pub struct RawEnvelope {
+pub struct Envelope {
     pub http_headers: HashMap<String, String>,
     pub project_id: ProjectId,
-    pub headers: HashMap<String, Value>,
+    pub envelope_headers: HashMap<String, Value>,
     pub items: Vec<RawItem>,
 }
 
-impl Default for RawEnvelope {
+impl Default for Envelope {
     fn default() -> Self {
         Self {
             project_id: ProjectId::new(42),
             http_headers: Default::default(),
-            headers: Default::default(),
+            envelope_headers: Default::default(),
             items: Default::default(),
         }
     }
 }
 
-impl RawEnvelope {
+impl Envelope {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn parse_dsn(dsn: &str) -> (ProjectKey, ProjectId) {
-        let trimmed_dsn = dsn.trim_matches('"');
-        let trimmed_dsn = trimmed_dsn.trim_start_matches("http://");
+    pub fn project_id_from_dsn(dsn: &str) -> ProjectId {
+        let trimmed_dsn = dsn.trim_matches('"').trim_start_matches("http://");
 
         let parts: Vec<&str> = trimmed_dsn.split([':', '@', '/']).collect();
-        let public_key = parts[0].to_string();
-        let _host = parts[2];
-        let _port = parts[3];
-        let project_id_str = parts[4];
 
+        let project_id_str = parts[4];
         let project_id = project_id_str.parse::<u64>().unwrap();
 
-        let public_key = ProjectKey::from_str(&public_key).unwrap();
-        let project_id = ProjectId::new(project_id);
-
-        (public_key, project_id)
+        ProjectId::new(project_id)
     }
 
     pub fn from_utf8(vec: Vec<u8>) -> Self {
@@ -129,7 +129,8 @@ impl RawEnvelope {
             .into_iter()
             .collect();
 
-        let (_, project_id) = Self::parse_dsn(&envelope_headers.get("dsn").unwrap().to_string());
+        let project_id =
+            Self::project_id_from_dsn(&envelope_headers.get("dsn").unwrap().to_string());
 
         let item_headers: Value = serde_json::from_str(parts[1]).unwrap();
         let item_headers: HashMap<String, Value> = item_headers
@@ -146,63 +147,74 @@ impl RawEnvelope {
         Self {
             http_headers: Default::default(),
             project_id,
-            headers: envelope_headers,
+            envelope_headers,
             items: vec![item],
         }
     }
 
-    pub fn add_transaction_and_trace_info(
-        self,
-        public_key: ProjectKey,
-        transaction: Option<&str>,
-    ) -> Self {
-        let (item, trace_id, _) = x_create_transaction_item(transaction);
+    /// Returns the event in the envelope headers
+    pub fn event_id(&self) -> Option<EventId> {
+        let as_str = self.envelope_headers.get("event_id")?.to_string();
+        let as_str = as_str.trim_matches('\"');
+        let id = Uuid::parse_str(as_str).unwrap();
 
-        self.add_raw_item(item)
-            .add_trace_info_simple(trace_id, public_key)
+        Some(EventId(id))
     }
 
-    pub fn add_transaction_and_trace_info_not_simple(
-        self,
-        public_key: ProjectKey,
-        transaction: Option<&str>,
-        client_sample_rate: Option<f32>,
-    ) -> Self {
-        let (item, trace_id, _) = x_create_transaction_item(transaction);
+    pub fn add_basic_trace_info(mut self, public_key: ProjectKey) -> Self {
+        let trace_id = self.items.last().unwrap().trace_id().unwrap();
 
-        self.add_raw_item(item).add_trace_info(
-            trace_id,
-            public_key,
-            None,
-            None,
-            client_sample_rate,
-            transaction,
-        )
-    }
-
-    pub fn add_trace_info_simple(mut self, trace_id: Uuid, public_key: ProjectKey) -> Self {
         let trace_info = json!({
             "trace_id": trace_id.simple().to_string(),
             "public_key": public_key,
         });
 
-        self.headers.insert("trace".into(), trace_info);
+        self.envelope_headers.insert("trace".into(), trace_info);
         self
+    }
+
+    pub fn set_client_sample_rate(mut self, sample_rate: f32) -> Self {
+        let trace_object = self
+            .envelope_headers
+            .get_mut("trace")
+            .unwrap()
+            .as_object_mut()
+            .unwrap();
+
+        let sample_rate = format!("{:.5}", sample_rate);
+        trace_object.insert(
+            "sample_rate".to_string(),
+            serde_json::Value::String(sample_rate),
+        );
+
+        self
+    }
+
+    pub fn add_basic_transaction(self, transaction: Option<&str>) -> Self {
+        self.add_transaction(transaction, None, None)
+    }
+
+    pub fn add_transaction(
+        self,
+        transaction: Option<&str>,
+        event_id: Option<Uuid>,
+        trace_id: Option<Uuid>,
+    ) -> Self {
+        let item = create_transaction_item(transaction, trace_id, event_id);
+        self.add_item(item)
     }
 
     pub fn add_error_event_with_trace_info(self, public_key: ProjectKey) -> Self {
         let (item, trace_id, event_id) = create_error_item();
 
-        self.add_raw_item(item)
-            .set_event_id(event_id)
-            .add_trace_info(
-                trace_id,
-                public_key,
-                Some(1.0),
-                Some(true),
-                Some(1.0),
-                Some("/transaction"),
-            )
+        self.add_item(item).set_event_id(event_id).add_trace_info(
+            trace_id,
+            public_key,
+            Some(1.0),
+            Some(true),
+            Some(1.0),
+            Some("/transaction"),
+        )
     }
 
     pub fn add_trace_info(
@@ -215,7 +227,7 @@ impl RawEnvelope {
         transaction: Option<&str>,
     ) -> Self {
         let mut x = json!({
-            "trace_id": trace_id.simple().to_string(),
+            "trace_id": trace_id,
             "public_key": public_key,
         });
 
@@ -239,7 +251,7 @@ impl RawEnvelope {
             trace_info.insert("sampled".to_string(), sampled.into());
         }
 
-        self.headers.insert(
+        self.envelope_headers.insert(
             "trace".into(),
             serde_json::Value::Object(trace_info.to_owned()),
         );
@@ -255,8 +267,15 @@ impl RawEnvelope {
         self.add_header("event_id", &id.to_string())
     }
 
+    /// Sets the event id of the envelope from the last inserted item.
+    pub fn fill_event_id(self) -> Self {
+        let last_item = self.items.last().unwrap();
+        let id = last_item.event_id().unwrap();
+        self.add_header("event_id", &id.to_string())
+    }
+
     pub fn add_header(mut self, key: &str, val: &str) -> Self {
-        self.headers.insert(key.into(), val.into());
+        self.envelope_headers.insert(key.into(), val.into());
         self
     }
 
@@ -265,7 +284,7 @@ impl RawEnvelope {
         self
     }
 
-    pub fn add_raw_item(mut self, item: RawItem) -> Self {
+    pub fn add_item(mut self, item: RawItem) -> Self {
         self.items.push(item);
         self
     }
@@ -276,41 +295,11 @@ impl RawEnvelope {
         self
     }
 
-    pub fn add_item(mut self, payload: &str, ty: ItemType) -> Self {
-        let item = RawItem::from_json(payload.into()).set_type(ty);
-        self.items.push(item);
-        self
-    }
-
-    pub fn add_attachment(mut self, payload: &str, ty: impl Into<Option<AttachmentType>>) -> Self {
-        let ty = ty.into();
-        let mut item = RawItem::from_json(payload.into()).set_type(ItemType::Attachment);
-
-        if let Some(ty) = ty {
-            item = item.add_header("attachment_type", &ty.to_string());
-        };
-
-        self.items.push(item);
-        self
-    }
-
-    pub fn add_transaction(mut self, payload: Value) -> Self {
-        let item = RawItem::from_json(payload).set_type(ItemType::Event);
-        self.items.push(item);
-        self
-    }
-
-    pub fn add_event(mut self, payload: &str) -> Self {
-        let item = RawItem::from_bytes(payload.to_string()).set_type(ItemType::Event);
-        self.items.push(item);
-        self
-    }
-
     pub fn serialize(&self) -> String {
         let mut serialized = String::new();
 
         // Serialize envelope-level headers as JSON
-        let headers_json = serde_json::to_string(&self.headers).unwrap();
+        let headers_json = serde_json::to_string(&self.envelope_headers).unwrap();
         serialized.push_str(&format!("{}\n", headers_json));
 
         // Serialize items, which are already adjusted to include JSON headers
@@ -335,24 +324,7 @@ pub struct RawItem {
 }
 
 impl RawItem {
-    pub fn from_bytes(payload: impl Into<Vec<u8>>) -> Self {
-        let vec = payload.into();
-        let value: Value = serde_json::from_slice(vec.as_slice()).unwrap();
-
-        let mut headers = HashMap::default();
-
-        for (key, value) in value.as_object().unwrap().iter() {
-            headers.insert(key.clone(), value.clone());
-        }
-
-        Self {
-            headers,
-            payload: PayLoad::Bytes(vec),
-        }
-    }
-
     pub fn sampled(&self) -> Option<bool> {
-        dbg!(self);
         self.payload()
             .as_object()?
             .get("contexts")?
@@ -361,6 +333,26 @@ impl RawItem {
             .as_object()?
             .get("sampled")?
             .as_bool()
+    }
+
+    pub fn trace_id(&self) -> Option<Uuid> {
+        let binding = self.payload();
+        let as_str = binding
+            .as_object()
+            .unwrap()
+            .get("contexts")?
+            .as_object()
+            .unwrap()
+            .get("trace")?
+            .as_object()
+            .unwrap()
+            .get("trace_id")?
+            .as_str()?
+            .trim_matches('\"');
+
+        let trace_id: Uuid = Uuid::parse_str(as_str).unwrap();
+
+        Some(trace_id)
     }
 
     pub fn event_id(&self) -> Option<EventId> {
@@ -776,11 +768,11 @@ pub fn outcomes_enabled_config() -> Value {
     }})
 }
 
-pub fn opt_create_transaction_item(
+pub fn create_transaction_item(
     transaction: Option<&str>,
     trace_id: Option<Uuid>,
     event_id: Option<Uuid>,
-) -> (RawItem, Uuid, Uuid) {
+) -> RawItem {
     let trace_id = trace_id.unwrap_or_else(Uuid::new_v4);
     let event_id = event_id.unwrap_or_else(Uuid::new_v4);
 
@@ -800,32 +792,7 @@ pub fn opt_create_transaction_item(
         "extra": {"id": event_id},
     });
 
-    let item = RawItem::from_json(item).set_type(ItemType::Transaction);
-    (item, trace_id, event_id)
-}
-
-pub fn x_create_transaction_item(transaction: Option<&str>) -> (RawItem, Uuid, Uuid) {
-    let trace_id = Uuid::new_v4();
-    let event_id = Uuid::new_v4();
-
-    let item = json!({
-        "event_id": event_id,
-        "transaction": transaction.unwrap_or( "tr1"),
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "contexts": {
-            "trace": {
-                "trace_id": trace_id.simple(),
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-            }
-        },
-        "spans": [],
-        "extra": {"id": event_id},
-    });
-
-    let item = RawItem::from_json(item).set_type(ItemType::Transaction);
-    (item, trace_id, event_id)
+    RawItem::from_json(item).set_type(ItemType::Transaction)
 }
 
 pub fn get_topic_name(topic: &str) -> String {

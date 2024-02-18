@@ -8,10 +8,7 @@ use relay_test::relay::Relay;
 use serde_json::json;
 use uuid::Uuid;
 
-use relay_test::{
-    create_error_item, new_sampling_rule, opt_create_transaction_item, x_create_transaction_item,
-    RawEnvelope, StateBuilder,
-};
+use relay_test::{create_error_item, new_sampling_rule, Envelope, StateBuilder};
 
 /// Tests that when sampling is set to 0% for the trace context project the events are removed.
 #[test]
@@ -27,7 +24,9 @@ fn test_it_removes_events() {
     let relay = Relay::builder(&sentry).enable_outcomes().build();
 
     // create an envelope with a trace context that is initiated by this project (for simplicity)
-    let envelope = RawEnvelope::new().add_transaction_and_trace_info(public_key, None);
+    let envelope = Envelope::new()
+        .add_basic_transaction(None)
+        .add_basic_trace_info(public_key);
 
     // send the event, the transaction should be removed.
     relay.send_envelope(envelope);
@@ -64,9 +63,9 @@ fn test_it_does_not_sample_error() {
     let (item, trace_id, event_id) = create_error_item();
 
     // create an envelope with a trace context that is initiated by this project (for simplicity)
-    let envelope = RawEnvelope::new()
-        .add_raw_item(item)
-        .add_header("event_id", event_id.to_string().as_str())
+    let envelope = Envelope::new()
+        .add_item(item)
+        .fill_event_id()
         .add_trace_info(
             trace_id,
             public_key,
@@ -100,7 +99,7 @@ fn test_it_tags_error() {
         let sentry = MiniSentry::new().add_project_state(project_state);
 
         // create an envelope with a trace context that is initiated by this project (for simplicity)
-        let envelope = RawEnvelope::new().add_error_event_with_trace_info(public_key);
+        let envelope = Envelope::new().add_error_event_with_trace_info(public_key);
         let relay = Relay::builder(&sentry).enable_outcomes().build();
         relay.send_envelope(envelope);
 
@@ -124,12 +123,11 @@ fn test_it_keeps_event() {
 
     let relay = Relay::builder(&sentry).enable_outcomes().build();
 
-    let (item, trace_id, event_id) = x_create_transaction_item(None);
-
-    let envelope = RawEnvelope::new()
-        .add_raw_item(item)
-        .set_event_id(event_id)
-        .add_trace_info_simple(trace_id, public_key);
+    let envelope = Envelope::new()
+        .add_basic_transaction(None)
+        .fill_event_id()
+        .add_basic_trace_info(public_key);
+    let event_id = envelope.event_id().unwrap();
 
     relay.send_envelope(envelope);
 
@@ -137,7 +135,7 @@ fn test_it_keeps_event() {
         .captured_envelopes()
         .wait_for_envelope(3)
         .assert_item_qty(1)
-        .assert_contains_event_id(EventId(event_id));
+        .assert_contains_event_id(event_id);
 }
 
 /// Tests that the `public_key` from the trace context is used.
@@ -185,10 +183,9 @@ fn test_uses_trace_public_key() {
 
     // First
     // send trace with project_id1 context (should be removed)
-    let (transaction, trace_id, _) = x_create_transaction_item(None);
-    let envelope = RawEnvelope::new()
-        .add_raw_item(transaction)
-        .add_trace_info_simple(trace_id, public_key1)
+    let envelope = Envelope::new()
+        .add_basic_transaction(None)
+        .add_basic_trace_info(public_key1)
         .set_project_id(project_id2);
 
     // Send the event, the transaction should be removed.
@@ -200,11 +197,10 @@ fn test_uses_trace_public_key() {
     sentry.captured_outcomes().assert_outcome_qty(1).clear();
 
     // Second
-    // send trace with project_id2 context (shoudl go through)
-    let (transaction, trace_id, _) = x_create_transaction_item(None);
-    let envelope = RawEnvelope::new()
-        .add_raw_item(transaction)
-        .add_trace_info_simple(trace_id, public_key2)
+    // send trace with project_id2 context (should go through)
+    let envelope = Envelope::new()
+        .add_basic_transaction(None)
+        .add_basic_trace_info(public_key2)
         .set_project_id(project_id1);
 
     // send the event
@@ -241,8 +237,9 @@ fn test_multi_item_envelope() {
         let relay = Relay::builder(&sentry).enable_outcomes().build();
 
         for _ in 0..2 {
-            let envelope = RawEnvelope::new()
-                .add_transaction_and_trace_info(public_key, None)
+            let envelope = Envelope::new()
+                .add_basic_transaction(None)
+                .add_basic_trace_info(public_key)
                 .add_item_from_json(json!({"x": "some attachment"}), ItemType::Attachment)
                 .add_item_from_json(json!({"y": "some other attachment"}), ItemType::Attachment);
 
@@ -270,13 +267,12 @@ fn test_client_sample_rate_adjusted() {
             .add_basic_sampling_rule(rule_type, sample_rate);
         let public_key = project_state.public_key();
         let sentry = MiniSentry::new().add_project_state(project_state);
-        let relay = Relay::builder(&sentry).build();
+        let relay = Relay::new(&sentry);
 
-        let envelope = RawEnvelope::new().add_transaction_and_trace_info_not_simple(
-            public_key,
-            None,
-            Some(sample_rate),
-        );
+        let envelope = Envelope::new()
+            .add_basic_transaction(None)
+            .add_basic_trace_info(public_key)
+            .set_client_sample_rate(sample_rate);
 
         relay.send_envelope(envelope);
 
@@ -287,13 +283,11 @@ fn test_client_sample_rate_adjusted() {
             .assert_item_qty(1)
             .assert_n_item_types(ItemType::ClientReport, 1)
             .clear();
-        return;
 
-        let envelope = RawEnvelope::new().add_transaction_and_trace_info_not_simple(
-            public_key,
-            None,
-            Some(1.0),
-        );
+        let envelope = Envelope::new()
+            .add_basic_transaction(None)
+            .add_basic_trace_info(public_key)
+            .set_client_sample_rate(1.0);
 
         relay.send_envelope(envelope);
         sentry
@@ -325,8 +319,7 @@ fn test_relay_chain() {
             RuleType::Unsupported => panic!(),
         };
 
-        let (item, _, _) = opt_create_transaction_item(None, trace_id, event_id);
-        let envelope = RawEnvelope::new().add_raw_item(item);
+        let envelope = Envelope::new().add_transaction(None, event_id, trace_id);
         outer_relay.send_envelope(envelope);
 
         sentry
