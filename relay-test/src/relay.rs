@@ -255,9 +255,9 @@ fn print_directory_contents(dir: &Path) {
             let entry = entry.unwrap();
             let path = entry.path();
             if path.is_dir() {
-                println!("Directory: {}", path.display());
+                dbg!("Directory: {}", path.display());
             } else {
-                println!("File: {}", path.display());
+                dbg!("File: {}", path.display());
             }
         }
     }
@@ -268,6 +268,7 @@ fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     dbg!(&x);
 
     let path = std::env::current_dir().unwrap();
+    dbg!(&path);
     print_directory_contents(path.as_path());
 
     Ok(x.canonicalize()?)
