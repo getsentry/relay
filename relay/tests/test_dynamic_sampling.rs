@@ -2,7 +2,6 @@ use serde_json::json;
 use uuid::Uuid;
 
 use relay_base_schema::project::ProjectId;
-use relay_event_schema::protocol::EventId;
 use relay_sampling::config::RuleType;
 use relay_test::{
     create_error_item, mini_sentry::MiniSentry, new_sampling_rule, relay::Relay, Envelope, Outcome,
@@ -84,7 +83,7 @@ fn test_it_does_not_sample_error() {
         .wait_for_envelope(5)
         .assert_item_qty(1)
         // double check that we get back our object
-        .assert_contains_event_id(EventId(event_id));
+        .assert_contains_event_id(event_id);
 }
 
 // Tests that it tags an incoming error if the trace connected to it its sampled or not.

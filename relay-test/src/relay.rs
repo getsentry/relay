@@ -4,12 +4,13 @@ use std::io::Write;
 use std::net::SocketAddr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::time::Duration;
 
 use axum::http::HeaderMap;
 use hyper::http::HeaderName;
 use reqwest::{self, Response};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -17,10 +18,7 @@ use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::{Config, Credentials};
 
-use crate::{
-    merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, Envelope,
-    TempDir, Upstream,
-};
+use crate::{outcomes_enabled_config, processing_config, random_port, Envelope, TempDir, Upstream};
 
 pub struct Relay<'a, U: Upstream> {
     server_address: SocketAddr,
@@ -154,7 +152,12 @@ impl<U: Upstream> Upstream for Relay<'_, U> {
     }
 }
 
-fn default_relay_config(url: String, internal_error_dsn: String, port: u16, host: String) -> Value {
+fn default_relay_config(
+    url: String,
+    internal_error_dsn: String,
+    port: u16,
+    host: String,
+) -> Map<String, Value> {
     json!({
         "relay": {
             "upstream": url,
@@ -192,37 +195,36 @@ fn default_relay_config(url: String, internal_error_dsn: String, port: u16, host
             },
         },
     })
+    .as_object()
+    .unwrap()
+    .clone()
 }
 
 pub struct RelayBuilder<'a, U: Upstream> {
-    config: serde_json::Value,
+    config: Map<String, Value>,
     upstream: &'a U,
 }
 
 impl<'a, U: Upstream> RelayBuilder<'a, U> {
     pub fn enable_processing(mut self) -> Self {
         let proc = processing_config();
-
-        self.config = merge(self.config, proc, vec![]);
-        self
-    }
-
-    pub fn merge_config(mut self, value: serde_json::Value) -> Self {
-        self.config = merge(self.config, value, vec![]);
+        self.config.insert("processing".to_string(), proc);
         self
     }
 
     pub fn enable_outcomes(mut self) -> Self {
-        self.config = merge(self.config, outcomes_enabled_config(), vec![]);
+        let outcome = outcomes_enabled_config();
+        self.config.insert("outcomes".to_string(), outcome);
         self
     }
 
     pub fn build(self) -> Relay<'a, U> {
-        let config = Config::from_json_value(self.config).unwrap();
+        let config = Config::from_json_value(serde_json::Value::Object(self.config)).unwrap();
+        dbg!(&config);
         let relay_bin = get_relay_binary().unwrap();
 
         let mut dir = TempDir::default();
-        let dir = dir.create("relay");
+        let dir = dir.create_subdir("relay");
 
         let credentials = load_credentials(&config, &dir);
 
@@ -325,4 +327,28 @@ fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
 
     let credentials_str = std::fs::read_to_string(credentials_path).unwrap();
     serde_json::from_str(&credentials_str).expect("Failed to parse JSON")
+}
+
+pub struct BackgroundProcess {
+    pub child: Option<Child>,
+}
+
+impl BackgroundProcess {
+    pub fn new(command: &str, args: &[&str]) -> Self {
+        let child = std::process::Command::new(command)
+            .args(args)
+            .spawn()
+            .expect("Failed to start process");
+
+        BackgroundProcess { child: Some(child) }
+    }
+}
+
+impl Drop for BackgroundProcess {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }

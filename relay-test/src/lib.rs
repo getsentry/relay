@@ -26,7 +26,6 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
-use std::process::Child;
 
 use chrono::Utc;
 use relay_auth::PublicKey;
@@ -71,6 +70,7 @@ where
     (addr, handle)
 }
 
+/// The upstream of a relay. Could be either another relay or sentry.
 pub trait Upstream {
     fn url(&self) -> String;
     fn internal_error_dsn(&self) -> String;
@@ -114,10 +114,13 @@ impl Envelope {
         ProjectId::new(project_id)
     }
 
+    /// Constructs a [`RawEnvelope`] from the serialized bytes of an Envelope.
     pub fn from_utf8(vec: Vec<u8>) -> Self {
         let serialized_envelope: String = String::from_utf8(vec).unwrap();
 
-        let parts: Vec<&str> = serialized_envelope.split('\n').collect();
+        let mut parts: Vec<&str> = serialized_envelope.split('\n').collect();
+        parts.retain(|part| !part.is_empty());
+
         let envelope_headers: Value = serde_json::from_str(parts[0]).unwrap();
         let envelope_headers: HashMap<String, Value> = envelope_headers
             .as_object()
@@ -129,23 +132,30 @@ impl Envelope {
         let project_id =
             Self::project_id_from_dsn(&envelope_headers.get("dsn").unwrap().to_string());
 
-        let item_headers: Value = serde_json::from_str(parts[1]).unwrap();
-        let item_headers: HashMap<String, Value> = item_headers
-            .as_object()
-            .unwrap()
-            .clone()
-            .into_iter()
-            .collect();
+        let mut items = Vec::new();
 
-        let payload: Value = serde_json::from_str(parts[2]).unwrap();
+        for chunk in parts[1..].chunks(2) {
+            assert_eq!(chunk.len(), 2);
 
-        let item = RawItem::from_parts(item_headers, PayLoad::Json(payload));
+            let item_headers: Value = serde_json::from_str(chunk[0]).unwrap();
+            let item_headers: HashMap<String, Value> = item_headers
+                .as_object()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .collect();
+
+            let payload: Value = serde_json::from_str(chunk[1]).unwrap();
+
+            let item = RawItem::from_parts(item_headers, PayLoad::Json(payload));
+            items.push(item);
+        }
 
         Self {
             http_headers: Default::default(),
             project_id,
             envelope_headers,
-            items: vec![item],
+            items,
         }
     }
 
@@ -158,6 +168,7 @@ impl Envelope {
         Some(EventId(id))
     }
 
+    /// Adds basic trace info based on trace id of the last inserted item.
     pub fn add_basic_trace_info(mut self, public_key: ProjectKey) -> Self {
         let trace_id = self.items.last().unwrap().trace_id().unwrap();
 
@@ -260,7 +271,7 @@ impl Envelope {
         self
     }
 
-    pub fn set_event_id(self, id: Uuid) -> Self {
+    pub fn set_event_id(self, id: EventId) -> Self {
         self.add_header("event_id", &id.to_string())
     }
 
@@ -268,7 +279,7 @@ impl Envelope {
     pub fn fill_event_id(self) -> Self {
         let last_item = self.items.last().unwrap();
         let id = last_item.event_id().unwrap();
-        self.add_header("event_id", &id.to_string())
+        self.set_event_id(id)
     }
 
     pub fn add_header(mut self, key: &str, val: &str) -> Self {
@@ -295,11 +306,9 @@ impl Envelope {
     pub fn serialize(&self) -> String {
         let mut serialized = String::new();
 
-        // Serialize envelope-level headers as JSON
         let headers_json = serde_json::to_string(&self.envelope_headers).unwrap();
         serialized.push_str(&format!("{}\n", headers_json));
 
-        // Serialize items, which are already adjusted to include JSON headers
         for item in &self.items {
             serialized.push_str(item.serialize().as_str());
         }
@@ -320,32 +329,20 @@ pub struct RawItem {
     payload: PayLoad,
 }
 
+fn get_nested_value<'a>(initial_value: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    keys.iter()
+        .try_fold(initial_value, |acc, &key| acc.as_object()?.get(key))
+}
+
 impl RawItem {
     pub fn sampled(&self) -> Option<bool> {
-        self.payload()
-            .as_object()?
-            .get("contexts")?
-            .as_object()?
-            .get("trace")?
-            .as_object()?
-            .get("sampled")?
-            .as_bool()
+        get_nested_value(&self.payload(), &["contexts", "trace", "sampled"])?.as_bool()
     }
 
     pub fn trace_id(&self) -> Option<Uuid> {
-        let binding = self.payload();
-        let as_str = binding
-            .as_object()
-            .unwrap()
-            .get("contexts")?
-            .as_object()
-            .unwrap()
-            .get("trace")?
-            .as_object()
-            .unwrap()
-            .get("trace_id")?
-            .as_str()?
-            .trim_matches('\"');
+        let as_str =
+            get_nested_value(&self.payload(), &["contexts", "trace", "trace_id"])?.to_string();
+        let as_str = as_str.trim_matches('\"');
 
         let trace_id: Uuid = Uuid::parse_str(as_str).unwrap();
 
@@ -388,7 +385,7 @@ impl RawItem {
         }
     }
 
-    pub fn payload_string(&self) -> String {
+    pub fn payload_as_string(&self) -> String {
         match &self.payload {
             PayLoad::Json(json) => json.to_string(),
             PayLoad::Bytes(bytes) => String::from_utf8(bytes.clone()).unwrap(),
@@ -396,7 +393,7 @@ impl RawItem {
     }
 
     pub fn payload(&self) -> Value {
-        serde_json::from_str(&self.payload_string()).unwrap()
+        serde_json::from_str(&self.payload_as_string()).unwrap()
     }
 
     pub fn inferred_content_type(&self) -> &'static str {
@@ -406,18 +403,7 @@ impl RawItem {
         }
     }
 
-    pub fn add_header_from_json(mut self, key: &str, val: Value) -> Self {
-        self.headers.insert(key.into(), val);
-        self
-    }
-
-    pub fn add_header(mut self, key: &str, val: &str) -> Self {
-        self.headers.insert(key.into(), val.into());
-        self
-    }
-
     pub fn set_type(mut self, ty: &str) -> Self {
-        let ty: String = ty.to_string();
         self.headers.insert("type".into(), ty.into());
         self
     }
@@ -425,7 +411,7 @@ impl RawItem {
     // Serialize the RawItem for inclusion in RawEnvelope's serialization
     pub fn serialize(&self) -> String {
         let mut headers = self.headers.clone();
-        let payload = self.payload_string();
+        let payload = self.payload_as_string();
         headers.insert(
             "length".to_owned(),
             serde_json::Value::Number(payload.len().into()),
@@ -442,20 +428,20 @@ impl RawItem {
     }
 }
 
-pub fn create_error_item() -> (RawItem, Uuid, Uuid) {
+pub fn create_error_item() -> (RawItem, Uuid, EventId) {
     let trace_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
     let error_event = json!({
-        "event_id": event_id.simple(),
+        "event_id": event_id.simple().to_string(),
         "message": "This is an error.",
-        "extra": {"msg_text": "This is an error", "id": event_id.simple()},
+        "extra": {"msg_text": "This is an error", "id": event_id.simple().to_string()},
         "type": "error",
         "environment": "production",
         "release": "foo@1.2.3",
     });
 
     let item = RawItem::from_json(error_event).set_type("event");
-    (item, trace_id, event_id)
+    (item, trace_id, EventId(event_id))
 }
 
 pub fn random_port() -> u16 {
@@ -468,32 +454,7 @@ pub fn random_port() -> u16 {
         .port()
 }
 
-pub const DEFAULT_DSN_PUBLIC_KEY: &str = "31a5a894b4524f74a9a8d0e27e21ba91";
-
-pub struct BackgroundProcess {
-    pub child: Option<Child>,
-}
-
-impl BackgroundProcess {
-    pub fn new(command: &str, args: &[&str]) -> Self {
-        let child = std::process::Command::new(command)
-            .args(args)
-            .spawn()
-            .expect("Failed to start process");
-
-        BackgroundProcess { child: Some(child) }
-    }
-}
-
-impl Drop for BackgroundProcess {
-    fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
-}
-
+/// Creates a new temporary directory.
 pub struct TempDir {
     base_dir: PathBuf,
 }
@@ -509,10 +470,11 @@ impl Default for TempDir {
 }
 
 impl TempDir {
-    pub fn create(&mut self, name: &str) -> PathBuf {
+    /// Creates a subdirectory within the temporary directory.
+    pub fn create_subdir(&mut self, name: &str) -> PathBuf {
         let dir_path = self.base_dir.join(name);
         if dir_path.exists() {
-            panic!("IT ALREADY EXISTS!!");
+            panic!("path already exists");
         }
         std::fs::create_dir(&dir_path).expect("Failed to create config dir");
 
@@ -581,50 +543,17 @@ pub fn new_sampling_rule(
     .unwrap()
 }
 
-pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
-    let mut base_map = base.as_object_mut().expect("base should be an object");
-
-    // Navigate down the nested structure to the final map where the merge should occur
-    for key in keys {
-        if !base_map.contains_key(key) {
-            // If the key doesn't exist at this level, create a new object for it
-            base_map.insert(key.to_string(), Value::Object(Map::new()));
-        }
-        // Now we're sure the key exists, navigate into it
-        base_map = base_map.get_mut(key).unwrap().as_object_mut().unwrap();
-    }
-
-    let merge_map = merge_value
-        .as_object()
-        .expect("merge_value should be an object");
-
-    for (key, merge_val) in merge_map {
-        if let Some(existing_val) = base_map.get_mut(key) {
-            // If the key exists, and both existing and merging values are objects, merge recursively
-            if let (Some(existing_obj), Some(merge_obj)) =
-                (existing_val.as_object_mut(), merge_val.as_object())
-            {
-                for (merge_key, val) in merge_obj {
-                    existing_obj.insert(merge_key.clone(), val.clone());
-                }
-                continue;
-            }
-        }
-        // If the key doesn't exist, or the existing value is not an object, insert/replace directly
-        base_map.insert(key.clone(), merge_val.clone());
-    }
-
-    base
-}
-
 pub fn outcomes_enabled_config() -> Value {
     json!({
-        "outcomes": {
             "emit_outcomes": true,
             "batch_size": 1,
             "batch_interval": 1,
-            "source": "relay"
-    }})
+            "source": "relay",
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 0,
+            },
+    })
 }
 
 pub fn create_transaction_item(
@@ -652,43 +581,6 @@ pub fn create_transaction_item(
     });
 
     RawItem::from_json(item).set_type("transaction")
-}
-
-pub fn get_topic_name(topic: &str) -> String {
-    let random = Uuid::new_v4().simple().to_string();
-    format!("relay-test-{}-{}", topic, random)
-}
-
-pub fn processing_config() -> Value {
-    let bootstrap_servers =
-        std::env::var("KAFKA_BOOTSTRAP_SERVER").unwrap_or_else(|_| "127.0.0.1:49092".to_string());
-
-    json!({
-        "processing": {
-            "enabled": true,
-            "kafka_config": [
-                {
-                    "name": "bootstrap.servers",
-                    "value": bootstrap_servers
-                }
-            ],
-            "topics": {
-                "events": get_topic_name("events"),
-                "attachments": get_topic_name("attachments"),
-                "transactions": get_topic_name("transactions"),
-                "outcomes": get_topic_name("outcomes"),
-                "sessions": get_topic_name("sessions"),
-                "metrics": get_topic_name("metrics"),
-                "metrics_generic": get_topic_name("metrics"),
-                "replay_events": get_topic_name("replay_events"),
-                "replay_recordings": get_topic_name("replay_recordings"),
-                "monitors": get_topic_name("monitors"),
-                "spans": get_topic_name("spans")
-            },
-            "redis": "redis://127.0.0.1",
-            "projectconfig_cache_prefix": format!("relay-test-relayconfig-{}", uuid::Uuid::new_v4())
-        }
-    })
 }
 
 #[derive(Clone, Debug)]
@@ -874,4 +766,41 @@ impl Serialize for Outcome {
     {
         Value::Object(self.0.clone()).serialize(serializer)
     }
+}
+
+pub fn get_topic_name(topic: &str) -> String {
+    let random = Uuid::new_v4().simple().to_string();
+    format!("relay-test-{}-{}", topic, random)
+}
+
+pub fn processing_config() -> Value {
+    let bootstrap_servers =
+        std::env::var("KAFKA_BOOTSTRAP_SERVER").unwrap_or_else(|_| "127.0.0.1:49092".to_string());
+
+    json!(
+        {
+            "enabled": true,
+            "kafka_config": [
+                {
+                    "name": "bootstrap.servers",
+                    "value": bootstrap_servers
+                }
+            ],
+            "topics": {
+                "events": get_topic_name("events"),
+                "attachments": get_topic_name("attachments"),
+                "transactions": get_topic_name("transactions"),
+                "outcomes": get_topic_name("outcomes"),
+                "sessions": get_topic_name("sessions"),
+                "metrics": get_topic_name("metrics"),
+                "metrics_generic": get_topic_name("metrics"),
+                "replay_events": get_topic_name("replay_events"),
+                "replay_recordings": get_topic_name("replay_recordings"),
+                "monitors": get_topic_name("monitors"),
+                "spans": get_topic_name("spans")
+            },
+            "redis": "redis://127.0.0.1",
+            "projectconfig_cache_prefix": format!("relay-test-relayconfig-{}", uuid::Uuid::new_v4())
+        }
+    )
 }

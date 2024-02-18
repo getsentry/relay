@@ -21,9 +21,9 @@ use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
 use relay_event_schema::protocol::EventId;
 
-use crate::{
-    random_port, Envelope, Outcome, ProjectState, RawItem, Upstream, DEFAULT_DSN_PUBLIC_KEY,
-};
+use crate::{random_port, Envelope, Outcome, ProjectState, RawItem, Upstream};
+
+pub const DEFAULT_DSN_PUBLIC_KEY: &str = "31a5a894b4524f74a9a8d0e27e21ba91";
 
 #[derive(Default, Clone)]
 pub struct CapturedOutcomes {
