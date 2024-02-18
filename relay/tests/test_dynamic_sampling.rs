@@ -1,7 +1,6 @@
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::RuleType;
-use relay_server::envelope::ItemType;
 use relay_server::services::outcome::OutcomeId;
 use relay_test::mini_sentry::MiniSentry;
 use relay_test::relay::Relay;
@@ -211,7 +210,7 @@ fn test_uses_trace_public_key() {
         .captured_envelopes()
         .wait_for_envelope(10)
         .assert_item_qty(1)
-        .assert_all_item_types(ItemType::Transaction);
+        .assert_all_item_types("transaction");
 
     // no outcome should be generated (since the event is passed along to the upstream)
     sentry.captured_outcomes().assert_empty();
@@ -240,8 +239,8 @@ fn test_multi_item_envelope() {
             let envelope = Envelope::new()
                 .add_basic_transaction(None)
                 .add_basic_trace_info(public_key)
-                .add_item_from_json(json!({"x": "some attachment"}), ItemType::Attachment)
-                .add_item_from_json(json!({"y": "some other attachment"}), ItemType::Attachment);
+                .add_item_from_json(json!({"x": "some attachment"}), "attachment")
+                .add_item_from_json(json!({"y": "some other attachment"}), "attachment");
 
             relay.send_envelope(envelope);
 
@@ -281,7 +280,7 @@ fn test_client_sample_rate_adjusted() {
             .wait_for_envelope(5)
             .debug()
             .assert_item_qty(1)
-            .assert_n_item_types(ItemType::ClientReport, 1)
+            .assert_n_item_types("client_report", 1)
             .clear();
 
         let envelope = Envelope::new()
@@ -294,7 +293,7 @@ fn test_client_sample_rate_adjusted() {
             .captured_envelopes()
             .wait(1)
             .assert_item_qty(1)
-            .assert_n_item_types(ItemType::ClientReport, 1);
+            .assert_n_item_types("client_report", 1);
     }
 }
 
@@ -325,6 +324,6 @@ fn test_relay_chain() {
         sentry
             .captured_envelopes()
             .wait_for_envelope(2)
-            .assert_n_item_types(ItemType::Transaction, 1);
+            .assert_n_item_types("transaction", 1);
     }
 }

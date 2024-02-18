@@ -255,7 +255,7 @@
 
 mod constants;
 mod endpoints;
-pub mod envelope;
+mod envelope;
 pub mod extractors;
 mod http;
 mod metrics_extraction;

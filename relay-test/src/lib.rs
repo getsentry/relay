@@ -35,12 +35,10 @@ use relay_dynamic_config::TransactionMetricsConfig;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
-use relay_server::envelope::ItemType;
 use relay_server::services::project::ProjectState;
 use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
 use serde_json::{json, Map, Value};
-use std::str::FromStr;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -289,7 +287,7 @@ impl Envelope {
         self
     }
 
-    pub fn add_item_from_json(mut self, payload: Value, ty: ItemType) -> Self {
+    pub fn add_item_from_json(mut self, payload: Value, ty: &str) -> Self {
         let item = RawItem::from_json(payload).set_type(ty);
         self.items.push(item);
         self
@@ -372,10 +370,10 @@ impl RawItem {
         Self { headers, payload }
     }
 
-    pub fn ty(&self) -> ItemType {
-        let as_str = self.headers.get("type").unwrap().to_string();
+    pub fn ty(&self) -> &str {
+        let as_str = self.headers.get("type").unwrap().as_str().unwrap();
         let as_str = as_str.trim_matches('\"');
-        ItemType::from_str(as_str).unwrap()
+        as_str
     }
 
     pub fn from_json(payload: Value) -> Self {
@@ -419,7 +417,7 @@ impl RawItem {
         self
     }
 
-    pub fn set_type(mut self, ty: ItemType) -> Self {
+    pub fn set_type(mut self, ty: &str) -> Self {
         let ty: String = ty.to_string();
         self.headers.insert("type".into(), ty.into());
         self
@@ -461,7 +459,7 @@ pub fn create_error_item() -> (RawItem, Uuid, Uuid) {
         "release": "foo@1.2.3",
     });
 
-    let item = RawItem::from_json(error_event).set_type(ItemType::Event);
+    let item = RawItem::from_json(error_event).set_type("event");
     (item, trace_id, event_id)
 }
 
@@ -792,7 +790,7 @@ pub fn create_transaction_item(
         "extra": {"id": event_id},
     });
 
-    RawItem::from_json(item).set_type(ItemType::Transaction)
+    RawItem::from_json(item).set_type("transaction")
 }
 
 pub fn get_topic_name(topic: &str) -> String {

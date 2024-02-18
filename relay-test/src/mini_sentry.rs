@@ -19,7 +19,6 @@ use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
 use relay_sampling::config::SamplingRule;
 use relay_sampling::SamplingConfig;
-use relay_server::envelope::ItemType;
 use relay_server::services::outcome::OutcomeId;
 use relay_server::services::outcome::TrackRawOutcome;
 use relay_server::services::project::ProjectState;
@@ -156,7 +155,7 @@ impl CapturedEnvelopes {
     }
 
     /// Fails if any itemtype is different than the given item type.
-    pub fn assert_all_item_types(&self, ty: ItemType) -> &Self {
+    pub fn assert_all_item_types(&self, ty: &str) -> &Self {
         for item in self.get_items() {
             assert_eq!(item.ty(), ty);
         }
@@ -197,7 +196,7 @@ impl CapturedEnvelopes {
         items
     }
 
-    pub fn assert_n_item_types(&self, ty: ItemType, n: usize) -> &Self {
+    pub fn assert_n_item_types(&self, ty: &str, n: usize) -> &Self {
         let mut matches = 0;
 
         for item in self.get_items() {
