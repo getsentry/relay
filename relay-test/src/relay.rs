@@ -252,17 +252,30 @@ fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn Error>> {
-    let path = env::var("RELAY_BIN").unwrap_or_else(|_| "../target/debug/relay".to_string());
-    let path_buf = PathBuf::from(path);
+    let relay_bin_path =
+        env::var("RELAY_BIN").unwrap_or_else(|_| "../target/debug/relay".to_string());
 
-    dbg!(&path_buf);
+    let path_buf = PathBuf::from(relay_bin_path);
 
-    // Check if the path exists before canonicalizing
-    if !path_buf.exists() {
-        return Err(format!("Path does not exist: {:?}", path_buf).into());
+    // Attempt to make the path absolute by checking if it is already absolute,
+    // and if not, prepending it with the current directory.
+    // This approach avoids the need for the path to exist at this point.
+    let absolute_path_buf = if path_buf.is_absolute() {
+        path_buf
+    } else {
+        let current_dir = env::current_dir()?;
+        current_dir.join(path_buf)
+    };
+
+    // Now, instead of panicking if the path does not exist, return an error.
+    // This is more suitable for error handling in applications.
+    if !absolute_path_buf.exists() {
+        dbg!("path no exist");
+        return Err(format!("Path does not exist: {:?}", absolute_path_buf).into());
     }
 
-    path_buf.canonicalize().map_err(|e| e.into())
+    // Only attempt to canonicalize if the path exists, to avoid unnecessary errors.
+    absolute_path_buf.canonicalize().map_err(Into::into)
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
