@@ -10,34 +10,22 @@ license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
+axum = "0.6.20"
+chrono = "0.4"
+flate2 = "1.0.19"
+hyper = "0.14"
+relay-auth = { path = "../relay-auth" }
+relay-base-schema = { path = "../relay-base-schema" }
+relay-config = { path = "../relay-config" }
+relay-dynamic-config = { path = "../relay-dynamic-config" }
+relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log", features = ["test"] }
+relay-quotas = { path = "../relay-quotas" }
+relay-sampling = { path = "../relay-sampling" }
 relay-system = { path = "../relay-system" }
-tokio = { workspace = true, features = ["full"]}
+reqwest = { version = "0.11", features = ["blocking"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
-uuid = { workspace = true }
-reqwest = { version = "0.11", features = ["blocking"] }
 tempfile = "3.8.0"
-serde_yaml = { workspace = true }
-relay-event-schema = { path = "../relay-event-schema" }
-relay-sampling = { path = "../relay-sampling" }
-relay-quotas = { path = "../relay-quotas" }
-chrono = "0.4"
-hyper = "0.14"
-lazy_static = "1.4"
-relay-dynamic-config = { path = "../relay-dynamic-config" }
-relay-config = { path = "../relay-config" }
-relay-auth = { path = "../relay-auth" }
-flate2 = "1.0.19"
-axum = { version = "0.6.20", features = [
-    "headers",
-    "macros",
-    "matched-path",
-    "multipart",
-    "tracing",
-] }
-axum-server = "0.4.7"
-
-
-
+tokio = { workspace = true, features = ["full"] }
+uuid = { workspace = true }

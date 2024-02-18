@@ -4159,11 +4159,9 @@ name = "relay-test"
 version = "24.2.0"
 dependencies = [
  "axum",
- "axum-server",
  "chrono",
  "flate2",
  "hyper",
- "lazy_static",
  "relay-auth",
  "relay-base-schema",
  "relay-config",
@@ -4176,7 +4174,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "serde_yaml 0.9.17",
  "tempfile",
  "tokio",
  "uuid",
