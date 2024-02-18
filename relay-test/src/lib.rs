@@ -23,6 +23,33 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+/// Setup the test environment.
+///
+///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
+pub fn setup() {
+    relay_log::init_test!();
+}
+
+/// Spawns a mock service that handles messages through a closure.
+pub fn mock_service<S, I, F>(name: &'static str, mut state: S, mut f: F) -> (Addr<I>, JoinHandle<S>)
+where
+    S: Send + 'static,
+    I: Interface,
+    F: FnMut(&mut S, I) + Send + 'static,
+{
+    let (addr, mut rx) = channel(name);
+
+    let handle = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            f(&mut state, msg);
+        }
+
+        state
+    });
+
+    (addr, handle)
+}
+
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
@@ -31,17 +58,15 @@ use std::process::Child;
 use chrono::Utc;
 use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig, TransactionMetricsConfig};
+use relay_dynamic_config::TransactionMetricsConfig;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
 use relay_server::envelope::AttachmentType;
-use relay_server::envelope::Envelope;
 use relay_server::envelope::ItemType;
 use relay_server::services::project::ProjectState;
 use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::str::FromStr;
 use tokio::task::JoinHandle;
@@ -74,11 +99,6 @@ impl RawEnvelope {
         Self::default()
     }
 
-    pub fn is_sampled(&self) -> Option<bool> {
-        dbg!(self);
-        todo!()
-    }
-
     pub fn parse_dsn(dsn: &str) -> (ProjectKey, ProjectId) {
         let trimmed_dsn = dsn.trim_matches('"');
         let trimmed_dsn = trimmed_dsn.trim_start_matches("http://");
@@ -97,11 +117,8 @@ impl RawEnvelope {
         (public_key, project_id)
     }
 
-    pub fn from_envelope(envelope: &Envelope) -> Self {
-        let mut writer = vec![];
-        envelope.serialize(&mut writer).unwrap();
-
-        let serialized_envelope: String = String::from_utf8(writer.clone()).unwrap();
+    pub fn from_utf8(vec: Vec<u8>) -> Self {
+        let serialized_envelope: String = String::from_utf8(vec).unwrap();
 
         let parts: Vec<&str> = serialized_envelope.split('\n').collect();
         let envelope_headers: Value = serde_json::from_str(parts[0]).unwrap();
@@ -165,7 +182,7 @@ impl RawEnvelope {
 
     pub fn add_trace_info_simple(mut self, trace_id: Uuid, public_key: ProjectKey) -> Self {
         let trace_info = json!({
-            "trace_id": dbg!(trace_id.simple().to_string()),
+            "trace_id": trace_id.simple().to_string(),
             "public_key": public_key,
         });
 
@@ -459,33 +476,6 @@ pub fn create_error_item() -> (RawItem, Uuid, Uuid) {
     (item, trace_id, event_id)
 }
 
-/// Setup the test environment.
-///
-///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
-pub fn setup() {
-    relay_log::init_test!();
-}
-
-/// Spawns a mock service that handles messages through a closure.
-pub fn mock_service<S, I, F>(name: &'static str, mut state: S, mut f: F) -> (Addr<I>, JoinHandle<S>)
-where
-    S: Send + 'static,
-    I: Interface,
-    F: FnMut(&mut S, I) + Send + 'static,
-{
-    let (addr, mut rx) = channel(name);
-
-    let handle = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            f(&mut state, msg);
-        }
-
-        state
-    });
-
-    (addr, handle)
-}
-
 pub fn random_port() -> u16 {
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket = SocketAddrV4::new(loopback, 0);
@@ -497,13 +487,6 @@ pub fn random_port() -> u16 {
 }
 
 pub const DEFAULT_DSN_PUBLIC_KEY: &str = "31a5a894b4524f74a9a8d0e27e21ba91";
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ProjectResponse {
-    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
-    pending: Vec<ProjectKey>,
-    global: Option<GlobalConfig>,
-}
 
 pub struct BackgroundProcess {
     pub child: Option<Child>,
@@ -646,6 +629,15 @@ impl StateBuilder {
         let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
+        let mut sampling_config = SamplingConfig::new();
+        sampling_config.rules = self.sampling_rules.clone();
+
+        let transaction_metrics = self.transaction_metrics_version.map(|version| {
+            let mut tmc = TransactionMetricsConfig::new();
+            tmc.version = version as u16;
+            tmc
+        });
+
         let json = json!({
         "projectId": self.project_id,
         "slug": "python",
@@ -657,9 +649,8 @@ impl StateBuilder {
         "config": {
             "allowedDomains": ["*"],
             "trustedRelays": self.trusted_relays,
-            "transaction_metrics": {
-                "version": self.transaction_metrics_version,
-            },
+            "transaction_metrics": transaction_metrics,
+            "sampling": sampling_config,
             "piiConfig": {
                 "rules": {},
                 "applications": {
@@ -670,19 +661,7 @@ impl StateBuilder {
             }
         });
 
-        let mut project_state: ProjectState = serde_json::from_value(json).unwrap();
-
-        let mut sampling_config = SamplingConfig::new();
-        sampling_config.rules = self.sampling_rules.clone();
-        project_state.config.sampling = Some(ErrorBoundary::Ok(sampling_config));
-
-        if let Some(tv) = self.transaction_metrics_version {
-            let mut x = TransactionMetricsConfig::new();
-            x.version = tv as u16;
-            project_state.config.transaction_metrics = Some(ErrorBoundary::Ok(x));
-        }
-
-        project_state
+        serde_json::from_value(json).unwrap()
     }
 }
 

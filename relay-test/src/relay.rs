@@ -6,7 +6,7 @@ use hyper::http::HeaderName;
 use std::time::Duration;
 
 use axum::http::HeaderMap;
-use relay_auth::{PublicKey, RelayVersion, SecretKey};
+use relay_auth::{PublicKey, SecretKey};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_config::Credentials;
@@ -20,7 +20,6 @@ use std::os::unix::fs::PermissionsExt;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-//use crate::consumers::processing_config;
 use crate::mini_sentry::MiniSentry;
 use crate::{
     merge, outcomes_enabled_config, processing_config, random_port, BackgroundProcess, RawEnvelope,
@@ -121,7 +120,6 @@ fn default_opts(url: String, internal_error_dsn: String, port: u16, host: String
 
 pub struct RelayBuilder<'a, U: Upstream> {
     pub config: serde_json::Value,
-    mini_version: Option<RelayVersion>,
     upstream: &'a U,
 }
 
@@ -130,22 +128,6 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
         let proc = processing_config();
 
         self.config = merge(self.config, proc, vec![]);
-        self
-    }
-
-    pub fn set_min_version(mut self, version: RelayVersion) -> Self {
-        self.mini_version = Some(version);
-        self
-    }
-
-    pub fn set_accept_unknown_items(mut self, val: bool) -> Self {
-        let val = json!({
-            "routing": {
-                "accept_unknown_items": val,
-            }
-        });
-
-        self.config = merge(self.config, val, vec![]);
         self
     }
 
@@ -183,10 +165,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
 
         Relay {
             _process: process,
-            _relay_id: credentials.id,
-            _secret_key: credentials.secret_key,
             server_address,
-            _health_check_passed: true,
             _config: Arc::new(config),
             _client: reqwest::Client::new(),
             upstream_dsn: self.upstream.internal_error_dsn(),
@@ -198,9 +177,6 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
 pub struct Relay<'a, U: Upstream> {
     server_address: SocketAddr,
     _process: BackgroundProcess,
-    _relay_id: Uuid,
-    _secret_key: SecretKey,
-    _health_check_passed: bool,
     _config: Arc<Config>,
     _client: reqwest::Client,
     upstream_dsn: String,
@@ -232,11 +208,7 @@ impl<'a, U: Upstream> Relay<'a, U> {
 
         let config = default_opts(url, internal_error_dsn, port, host);
 
-        RelayBuilder {
-            config,
-            upstream,
-            mini_version: None,
-        }
+        RelayBuilder { config, upstream }
     }
 
     fn url(&self) -> String {

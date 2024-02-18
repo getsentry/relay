@@ -7,9 +7,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{
-    random_port, ProjectResponse, RawEnvelope, RawItem, StateBuilder, DEFAULT_DSN_PUBLIC_KEY,
-};
+use crate::{random_port, RawEnvelope, RawItem, StateBuilder, DEFAULT_DSN_PUBLIC_KEY};
 use axum::body::Bytes;
 use axum::response::Json;
 use axum::routing::{get, post};
@@ -21,7 +19,6 @@ use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
 use relay_sampling::config::SamplingRule;
 use relay_sampling::SamplingConfig;
-use relay_server::envelope::Envelope as RelayEnvelope;
 use relay_server::envelope::ItemType;
 use relay_server::services::outcome::OutcomeId;
 use relay_server::services::outcome::TrackRawOutcome;
@@ -369,20 +366,6 @@ impl MiniSentry {
         self
     }
 
-    /// Returns the public key of the '42' project.
-    pub fn public_key(&self) -> ProjectKey {
-        self.inner
-            .lock()
-            .unwrap()
-            .project_configs
-            .get(&ProjectId::new(42))
-            .as_ref()
-            .unwrap()
-            .public_keys[0]
-            .clone()
-            .public_key
-    }
-
     pub fn get_dsn_public_key_configs(&self, project_id: ProjectId) -> Option<PublicKeyConfig> {
         let binding = self.inner.lock().unwrap();
         let x = binding.project_configs.get(&project_id)?;
@@ -516,7 +499,7 @@ use relay_server::services::relays::GetRelaysResponse;
 
 fn make_handle_project_config(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,
-) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<ProjectResponse>> + Send>> + Clone {
+) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<Value>> + Send>> + Clone {
     move |_bytes| {
         let mini_sentry = mini_sentry.clone();
 
@@ -530,11 +513,11 @@ fn make_handle_project_config(
 
             let global = Some(mini_sentry.lock().unwrap().global_config.clone());
 
-            let response = ProjectResponse {
-                configs,
-                pending: vec![],
-                global,
-            };
+            let response = json!({
+                "configs": configs,
+                "global": global,
+            });
+
             Json(response)
         })
     }
@@ -547,8 +530,7 @@ fn make_handle_envelope(
         let mini_sentry = mini_sentry.clone();
         Box::pin(async move {
             let decompressed = decompress(&bytes).unwrap_or(bytes.to_vec());
-            let envelope: RelayEnvelope = *RelayEnvelope::parse_bytes(decompressed.into()).unwrap();
-            let envelope = RawEnvelope::from_envelope(&envelope);
+            let envelope = RawEnvelope::from_utf8(decompressed);
             mini_sentry
                 .lock()
                 .unwrap()
