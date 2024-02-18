@@ -1,3 +1,5 @@
+use std::env;
+use std::error::Error;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -242,7 +244,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
     }
 }
 
-fn x_get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(std::env::var("RELAY_BIN")
         .map_or_else(|_| "../target/debug/relay".into(), PathBuf::from)
         .canonicalize()
