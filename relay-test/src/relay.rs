@@ -216,7 +216,7 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
 
     pub fn build(self) -> Relay<'a, U> {
         let config = Config::from_json_value(serde_json::Value::Object(self.config)).unwrap();
-        let relay_bin = get_relay_binary().unwrap();
+        let relay_bin = get_relay_binary();
 
         let mut dir = TempDir::default();
         let dir = dir.create_subdir("relay");
@@ -242,43 +242,18 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
     }
 }
 
-fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    Ok(std::env::var("RELAY_BIN")
-        .map_or_else(|_| "../target/debug/relay".into(), PathBuf::from)
-        .canonicalize()
-        .expect("Failed to get absolute path"))
-}
-
-fn print_directory_contents(dir: &Path) {
-    if dir.is_dir() {
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.is_dir() {
-                dbg!("Directory: {}", path.display());
-            } else {
-                dbg!("File: {}", path.display());
-            }
-        }
+fn get_relay_binary() -> PathBuf {
+    match std::env::var("RELAY_BIN") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => PathBuf::from("../target/debug/")
+            .canonicalize()
+            .unwrap()
+            .join("relay"),
     }
 }
 
-fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let x = std::env::var("RELAY_BIN").map_or_else(|_| "../target/debug/".into(), PathBuf::from);
-    let x = x.canonicalize().unwrap();
-    dbg!(&x);
-
-    let curr = std::env::current_dir().unwrap();
-    dbg!(&curr);
-    print_directory_contents(x.as_path());
-    let y = x.join("relay");
-    dbg!(&y);
-    dbg!(y.exists());
-    Ok(y)
-}
-
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
-    let relay_bin = get_relay_binary().unwrap();
+    let relay_bin = get_relay_binary();
     let config_path = relay_dir.join("config.yml");
 
     std::fs::write(config_path.as_path(), config.to_yaml_string().unwrap()).unwrap();
