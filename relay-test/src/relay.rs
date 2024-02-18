@@ -252,29 +252,24 @@ fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn Error>> {
-    let relay_bin_path =
-        env::var("RELAY_BIN").unwrap_or_else(|_| "../target/debug/relay".to_string());
+    let relay_bin_path = env::var("RELAY_BIN").unwrap_or_else(|_| "target/debug/relay".to_string());
+
+    dbg!(std::env::current_dir().unwrap());
 
     let path_buf = PathBuf::from(relay_bin_path);
 
-    // Attempt to make the path absolute by checking if it is already absolute,
-    // and if not, prepending it with the current directory.
-    // This approach avoids the need for the path to exist at this point.
+    // Convert the relative path to an absolute path, similar to os.path.abspath in Python
     let absolute_path_buf = if path_buf.is_absolute() {
         path_buf
     } else {
-        let current_dir = env::current_dir()?;
-        current_dir.join(path_buf)
+        env::current_dir()?.join(path_buf)
     };
 
-    // Now, instead of panicking if the path does not exist, return an error.
-    // This is more suitable for error handling in applications.
+    // Check for existence before attempting to canonicalize
     if !absolute_path_buf.exists() {
-        dbg!("path no exist");
         return Err(format!("Path does not exist: {:?}", absolute_path_buf).into());
     }
 
-    // Only attempt to canonicalize if the path exists, to avoid unnecessary errors.
     absolute_path_buf.canonicalize().map_err(Into::into)
 }
 
