@@ -220,7 +220,6 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
 
     pub fn build(self) -> Relay<'a, U> {
         let config = Config::from_json_value(serde_json::Value::Object(self.config)).unwrap();
-        dbg!(&config);
         let relay_bin = get_relay_binary().unwrap();
 
         let mut dir = TempDir::default();

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::io::Read;
 use std::net::SocketAddr;
@@ -18,7 +18,7 @@ use uuid::Uuid;
 use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
+use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::EventId;
 
 use crate::{random_port, Envelope, Outcome, ProjectState, RawItem, Upstream};
@@ -246,11 +246,11 @@ pub struct MiniSentryInner {
     server_address: SocketAddr,
     captured_envelopes: CapturedEnvelopes,
     captured_outcomes: CapturedOutcomes,
-    pub known_relays: HashMap<RelayId, RelayInfo>,
+    known_relays: HashMap<RelayId, RelayInfo>,
     server_handle: Option<tokio::task::JoinHandle<()>>,
     runtime: Runtime,
     project_configs: HashMap<ProjectId, ProjectState>,
-    pub global_config: GlobalConfig,
+    global_config: GlobalConfig,
 }
 
 impl MiniSentryInner {
@@ -319,27 +319,6 @@ impl MiniSentry {
         );
     }
 
-    pub fn get_captured_envelopes(&self, timeout: u64) -> Option<CapturedEnvelopes> {
-        let mut i = 0;
-        loop {
-            let envelopes = self.inner.lock().unwrap().captured_envelopes.clone();
-            if !envelopes.is_empty() {
-                return Some(envelopes);
-            }
-            std::thread::sleep(Duration::from_secs(1));
-            i += 1;
-
-            if i == timeout {
-                return None;
-            }
-        }
-    }
-
-    pub fn set_global_options(self, options: Options) -> Self {
-        self.inner.lock().unwrap().global_config.options = options;
-        self
-    }
-
     pub fn captured_envelopes(&self) -> CapturedEnvelopes {
         self.inner.lock().unwrap().captured_envelopes.clone()
     }
@@ -361,7 +340,6 @@ impl MiniSentry {
         let port = random_port();
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-        // Initialize your mini_sentry state here
         let mini_sentry = Arc::new(Mutex::new(MiniSentryInner {
             server_address: addr,
             captured_envelopes: Default::default(),
@@ -382,7 +360,7 @@ impl MiniSentry {
         let challenge_handler = make_handle_register_challenge(mini_sentry.inner.clone());
 
         let router = Router::new()
-            .route("/", get(handler))
+            .route("/", get("hello minisentry"))
             .route("/api/0/relays/live/", get(is_live))
             .route("/api/42/envelope/", post(envelope_handler))
             .route("/api/0/relays/register/challenge/", post(challenge_handler))
@@ -394,9 +372,8 @@ impl MiniSentry {
             .route("/api/0/relays/publickeys/", post(public_key_handler))
             .route("/api/0/relays/projectconfigs/", post(config_handler));
 
-        println!("Listening on {}", addr);
+        println!("MiniSentry listening on {}", addr);
 
-        // Use the runtime inside MiniSentry to spawn the server task
         let server_handle = mini_sentry.inner.lock().unwrap().runtime.spawn(async move {
             axum::Server::bind(&addr)
                 .serve(router.into_make_service())
@@ -452,12 +429,12 @@ fn make_handle_public_keys(
         let mini_sentry = mini_sentry.clone();
 
         Box::pin(async move {
-            let x = serde_json::from_slice::<Value>(&bytes).unwrap();
+            let get_relays = serde_json::from_slice::<Value>(&bytes).unwrap();
 
             let mut keys = HashMap::new();
             let mut relays = HashMap::new();
 
-            for id in x
+            for id in get_relays
                 .as_object()
                 .unwrap()
                 .get("relay_ids")
@@ -473,9 +450,7 @@ fn make_handle_public_keys(
                 }
             }
 
-            let x = json!( { "relays": relays });
-
-            Json(x)
+            Json(json!( { "relays": relays }))
         })
     }
 }
@@ -483,19 +458,30 @@ fn make_handle_public_keys(
 fn make_handle_project_config(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,
 ) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<Value>> + Send>> + Clone {
-    move |_bytes| {
+    move |bytes| {
         let mini_sentry = mini_sentry.clone();
 
         Box::pin(async move {
-            let mut configs = HashMap::new();
+            let mut configs = BTreeMap::new();
 
-            let binding = mini_sentry.lock().unwrap();
-            for project_state in binding.project_configs.values() {
-                let key = project_state.public_key();
-                configs.insert(key, ErrorBoundary::Ok(Some(project_state)));
+            let binding = serde_json::from_slice::<Value>(&bytes).unwrap();
+            let get_configs = binding.as_object().unwrap();
+            let guard = mini_sentry.lock().unwrap();
+
+            for project_key in get_configs.get("publicKeys").unwrap().as_array().unwrap() {
+                let key = ProjectKey::parse(project_key.to_string().trim_matches('"')).unwrap();
+
+                for project_state in guard.project_configs.values() {
+                    let state_key = project_state.public_key();
+
+                    if state_key == key {
+                        configs.insert(key, project_state.clone());
+                    }
+                }
             }
 
-            let global = Some(binding.global_config.clone());
+            dbg!();
+            let global = Some(guard.global_config.clone());
 
             let response = json!({
                 "configs": configs,
@@ -513,7 +499,7 @@ fn make_handle_envelope(
     move |bytes| {
         let mini_sentry = mini_sentry.clone();
         Box::pin(async move {
-            let decompressed = decompress(&bytes).unwrap_or(bytes.to_vec());
+            let decompressed = decompress(&bytes).unwrap();
             let envelope = Envelope::from_utf8(decompressed);
             mini_sentry
                 .lock()
@@ -524,10 +510,6 @@ fn make_handle_envelope(
             Json("ok")
         })
     }
-}
-
-async fn handler() -> &'static str {
-    "Hello, mini_sentry!"
 }
 
 fn register_response() -> Value {
@@ -548,9 +530,9 @@ fn make_handle_register_challenge(
         let mini_sentry = mini_sentry.clone();
 
         Box::pin(async move {
-            let x = serde_json::from_slice::<Value>(&bytes).unwrap();
+            let val = serde_json::from_slice::<Value>(&bytes).unwrap();
 
-            let relay_id: RelayId = x
+            let relay_id: RelayId = val
                 .as_object()
                 .unwrap()
                 .get("relay_id")
@@ -560,7 +542,7 @@ fn make_handle_register_challenge(
                 .parse()
                 .unwrap();
 
-            let public_key: PublicKey = x
+            let public_key: PublicKey = val
                 .as_object()
                 .unwrap()
                 .get("public_key")
