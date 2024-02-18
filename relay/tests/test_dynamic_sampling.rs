@@ -6,7 +6,7 @@ use relay_test::relay::Relay;
 use serde_json::json;
 use uuid::Uuid;
 
-use relay_test::{create_error_item, new_sampling_rule, Envelope, StateBuilder};
+use relay_test::{create_error_item, new_sampling_rule, Envelope};
 
 /// Tests that when sampling is set to 0% for the trace context project the events are removed.
 #[test]

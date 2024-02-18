@@ -432,29 +432,29 @@ impl fmt::Display for DiscardReason {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
-    pub timestamp: String,
+    timestamp: String,
     /// Organization id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub org_id: Option<u64>,
+    org_id: Option<u64>,
     /// Project id.
-    pub project_id: ProjectId,
+    project_id: ProjectId,
     /// The DSN project key id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub key_id: Option<u64>,
+    key_id: Option<u64>,
     /// The outcome.
-    pub outcome: OutcomeId,
+    outcome: OutcomeId,
     /// Reason for the outcome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
+    reason: Option<String>,
     /// The event id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub event_id: Option<EventId>,
+    event_id: Option<EventId>,
     /// The client ip address.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote_addr: Option<String>,
+    remote_addr: Option<String>,
     /// The source of the outcome (which Relay sent it)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
+    source: Option<String>,
     /// The event's data category.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<u8>,

@@ -634,7 +634,7 @@ fn make_handle_outcomes(
 
 fn make_handle_public_keys(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,
-) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<GetRelaysResponse>> + Send>> + Clone {
+) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<Value>> + Send>> + Clone {
     move |bytes| {
         let mini_sentry = mini_sentry.clone();
 
@@ -660,14 +660,12 @@ fn make_handle_public_keys(
                 }
             }
 
-            let x = GetRelaysResponse { relays };
+            let x = json!( { "relays": relays });
 
             Json(x)
         })
     }
 }
-
-use relay_server::services::relays::GetRelaysResponse;
 
 fn make_handle_project_config(
     mini_sentry: Arc<Mutex<MiniSentryInner>>,

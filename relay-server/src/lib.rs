@@ -256,12 +256,12 @@
 mod constants;
 mod endpoints;
 mod envelope;
-pub mod extractors;
+mod extractors;
 mod http;
 mod metrics_extraction;
 mod middlewares;
 mod service;
-pub mod services;
+mod services;
 mod statsd;
 mod utils;
 

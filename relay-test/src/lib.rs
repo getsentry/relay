@@ -8,9 +8,9 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```no_run
 //! #[test]
-//! pub fn my_test() {
+//! fn my_test() {
 //!     relay_test::setup();
 //!
 //!     relay_log::debug!("hello, world!");
@@ -48,6 +48,8 @@ pub fn setup() {
 }
 
 /// Spawns a mock service that handles messages through a closure.
+///
+/// Note: Addr must be dropped before handle can be awaited.
 pub fn mock_service<S, I, F>(name: &'static str, mut state: S, mut f: F) -> (Addr<I>, JoinHandle<S>)
 where
     S: Send + 'static,
