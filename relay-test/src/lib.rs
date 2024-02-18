@@ -35,12 +35,13 @@ use relay_dynamic_config::TransactionMetricsConfig;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
-use relay_server::services::project::ProjectState;
 use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
 use serde_json::{json, Map, Value};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
+
+use crate::mini_sentry::ProjectState;
 
 pub mod mini_sentry;
 pub mod relay;
@@ -648,7 +649,7 @@ impl StateBuilder {
             }
         });
 
-        serde_json::from_value(json).unwrap()
+        ProjectState::new(serde_json::from_value(json).unwrap())
     }
 }
 

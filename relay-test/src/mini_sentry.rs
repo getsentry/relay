@@ -1,5 +1,6 @@
 use no_deadlocks::Mutex;
 use relay_event_schema::protocol::EventId;
+use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::SocketAddr;
@@ -17,12 +18,8 @@ use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
-use relay_sampling::config::SamplingRule;
-use relay_sampling::SamplingConfig;
 use relay_server::services::outcome::OutcomeId;
 use relay_server::services::outcome::TrackRawOutcome;
-use relay_server::services::project::ProjectState;
-use relay_server::services::project::PublicKeyConfig;
 use serde_json::{json, Value};
 use std::future::Future;
 use tokio::runtime::Runtime;
@@ -241,6 +238,50 @@ impl CapturedEnvelopes {
     }
 }
 
+#[derive(Debug)]
+pub struct ProjectState(serde_json::Map<String, Value>);
+
+impl Serialize for ProjectState {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Value::Object(self.0.clone()).serialize(serializer)
+    }
+}
+
+impl ProjectState {
+    pub fn new(val: serde_json::Value) -> Self {
+        Self(val.as_object().unwrap().to_owned())
+    }
+    pub fn project_id(&self) -> ProjectId {
+        dbg!(&self);
+        let id = self.0.get("projectId").unwrap().as_u64().unwrap();
+
+        ProjectId::new(id)
+    }
+
+    pub fn public_key(&self) -> ProjectKey {
+        dbg!(self);
+        let project_key = self
+            .0
+            .get("publicKeys")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .first()
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("publicKey")
+            .unwrap()
+            .as_str()
+            .unwrap();
+
+        ProjectKey::parse(project_key).unwrap()
+    }
+}
+
 pub struct MiniSentry {
     pub inner: Arc<Mutex<MiniSentryInner>>,
 }
@@ -267,7 +308,7 @@ impl MiniSentryInner {
     }
 
     fn add_project_state(&mut self, project_state: ProjectState) {
-        let project_id = project_state.project_id.unwrap();
+        let project_id = project_state.project_id();
         self.project_configs.insert(project_id, project_state);
     }
 
@@ -305,7 +346,9 @@ impl Upstream for MiniSentry {
     }
 
     fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
-        self.get_dsn_public_key_configs(id).unwrap().public_key
+        let binding = self.inner.lock().unwrap();
+        let x = binding.project_configs.get(&id).unwrap();
+        x.public_key()
     }
 }
 
@@ -349,26 +392,6 @@ impl MiniSentry {
         self.inner.lock().unwrap().captured_outcomes.clone()
     }
 
-    pub fn add_sampling_rule(self, rule: SamplingRule) -> Self {
-        let mut inner = self.inner.lock().unwrap();
-        assert_eq!(inner.project_configs.len(), 1);
-        let project_config = inner.project_configs.values_mut().next().unwrap();
-
-        if let Some(ErrorBoundary::Ok(sam)) = project_config.config.sampling.as_mut() {
-            sam.rules.push(rule);
-        } else {
-            // Directly modifying the original Option in project_config.config.sampling
-            project_config.config.sampling = Some(ErrorBoundary::Ok({
-                let mut new_sampling_config = SamplingConfig::new();
-                new_sampling_config.rules.push(rule);
-                new_sampling_config
-            }));
-        }
-        drop(inner);
-
-        self
-    }
-
     pub fn add_basic_project_state(self) -> Self {
         self.inner
             .lock()
@@ -383,12 +406,6 @@ impl MiniSentry {
             .unwrap()
             .add_project_state(project_state.into());
         self
-    }
-
-    pub fn get_dsn_public_key_configs(&self, project_id: ProjectId) -> Option<PublicKeyConfig> {
-        let binding = self.inner.lock().unwrap();
-        let x = binding.project_configs.get(&project_id)?;
-        x.public_keys[0].clone().into()
     }
 
     pub fn new() -> Self {
@@ -525,12 +542,13 @@ fn make_handle_project_config(
         Box::pin(async move {
             let mut configs = HashMap::new();
 
-            for project_state in mini_sentry.lock().unwrap().project_configs.values() {
-                let key = project_state.public_keys[0].public_key;
-                configs.insert(key, ErrorBoundary::Ok(Some(project_state.clone())));
+            let guard = mini_sentry.lock().unwrap();
+            for project_state in guard.project_configs.values() {
+                let key = project_state.public_key();
+                configs.insert(key, ErrorBoundary::Ok(Some(project_state)));
             }
 
-            let global = Some(mini_sentry.lock().unwrap().global_config.clone());
+            let global = Some(guard.global_config.clone());
 
             let response = json!({
                 "configs": configs,
