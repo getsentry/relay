@@ -32,13 +32,9 @@ uuid = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemallocator = { version = "0.5.0", features = ["background_threads"] }
 
-
 [dev-dependencies]
 relay-test = { path = "../relay-test" }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-base-schema = { path = "../relay-base-schema" }
 serde_json = { workspace = true }
 relay-sampling = { path = "../relay-sampling" }
-
-
-

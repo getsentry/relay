@@ -18,3 +18,4 @@ tokio = { workspace = true, features = ["rt", "signal"] }
 
 [dev-dependencies]
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
+tokio = { workspace = true, features = ["test-util"] }
