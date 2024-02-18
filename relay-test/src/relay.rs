@@ -264,7 +264,8 @@ fn print_directory_contents(dir: &Path) {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let x = std::env::var("RELAY_BIN").map_or_else(|_| "target/debug/relay".into(), PathBuf::from);
+    let x = std::env::var("RELAY_BIN")
+        .map_or_else(|_| "../../target/debug/relay".into(), PathBuf::from);
     dbg!(&x);
 
     let path = std::env::current_dir().unwrap();
