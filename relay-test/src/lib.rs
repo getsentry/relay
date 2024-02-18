@@ -35,7 +35,6 @@ use relay_dynamic_config::TransactionMetricsConfig;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_sampling::SamplingConfig;
-use relay_server::services::project::PublicKeyConfig;
 use relay_system::{channel, Addr, Interface};
 use serde_json::{json, Map, Value};
 use tokio::task::JoinHandle;
@@ -530,7 +529,7 @@ impl TempDir {
 pub struct StateBuilder {
     project_id: ProjectId,
     trusted_relays: Vec<PublicKey>,
-    dsn_public_key_config: PublicKeyConfig,
+    dsn_public_key: ProjectKey,
     sampling_rules: Vec<SamplingRule>,
     transaction_metrics_version: Option<u32>,
     outcomes: Option<Value>,
@@ -547,15 +546,7 @@ impl StateBuilder {
         Self {
             project_id: ProjectId::new(42),
             trusted_relays: vec![],
-            dsn_public_key_config: {
-                let public_key: ProjectKey = Uuid::new_v4().simple().to_string().parse().unwrap();
-                let numeric_id = Some(123);
-
-                PublicKeyConfig {
-                    public_key,
-                    numeric_id,
-                }
-            },
+            dsn_public_key: Uuid::new_v4().simple().to_string().parse().unwrap(),
             sampling_rules: vec![],
             transaction_metrics_version: None,
             outcomes: None,
@@ -563,7 +554,7 @@ impl StateBuilder {
     }
 
     pub fn public_key(&self) -> ProjectKey {
-        self.dsn_public_key_config.public_key
+        self.dsn_public_key
     }
 
     pub fn enable_outcomes(mut self) -> Self {
@@ -629,7 +620,9 @@ impl StateBuilder {
         let json = json!({
         "projectId": self.project_id,
         "slug": "python",
-        "publicKeys": [self.dsn_public_key_config],
+        "publicKeys": [{
+            "publicKey": self.public_key(),
+        }],
         "rev": "5ceaea8c919811e8ae7daae9fe877901",
         "disabled": false,
         "lastFetch": last_fetch,
