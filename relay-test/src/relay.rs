@@ -271,8 +271,10 @@ fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let curr = std::env::current_dir().unwrap();
     dbg!(&curr);
     print_directory_contents(x.as_path());
-
-    Ok(x)
+    let y = x.join("relay");
+    dbg!(&y);
+    dbg!(y.exists());
+    Ok(y)
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
