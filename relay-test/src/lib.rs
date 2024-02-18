@@ -114,7 +114,7 @@ impl Envelope {
         ProjectId::new(project_id)
     }
 
-    /// Constructs a [`RawEnvelope`] from the serialized bytes of an Envelope.
+    /// Constructs a raw envelope from the serialized bytes of an Envelope.
     pub fn from_utf8(vec: Vec<u8>) -> Self {
         let serialized_envelope: String = String::from_utf8(vec).unwrap();
 
