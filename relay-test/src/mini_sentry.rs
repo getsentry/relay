@@ -1,5 +1,7 @@
+use chrono::Utc;
 use no_deadlocks::Mutex;
 use relay_event_schema::protocol::EventId;
+use relay_sampling::config::{RuleType, SamplingRule};
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::io::Read;
@@ -8,7 +10,7 @@ use std::pin::Pin;
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
-use crate::{random_port, Envelope, RawItem, StateBuilder, Upstream, DEFAULT_DSN_PUBLIC_KEY};
+use crate::{new_sampling_rule, random_port, Envelope, RawItem, Upstream, DEFAULT_DSN_PUBLIC_KEY};
 use axum::body::Bytes;
 use axum::response::Json;
 use axum::routing::{get, post};
@@ -18,7 +20,7 @@ use relay_auth::{PublicKey, RelayId, RelayVersion};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::RelayInfo;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig, Options};
-use serde_json::{json, Value};
+use serde_json::{json, to_value, Map, Value};
 use std::future::Future;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
@@ -269,7 +271,7 @@ impl Serialize for Outcome {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProjectState(serde_json::Map<String, Value>);
 
 impl Serialize for ProjectState {
@@ -281,10 +283,70 @@ impl Serialize for ProjectState {
     }
 }
 
+impl Default for ProjectState {
+    fn default() -> Self {
+        let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
+        let json = json!(
+        {
+            "projectId": ProjectId::new(42),
+            "slug": "python",
+            "publicKeys": [{
+                "publicKey": Uuid::new_v4().simple().to_string().parse::<ProjectKey>().unwrap(),
+            }],
+            "rev": "5ceaea8c919811e8ae7daae9fe877901",
+            "disabled": false,
+            "lastFetch": last_fetch,
+            "lastChange": last_change,
+            "config": {
+                "allowedDomains": ["*"],
+                "piiConfig": {
+                    "rules": {},
+                    "applications": {
+                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "$object": ["@password"],
+                        },
+                    },
+                }
+            }
+        );
+
+        Self::from_value(serde_json::from_value(json).unwrap())
+    }
+}
+
 impl ProjectState {
-    pub fn new(val: serde_json::Value) -> Self {
+    pub fn from_value(val: serde_json::Value) -> Self {
         Self(val.as_object().unwrap().to_owned())
     }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn config(&mut self) -> &mut Map<String, Value> {
+        self.0.get_mut("config").unwrap().as_object_mut().unwrap()
+    }
+
+    fn sampling_rules(&mut self) -> &mut Vec<Value> {
+        self.config()
+            .entry("sampling")
+            .or_insert_with(|| {
+                Value::Object({
+                    let mut map = Map::new();
+                    map.insert("rules".to_string(), Value::Array(vec![]));
+                    map
+                })
+            })
+            .as_object_mut()
+            .unwrap()
+            .get_mut("rules")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+    }
+
     pub fn project_id(&self) -> ProjectId {
         dbg!(&self);
         let id = self.0.get("projectId").unwrap().as_u64().unwrap();
@@ -310,6 +372,56 @@ impl ProjectState {
             .unwrap();
 
         ProjectKey::parse(project_key).unwrap()
+    }
+
+    pub fn enable_outcomes(mut self) -> Self {
+        let outcomes = json!({
+            "outcomes": {
+            "emit_outcomes": true,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "relay"
+ }       });
+
+        self.config().insert("outcomes".to_string(), outcomes);
+
+        self
+    }
+
+    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
+        let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
+        self.add_sampling_rule(rule)
+    }
+
+    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
+        self.config().insert(
+            "transactionMetrics".to_string(),
+            json!({"version": version}),
+        );
+        self
+    }
+
+    pub fn set_project_id(mut self, id: ProjectId) -> Self {
+        self.0
+            .insert("projectId".to_string(), to_value(id).unwrap());
+        self
+    }
+
+    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
+        self.config()
+            .insert("trustedRelays".to_string(), to_value(relays).unwrap());
+        self
+    }
+
+    pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
+        self.sampling_rules()
+            .push(serde_json::to_value(rule).unwrap());
+        self
+    }
+
+    pub fn add_basic_sampling_rule(self, rule_type: RuleType, sample_rate: f32) -> Self {
+        let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
+        self.add_sampling_rule(rule)
     }
 }
 
@@ -424,18 +536,11 @@ impl MiniSentry {
     }
 
     pub fn add_basic_project_state(self) -> Self {
-        self.inner
-            .lock()
-            .unwrap()
-            .add_project_state(StateBuilder::new().build());
-        self
+        self.add_project_state(ProjectState::default())
     }
 
-    pub fn add_project_state(self, project_state: impl Into<ProjectState>) -> Self {
-        self.inner
-            .lock()
-            .unwrap()
-            .add_project_state(project_state.into());
+    pub fn add_project_state(self, project_state: ProjectState) -> Self {
+        self.inner.lock().unwrap().add_project_state(project_state);
         self
     }
 

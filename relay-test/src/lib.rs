@@ -28,19 +28,14 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::PathBuf;
 use std::process::Child;
 
-use chrono::Utc;
 use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_dynamic_config::TransactionMetricsConfig;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
-use relay_sampling::SamplingConfig;
 use relay_system::{channel, Addr, Interface};
 use serde_json::{json, Map, Value};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
-
-use crate::mini_sentry::ProjectState;
 
 pub mod mini_sentry;
 pub mod relay;
@@ -522,133 +517,6 @@ impl TempDir {
         std::fs::create_dir(&dir_path).expect("Failed to create config dir");
 
         dir_path
-    }
-}
-
-#[derive(Clone)]
-pub struct StateBuilder {
-    project_id: ProjectId,
-    trusted_relays: Vec<PublicKey>,
-    dsn_public_key: ProjectKey,
-    sampling_rules: Vec<SamplingRule>,
-    transaction_metrics_version: Option<u32>,
-    outcomes: Option<Value>,
-}
-
-impl From<StateBuilder> for ProjectState {
-    fn from(value: StateBuilder) -> Self {
-        value.build()
-    }
-}
-
-impl StateBuilder {
-    pub fn new() -> Self {
-        Self {
-            project_id: ProjectId::new(42),
-            trusted_relays: vec![],
-            dsn_public_key: Uuid::new_v4().simple().to_string().parse().unwrap(),
-            sampling_rules: vec![],
-            transaction_metrics_version: None,
-            outcomes: None,
-        }
-    }
-
-    pub fn public_key(&self) -> ProjectKey {
-        self.dsn_public_key
-    }
-
-    pub fn enable_outcomes(mut self) -> Self {
-        self.outcomes = Some(json!({
-            "outcomes": {
-            "emit_outcomes": true,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "relay"
-        }}));
-        self
-    }
-
-    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
-        let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
-        self.add_sampling_rule(rule)
-    }
-
-    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
-        self.transaction_metrics_version = Some(version);
-        self
-    }
-
-    pub fn set_project_id(mut self, id: ProjectId) -> Self {
-        self.project_id = id;
-        self
-    }
-
-    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
-        self.trusted_relays.extend(relays);
-        self
-    }
-
-    pub fn add_sampling_rules(mut self, rules: Vec<SamplingRule>) -> Self {
-        self.sampling_rules.extend(rules);
-        self
-    }
-
-    pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
-        self.sampling_rules.push(rule);
-        self
-    }
-
-    pub fn add_basic_sampling_rule(mut self, rule_type: RuleType, sample_rate: f32) -> Self {
-        let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
-        self.sampling_rules.push(rule);
-        self
-    }
-
-    pub fn build(self) -> ProjectState {
-        let last_fetch = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let last_change = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-        let mut sampling_config = SamplingConfig::new();
-        sampling_config.rules = self.sampling_rules.clone();
-
-        let transaction_metrics = self.transaction_metrics_version.map(|version| {
-            let mut tmc = TransactionMetricsConfig::new();
-            tmc.version = version as u16;
-            tmc
-        });
-
-        let json = json!({
-        "projectId": self.project_id,
-        "slug": "python",
-        "publicKeys": [{
-            "publicKey": self.public_key(),
-        }],
-        "rev": "5ceaea8c919811e8ae7daae9fe877901",
-        "disabled": false,
-        "lastFetch": last_fetch,
-        "lastChange": last_change,
-        "config": {
-            "allowedDomains": ["*"],
-            "trustedRelays": self.trusted_relays,
-            "transactionMetrics": transaction_metrics,
-            "sampling": sampling_config,
-            "piiConfig": {
-                "rules": {},
-                "applications": {
-                    "$string": ["@email", "@mac", "@creditcard", "@userpath"],
-                    "$object": ["@password"],
-                    },
-                },
-            }
-        });
-
-        ProjectState::new(serde_json::from_value(json).unwrap())
-    }
-}
-
-impl Default for StateBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

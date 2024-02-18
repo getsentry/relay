@@ -1,7 +1,7 @@
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::EventId;
 use relay_sampling::config::RuleType;
-use relay_test::mini_sentry::{MiniSentry, Outcome};
+use relay_test::mini_sentry::{MiniSentry, Outcome, ProjectState};
 use relay_test::relay::Relay;
 use serde_json::json;
 use uuid::Uuid;
@@ -12,7 +12,8 @@ use relay_test::{create_error_item, new_sampling_rule, Envelope, StateBuilder};
 #[test]
 fn test_it_removes_events() {
     let sample_rate = 0.0;
-    let project_state = StateBuilder::new()
+
+    let project_state = ProjectState::new()
         // add a sampling rule to project config that removes all transactions (sample_rate=0)
         .add_basic_sampling_rule(RuleType::Transaction, sample_rate)
         .set_transaction_metrics_version(1);
@@ -43,7 +44,7 @@ fn test_it_removes_events() {
 ///Tests that we keep an event if it is of type error.
 #[test]
 fn test_it_does_not_sample_error() {
-    let project_state = StateBuilder::new()
+    let project_state = ProjectState::new()
         // add a sampling rule to project config that removes all traces of release "1.0"
         .add_sampling_rule(new_sampling_rule(
             0.0,
@@ -91,7 +92,7 @@ fn test_it_tags_error() {
     for (sample_rate, expected_sampled) in [(1.0, true), (0.0, false)] {
         // add a sampling rule to project config that keeps all events (sample_rate=1)
         let project_state =
-            StateBuilder::new().add_basic_sampling_rule(RuleType::Trace, sample_rate);
+            ProjectState::new().add_basic_sampling_rule(RuleType::Trace, sample_rate);
         let public_key = project_state.public_key();
 
         let sentry = MiniSentry::new().add_project_state(project_state);
@@ -114,7 +115,7 @@ fn test_it_tags_error() {
 fn test_it_keeps_event() {
     let rule = new_sampling_rule(1.0, RuleType::Transaction.into(), vec![1.0], None, None);
 
-    let project_state = StateBuilder::new().add_sampling_rule(rule);
+    let project_state = ProjectState::new().add_sampling_rule(rule);
     let public_key = project_state.public_key();
 
     let sentry = MiniSentry::new().add_project_state(project_state);
@@ -161,14 +162,14 @@ fn test_it_keeps_event() {
 fn test_uses_trace_public_key() {
     // create basic project configs
     let project_id1 = ProjectId::new(42);
-    let config1 = StateBuilder::new()
+    let config1 = ProjectState::new()
         .set_project_id(project_id1)
         .set_transaction_metrics_version(1)
         .set_sampling_rule(0.0, RuleType::Trace);
     let public_key1 = config1.public_key();
 
     let project_id2 = ProjectId::new(43);
-    let config2 = StateBuilder::new()
+    let config2 = ProjectState::new()
         .set_project_id(project_id2)
         .set_transaction_metrics_version(1)
         .set_sampling_rule(1.0, RuleType::Trace);
@@ -225,7 +226,7 @@ fn test_uses_trace_public_key() {
 fn test_multi_item_envelope() {
     for rule_type in [RuleType::Transaction, RuleType::Trace] {
         let project_id = ProjectId::new(42);
-        let project_state = StateBuilder::new()
+        let project_state = ProjectState::new()
             .enable_outcomes()
             .set_project_id(project_id)
             .set_transaction_metrics_version(1)
@@ -260,7 +261,7 @@ fn test_client_sample_rate_adjusted() {
     let sample_rate = 0.001;
 
     for rule_type in [RuleType::Trace, RuleType::Transaction] {
-        let project_state = StateBuilder::new()
+        let project_state = ProjectState::new()
             .set_transaction_metrics_version(1)
             .add_basic_sampling_rule(rule_type, sample_rate);
         let public_key = project_state.public_key();
@@ -303,7 +304,7 @@ fn test_client_sample_rate_adjusted() {
 fn test_relay_chain() {
     for rule_type in [RuleType::Transaction, RuleType::Trace] {
         let sample_rate = 0.001;
-        let project_state = StateBuilder::new().add_basic_sampling_rule(rule_type, sample_rate);
+        let project_state = ProjectState::new().add_basic_sampling_rule(rule_type, sample_rate);
         let sentry = MiniSentry::new().add_project_state(project_state);
         let inner_relay = Relay::new(&sentry);
         let outer_relay = Relay::new(&inner_relay);
