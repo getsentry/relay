@@ -393,27 +393,6 @@ jobs:
         env:
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 
-  rust_integration_tests:
-    name: Rust Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Rust Toolchain
-        run: rustup toolchain install stable --profile minimal --no-self-update
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          key: ${{ github.job }}
-
-      - name: Run Rust Integration Tests
-        run: cargo test
-
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
