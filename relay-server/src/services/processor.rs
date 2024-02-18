@@ -1220,6 +1220,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
+        dbg!("starting transaction processing");
         profile::filter(state);
         event::extract(state, &self.inner.config)?;
         profile::transfer_id(state);

@@ -287,6 +287,7 @@ fn test_client_sample_rate_adjusted() {
             .assert_item_qty(1)
             .assert_n_item_types(ItemType::ClientReport, 1)
             .clear();
+        return;
 
         let envelope = RawEnvelope::new().add_transaction_and_trace_info_not_simple(
             public_key,

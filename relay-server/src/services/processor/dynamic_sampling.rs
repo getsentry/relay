@@ -67,21 +67,26 @@ pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) 
             tag_error_with_sampling_decision(state, config);
         }
         EventType::Transaction => {
+            dbg!("starting DS");
             match state.project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
                 _ => return,
             }
 
+            dbg!();
+
             let sampling_config = match state.project_state.config.sampling {
                 Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
                 _ => None,
             };
+            dbg!();
 
             let root_state = state.sampling_project_state.as_ref();
             let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
                 Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
                 _ => None,
             };
+            dbg!();
 
             state.sampling_result = compute_sampling_decision(
                 config.processing_enabled(),

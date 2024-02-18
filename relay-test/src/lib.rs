@@ -215,7 +215,7 @@ impl RawEnvelope {
         transaction: Option<&str>,
     ) -> Self {
         let mut x = json!({
-            "trace_id": dbg!(trace_id.simple().to_string()),
+            "trace_id": trace_id.simple().to_string(),
             "public_key": public_key,
         });
 
@@ -238,8 +238,6 @@ impl RawEnvelope {
         if let Some(sampled) = sampled {
             trace_info.insert("sampled".to_string(), sampled.into());
         }
-
-        dbg!(&trace_info);
 
         self.headers.insert(
             "trace".into(),
@@ -453,7 +451,6 @@ impl RawItem {
         // Serialize headers to JSON string
         dbg!(&headers);
         let headers_json = serde_json::to_string(&headers).unwrap();
-        dbg!(&headers_json);
         let serialized = format!("{}\n{}\n", headers_json, payload);
 
         dbg!(serialized)
@@ -649,7 +646,7 @@ impl StateBuilder {
         "config": {
             "allowedDomains": ["*"],
             "trustedRelays": self.trusted_relays,
-            "transaction_metrics": transaction_metrics,
+            "transactionMetrics": transaction_metrics,
             "sampling": sampling_config,
             "piiConfig": {
                 "rules": {},
@@ -733,7 +730,7 @@ pub fn new_sampling_rule(
 }
 
 pub fn merge(mut base: Value, merge_value: Value, keys: Vec<&str>) -> Value {
-    dbg!(&base, &merge_value, &keys);
+    //    dbg!(&base, &merge_value, &keys);
     let mut base_map = base.as_object_mut().expect("base should be an object");
 
     // Navigate down the nested structure to the final map where the merge should occur

@@ -434,7 +434,7 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
 /// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be
 /// supplied.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SignedRegisterState(pub String);
+pub struct SignedRegisterState(String);
 
 impl SignedRegisterState {
     /// Creates an Hmac instance for signing the `RegisterState`.

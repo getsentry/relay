@@ -548,12 +548,11 @@ async fn handler() -> &'static str {
 
 fn register_response() -> Value {
     let relay_id = Uuid::new_v4();
-    let token = SignedRegisterState("abc".into());
     let version = RelayVersion::current();
 
     json!({
         "relay_id": relay_id,
-        "token": token,
+        "token": "abc",
         "version": version,
     })
 }
@@ -599,7 +598,7 @@ fn make_handle_register_challenge(
 
             Json(json! ({
                 "relay_id": relay_id,
-                "token": SignedRegisterState("123 foobar".into()),
+                "token": "123 foobar",
             }))
         })
     }
