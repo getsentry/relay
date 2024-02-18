@@ -252,7 +252,8 @@ fn _get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn Error>> {
-    let relay_bin_path = env::var("RELAY_BIN").unwrap_or_else(|_| "target/debug/relay".to_string());
+    let relay_bin_path =
+        dbg!(env::var("RELAY_BIN")).unwrap_or_else(|_| "target/debug/relay".to_string());
 
     dbg!(std::env::current_dir().unwrap());
 
