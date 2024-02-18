@@ -1,8 +1,4 @@
-use std::env;
-use std::fs::{self, File};
-use std::io::Write;
 use std::net::SocketAddr;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::time::Duration;
@@ -247,56 +243,10 @@ impl<'a, U: Upstream> RelayBuilder<'a, U> {
 }
 
 fn get_relay_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let version = "latest";
-    if version == "latest" {
-        return Ok(std::env::var("RELAY_BIN")
-            .map_or_else(|_| "../target/debug/relay".into(), PathBuf::from)
-            .canonicalize()
-            .expect("Failed to get absolute path"));
-    };
-
-    let filename = match env::consts::OS {
-        "linux" => "relay-Linux-x86_64",
-        "macos" => "relay-Darwin-x86_64",
-        "windows" => "relay-Windows-x86_64.exe",
-        _ => panic!("Unsupported OS"),
-    };
-
-    let download_path = PathBuf::from(format!(
-        "target/relay_releases_cache/{}_{}",
-        filename, version
-    ));
-
-    if !Path::new(&download_path).exists() {
-        let download_url = format!(
-            "https://github.com/getsentry/relay/releases/download/{}/{}",
-            version, filename
-        );
-
-        let client = reqwest::blocking::Client::new();
-        let mut request = client.get(download_url);
-
-        if let Ok(token) = env::var("GITHUB_TOKEN") {
-            request = request.bearer_auth(token);
-        }
-
-        let response = request.send()?.error_for_status()?;
-
-        // Adjusted part: Read the entire response body at once.
-        let content = response.bytes()?;
-
-        fs::create_dir_all(Path::new(&download_path).parent().unwrap())?;
-        let mut file = File::create(&download_path)?;
-
-        // Write the entire content to the file.
-        file.write_all(&content)?;
-
-        let mut perms = fs::metadata(&download_path)?.permissions();
-        perms.set_mode(0o700); // UNIX-specific; for Windows, you'll need a different approach
-        fs::set_permissions(&download_path, perms)?;
-    }
-
-    Ok(download_path)
+    Ok(std::env::var("RELAY_BIN")
+        .map_or_else(|_| "../target/debug/relay".into(), PathBuf::from)
+        .canonicalize()
+        .expect("Failed to get absolute path"))
 }
 
 fn load_credentials(config: &Config, relay_dir: &Path) -> Credentials {
