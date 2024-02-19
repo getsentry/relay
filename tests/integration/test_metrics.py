@@ -487,7 +487,9 @@ def test_global_metrics_with_processing(
     project_config["config"]["features"] = ["organizations:custom-metrics"]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\nbar@second:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
