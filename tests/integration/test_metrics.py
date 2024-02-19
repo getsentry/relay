@@ -173,7 +173,9 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
