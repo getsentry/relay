@@ -7,7 +7,8 @@ use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::envelope::Envelope;
 use crate::services::outcome::Outcome;
-use crate::utils::ManagedEnvelope;
+use crate::services::processor::Processed;
+use crate::utils::TypedEnvelope;
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Box<Envelope>, String>;
@@ -32,7 +33,7 @@ impl Capture {
     }
 
     /// Captures an accepted envelope.
-    pub fn accepted(mut managed: ManagedEnvelope) -> Self {
+    pub fn accepted(mut managed: TypedEnvelope<Processed>) -> Self {
         let envelope = managed.take_envelope();
         managed.accept();
 
