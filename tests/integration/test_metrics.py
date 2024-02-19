@@ -186,7 +186,6 @@ def test_metrics(mini_sentry, relay):
 
     received_metrics = json.loads(metrics_item.get_bytes().decode())
     received_metrics = sorted(received_metrics, key=lambda x: x["name"])
-
     assert received_metrics == [
         {
             "timestamp": timestamp,
