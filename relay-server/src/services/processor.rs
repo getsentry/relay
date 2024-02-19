@@ -2751,9 +2751,8 @@ mod tests {
         assert_eq!(dynamic_quotas.len(), 4);
         assert!(!dynamic_quotas.is_empty());
 
-        for (expected_id, quota) in ["foo", "bar", "baz", "qux"].iter().zip(dynamic_quotas) {
-            assert_eq!(Some(expected_id.to_string()), quota.id);
-        }
+        let quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
+        assert!(quota_ids.eq(["foo", "bar", "baz", "qux"]));
     }
 
     /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
