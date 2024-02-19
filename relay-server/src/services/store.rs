@@ -31,8 +31,9 @@ use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode, ManagedEnvelope};
+use crate::utils::{self, ExtractionMode, TypedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -81,7 +82,7 @@ impl Producer {
 /// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: ManagedEnvelope,
+    pub envelope: TypedEnvelope<Processed>,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
