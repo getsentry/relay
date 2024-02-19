@@ -128,9 +128,7 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay, metrics_consumer):
     assert metric_meta_item.get_bytes().decode() == metrics_payload
 
 
-def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
-    metrics_consumer = metrics_consumer()
-
+def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
@@ -144,9 +142,6 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
         },
     )
 
-    project_id = 42
-    now = int(datetime.now(tz=timezone.utc).timestamp())
-
     location = {
         "type": "location",
         "function": "_scan_for_suspect_projects",
@@ -156,10 +151,8 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
         "lineno": 45,
     }
 
-    now = datetime.now(tz=timezone.utc).isoformat()
-    envelope = Envelope()
     meta_payload = {
-        "timestamp": now,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "mapping": {
             "d:custom/sentry.process_profile.track_outcome@second": [
                 location,
@@ -168,8 +161,9 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
     }
     meta_payload = json.dumps(meta_payload, sort_keys=True)
 
+    envelope = Envelope()
     envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
-    relay.send_envelope(project_id, envelope)
+    relay.send_envelope(42, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
