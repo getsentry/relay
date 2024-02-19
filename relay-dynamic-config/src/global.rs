@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
-use std::iter::Chain;
 use std::path::Path;
-use std::slice::Iter;
 
 use relay_event_normalization::MeasurementsConfig;
 use relay_quotas::Quota;
@@ -135,43 +133,6 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     *t == T::default()
 }
 
-/// Container for global and project level [`Quota`].
-#[derive(Copy, Clone)]
-pub struct DynamicQuotas<'a> {
-    global_quotas: &'a [Quota],
-    project_quotas: &'a [Quota],
-}
-
-impl<'a> DynamicQuotas<'a> {
-    /// Returns a new [`DynamicQuotas`]
-    pub fn new(global_config: &'a GlobalConfig, quotas: &'a [Quota]) -> Self {
-        Self {
-            global_quotas: &global_config.quotas,
-            project_quotas: quotas,
-        }
-    }
-
-    /// Returns `true` if both global quotas and project quotas are empty.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Returns the number of both global and project quotas.
-    pub fn len(&self) -> usize {
-        self.global_quotas.len() + self.project_quotas.len()
-    }
-}
-
-// Implementing IntoIterator for &DynamicQuotas to allow iterating over the quotas.
-impl<'a> IntoIterator for DynamicQuotas<'a> {
-    type Item = &'a Quota;
-    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.global_quotas.iter().chain(self.project_quotas.iter())
-    }
-}
-
 fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::de::Deserializer<'de>,
@@ -236,23 +197,6 @@ mod tests {
             .expect("failed to deserialize GlobalConfig");
 
         assert_eq!(deserialized, global_config);
-    }
-
-    #[test]
-    fn test_dynamic_quotas() {
-        let global_config = GlobalConfig {
-            measurements: None,
-            quotas: vec![mock_quota("foo"), mock_quota("bar")],
-            options: Options::default(),
-        };
-
-        let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
-
-        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
-
-        for (expected_id, quota) in ["foo", "bar", "baz", "qux"].iter().zip(dynamic_quotas) {
-            assert_eq!(Some(expected_id.to_string()), quota.id);
-        }
     }
 
     #[test]

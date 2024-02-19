@@ -3,8 +3,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::future::Future;
 use std::io::Write;
+use std::iter::Chain;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::slice::Iter;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -18,7 +20,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
@@ -52,7 +54,7 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, DynamicQuotas},
+    relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -991,7 +993,7 @@ impl EnvelopeProcessorService {
 
         let project_state = &state.project_state;
         let global_config = self.inner.global_config.current();
-        let quotas = DynamicQuotas::new(&global_config, &project_state.config.quotas);
+        let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
         if quotas.is_empty() {
             return Ok(());
@@ -1887,7 +1889,7 @@ impl EnvelopeProcessorService {
         &'a self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: impl IntoIterator<Item = &'a Quota>,
+        quotas: DynamicQuotas<'a>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
@@ -2612,6 +2614,43 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 }
 
+/// Container for global and project level [`Quota`].
+#[derive(Copy, Clone)]
+pub struct DynamicQuotas<'a> {
+    global_quotas: &'a [Quota],
+    project_quotas: &'a [Quota],
+}
+
+impl<'a> DynamicQuotas<'a> {
+    /// Returns a new [`DynamicQuotas`]
+    pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
+        Self {
+            global_quotas: &global_config.quotas,
+            project_quotas,
+        }
+    }
+
+    /// Returns `true` if both global quotas and project quotas are empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the number of both global and project quotas.
+    pub fn len(&self) -> usize {
+        self.global_quotas.len() + self.project_quotas.len()
+    }
+}
+
+// Implementing IntoIterator for &DynamicQuotas to allow iterating over the quotas.
+impl<'a> IntoIterator for DynamicQuotas<'a> {
+    type Item = &'a Quota;
+    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.global_quotas.iter().chain(self.project_quotas.iter())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -2620,12 +2659,13 @@ mod tests {
     use chrono::{DateTime, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_dynamic_config::ProjectConfig;
+    use relay_dynamic_config::{Options, ProjectConfig};
     use relay_event_normalization::{
         normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
+    use relay_quotas::QuotaScope;
     use similar_asserts::assert_eq;
 
     use crate::extractors::RequestMeta;
@@ -2643,6 +2683,36 @@ mod tests {
     };
 
     use super::*;
+
+    fn mock_quota(id: &str) -> Quota {
+        Quota {
+            id: Some(id.into()),
+            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+            namespace: None,
+        }
+    }
+
+    #[test]
+    fn test_dynamic_quotas() {
+        let global_config = GlobalConfig {
+            measurements: None,
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            options: Options::default(),
+        };
+
+        let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
+
+        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+
+        for (expected_id, quota) in ["foo", "bar", "baz", "qux"].iter().zip(dynamic_quotas) {
+            assert_eq!(Some(expected_id.to_string()), quota.id);
+        }
+    }
 
     /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
     /// also ratelimit the next batches in the same message automatically.
