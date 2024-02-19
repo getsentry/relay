@@ -1,6 +1,6 @@
 //! Envelope context type and helpers to ensure outcomes.
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
@@ -68,26 +68,56 @@ struct EnvelopeContext {
     group: ProcessingGroup,
 }
 
-/// A wraper for [`ManagedEnvelope`] with assigned processing group type.
+#[derive(Debug)]
+pub struct InvalidProcessingGroupType(pub ManagedEnvelope);
+
+impl Display for InvalidProcessingGroupType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "failed to convert to the processing group {} based on the provided type",
+            self.0.group().variant()
+        ))
+    }
+}
+
+impl std::error::Error for InvalidProcessingGroupType {}
+
+/// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
 pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
 
 impl<G> TypedEnvelope<G> {
-    pub fn new(managed_envelope: ManagedEnvelope) -> Self {
+    /// Create new typed envelope.
+    ///
+    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
+    /// requires the check for the error if conversion is failing.
+    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
         Self(managed_envelope, PhantomData::<G> {})
     }
 
+    /// Changes the typed of the current envelope to processed.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
     pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self.0)
+        TypedEnvelope::new(self.0, Processed)
     }
 
+    /// Accepts the envelope and drops the internal managed envelope with its context.
+    ///
+    /// This should be called if the envelope has been accepted by the upstream, which means that
+    /// the responsibility for logging outcomes has been moved. This function will not log any
+    /// outcomes.
     pub fn accept(self) {
         self.0.accept()
     }
 }
 
-impl<G> From<ManagedEnvelope> for TypedEnvelope<G> {
-    fn from(value: ManagedEnvelope) -> Self {
-        TypedEnvelope::new(value)
+impl<G: TryFrom<ProcessingGroup>> TryFrom<ManagedEnvelope> for TypedEnvelope<G> {
+    type Error = InvalidProcessingGroupType;
+    fn try_from(value: ManagedEnvelope) -> Result<Self, Self::Error> {
+        match value.group().try_into() {
+            Ok(group) => Ok(TypedEnvelope::new(value, group)),
+            Err(_) => Err(InvalidProcessingGroupType(value)),
+        }
     }
 }
 
@@ -135,11 +165,6 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
-    /// Returns typed envelope.
-    pub fn into_typed<G>(self) -> TypedEnvelope<G> {
-        TypedEnvelope::new(self)
-    }
-
     /// Computes a managed envelope from the given envelope.
     fn new_internal(
         envelope: Box<Envelope>,
@@ -235,6 +260,13 @@ impl ManagedEnvelope {
         self.context.slot.take();
         self.context.done = true;
         Box::new(self.envelope.take_items())
+    }
+
+    /// Converts current managed envelope into processed envelope.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self, Processed)
     }
 
     /// Take the envelope out of the context and replace it with a dummy.
@@ -500,5 +532,11 @@ impl ManagedEnvelope {
 impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
+    }
+}
+
+impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
+    fn from(value: TypedEnvelope<G>) -> Self {
+        value.0
     }
 }

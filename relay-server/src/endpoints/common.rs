@@ -10,11 +10,11 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
+use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup, Ungrouped};
 use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
+    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, MultipartError, TypedEnvelope,
 };
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -257,7 +257,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 /// returned and the envelope is not queued.
 fn queue_envelope(
     state: &ServiceState,
-    mut managed_envelope: ManagedEnvelope,
+    mut managed_envelope: TypedEnvelope<Ungrouped>,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     let envelope = managed_envelope.envelope_mut();
@@ -308,7 +308,7 @@ fn queue_envelope(
         relay_log::trace!("queueing envelope");
         state
             .project_cache()
-            .send(ValidateEnvelope::new(managed_envelope));
+            .send(ValidateEnvelope::new(managed_envelope.into()));
     }
 
     Ok(())
@@ -343,7 +343,9 @@ pub async fn handle_envelope(
             // The decission will be made while queueing in `queue_envelope` function.
             ProcessingGroup::Ungrouped,
         )
-        .map_err(BadStoreRequest::QueueFailed)?;
+        .map_err(BadStoreRequest::QueueFailed)?
+        .try_into()
+        .map_err(|_| BadStoreRequest::ScheduleFailed)?;
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
@@ -358,7 +360,7 @@ pub async fn handle_envelope(
 
     let checked = state
         .project_cache()
-        .send(CheckEnvelope::new(managed_envelope))
+        .send(CheckEnvelope::new(managed_envelope.into()))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?
         .map_err(BadStoreRequest::EventRejected)?;
@@ -375,7 +377,13 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope, buffer_guard)?;
+    queue_envelope(
+        state,
+        managed_envelope
+            .try_into()
+            .map_err(|_| BadStoreRequest::ScheduleFailed)?,
+        buffer_guard,
+    )?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on
