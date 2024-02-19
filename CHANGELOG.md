@@ -6,6 +6,10 @@
 
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
+**Internal**:
+
+- Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
+
 ## 24.2.0
 
 **Bug Fixes**:

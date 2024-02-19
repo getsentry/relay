@@ -1708,3 +1708,67 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
             }
     else:
         assert False, "add new else-branch if you add another denied tag"
+
+
+@pytest.mark.parametrize("mode", [None, "compat"])
+def test_metric_bucket_encoding_legacy(
+    mini_sentry, relay_with_processing, metrics_consumer, mode
+):
+    if mode is not None:
+        mini_sentry.global_config["options"]["relay.metric-bucket-encodings"] = {
+            "transactions": mode
+        }
+
+    metrics_consumer = metrics_consumer()
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_metrics(project_id, "transactions/foo:1337|d\ntransactions/bar:42|s")
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+    assert metrics["d:transactions/foo@none"]["value"] == [1337.0]
+    assert metrics["s:transactions/bar@none"]["value"] == [42.0]
+
+
+@pytest.mark.parametrize(
+    "namespace", [None, "spans", "custom", "transactions", "spans"]
+)
+def test_metric_bucket_encoding_dynamic_global_config_option(
+    mini_sentry, relay_with_processing, metrics_consumer, namespace
+):
+    if namespace is not None:
+        mini_sentry.global_config["options"]["relay.metric-bucket-encodings"] = {
+            namespace: "array"
+        }
+
+    print(mini_sentry.global_config)
+
+    metrics_consumer = metrics_consumer()
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+    ]
+
+    metrics_payload = (
+        f"{namespace or 'custom'}/foo:1337|d\n{namespace or 'custom'}/bar:42|s"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    dname = f"d:{namespace or 'custom'}/foo@none"
+    sname = f"s:{namespace or 'custom'}/bar@none"
+    assert dname in metrics
+    assert sname in metrics
+    if namespace is not None:
+        assert metrics[dname]["value"] == {"format": "array", "data": [1337.0]}
+        assert metrics[sname]["value"] == {"format": "array", "data": [42.0]}
+    else:
+        assert metrics[dname]["value"] == [1337.0]
+        assert metrics[sname]["value"] == [42.0]
