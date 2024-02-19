@@ -227,10 +227,8 @@ impl CapturedEnvelopes {
     /// Checks if any item corresponds to the given event id.
     pub fn assert_contains_event_id(&self, event_id: EventId) -> &Self {
         for item in self.get_items() {
-            if let Some(id) = item.event_id() {
-                if id == event_id {
-                    return self;
-                }
+            if item.event_id() == Some(event_id) {
+                return self;
             }
         }
 
@@ -302,23 +300,17 @@ impl Upstream for MiniSentry {
     }
 
     fn public_dsn_key(&self, id: ProjectId) -> ProjectKey {
-        let binding = self.inner.lock().unwrap();
-        let x = binding.project_configs.get(&id).unwrap();
-        x.public_key()
+        self.inner
+            .lock()
+            .unwrap()
+            .project_configs
+            .get(&id)
+            .unwrap()
+            .public_key()
     }
 }
 
 impl MiniSentry {
-    pub fn insert_known_relay(&self, relay_id: Uuid, public_key: PublicKey) {
-        self.inner.lock().unwrap().known_relays.insert(
-            relay_id,
-            RelayInfo {
-                public_key,
-                internal: true,
-            },
-        );
-    }
-
     pub fn captured_envelopes(&self) -> CapturedEnvelopes {
         self.inner.lock().unwrap().captured_envelopes.clone()
     }
@@ -468,6 +460,12 @@ fn make_handle_project_config(
             let get_configs = binding.as_object().unwrap();
             let guard = mini_sentry.lock().unwrap();
 
+            let global = if get_configs.get("global").is_some() {
+                Some(guard.global_config.clone())
+            } else {
+                None
+            };
+
             for project_key in get_configs.get("publicKeys").unwrap().as_array().unwrap() {
                 let key = ProjectKey::parse(project_key.to_string().trim_matches('"')).unwrap();
 
@@ -479,9 +477,6 @@ fn make_handle_project_config(
                     }
                 }
             }
-
-            dbg!();
-            let global = Some(guard.global_config.clone());
 
             let response = json!({
                 "configs": configs,

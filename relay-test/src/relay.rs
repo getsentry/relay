@@ -24,18 +24,6 @@ pub struct Relay<'a, U: Upstream> {
 }
 
 impl<'a, U: Upstream> Relay<'a, U> {
-    pub fn server_address(&self) -> SocketAddr {
-        self.server_address
-    }
-
-    pub fn get_dsn(&self, public_key: ProjectKey) -> String {
-        let x = self.server_address();
-        let host = x.ip();
-        let port = x.port();
-
-        format!("http://{public_key}:@{host}:{port}/42")
-    }
-
     pub fn new(upstream: &'a U) -> Relay<'a, U> {
         Self::builder(upstream).build()
     }
@@ -49,14 +37,6 @@ impl<'a, U: Upstream> Relay<'a, U> {
         let config = default_relay_config(url, internal_error_dsn, port, host);
 
         RelayBuilder { config, upstream }
-    }
-
-    fn url(&self) -> String {
-        format!(
-            "http://{}:{}",
-            self.server_address.ip(),
-            self.server_address.port()
-        )
     }
 
     pub fn get_auth_header(&self, dsn_key: ProjectKey) -> String {
@@ -132,7 +112,11 @@ impl<'a, U: Upstream> Relay<'a, U> {
 
 impl<U: Upstream> Upstream for Relay<'_, U> {
     fn url(&self) -> String {
-        self.url()
+        format!(
+            "http://{}:{}",
+            self.server_address.ip(),
+            self.server_address.port()
+        )
     }
 
     fn internal_error_dsn(&self) -> String {

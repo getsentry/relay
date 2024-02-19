@@ -11,11 +11,9 @@ use relay_test::{
 /// Tests that when sampling is set to 0% for the trace context project the events are removed.
 #[test]
 fn test_it_removes_events() {
-    let sample_rate = 0.0;
-
     let project_state = ProjectState::new()
         // add a sampling rule to project config that removes all transactions (sample_rate=0)
-        .add_basic_sampling_rule(RuleType::Transaction, sample_rate)
+        .add_basic_sampling_rule(RuleType::Transaction, 0.0)
         .set_transaction_metrics_version(1);
 
     let public_key = project_state.public_key();
@@ -25,7 +23,7 @@ fn test_it_removes_events() {
     // create an envelope with a trace context that is initiated by this project (for simplicity)
     let envelope = Envelope::new()
         .add_basic_transaction(None)
-        .add_basic_trace_info(public_key);
+        .set_basic_trace_info(public_key);
 
     // send the event, the transaction should be removed.
     relay.send_envelope(envelope);
@@ -125,7 +123,7 @@ fn test_it_keeps_event() {
     let envelope = Envelope::new()
         .add_basic_transaction(None)
         .fill_event_id()
-        .add_basic_trace_info(public_key);
+        .set_basic_trace_info(public_key);
     let event_id = envelope.event_id().unwrap();
 
     relay.send_envelope(envelope);
@@ -184,7 +182,7 @@ fn test_uses_trace_public_key() {
     // send trace with project_id1 context (should be removed)
     let envelope = Envelope::new()
         .add_basic_transaction(None)
-        .add_basic_trace_info(public_key1)
+        .set_basic_trace_info(public_key1)
         .set_project_id(project_id2);
 
     // Send the event, the transaction should be removed.
@@ -199,7 +197,7 @@ fn test_uses_trace_public_key() {
     // send trace with project_id2 context (should go through)
     let envelope = Envelope::new()
         .add_basic_transaction(None)
-        .add_basic_trace_info(public_key2)
+        .set_basic_trace_info(public_key2)
         .set_project_id(project_id1);
 
     // send the event
@@ -238,7 +236,7 @@ fn test_multi_item_envelope() {
         for _ in 0..2 {
             let envelope = Envelope::new()
                 .add_basic_transaction(None)
-                .add_basic_trace_info(public_key)
+                .set_basic_trace_info(public_key)
                 .add_item_from_json(json!({"x": "some attachment"}), "attachment")
                 .add_item_from_json(json!({"y": "some other attachment"}), "attachment");
 
@@ -270,7 +268,7 @@ fn test_client_sample_rate_adjusted() {
 
         let envelope = Envelope::new()
             .add_basic_transaction(None)
-            .add_basic_trace_info(public_key)
+            .set_basic_trace_info(public_key)
             .set_client_sample_rate(sample_rate);
 
         relay.send_envelope(envelope);
@@ -278,14 +276,13 @@ fn test_client_sample_rate_adjusted() {
         sentry
             .captured_envelopes()
             .wait_for_envelope(5)
-            .debug()
             .assert_item_qty(1)
             .assert_n_item_types("client_report", 1)
             .clear();
 
         let envelope = Envelope::new()
             .add_basic_transaction(None)
-            .add_basic_trace_info(public_key)
+            .set_basic_trace_info(public_key)
             .set_client_sample_rate(1.0);
 
         relay.send_envelope(envelope);

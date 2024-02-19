@@ -169,7 +169,7 @@ impl Envelope {
     }
 
     /// Adds basic trace info based on trace id of the last inserted item.
-    pub fn add_basic_trace_info(mut self, public_key: ProjectKey) -> Self {
+    pub fn set_basic_trace_info(mut self, public_key: ProjectKey) -> Self {
         let trace_id = self.items.last().unwrap().trace_id().unwrap();
 
         let trace_info = json!({
