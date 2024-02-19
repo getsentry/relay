@@ -19,7 +19,7 @@ pub struct TransactionNameConfig<'r> {
     pub rules: &'r [TransactionNameRule],
 }
 
-///
+/// Apply parametrization to transaction.
 pub fn normalize_transaction_name(
     transaction: &mut Annotated<String>,
     rules: &[TransactionNameRule],
