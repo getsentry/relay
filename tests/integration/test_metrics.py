@@ -175,7 +175,7 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
     assert len(envelope.items) == 1
     metric_meta_item = envelope.items[0]
     assert metric_meta_item.type == "metric_meta"
-    assert metric_meta_item.get_bytes().decode() == meta_payload
+    assert json.loads(metric_meta_item.get_bytes().decode()) == meta_payload
 
 
 def test_metrics(mini_sentry, relay):
