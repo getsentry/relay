@@ -1,6 +1,9 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -10,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::ProcessingGroup;
+use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -65,6 +68,49 @@ struct EnvelopeContext {
     group: ProcessingGroup,
 }
 
+/// A wraper for [`ManagedEnvelope`] with assigned processing group type.
+pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
+
+impl<G> TypedEnvelope<G> {
+    pub fn new(managed_envelope: ManagedEnvelope) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
+    }
+
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self.0)
+    }
+
+    pub fn accept(self) {
+        self.0.accept()
+    }
+}
+
+impl<G> From<ManagedEnvelope> for TypedEnvelope<G> {
+    fn from(value: ManagedEnvelope) -> Self {
+        TypedEnvelope::new(value)
+    }
+}
+
+impl<G> Debug for TypedEnvelope<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
+    }
+}
+
+impl<G> Deref for TypedEnvelope<G> {
+    type Target = ManagedEnvelope;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<G> DerefMut for TypedEnvelope<G> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// Tracks the lifetime of an [`Envelope`] in Relay.
 ///
 /// The managed envelope accompanies envelopes through the processing pipeline in Relay and ensures
@@ -89,6 +135,11 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
+    /// Returns typed envelope.
+    pub fn into_typed<G>(self) -> TypedEnvelope<G> {
+        TypedEnvelope::new(self)
+    }
+
     /// Computes a managed envelope from the given envelope.
     fn new_internal(
         envelope: Box<Envelope>,
@@ -121,14 +172,12 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        use crate::services::processor::Ungrouped;
-
         let mut envelope = Self::new_internal(
             envelope,
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Ungrouped(Ungrouped),
+            ProcessingGroup::Ungrouped,
         );
         envelope.context.done = true;
         envelope
