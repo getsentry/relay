@@ -1430,7 +1430,6 @@
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
-<a href="#1432" id="1432">1432</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1451,8 +1450,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::span::description::{normalize_domain, scrub_span_description};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
-    MOBILE_SDKS,
+    extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
 
 <span class="doccomment">/// A list of supported span tags for tag extraction.
@@ -1619,8 +1617,8 @@
         tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value().and_then(|u| u.sentry_user.value()) {
+        tags.insert(SpanTagKey::User, user.clone());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {

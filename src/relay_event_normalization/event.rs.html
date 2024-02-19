@@ -2901,6 +2901,8 @@
 <a href="#2900" id="2900">2900</a>
 <a href="#2901" id="2901">2901</a>
 <a href="#2902" id="2902">2902</a>
+<a href="#2903" id="2903">2903</a>
+<a href="#2904" id="2904">2904</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2926,7 +2928,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::normalize::request;
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, MAX_DURATION_MOBILE_MS};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
@@ -3106,7 +3108,7 @@
     });
 
     <span class="comment">// Default required attributes, even if they have errors
-    </span>normalize_user(<span class="kw-2">&amp;mut </span>event.user);
+    </span>normalize_user(event);
     normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
     normalize_debug_meta(event);
     normalize_breadcrumbs(event);
@@ -3276,14 +3278,20 @@
     }
 }
 
-<span class="kw">fn </span>normalize_user(user: <span class="kw-2">&amp;mut </span>Annotated&lt;User&gt;) {
-    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(user), <span class="kw">_</span>) = user <span class="kw">else </span>{
+<span class="kw">fn </span>normalize_user(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(user), <span class="kw">_</span>) = <span class="kw-2">&amp;mut </span>event.user <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
+
     <span class="kw">if </span>!user.other.is_empty() {
         <span class="kw">let </span>data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(<span class="kw-2">&amp;mut </span>user.other));
     }
+
+    <span class="comment">// We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    </span><span class="kw">let </span>event_user_tag = get_event_user_tag(user);
+    user.sentry_user.set_value(event_user_tag);
 }
 
 <span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, _meta: <span class="kw-2">&amp;mut </span>Meta) {
@@ -5576,23 +5584,18 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_user_data_moved() {
-        <span class="kw">let </span><span class="kw-2">mut </span>user = Annotated::new(User {
-            other: {
-                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
-                map.insert(
-                    <span class="string">"other"</span>.to_string(),
-                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
+    </span><span class="kw">fn </span>test_normalize_user() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "user": {
+                "id": "123456",
+                "username": "john",
+                "other": "value"
+            }
+        }"#</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
 
-        normalize_user(<span class="kw-2">&amp;mut </span>user);
-
-        <span class="kw">let </span>user = user.value().unwrap();
-
+        <span class="kw">let </span>user = event.value().unwrap().user.value().unwrap();
         <span class="macro">assert_eq!</span>(user.data, {
             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
             map.insert(
@@ -5601,8 +5604,9 @@
             );
             Annotated::new(map)
         });
-
         <span class="macro">assert_eq!</span>(user.other, Object::new());
+        <span class="macro">assert_eq!</span>(user.username, Annotated::new(<span class="string">"john"</span>.to_string()));
+        <span class="macro">assert_eq!</span>(user.sentry_user, Annotated::new(<span class="string">"id:123456"</span>.to_string()));
     }
 
     <span class="attr">#[test]

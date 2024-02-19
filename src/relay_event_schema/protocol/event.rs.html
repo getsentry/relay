@@ -1260,6 +1260,14 @@
 <a href="#1259" id="1259">1259</a>
 <a href="#1260" id="1260">1260</a>
 <a href="#1261" id="1261">1261</a>
+<a href="#1262" id="1262">1262</a>
+<a href="#1263" id="1263">1263</a>
+<a href="#1264" id="1264">1264</a>
+<a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1932,6 +1940,9 @@
             <span class="string">"sdk.name" </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"sdk.version" </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
 
+            <span class="comment">// Computed fields (after light normalization).
+            </span><span class="string">"sentry_user" </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.sentry_user.as_str()<span class="question-mark">?</span>.into(),
+
             <span class="comment">// Partial implementation of contexts.
             </span><span class="string">"contexts.app.in_foreground" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;AppContext&gt;()<span class="question-mark">?</span>.in_foreground.value()<span class="question-mark">?</span>.into()
@@ -2343,6 +2354,7 @@
                 ip_address: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
                 id: Annotated::new(LenientString(<span class="string">"user-id"</span>.into())),
                 segment: Annotated::new(<span class="string">"user-seg"</span>.into()),
+                sentry_user: Annotated::new(<span class="string">"id:user-id"</span>.into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -2419,6 +2431,10 @@
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::String(<span class="string">"user-id"</span>)),
             event.get_value(<span class="string">"event.user.id"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"id:user-id"</span>)),
+            event.get_value(<span class="string">"event.sentry_user"</span>)
         );
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::String(<span class="string">"user-seg"</span>)),

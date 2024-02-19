@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MAIN_THREAD_NAME","MAX_DURATION_MOBILE_MS","MOBILE_SDKS"],"fn":["calculate_cdf_score","extract_http_status_code","extract_transaction_op","get_eventuser_tag","http_status_code_from_span"]};
+window.SIDEBAR_ITEMS = {"constant":["MAIN_THREAD_NAME","MAX_DURATION_MOBILE_MS","MOBILE_SDKS"],"fn":["calculate_cdf_score","extract_http_status_code","extract_transaction_op","get_event_user_tag","http_status_code_from_span"]};
