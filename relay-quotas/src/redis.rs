@@ -603,7 +603,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited([].iter(), scoping, 1, false)
+            .is_rate_limited(&[], scoping, 1, false)
             .expect("rate limiting failed")
             .into_iter()
             .collect();

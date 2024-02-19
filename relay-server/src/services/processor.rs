@@ -1886,7 +1886,7 @@ impl EnvelopeProcessorService {
         &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: DynamicQuotas,
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1920,7 +1920,7 @@ impl EnvelopeProcessorService {
         &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: DynamicQuotas,
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
@@ -2658,7 +2658,7 @@ pub struct DynamicQuotas<'a> {
 
 impl<'a> DynamicQuotas<'a> {
     /// Returns a new [`DynamicQuotas`]
-    pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
+    fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
         Self {
             global_quotas: &global_config.quotas,
             project_quotas,
@@ -2666,17 +2666,16 @@ impl<'a> DynamicQuotas<'a> {
     }
 
     /// Returns `true` if both global quotas and project quotas are empty.
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns the number of both global and project quotas.
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.global_quotas.len() + self.project_quotas.len()
     }
 }
 
-// Implementing IntoIterator for &DynamicQuotas to allow iterating over the quotas.
 impl<'a> IntoIterator for DynamicQuotas<'a> {
     type Item = &'a Quota;
     type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
@@ -2700,7 +2699,7 @@ mod tests {
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_quotas::QuotaScope;
+    use relay_quotas::{Quota, QuotaScope};
     use similar_asserts::assert_eq;
 
     use crate::extractors::RequestMeta;
@@ -2711,11 +2710,7 @@ mod tests {
     use crate::testutils::{self, create_test_processor};
 
     #[cfg(feature = "processing")]
-    use {
-        relay_metrics::BucketValue,
-        relay_quotas::{Quota, ReasonCode},
-        relay_test::mock_service,
-    };
+    use {relay_metrics::BucketValue, relay_quotas::ReasonCode, relay_test::mock_service};
 
     use super::*;
 
