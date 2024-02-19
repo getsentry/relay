@@ -36,7 +36,7 @@ use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, M
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, Quota, Scoping};
+use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
@@ -55,7 +55,7 @@ use {
     },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2650,12 +2650,14 @@ impl UpstreamRequest for SendMetricsRequest {
 }
 
 /// Container for global and project level [`Quota`].
+#[cfg(feature = "processing")]
 #[derive(Copy, Clone)]
 pub struct DynamicQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
 
+#[cfg(feature = "processing")]
 impl<'a> DynamicQuotas<'a> {
     /// Returns a new [`DynamicQuotas`]
     fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
@@ -2676,6 +2678,7 @@ impl<'a> DynamicQuotas<'a> {
     }
 }
 
+#[cfg(feature = "processing")]
 impl<'a> IntoIterator for DynamicQuotas<'a> {
     type Item = &'a Quota;
     type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
@@ -2699,7 +2702,6 @@ mod tests {
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_quotas::{Quota, QuotaScope};
     use similar_asserts::assert_eq;
 
     use crate::extractors::RequestMeta;
@@ -2710,10 +2712,15 @@ mod tests {
     use crate::testutils::{self, create_test_processor};
 
     #[cfg(feature = "processing")]
-    use {relay_metrics::BucketValue, relay_quotas::ReasonCode, relay_test::mock_service};
+    use {
+        relay_metrics::BucketValue,
+        relay_quotas::{Quota, QuotaScope, ReasonCode},
+        relay_test::mock_service,
+    };
 
     use super::*;
 
+    #[cfg(feature = "processing")]
     fn mock_quota(id: &str) -> Quota {
         Quota {
             id: Some(id.into()),
@@ -2727,6 +2734,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_dynamic_quota_empty() {
         let glob_config = GlobalConfig::default();
@@ -2734,6 +2742,7 @@ mod tests {
         assert!(dynq.is_empty());
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_dynamic_quota_len() {
         let global_config = GlobalConfig {
@@ -2748,6 +2757,7 @@ mod tests {
         assert_eq!(dynq.len(), 3);
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_dynamic_quotas() {
         let global_config = GlobalConfig {
