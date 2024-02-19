@@ -215,7 +215,7 @@ impl RelayCacheService {
     /// If previous queries succeeded, this will be the general batch interval. Additionally, an
     /// exponentially increasing backoff is used for retrying the upstream request.
     fn next_backoff(&mut self) -> Duration {
-        self.config.query_batch_interval() + self.backoff.next_backoff()
+        self.config.downstream_relays_batch_interval() + self.backoff.next_backoff()
     }
 
     /// Schedules a batched upstream query with exponential backoff.
