@@ -388,14 +388,15 @@ mod tests {
     /// Tests that a quota with and without namespace are counted separately.
     #[test]
     fn test_non_global_namespace_quota() {
+        let quota_limit = 5;
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
                 id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
-                limit: Some(5),
-                window: Some(60),
+                limit: Some(quota_limit),
+                window: Some(600),
                 reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
                 namespace,
             }
@@ -417,6 +418,7 @@ mod tests {
 
         let rate_limiter = build_rate_limiter();
 
+        // First confirm normal behaviour without namespace.
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1, false)
@@ -424,16 +426,17 @@ mod tests {
                 .into_iter()
                 .collect();
 
-            if i >= 5 {
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
                 assert_eq!(
                     rate_limits[0].reason_code,
                     Some(ReasonCode::new("ns: None"))
                 );
-            } else {
-                assert_eq!(rate_limits, vec![]);
             }
         }
 
+        // Then, send identical quota with namespace and confirm it counts separately.
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quota_with_namespace, scoping, 1, false)
@@ -441,13 +444,13 @@ mod tests {
                 .into_iter()
                 .collect();
 
-            if i >= 5 {
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
                 assert_eq!(
                     rate_limits[0].reason_code,
                     Some(ReasonCode::new("ns: Some(Transactions)"))
                 );
-            } else {
-                assert_eq!(rate_limits, vec![]);
             }
         }
     }
