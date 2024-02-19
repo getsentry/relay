@@ -2993,12 +2993,31 @@
 <a href="#2992" id="2992">2992</a>
 <a href="#2993" id="2993">2993</a>
 <a href="#2994" id="2994">2994</a>
+<a href="#2995" id="2995">2995</a>
+<a href="#2996" id="2996">2996</a>
+<a href="#2997" id="2997">2997</a>
+<a href="#2998" id="2998">2998</a>
+<a href="#2999" id="2999">2999</a>
+<a href="#3000" id="3000">3000</a>
+<a href="#3001" id="3001">3001</a>
+<a href="#3002" id="3002">3002</a>
+<a href="#3003" id="3003">3003</a>
+<a href="#3004" id="3004">3004</a>
+<a href="#3005" id="3005">3005</a>
+<a href="#3006" id="3006">3006</a>
+<a href="#3007" id="3007">3007</a>
+<a href="#3008" id="3008">3008</a>
+<a href="#3009" id="3009">3009</a>
+<a href="#3010" id="3010">3010</a>
+<a href="#3011" id="3011">3011</a>
+<a href="#3012" id="3012">3012</a>
+<a href="#3013" id="3013">3013</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::io::Write;
-<span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::{Arc, Mutex};
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -3071,7 +3090,9 @@
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{
+    <span class="self">self</span>, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult, TypedEnvelope,
+};
 
 <span class="kw">mod </span>attachment;
 <span class="kw">mod </span>dynamic_sampling;
@@ -3098,13 +3119,21 @@
 <span class="doccomment">/// The minimum clock drift for correction to apply.
 </span><span class="kw">const </span>MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(<span class="number">55 </span>* <span class="number">60</span>);
 
+<span class="doccomment">/// A marker trait.
+///
+/// Should be used only with groups which are responsible for processing envelopes with events.
+</span><span class="kw">pub trait </span>EventProcessing {}
+
 <span class="doccomment">/// Transaction group type marker.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>TransactionGroup;
 
+<span class="kw">impl </span>EventProcessing <span class="kw">for </span>TransactionGroup {}
+
 <span class="doccomment">/// Error group type marker.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>ErrorGroup;
+<span class="kw">impl </span>EventProcessing <span class="kw">for </span>ErrorGroup {}
 
 <span class="doccomment">/// Session group type marker.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
@@ -3142,38 +3171,44 @@
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>Ungrouped;
 
+<span class="doccomment">/// Processed group type marker.
+///
+/// Marks the envelopes which passed through the processing pipeline.
+</span><span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>Processed;
+
 <span class="doccomment">/// Describes the groups of the processable items.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub enum </span>ProcessingGroup {
     <span class="doccomment">/// All the transaction related items.
     ///
     /// Includes transactions, related attachments, profiles.
-    </span>Transaction(TransactionGroup),
+    </span>Transaction,
     <span class="doccomment">/// All the items which require (have or create) events.
     ///
     /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
-    </span>Error(ErrorGroup),
+    </span>Error,
     <span class="doccomment">/// Session events.
-    </span>Session(SessionGroup),
+    </span>Session,
     <span class="doccomment">/// Standalone items which can be sent alone without any event attached to it in the current
     /// envelope e.g. some attachments, user reports.
-    </span>Standalone(StandaloneGroup),
+    </span>Standalone,
     <span class="doccomment">/// Outcomes.
-    </span>ClientReport(ClientReportGroup),
+    </span>ClientReport,
     <span class="doccomment">/// Replays and ReplayRecordings.
-    </span>Replay(ReplayGroup),
+    </span>Replay,
     <span class="doccomment">/// Crons.
-    </span>CheckIn(CheckInGroup),
+    </span>CheckIn,
     <span class="doccomment">/// Spans.
-    </span>Span(SpanGroup),
+    </span>Span,
     <span class="doccomment">/// Metrics.
-    </span>Metrics(MetricsGroup),
+    </span>Metrics,
     <span class="doccomment">/// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
-    </span>ForwardUnknown(ForwardUnknownGroup),
+    </span>ForwardUnknown,
     <span class="doccomment">/// All the items in the envelope that could not be grouped.
-    </span>Ungrouped(Ungrouped),
+    </span>Ungrouped,
 }
 
 <span class="kw">impl </span>ProcessingGroup {
@@ -3191,7 +3226,7 @@
                 <span class="kw">let </span>items: SmallVec&lt;[Item; <span class="number">3</span>]&gt; = <span class="macro">smallvec!</span>[item.clone()];
                 <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_parts(headers, items);
                 envelope.set_event_id(EventId::new());
-                (ProcessingGroup::Error(ErrorGroup), envelope)
+                (ProcessingGroup::Error, envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
 
@@ -3204,7 +3239,7 @@
         });
         <span class="kw">if </span>!replay_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Replay(ReplayGroup),
+                ProcessingGroup::Replay,
                 Envelope::from_parts(headers.clone(), replay_items),
             ))
         }
@@ -3214,7 +3249,7 @@
             .take_items_by(|item| <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Session | <span class="kw-2">&amp;</span>ItemType::Sessions));
         <span class="kw">if </span>!session_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Session(SessionGroup),
+                ProcessingGroup::Session,
                 Envelope::from_parts(headers.clone(), session_items),
             ))
         }
@@ -3224,7 +3259,7 @@
             .take_items_by(|item| <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Span | <span class="kw-2">&amp;</span>ItemType::OtelSpan));
         <span class="kw">if </span>!span_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Span(SpanGroup),
+                ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
             ))
         }
@@ -3237,7 +3272,7 @@
             <span class="kw">let </span>standalone_items = envelope.take_items_by(Item::requires_event);
             <span class="kw">if </span>!standalone_items.is_empty() {
                 grouped_envelopes.push((
-                    ProcessingGroup::Standalone(StandaloneGroup),
+                    ProcessingGroup::Standalone,
                     Envelope::from_parts(headers.clone(), standalone_items),
                 ))
             }
@@ -3250,9 +3285,9 @@
                 .iter()
                 .any(|item| <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Transaction | <span class="kw-2">&amp;</span>ItemType::Profile))
             {
-                ProcessingGroup::Transaction(TransactionGroup)
+                ProcessingGroup::Transaction
             } <span class="kw">else </span>{
-                ProcessingGroup::Error(ErrorGroup)
+                ProcessingGroup::Error
             };
             grouped_envelopes.push((
                 group,
@@ -3267,14 +3302,14 @@
             <span class="kw">let </span>envelope = Envelope::from_parts(headers, items);
             <span class="kw">let </span>item_type = item.ty();
             <span class="kw">let </span>group = <span class="kw">if </span><span class="macro">matches!</span>(item_type, <span class="kw-2">&amp;</span>ItemType::CheckIn) {
-                ProcessingGroup::CheckIn(CheckInGroup)
+                ProcessingGroup::CheckIn
             } <span class="kw">else if </span><span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::ClientReport) {
-                ProcessingGroup::ClientReport(ClientReportGroup)
+                ProcessingGroup::ClientReport
             } <span class="kw">else if </span><span class="macro">matches!</span>(item_type, <span class="kw-2">&amp;</span>ItemType::Unknown(<span class="kw">_</span>)) {
-                ProcessingGroup::ForwardUnknown(ForwardUnknownGroup)
+                ProcessingGroup::ForwardUnknown
             } <span class="kw">else </span>{
                 <span class="comment">// Cannot group this item type.
-                </span>ProcessingGroup::Ungrouped(Ungrouped)
+                </span>ProcessingGroup::Ungrouped
             };
 
             (group, envelope)
@@ -3287,17 +3322,17 @@
     <span class="doccomment">/// Returns the name of the group.
     </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            ProcessingGroup::Transaction(<span class="kw">_</span>) =&gt; <span class="string">"transaction"</span>,
-            ProcessingGroup::Error(<span class="kw">_</span>) =&gt; <span class="string">"error"</span>,
-            ProcessingGroup::Session(<span class="kw">_</span>) =&gt; <span class="string">"session"</span>,
-            ProcessingGroup::Standalone(<span class="kw">_</span>) =&gt; <span class="string">"standalone"</span>,
-            ProcessingGroup::ClientReport(<span class="kw">_</span>) =&gt; <span class="string">"client_report"</span>,
-            ProcessingGroup::Replay(<span class="kw">_</span>) =&gt; <span class="string">"replay"</span>,
-            ProcessingGroup::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
-            ProcessingGroup::Span(<span class="kw">_</span>) =&gt; <span class="string">"span"</span>,
-            ProcessingGroup::Metrics(<span class="kw">_</span>) =&gt; <span class="string">"metrics"</span>,
-            ProcessingGroup::ForwardUnknown(<span class="kw">_</span>) =&gt; <span class="string">"forward_unknown"</span>,
-            ProcessingGroup::Ungrouped(<span class="kw">_</span>) =&gt; <span class="string">"ungrouped"</span>,
+            ProcessingGroup::Transaction =&gt; <span class="string">"transaction"</span>,
+            ProcessingGroup::Error =&gt; <span class="string">"error"</span>,
+            ProcessingGroup::Session =&gt; <span class="string">"session"</span>,
+            ProcessingGroup::Standalone =&gt; <span class="string">"standalone"</span>,
+            ProcessingGroup::ClientReport =&gt; <span class="string">"client_report"</span>,
+            ProcessingGroup::Replay =&gt; <span class="string">"replay"</span>,
+            ProcessingGroup::CheckIn =&gt; <span class="string">"check_in"</span>,
+            ProcessingGroup::Span =&gt; <span class="string">"span"</span>,
+            ProcessingGroup::Metrics =&gt; <span class="string">"metrics"</span>,
+            ProcessingGroup::ForwardUnknown =&gt; <span class="string">"forward_unknown"</span>,
+            ProcessingGroup::Ungrouped =&gt; <span class="string">"ungrouped"</span>,
         }
     }
 }
@@ -3503,15 +3538,13 @@
     </span>project_id: ProjectId,
 
     <span class="doccomment">/// The managed envelope before processing.
-    </span>managed_envelope: ManagedEnvelope,
+    </span>managed_envelope: TypedEnvelope&lt;Group&gt;,
 
     <span class="doccomment">/// The ID of the profile in the envelope, if a valid profile exists.
     </span>profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;,
-
-    _group: PhantomData&lt;Group&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, Group&gt; ProcessEnvelopeState&lt;<span class="lifetime">'a</span>, Group&gt; {
@@ -3565,7 +3598,7 @@
 <span class="doccomment">/// The view out of the [`ProcessEnvelopeState`] after processing.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProcessingStateResult {
-    managed_envelope: ManagedEnvelope,
+    managed_envelope: TypedEnvelope&lt;Processed&gt;,
     extracted_metrics: ExtractedMetrics,
 }
 
@@ -3577,7 +3610,7 @@
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;ManagedEnvelope&gt;,
+    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;TypedEnvelope&lt;Processed&gt;&gt;,
 }
 
 <span class="doccomment">/// Applies processing to all contents of the given envelope.
@@ -3675,7 +3708,7 @@
 <span class="doccomment">/// Sends an envelope to the upstream or Kafka.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SubmitEnvelope {
-    <span class="kw">pub </span>envelope: ManagedEnvelope,
+    <span class="kw">pub </span>envelope: TypedEnvelope&lt;Processed&gt;,
 }
 
 <span class="doccomment">/// Sends a client report to the upstream.
@@ -3929,7 +3962,7 @@
     /// This applies defaults to the envelope and initializes empty rate limits.
     </span><span class="kw">fn </span>prepare_state&lt;G&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
+        <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
         project_id: ProjectId,
         project_state: Arc&lt;ProjectState&gt;,
         sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
@@ -3970,7 +4003,6 @@
             managed_envelope,
             profile_id: <span class="prelude-val">None</span>,
             reservoir,
-            _group: PhantomData::&lt;G&gt; {},
         }
     }
 
@@ -4095,7 +4127,7 @@
         </span><span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>light_normalize_event&lt;G&gt;(
+    <span class="kw">fn </span>light_normalize_event&lt;G: EventProcessing&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
@@ -4353,7 +4385,7 @@
         project_state: Arc&lt;ProjectState&gt;,
         sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, (ProcessingError, ManagedEnvelope)&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, (ProcessingError, TypedEnvelope&lt;Processed&gt;)&gt; {
         <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         </span><span class="kw">let </span>group = managed_envelope.group();
@@ -4361,7 +4393,7 @@
         <span class="macro">macro_rules! </span>run {
             (<span class="macro-nonterminal">$</span><span class="kw">fn</span>:<span class="macro-nonterminal">ident</span>) =&gt; {{
                 <span class="kw">let </span><span class="kw-2">mut </span>state = <span class="self">self</span>.prepare_state(
-                    managed_envelope,
+                    managed_envelope.into_typed(),
                     project_id,
                     project_state,
                     sampling_project_state,
@@ -4369,10 +4401,10 @@
                 );
                 <span class="kw">match </span><span class="self">self</span>.<span class="macro-nonterminal">$</span><span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="macro-nonterminal">state</span>) {
                     <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
+                        managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>((e, state.managed_envelope)),
+                    <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>((e, state.managed_envelope.into_processed())),
                 }
             }};
         }
@@ -4380,43 +4412,43 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group:?} group"</span>);
 
         <span class="kw">match </span>group {
-            ProcessingGroup::Error(ErrorGroup) =&gt; <span class="macro">run!</span>(process_errors),
-            ProcessingGroup::Transaction(TransactionGroup) =&gt; <span class="macro">run!</span>(process_transactions),
-            ProcessingGroup::Session(SessionGroup) =&gt; <span class="macro">run!</span>(process_sessions),
-            ProcessingGroup::Standalone(StandaloneGroup) =&gt; <span class="macro">run!</span>(process_standalone),
-            ProcessingGroup::ClientReport(ClientReportGroup) =&gt; <span class="macro">run!</span>(process_client_reports),
-            ProcessingGroup::Replay(ReplayGroup) =&gt; <span class="macro">run!</span>(process_replays),
-            ProcessingGroup::CheckIn(CheckInGroup) =&gt; <span class="macro">run!</span>(process_checkins),
-            ProcessingGroup::Span(SpanGroup) =&gt; <span class="macro">run!</span>(process_spans),
+            ProcessingGroup::Error =&gt; <span class="macro">run!</span>(process_errors),
+            ProcessingGroup::Transaction =&gt; <span class="macro">run!</span>(process_transactions),
+            ProcessingGroup::Session =&gt; <span class="macro">run!</span>(process_sessions),
+            ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(process_standalone),
+            ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(process_client_reports),
+            ProcessingGroup::Replay =&gt; <span class="macro">run!</span>(process_replays),
+            ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins),
+            ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_spans),
             <span class="comment">// Currently is not used.
-            </span>ProcessingGroup::Metrics(MetricsGroup) =&gt; {
+            </span>ProcessingGroup::Metrics =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     tags.project = %project_id,
                     items = <span class="question-mark">?</span>managed_envelope.envelope().items().next().map(Item::ty),
                     <span class="string">"received metrics in the process_state"
                 </span>);
                 <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
             <span class="comment">// Fallback to the legacy process_state implementation for Ungrouped events.
-            </span>ProcessingGroup::Ungrouped(Ungrouped) =&gt; {
+            </span>ProcessingGroup::Ungrouped =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     tags.project = %project_id,
                     items = <span class="question-mark">?</span>managed_envelope.envelope().items().next().map(Item::ty),
                     <span class="string">"could not identify the processing group based on the envelope's items"
                 </span>);
                 <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
             <span class="comment">// Leave this group unchanged.
             //
             // This will later be forwarded to upstream.
-            </span>ProcessingGroup::ForwardUnknown(ForwardUnknownGroup) =&gt; <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                managed_envelope,
+            </span>ProcessingGroup::ForwardUnknown =&gt; <span class="prelude-val">Ok</span>(ProcessingStateResult {
+                managed_envelope: managed_envelope.into_typed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -4778,9 +4810,11 @@
             envelope,
             <span class="self">self</span>.inner.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.test_store.clone(),
-            ProcessingGroup::ClientReport(ClientReportGroup),
+            ProcessingGroup::ClientReport,
         );
-        <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
+        <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     <span class="doccomment">/// Check and apply rate limits to metrics buckets.
@@ -5087,7 +5121,7 @@
                         envelope,
                         <span class="self">self</span>.inner.outcome_aggregator.clone(),
                         <span class="self">self</span>.inner.test_store.clone(),
-                        ProcessingGroup::Metrics(MetricsGroup),
+                        ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
 
@@ -5095,7 +5129,9 @@
                         histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
                     );
 
-                    <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
+                    <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
+                        envelope: envelope.into_typed(),
+                    });
                     num_batches += <span class="number">1</span>;
                 }
 
@@ -5237,9 +5273,11 @@
             envelope,
             <span class="self">self</span>.inner.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.test_store.clone(),
-            ProcessingGroup::Metrics(MetricsGroup),
+            ProcessingGroup::Metrics,
         );
-        <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
+        <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -5349,7 +5387,7 @@
 <span class="doccomment">/// An upstream request that submits an envelope via HTTP.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SendEnvelope {
-    envelope: ManagedEnvelope,
+    envelope: TypedEnvelope&lt;Processed&gt;,
     body: Bytes,
     http_encoding: HttpEncoding,
     project_cache: Addr&lt;ProjectCache&gt;,

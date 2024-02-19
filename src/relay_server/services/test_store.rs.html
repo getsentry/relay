@@ -142,6 +142,7 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -151,7 +152,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
+<span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.
 </span><span class="kw">pub type </span>CapturedEnvelope = <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, String&gt;;
@@ -176,7 +178,7 @@
     }
 
     <span class="doccomment">/// Captures an accepted envelope.
-    </span><span class="kw">pub fn </span>accepted(<span class="kw-2">mut </span>managed: ManagedEnvelope) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>accepted(<span class="kw-2">mut </span>managed: TypedEnvelope&lt;Processed&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>envelope = managed.take_envelope();
         managed.accept();
 

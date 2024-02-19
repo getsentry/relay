@@ -1681,6 +1681,7 @@
 <a href="#1680" id="1680">1680</a>
 <a href="#1681" id="1681">1681</a>
 <a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1714,8 +1715,9 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, ManagedEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, TypedEnvelope};
 
 <span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
 </span><span class="kw">const </span>MAX_EXPLODED_SESSIONS: usize = <span class="number">100</span>;
@@ -1764,7 +1766,7 @@
 <span class="doccomment">/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>StoreEnvelope {
-    <span class="kw">pub </span>envelope: ManagedEnvelope,
+    <span class="kw">pub </span>envelope: TypedEnvelope&lt;Processed&gt;,
 }
 
 <span class="doccomment">/// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.

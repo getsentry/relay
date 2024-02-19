@@ -473,7 +473,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup, Ungrouped};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
@@ -804,7 +804,7 @@
             state.test_store().clone(),
             <span class="comment">// It's not clear at this point which group this envelope belongs to.
             // The decission will be made while queueing in `queue_envelope` function.
-            </span>ProcessingGroup::Ungrouped(Ungrouped),
+            </span>ProcessingGroup::Ungrouped,
         )
         .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
 

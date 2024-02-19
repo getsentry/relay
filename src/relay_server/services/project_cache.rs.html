@@ -2677,7 +2677,7 @@
     <span class="kw">use </span>tokio::select;
     <span class="kw">use </span>uuid::Uuid;
 
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessingGroup, Ungrouped};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{empty_envelope, empty_envelope_with_dsn};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -2778,7 +2778,7 @@
                     empty_envelope(),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped(Ungrouped),
+                    ProcessingGroup::Ungrouped,
                 )
                 .unwrap();
             <span class="kw">let </span>message = ValidateEnvelope { envelope };
@@ -2870,7 +2870,7 @@
                     empty_envelope_with_dsn(dsn),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped(Ungrouped),
+                    ProcessingGroup::Ungrouped,
                 )
                 .unwrap();
 
@@ -2953,7 +2953,7 @@
                 empty_envelope_with_dsn(dsn),
                 services.outcome_aggregator.clone(),
                 services.test_store.clone(),
-                ProcessingGroup::Ungrouped(Ungrouped),
+                ProcessingGroup::Ungrouped,
             )
             .unwrap();
 

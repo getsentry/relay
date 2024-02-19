@@ -741,6 +741,10 @@
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
 <a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -757,7 +761,9 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{profile, ProcessEnvelopeState, TransactionGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ItemAction, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -943,7 +949,10 @@
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;G: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) {
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -1015,7 +1024,6 @@
 </span><span class="kw">mod </span>tests {
 
     <span class="kw">use </span>std::collections::BTreeMap;
-    <span class="kw">use </span>std::marker::PhantomData;
     <span class="kw">use </span>std::sync::Arc;
 
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
@@ -1029,7 +1037,7 @@
 
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup, TransactionGroup};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
     <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -1074,7 +1082,7 @@
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction(TransactionGroup),
+                ProcessingGroup::Transaction,
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -1220,12 +1228,12 @@
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Transaction(TransactionGroup),
-                ),
+                    ProcessingGroup::Transaction,
+                )
+                .into(),
                 profile_id: <span class="prelude-val">None</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 reservoir: dummy_reservoir(),
-                _group: PhantomData::&lt;TransactionGroup&gt; {},
             }
         };
 
