@@ -906,7 +906,7 @@ struct Cache {
     miss_expiry: u32,
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
     batch_interval: u32,
-    /// The buffer timeout for batched queries of downstream relays, in ms and defaults to 100ms.
+    /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
     downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
