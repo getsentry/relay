@@ -257,7 +257,7 @@ impl ProcessingGroup {
         let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
         if !metric_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Metrics(MetricsGroup),
+                ProcessingGroup::Metrics,
                 Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
