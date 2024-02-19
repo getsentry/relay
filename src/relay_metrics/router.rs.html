@@ -185,9 +185,6 @@
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
@@ -347,10 +344,7 @@
                 .and_then(|ns| <span class="self">self</span>.secondary_aggregators.get(<span class="kw-2">&amp;</span>ns))
                 .unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.default_aggregator);
 
-            aggregator.send(MergeBuckets {
-                project_key: message.project_key,
-                buckets: group.collect(),
-            });
+            aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
         }
     }
 }

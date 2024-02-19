@@ -3012,6 +3012,23 @@
 <a href="#3011" id="3011">3011</a>
 <a href="#3012" id="3012">3012</a>
 <a href="#3013" id="3013">3013</a>
+<a href="#3014" id="3014">3014</a>
+<a href="#3015" id="3015">3015</a>
+<a href="#3016" id="3016">3016</a>
+<a href="#3017" id="3017">3017</a>
+<a href="#3018" id="3018">3018</a>
+<a href="#3019" id="3019">3019</a>
+<a href="#3020" id="3020">3020</a>
+<a href="#3021" id="3021">3021</a>
+<a href="#3022" id="3022">3022</a>
+<a href="#3023" id="3023">3023</a>
+<a href="#3024" id="3024">3024</a>
+<a href="#3025" id="3025">3025</a>
+<a href="#3026" id="3026">3026</a>
+<a href="#3027" id="3027">3027</a>
+<a href="#3028" id="3028">3028</a>
+<a href="#3029" id="3029">3029</a>
+<a href="#3030" id="3030">3030</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3031,7 +3048,7 @@
 <span class="kw">use </span>fnv::FnvHasher;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_config::{Config, HttpEncoding};
+<span class="kw">use </span>relay_config::{Config, HttpEncoding, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -3261,6 +3278,18 @@
             grouped_envelopes.push((
                 ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        <span class="comment">// Exract all metric items.
+        //
+        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
+        // a separate pipeline.
+        </span><span class="kw">let </span>metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
+        <span class="kw">if </span>!metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Metrics,
+                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -4422,11 +4451,16 @@
             ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_spans),
             <span class="comment">// Currently is not used.
             </span>ProcessingGroup::Metrics =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    tags.project = %project_id,
-                    items = <span class="question-mark">?</span>managed_envelope.envelope().items().next().map(Item::ty),
-                    <span class="string">"received metrics in the process_state"
-                </span>);
+                <span class="comment">// In proxy mode we simply forward the metrics.
+                // This group shouldn't be used outside of proxy mode.
+                </span><span class="kw">if </span><span class="self">self</span>.inner.config.relay_mode() != RelayMode::Proxy {
+                    <span class="macro">relay_log::error!</span>(
+                        tags.project = %project_id,
+                        items = <span class="question-mark">?</span>managed_envelope.envelope().items().next().map(Item::ty),
+                        <span class="string">"received metrics in the process_state"
+                    </span>);
+                }
+
                 <span class="prelude-val">Ok</span>(ProcessingStateResult {
                     managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),

@@ -461,10 +461,15 @@
 <a href="#460" id="460">460</a>
 <a href="#461" id="461">461</a>
 <a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
 <span class="kw">use </span>axum::response::IntoResponse;
+<span class="kw">use </span>relay_config::RelayMode;
 <span class="kw">use </span>relay_event_schema::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_statsd::metric;
@@ -725,28 +730,31 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {
     <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
-    <span class="comment">// Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-    </span><span class="kw">let </span>is_metric = |i: <span class="kw-2">&amp;</span>Item| <span class="macro">matches!</span>(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
-    <span class="kw">let </span>metric_items = envelope.take_items_by(is_metric);
+    <span class="kw">if </span>state.config().relay_mode() != RelayMode::Proxy {
+        <span class="comment">// Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
+        </span><span class="kw">let </span>is_metric = |i: <span class="kw-2">&amp;</span>Item| <span class="macro">matches!</span>(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+        <span class="kw">let </span>metric_items = envelope.take_items_by(is_metric);
 
-    <span class="kw">if </span>!metric_items.is_empty() {
-        <span class="macro">relay_log::trace!</span>(<span class="string">"sending metrics into processing queue"</span>);
-        state.processor().send(ProcessMetrics {
-            items: metric_items.into_vec(),
-            project_key: envelope.meta().public_key(),
-            start_time: envelope.meta().start_time(),
-            sent_at: envelope.sent_at(),
-        });
-    }
+        <span class="kw">if </span>!metric_items.is_empty() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">"sending metrics into processing queue"</span>);
+            state.processor().send(ProcessMetrics {
+                items: metric_items.into_vec(),
+                start_time: envelope.meta().start_time(),
+                sent_at: envelope.sent_at(),
+                project_key: envelope.meta().public_key(),
+            });
+        }
 
-    <span class="comment">// Remove metric meta from the envelope and send them directly to processing.
-    </span><span class="kw">let </span>metric_meta = envelope.take_items_by(|item| <span class="macro">matches!</span>(item.ty(), ItemType::MetricMeta));
-    <span class="kw">if </span>!metric_meta.is_empty() {
-        <span class="macro">relay_log::trace!</span>(<span class="string">"sending metric meta into processing queue"</span>);
-        state.processor().send(ProcessMetricMeta {
-            items: metric_meta.into_vec(),
-            project_key: envelope.meta().public_key(),
-        })
+        <span class="comment">// Remove metric meta from the envelope and send them directly to processing.
+        </span><span class="kw">let </span>metric_meta = envelope.take_items_by(|item| <span class="macro">matches!</span>(item.ty(), ItemType::MetricMeta));
+        <span class="kw">if </span>!metric_meta.is_empty() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">"sending metric meta into processing queue"</span>);
+            state.processor().send(ProcessMetricMeta {
+                items: metric_meta.into_vec(),
+                project_key: envelope.meta().public_key(),
+            })
+        }
     }
 
     <span class="comment">// Split off the envelopes by item type.

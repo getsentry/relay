@@ -1928,6 +1928,14 @@
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
 <a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2110,6 +2118,14 @@
             <span class="self">Self</span>::Unknown(<span class="kw-2">ref </span>s) =&gt; s,
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.name(),
         }
+    }
+
+    <span class="doccomment">/// Returns `true` if the item is a metric type.
+    </span><span class="kw">pub fn </span>is_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(
+            <span class="self">self</span>,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
+        )
     }
 }
 

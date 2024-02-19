@@ -1020,10 +1020,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
-            buckets: <span class="macro">vec!</span>[bucket],
-        });
+        aggregator.send(MergeBuckets::new(
+            ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
+            <span class="macro">vec!</span>[bucket],
+        ));
 
         <span class="kw">let </span>buckets_count = aggregator.send(BucketCountInquiry).<span class="kw">await</span>.unwrap();
         <span class="comment">// Let's check the number of buckets in the aggregator just after sending a
