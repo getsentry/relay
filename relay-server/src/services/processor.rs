@@ -4,9 +4,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io::Write;
-use std::iter::Chain;
 use std::pin::Pin;
-use std::slice::Iter;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -20,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -53,10 +51,12 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::CardinalityLimiterMode,
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::iter::Chain,
+    std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -2696,7 +2696,7 @@ mod tests {
     use chrono::{DateTime, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_dynamic_config::{Options, ProjectConfig};
+    use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
         normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
@@ -2713,6 +2713,7 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use {
+        relay_dynamic_config::Options,
         relay_metrics::BucketValue,
         relay_quotas::{Quota, QuotaScope, ReasonCode},
         relay_test::mock_service,
