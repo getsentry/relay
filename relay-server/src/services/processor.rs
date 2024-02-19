@@ -17,7 +17,7 @@ use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -247,6 +247,18 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Exract all metric items.
+        //
+        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
+        // a separate pipeline.
+        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
+        if !metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Metrics,
+                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -1408,11 +1420,16 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Span => run!(process_spans),
             // Currently is not used.
             ProcessingGroup::Metrics => {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                    "received metrics in the process_state"
-                );
+                // In proxy mode we simply forward the metrics.
+                // This group shouldn't be used outside of proxy mode.
+                if self.inner.config.relay_mode() != RelayMode::Proxy {
+                    relay_log::error!(
+                        tags.project = %project_id,
+                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                        "received metrics in the process_state"
+                    );
+                }
+
                 Ok(ProcessingStateResult {
                     managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),

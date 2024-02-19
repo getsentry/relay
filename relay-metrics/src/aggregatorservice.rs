@@ -500,10 +500,10 @@ mod tests {
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
+        aggregator.send(MergeBuckets::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            vec![bucket],
+        ));
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
         // Let's check the number of buckets in the aggregator just after sending a

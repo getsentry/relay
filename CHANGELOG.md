@@ -4,6 +4,7 @@
 
 **Bug Fixes**:
 
+- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
 ## 24.2.0
