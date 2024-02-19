@@ -18,8 +18,7 @@ use url::Url;
 
 use crate::span::description::{normalize_domain, scrub_span_description};
 use crate::utils::{
-    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
-    MOBILE_SDKS,
+    extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -186,8 +185,8 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
-    if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user);
+    if let Some(user) = event.user.value().and_then(|u| u.sentry_user.value()) {
+        tags.insert(SpanTagKey::User, user.clone());
     }
 
     if let Some(environment) = event.environment.as_str() {

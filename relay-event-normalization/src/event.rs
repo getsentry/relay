@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
@@ -203,7 +203,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
-    normalize_user(&mut event.user);
+    normalize_user(event);
     normalize_logentry(&mut event.logentry, meta);
     normalize_debug_meta(event);
     normalize_breadcrumbs(event);
@@ -373,14 +373,20 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_user(user: &mut Annotated<User>) {
-    let Annotated(Some(user), _) = user else {
+fn normalize_user(event: &mut Event) {
+    let Annotated(Some(user), _) = &mut event.user else {
         return;
     };
+
     if !user.other.is_empty() {
         let data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(&mut user.other));
     }
+
+    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    let event_user_tag = get_event_user_tag(user);
+    user.sentry_user.set_value(event_user_tag);
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
@@ -2673,23 +2679,18 @@ mod tests {
     }
 
     #[test]
-    fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
+    fn test_normalize_user() {
+        let json = r#"{
+            "user": {
+                "id": "123456",
+                "username": "john",
+                "other": "value"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
 
-        normalize_user(&mut user);
-
-        let user = user.value().unwrap();
-
+        let user = event.value().unwrap().user.value().unwrap();
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
@@ -2698,8 +2699,9 @@ mod tests {
             );
             Annotated::new(map)
         });
-
         assert_eq!(user.other, Object::new());
+        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 
     #[test]

@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::fmt::Debug;
 use std::future::Future;
 use std::io::Write;
 use std::iter::Chain;
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::slice::Iter;
 use std::sync::{Arc, Mutex};
@@ -19,14 +19,13 @@ use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
-    TransactionNameConfig, TransactionValidationConfig,
+    DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
+    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
 };
-use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
@@ -78,7 +77,9 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult};
+use crate::utils::{
+    self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult, TypedEnvelope,
+};
 
 mod attachment;
 mod dynamic_sampling;
@@ -105,13 +106,21 @@ macro_rules! if_processing {
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
+/// A marker trait.
+///
+/// Should be used only with groups which are responsible for processing envelopes with events.
+pub trait EventProcessing {}
+
 /// Transaction group type marker.
 #[derive(Clone, Copy, Debug)]
 pub struct TransactionGroup;
 
+impl EventProcessing for TransactionGroup {}
+
 /// Error group type marker.
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorGroup;
+impl EventProcessing for ErrorGroup {}
 
 /// Session group type marker.
 #[derive(Clone, Copy, Debug)]
@@ -149,38 +158,44 @@ pub struct ForwardUnknownGroup;
 #[derive(Clone, Copy, Debug)]
 pub struct Ungrouped;
 
+/// Processed group type marker.
+///
+/// Marks the envelopes which passed through the processing pipeline.
+#[derive(Clone, Copy, Debug)]
+pub struct Processed;
+
 /// Describes the groups of the processable items.
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingGroup {
     /// All the transaction related items.
     ///
     /// Includes transactions, related attachments, profiles.
-    Transaction(TransactionGroup),
+    Transaction,
     /// All the items which require (have or create) events.
     ///
     /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
-    Error(ErrorGroup),
+    Error,
     /// Session events.
-    Session(SessionGroup),
+    Session,
     /// Standalone items which can be sent alone without any event attached to it in the current
     /// envelope e.g. some attachments, user reports.
-    Standalone(StandaloneGroup),
+    Standalone,
     /// Outcomes.
-    ClientReport(ClientReportGroup),
+    ClientReport,
     /// Replays and ReplayRecordings.
-    Replay(ReplayGroup),
+    Replay,
     /// Crons.
-    CheckIn(CheckInGroup),
+    CheckIn,
     /// Spans.
-    Span(SpanGroup),
+    Span,
     /// Metrics.
-    Metrics(MetricsGroup),
+    Metrics,
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
-    ForwardUnknown(ForwardUnknownGroup),
+    ForwardUnknown,
     /// All the items in the envelope that could not be grouped.
-    Ungrouped(Ungrouped),
+    Ungrouped,
 }
 
 impl ProcessingGroup {
@@ -198,7 +213,7 @@ impl ProcessingGroup {
                 let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
                 let mut envelope = Envelope::from_parts(headers, items);
                 envelope.set_event_id(EventId::new());
-                (ProcessingGroup::Error(ErrorGroup), envelope)
+                (ProcessingGroup::Error, envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
 
@@ -211,7 +226,7 @@ impl ProcessingGroup {
         });
         if !replay_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Replay(ReplayGroup),
+                ProcessingGroup::Replay,
                 Envelope::from_parts(headers.clone(), replay_items),
             ))
         }
@@ -221,7 +236,7 @@ impl ProcessingGroup {
             .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
         if !session_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Session(SessionGroup),
+                ProcessingGroup::Session,
                 Envelope::from_parts(headers.clone(), session_items),
             ))
         }
@@ -231,8 +246,20 @@ impl ProcessingGroup {
             .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
         if !span_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Span(SpanGroup),
+                ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Exract all metric items.
+        //
+        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
+        // a separate pipeline.
+        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
+        if !metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Metrics,
+                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -244,7 +271,7 @@ impl ProcessingGroup {
             let standalone_items = envelope.take_items_by(Item::requires_event);
             if !standalone_items.is_empty() {
                 grouped_envelopes.push((
-                    ProcessingGroup::Standalone(StandaloneGroup),
+                    ProcessingGroup::Standalone,
                     Envelope::from_parts(headers.clone(), standalone_items),
                 ))
             }
@@ -257,9 +284,9 @@ impl ProcessingGroup {
                 .iter()
                 .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
             {
-                ProcessingGroup::Transaction(TransactionGroup)
+                ProcessingGroup::Transaction
             } else {
-                ProcessingGroup::Error(ErrorGroup)
+                ProcessingGroup::Error
             };
             grouped_envelopes.push((
                 group,
@@ -274,14 +301,14 @@ impl ProcessingGroup {
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
             let group = if matches!(item_type, &ItemType::CheckIn) {
-                ProcessingGroup::CheckIn(CheckInGroup)
+                ProcessingGroup::CheckIn
             } else if matches!(item.ty(), &ItemType::ClientReport) {
-                ProcessingGroup::ClientReport(ClientReportGroup)
+                ProcessingGroup::ClientReport
             } else if matches!(item_type, &ItemType::Unknown(_)) {
-                ProcessingGroup::ForwardUnknown(ForwardUnknownGroup)
+                ProcessingGroup::ForwardUnknown
             } else {
                 // Cannot group this item type.
-                ProcessingGroup::Ungrouped(Ungrouped)
+                ProcessingGroup::Ungrouped
             };
 
             (group, envelope)
@@ -294,17 +321,17 @@ impl ProcessingGroup {
     /// Returns the name of the group.
     pub fn variant(&self) -> &'static str {
         match self {
-            ProcessingGroup::Transaction(_) => "transaction",
-            ProcessingGroup::Error(_) => "error",
-            ProcessingGroup::Session(_) => "session",
-            ProcessingGroup::Standalone(_) => "standalone",
-            ProcessingGroup::ClientReport(_) => "client_report",
-            ProcessingGroup::Replay(_) => "replay",
-            ProcessingGroup::CheckIn(_) => "check_in",
-            ProcessingGroup::Span(_) => "span",
-            ProcessingGroup::Metrics(_) => "metrics",
-            ProcessingGroup::ForwardUnknown(_) => "forward_unknown",
-            ProcessingGroup::Ungrouped(_) => "ungrouped",
+            ProcessingGroup::Transaction => "transaction",
+            ProcessingGroup::Error => "error",
+            ProcessingGroup::Session => "session",
+            ProcessingGroup::Standalone => "standalone",
+            ProcessingGroup::ClientReport => "client_report",
+            ProcessingGroup::Replay => "replay",
+            ProcessingGroup::CheckIn => "check_in",
+            ProcessingGroup::Span => "span",
+            ProcessingGroup::Metrics => "metrics",
+            ProcessingGroup::ForwardUnknown => "forward_unknown",
+            ProcessingGroup::Ungrouped => "ungrouped",
         }
     }
 }
@@ -510,15 +537,13 @@ struct ProcessEnvelopeState<'a, Group> {
     project_id: ProjectId,
 
     /// The managed envelope before processing.
-    managed_envelope: ManagedEnvelope,
+    managed_envelope: TypedEnvelope<Group>,
 
     /// The ID of the profile in the envelope, if a valid profile exists.
     profile_id: Option<ProfileId>,
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
-
-    _group: PhantomData<Group>,
 }
 
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
@@ -572,7 +597,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
 /// The view out of the [`ProcessEnvelopeState`] after processing.
 #[derive(Debug)]
 struct ProcessingStateResult {
-    managed_envelope: ManagedEnvelope,
+    managed_envelope: TypedEnvelope<Processed>,
     extracted_metrics: ExtractedMetrics,
 }
 
@@ -584,7 +609,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<ManagedEnvelope>,
+    pub envelope: Option<TypedEnvelope<Processed>>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -682,7 +707,7 @@ pub struct EncodeMetricMeta {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: ManagedEnvelope,
+    pub envelope: TypedEnvelope<Processed>,
 }
 
 /// Sends a client report to the upstream.
@@ -936,7 +961,7 @@ impl EnvelopeProcessorService {
     /// This applies defaults to the envelope and initializes empty rate limits.
     fn prepare_state<G>(
         &self,
-        mut managed_envelope: ManagedEnvelope,
+        mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
@@ -977,7 +1002,6 @@ impl EnvelopeProcessorService {
             managed_envelope,
             profile_id: None,
             reservoir,
-            _group: PhantomData::<G> {},
         }
     }
 
@@ -1104,7 +1128,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn light_normalize_event<G>(
+    fn light_normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
@@ -1362,7 +1386,7 @@ impl EnvelopeProcessorService {
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> Result<ProcessingStateResult, (ProcessingError, ManagedEnvelope)> {
+    ) -> Result<ProcessingStateResult, (ProcessingError, TypedEnvelope<Processed>)> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
@@ -1370,7 +1394,7 @@ impl EnvelopeProcessorService {
         macro_rules! run {
             ($fn:ident) => {{
                 let mut state = self.prepare_state(
-                    managed_envelope,
+                    managed_envelope.into_typed(),
                     project_id,
                     project_state,
                     sampling_project_state,
@@ -1378,10 +1402,10 @@ impl EnvelopeProcessorService {
                 );
                 match self.$fn(&mut state) {
                     Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope,
+                        managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    Err(e) => Err((e, state.managed_envelope)),
+                    Err(e) => Err((e, state.managed_envelope.into_processed())),
                 }
             }};
         }
@@ -1389,43 +1413,48 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group:?} group");
 
         match group {
-            ProcessingGroup::Error(ErrorGroup) => run!(process_errors),
-            ProcessingGroup::Transaction(TransactionGroup) => run!(process_transactions),
-            ProcessingGroup::Session(SessionGroup) => run!(process_sessions),
-            ProcessingGroup::Standalone(StandaloneGroup) => run!(process_standalone),
-            ProcessingGroup::ClientReport(ClientReportGroup) => run!(process_client_reports),
-            ProcessingGroup::Replay(ReplayGroup) => run!(process_replays),
-            ProcessingGroup::CheckIn(CheckInGroup) => run!(process_checkins),
-            ProcessingGroup::Span(SpanGroup) => run!(process_spans),
+            ProcessingGroup::Error => run!(process_errors),
+            ProcessingGroup::Transaction => run!(process_transactions),
+            ProcessingGroup::Session => run!(process_sessions),
+            ProcessingGroup::Standalone => run!(process_standalone),
+            ProcessingGroup::ClientReport => run!(process_client_reports),
+            ProcessingGroup::Replay => run!(process_replays),
+            ProcessingGroup::CheckIn => run!(process_checkins),
+            ProcessingGroup::Span => run!(process_spans),
             // Currently is not used.
-            ProcessingGroup::Metrics(MetricsGroup) => {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                    "received metrics in the process_state"
-                );
+            ProcessingGroup::Metrics => {
+                // In proxy mode we simply forward the metrics.
+                // This group shouldn't be used outside of proxy mode.
+                if self.inner.config.relay_mode() != RelayMode::Proxy {
+                    relay_log::error!(
+                        tags.project = %project_id,
+                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                        "received metrics in the process_state"
+                    );
+                }
+
                 Ok(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
             // Fallback to the legacy process_state implementation for Ungrouped events.
-            ProcessingGroup::Ungrouped(Ungrouped) => {
+            ProcessingGroup::Ungrouped => {
                 relay_log::error!(
                     tags.project = %project_id,
                     items = ?managed_envelope.envelope().items().next().map(Item::ty),
                     "could not identify the processing group based on the envelope's items"
                 );
                 Ok(ProcessingStateResult {
-                    managed_envelope,
+                    managed_envelope: managed_envelope.into_typed(),
                     extracted_metrics: Default::default(),
                 })
             }
             // Leave this group unchanged.
             //
             // This will later be forwarded to upstream.
-            ProcessingGroup::ForwardUnknown(ForwardUnknownGroup) => Ok(ProcessingStateResult {
-                managed_envelope,
+            ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
+                managed_envelope: managed_envelope.into_typed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -1787,9 +1816,11 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
-            ProcessingGroup::ClientReport(ClientReportGroup),
+            ProcessingGroup::ClientReport,
         );
-        self.handle_submit_envelope(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     /// Check and apply rate limits to metrics buckets.
@@ -2097,7 +2128,7 @@ impl EnvelopeProcessorService {
                         envelope,
                         self.inner.outcome_aggregator.clone(),
                         self.inner.test_store.clone(),
-                        ProcessingGroup::Metrics(MetricsGroup),
+                        ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
 
@@ -2105,7 +2136,9 @@ impl EnvelopeProcessorService {
                         histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                     );
 
-                    self.handle_submit_envelope(SubmitEnvelope { envelope });
+                    self.handle_submit_envelope(SubmitEnvelope {
+                        envelope: envelope.into_typed(),
+                    });
                     num_batches += 1;
                 }
 
@@ -2247,9 +2280,11 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
-            ProcessingGroup::Metrics(MetricsGroup),
+            ProcessingGroup::Metrics,
         );
-        self.handle_submit_envelope(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_typed(),
+        });
     }
 
     #[cfg(feature = "processing")]
@@ -2359,7 +2394,7 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    envelope: ManagedEnvelope,
+    envelope: TypedEnvelope<Processed>,
     body: Bytes,
     http_encoding: HttpEncoding,
     project_cache: Addr<ProjectCache>,
