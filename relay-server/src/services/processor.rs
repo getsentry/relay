@@ -2652,7 +2652,7 @@ impl UpstreamRequest for SendMetricsRequest {
 /// Container for global and project level [`Quota`].
 #[cfg(feature = "processing")]
 #[derive(Copy, Clone)]
-pub struct DynamicQuotas<'a> {
+struct DynamicQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
@@ -2660,7 +2660,7 @@ pub struct DynamicQuotas<'a> {
 #[cfg(feature = "processing")]
 impl<'a> DynamicQuotas<'a> {
     /// Returns a new [`DynamicQuotas`]
-    fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
+    pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
         Self {
             global_quotas: &global_config.quotas,
             project_quotas,
@@ -2668,12 +2668,12 @@ impl<'a> DynamicQuotas<'a> {
     }
 
     /// Returns `true` if both global quotas and project quotas are empty.
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns the number of both global and project quotas.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.global_quotas.len() + self.project_quotas.len()
     }
 }
@@ -2736,29 +2736,6 @@ mod tests {
 
     #[cfg(feature = "processing")]
     #[test]
-    fn test_dynamic_quota_empty() {
-        let glob_config = GlobalConfig::default();
-        let dynq = DynamicQuotas::new(&glob_config, &[]);
-        assert!(dynq.is_empty());
-    }
-
-    #[cfg(feature = "processing")]
-    #[test]
-    fn test_dynamic_quota_len() {
-        let global_config = GlobalConfig {
-            measurements: None,
-            quotas: vec![mock_quota("foo"), mock_quota("bar")],
-            options: Options::default(),
-        };
-
-        let quotas = vec![mock_quota("baz")];
-
-        let dynq = DynamicQuotas::new(&global_config, &quotas);
-        assert_eq!(dynq.len(), 3);
-    }
-
-    #[cfg(feature = "processing")]
-    #[test]
     fn test_dynamic_quotas() {
         let global_config = GlobalConfig {
             measurements: None,
@@ -2769,6 +2746,9 @@ mod tests {
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
 
         let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+
+        assert_eq!(dynamic_quotas.len(), 4);
+        assert!(!dynamic_quotas.is_empty());
 
         for (expected_id, quota) in ["foo", "bar", "baz", "qux"].iter().zip(dynamic_quotas) {
             assert_eq!(Some(expected_id.to_string()), quota.id);
