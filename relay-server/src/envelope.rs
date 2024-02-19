@@ -30,6 +30,7 @@
 //!
 //! ```
 
+use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -42,7 +43,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_protocol::Value;
+use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
@@ -1136,15 +1137,32 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
-    /// Returns the dynamic sampling context from envelope headers, if present.
-    pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
-        match &mut self.headers.trace {
-            None => None,
-            Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
-                None
-            }
-            Some(ErrorBoundary::Ok(t)) => Some(t),
+    /// Runs transaction parametrization on the DSC trace transaction.
+    ///
+    /// The purpose is for trace rules to match on the parametrized version of the transaction.
+    pub fn parametrize_dsc_transaction(&mut self, rules: &[TransactionNameRule]) {
+        let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
+            return;
+        };
+
+        let Some(transaction) = &mut dsc.transaction else {
+            return;
+        };
+
+        if !transaction.contains('/') {
+            return;
+        }
+
+        // Annotated requires an owned value, so we use a placeholder and swap before and after
+        // parametrization.
+        let mut placeholder_transaction = String::with_capacity(transaction.len());
+        std::mem::swap(&mut placeholder_transaction, transaction);
+        let mut annotated = Annotated::new(placeholder_transaction);
+
+        normalize_transaction_name(&mut annotated, rules);
+
+        if let Some(parametrized) = annotated.value_mut() {
+            std::mem::swap(parametrized, transaction);
         }
     }
 

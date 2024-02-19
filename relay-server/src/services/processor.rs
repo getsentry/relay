@@ -20,10 +20,9 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
-    normalize_event, parametrize_string, validate_event_timestamps, validate_transaction,
-    ClockDriftProcessor, DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup,
-    MeasurementsConfig, NormalizationConfig, RawUserAgentInfo, TransactionNameConfig,
-    TransactionValidationConfig,
+    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
+    DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
+    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
@@ -1104,17 +1103,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let inner = Arc::clone(&state.project_state);
+        let project_state = Arc::clone(&state.project_state);
 
-        if let Some(dsc) = state.envelope_mut().dsc_mut() {
-            if let Some(transaction) = &mut dsc.transaction {
-                let name_config = TransactionNameConfig {
-                    rules: &inner.config.tx_name_rules,
-                };
-
-                parametrize_string(transaction, name_config)
-            }
-        }
+        state
+            .envelope_mut()
+            .parametrize_dsc_transaction(&project_state.config.tx_name_rules);
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1148,29 +1141,26 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
-                performance_score: state.project_state.config.performance_score.as_ref(),
+                breakdowns_config: project_state.config.breakdowns_v2.as_ref(),
+                performance_score: project_state.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    rules: &state.project_state.config.tx_name_rules,
+                    rules: &project_state.config.tx_name_rules,
                 },
-                device_class_synthesis_config: state
-                    .project_state
+                device_class_synthesis_config: project_state
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: state
-                    .project_state
-                    .has_feature(Feature::SpanMetricsExtraction),
+                enrich_spans: project_state.has_feature(Feature::SpanMetricsExtraction),
                 max_tag_value_length: self
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                span_description_rules: project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
                 measurements: Some(DynamicMeasurementsConfig::new(
-                    state.project_state.config().measurements.as_ref(),
+                    project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
             };
