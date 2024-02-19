@@ -20,11 +20,11 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
-    TransactionNameConfig, TransactionValidationConfig,
+    normalize_event, parametrize_string, validate_event_timestamps, validate_transaction,
+    ClockDriftProcessor, DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup,
+    MeasurementsConfig, NormalizationConfig, RawUserAgentInfo, TransactionNameConfig,
+    TransactionValidationConfig,
 };
-use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
@@ -1104,6 +1104,18 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let inner = Arc::clone(&state.project_state);
+
+        if let Some(dsc) = state.envelope_mut().dsc_mut() {
+            if let Some(transaction) = &mut dsc.transaction {
+                let name_config = TransactionNameConfig {
+                    rules: &inner.config.tx_name_rules,
+                };
+
+                parametrize_string(transaction, name_config)
+            }
+        }
+
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 

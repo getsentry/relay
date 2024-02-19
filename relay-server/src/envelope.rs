@@ -1137,6 +1137,18 @@ impl Envelope {
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
+        match &mut self.headers.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
+    /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
             None => None,

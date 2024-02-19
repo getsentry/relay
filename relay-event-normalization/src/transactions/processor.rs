@@ -25,6 +25,78 @@ pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
 }
 
+///
+pub fn apply_transaction_rename_rule(config: TransactionNameConfig, transaction: &mut String) {
+    let result = config.rules.iter().find_map(|rule| {
+        rule.match_and_apply(Cow::Borrowed(transaction))
+            .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+    });
+
+    if let Some((_, result)) = result {
+        if *transaction != result {
+            *transaction = result;
+        }
+    }
+}
+
+///
+pub fn parametrize_string(string: &mut String, name_config: TransactionNameConfig) {
+    let treat_as_url = string.contains('/');
+
+    if !treat_as_url {
+        return;
+    }
+
+    x_scrub_identifiers_with_regex(string);
+
+    if !name_config.rules.is_empty() {
+        apply_transaction_rename_rule(name_config, string)
+    }
+}
+
+fn x_scrub_identifiers_with_regex(trans: &mut String) {
+    let pattern = &TRANSACTION_NAME_NORMALIZER_REGEX;
+    let replacer = "*";
+
+    let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
+
+    let mut caps = Vec::new();
+    // Collect all the remarks if anything matches.
+    for captures in pattern.captures_iter(trans) {
+        for name in &capture_names {
+            if let Some(capture) = captures.name(name) {
+                let remark = Remark::with_range(
+                    RemarkType::Substituted,
+                    *name,
+                    (capture.start(), capture.end()),
+                );
+                caps.push((capture, remark));
+                break;
+            }
+        }
+    }
+
+    if caps.is_empty() {
+        // Nothing to do for this transaction.
+        return;
+    }
+
+    // Sort by the capture end position.
+    caps.sort_by_key(|(capture, _)| capture.end());
+    let mut changed = String::with_capacity(trans.len() + caps.len() * replacer.len());
+    let mut last_end = 0usize;
+    for (capture, _) in caps {
+        changed.push_str(&trans[last_end..capture.start()]);
+        changed.push_str(replacer);
+        last_end = capture.end();
+    }
+    changed.push_str(&trans[last_end..]);
+
+    if !changed.is_empty() && changed != "*" {
+        *trans = changed;
+    }
+}
+
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
     pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
