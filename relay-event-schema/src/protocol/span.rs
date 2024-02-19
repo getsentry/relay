@@ -270,26 +270,37 @@ pub struct SpanData {
     other: Object<Value>,
 }
 
-// impl SpanData {
-//     /// Gets a floating point measurement value from data.
-//     pub fn measurement(&self, key: &str) -> Option<f64> {
-//         let value = self.other.get(key)?.value()?;
-//         Some(match value {
-//             Value::I64(n) => *n as f64,
-//             Value::U64(n) => *n as f64,
-//             Value::F64(f) => *f,
-//             _ => return None,
-//         })
-//     }
-// }
-
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
-            "code\\.filepath" => self.code_filepath.as_str()?.into(),
+            "app_start_type" => self.app_start_type.value()?.into(),
+            "browser\\.name" => self.browser_name.value()?.into(),
+            "code\\.filepath" => self.code_filepath.value()?.into(),
+            "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
-            "code\\.function" => self.code_function.as_str()?.into(),
-            "code\\.namespace" => self.code_namespace.as_str()?.into(),
+            "code\\.namespace" => self.code_namespace.value()?.into(),
+            "db.operation" => self.db_operation.value()?.into(),
+            "db\\.system" => self.db_system.value()?.into(),
+            "environment" => self.environment.value()?.into(),
+            "http\\.decoded_response_content_length" => {
+                self.http_decoded_response_content_length.value()?.into()
+            }
+            "http\\.request_method" | "http\\.method" | "method" => {
+                self.http_request_method.value()?.into()
+            }
+            "http\\.response_content_length" => self.http_response_content_length.value()?.into(),
+            "http\\.response_transfer_size" => self.http_response_transfer_size.value()?.into(),
+            "http\\.response.status_code" | "status_code" => {
+                self.http_response_status_code.value()?.into()
+            }
+            "resource\\.render_blocking_status" => {
+                self.resource_render_blocking_status.value()?.into()
+            }
+            "server\\.address" => self.server_address.value()?.into(),
+            "thread\\.name" => self.thread_name.value()?.into(),
+            "ui\\.component_name" => self.ui_component_name.value()?.into(),
+            "url\\.scheme" => self.url_scheme.value()?.into(),
+
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
