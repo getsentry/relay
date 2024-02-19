@@ -2049,7 +2049,7 @@ impl EnvelopeProcessorService {
             let limits = project_state.get_cardinality_limits();
 
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            let quotas = DynamicQuotas::new(&global_config, &project_state.config.quotas);
+            let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
             let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
