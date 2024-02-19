@@ -1882,11 +1882,11 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn rate_limit_buckets_by_namespace<'a>(
-        &'a self,
+    fn rate_limit_buckets_by_namespace(
+        &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: DynamicQuotas<'a>,
+        quotas: DynamicQuotas,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1916,11 +1916,11 @@ impl EnvelopeProcessorService {
 
     /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_buckets<'a>(
-        &'a self,
+    fn rate_limit_buckets(
+        &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: DynamicQuotas<'a>,
+        quotas: DynamicQuotas,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
