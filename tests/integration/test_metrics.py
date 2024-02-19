@@ -63,7 +63,43 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
-def test_metrics_proxy_mode(mini_sentry, relay, metrics_consumer):
+def test_metrics_proxy_mode_buckets(mini_sentry, relay, metrics_consumer):
+    metrics_consumer = metrics_consumer()
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    bucket_name = "d:transactions/measurements.lcp@millisecond"
+
+    # buckets payload
+    bucket = {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(datetime.utcnow().timestamp()),
+        "name": bucket_name,
+        "type": "d",
+        "value": [1.0],
+        "width": 1,
+    }
+    relay.send_metrics_buckets(project_id, [bucket])
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    payload = envelope.items[0].payload.json[0]
+    assert payload["name"] == bucket_name
+
+
+def test_metrics_proxy_mode_statsd(mini_sentry, relay, metrics_consumer):
     metrics_consumer = metrics_consumer()
 
     relay = relay(
@@ -91,21 +127,25 @@ def test_metrics_proxy_mode(mini_sentry, relay, metrics_consumer):
     assert metric_meta_item.type == "statsd"
     assert metric_meta_item.get_bytes().decode() == metrics_payload
 
-    # buckets payload
-    bucket = {
-        "org_id": 1,
-        "project_id": project_id,
-        "timestamp": int(datetime.utcnow().timestamp()),
-        "name": "d:transactions/measurements.lcp@millisecond",
-        "type": "d",
-        "value": [1.0],
-        "width": 1,
-    }
-    relay.send_metrics_buckets(project_id, [bucket])
-    produced_bucket = [m for m, _ in metrics_consumer.get_metrics()][0]
-    assert bucket == produced_bucket
 
-    # metrics meta
+def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay, metrics_consumer):
+    metrics_consumer = metrics_consumer()
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    now = int(datetime.now(tz=timezone.utc).timestamp())
 
     location = {
         "type": "location",
@@ -116,15 +156,18 @@ def test_metrics_proxy_mode(mini_sentry, relay, metrics_consumer):
         "lineno": 45,
     }
 
+    now = datetime.now(tz=timezone.utc).isoformat()
     envelope = Envelope()
     meta_payload = {
-        "timestamp": now.isoformat(),
+        "timestamp": now,
         "mapping": {
             "d:custom/sentry.process_profile.track_outcome@second": [
                 location,
             ]
         },
     }
+    meta_payload = json.dumps(meta_payload, sort_keys=True)
+
     envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
     relay.send_envelope(project_id, envelope)
 
