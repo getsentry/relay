@@ -96,9 +96,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
     assert payload["name"] == bucket_name
 
 
-def test_metrics_proxy_mode_statsd(mini_sentry, relay, metrics_consumer):
-    metrics_consumer = metrics_consumer()
-
+def test_metrics_proxy_mode_statsd(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
