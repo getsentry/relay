@@ -904,8 +904,10 @@ struct Cache {
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The buffer timeout for batched queries before sending them upstream in ms.
+    /// The buffer timeout for batched project config queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
+    downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
@@ -927,8 +929,9 @@ impl Default for Cache {
             relay_expiry: 3600,   // 1 hour
             envelope_expiry: 600, // 10 minutes
             envelope_buffer_size: 1000,
-            miss_expiry: 60,     // 1 minute
-            batch_interval: 100, // 100ms
+            miss_expiry: 60,                       // 1 minute
+            batch_interval: 100,                   // 100ms
+            downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
             eviction_interval: 60,            // 60 seconds
@@ -1884,10 +1887,15 @@ impl Config {
         Duration::from_secs(self.values.cache.project_grace_period.into())
     }
 
-    /// Returns the number of seconds during which batchable queries are collected before sending
-    /// them in a single request.
+    /// Returns the duration in which batchable project config queries are
+    /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
         Duration::from_millis(self.values.cache.batch_interval.into())
+    }
+
+    /// Returns the duration in which downstream relays are requested from upstream.
+    pub fn downstream_relays_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
