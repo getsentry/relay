@@ -63,9 +63,7 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
-def test_metrics_proxy_mode_buckets(mini_sentry, relay, metrics_consumer):
-    metrics_consumer = metrics_consumer()
-
+def test_metrics_proxy_mode_buckets(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
@@ -82,10 +80,9 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay, metrics_consumer):
     project_id = 42
     bucket_name = "d:transactions/measurements.lcp@millisecond"
 
-    # buckets payload
     bucket = {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "timestamp": int(datetime.utcnow().timestamp()),
         "name": bucket_name,
         "type": "d",
@@ -118,7 +115,6 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay, metrics_consumer):
     project_id = 42
     now = int(datetime.now(tz=timezone.utc).timestamp())
 
-    # statsd
     metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{now}"
     relay.send_metrics(project_id, metrics_payload)
     envelope = mini_sentry.captured_events.get(timeout=3)
