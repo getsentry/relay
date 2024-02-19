@@ -1357,7 +1357,6 @@ impl<T> ArrayEncoding<T> {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "format", rename_all = "lowercase")]
-#[non_exhaustive]
 enum DynamicArrayEncoding<T> {
     /// JSON Array encoding.
     ///
