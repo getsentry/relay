@@ -395,9 +395,9 @@ impl StoreService {
         let value = match view.value() {
             BucketViewValue::Counter(c) => MetricValue::Counter(c),
             BucketViewValue::Distribution(d) => {
-                MetricValue::Distribution(FloatArrayEncoding::new(encoding, d))
+                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
             }
-            BucketViewValue::Set(s) => MetricValue::Set(FloatArrayEncoding::new(encoding, s)),
+            BucketViewValue::Set(s) => MetricValue::Set(ArrayEncoding::new(encoding, s)),
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
@@ -1325,32 +1325,32 @@ enum MetricValue<'a> {
     #[serde(rename = "c")]
     Counter(FiniteF64),
     #[serde(rename = "d")]
-    Distribution(FloatArrayEncoding<&'a [FiniteF64]>),
+    Distribution(ArrayEncoding<&'a [FiniteF64]>),
     #[serde(rename = "s")]
-    Set(FloatArrayEncoding<SetView<'a>>),
+    Set(ArrayEncoding<SetView<'a>>),
     #[serde(rename = "g")]
     Gauge(GaugeValue),
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
-enum FloatArrayEncoding<T> {
-    /// The original, compatibility, encoding.
+enum ArrayEncoding<T> {
+    /// The original, legacy, encoding.
     ///
     /// Encodes all values as a JSON array of numbers.
-    Compat(T),
+    Legacy(T),
     /// Dynamic encoding supporting multiple formats.
     ///
     /// Adds metadata and adds support for multiple different encodings.
-    Dynamic(DynamicFloatArrayEncoding<T>),
+    Dynamic(DynamicArrayEncoding<T>),
 }
 
-impl<T> FloatArrayEncoding<T> {
-    /// Builds a [`FloatArrayEncoding`] from the format and the data.
+impl<T> ArrayEncoding<T> {
+    /// Builds a [`ArrayEncoding`] from the format and the data.
     fn new(encoding: MetricEncoding, data: T) -> Self {
         match encoding {
-            MetricEncoding::Compat => Self::Compat(data),
-            MetricEncoding::Array => Self::Dynamic(DynamicFloatArrayEncoding::Array { data }),
+            MetricEncoding::Legacy => Self::Legacy(data),
+            MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
         }
     }
 }
@@ -1358,10 +1358,10 @@ impl<T> FloatArrayEncoding<T> {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "format", rename_all = "lowercase")]
 #[non_exhaustive]
-enum DynamicFloatArrayEncoding<T> {
+enum DynamicArrayEncoding<T> {
     /// JSON Array encoding.
     ///
-    /// Encodes all floats as a JSON array of numbers.
+    /// Encodes all items as a JSON array.
     Array { data: T },
 }
 

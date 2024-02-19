@@ -1710,7 +1710,7 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
         assert False, "add new else-branch if you add another denied tag"
 
 
-@pytest.mark.parametrize("mode", [None, "compat"])
+@pytest.mark.parametrize("mode", [None, "legacy"])
 def test_metric_bucket_encoding_legacy(
     mini_sentry, relay_with_processing, metrics_consumer, mode
 ):

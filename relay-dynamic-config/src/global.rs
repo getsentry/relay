@@ -162,11 +162,11 @@ impl MetricBucketEncodings {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MetricEncoding {
-    /// The default compatibility encoding.
+    /// The default legacy encoding.
     ///
     /// A simple JSON array of numbers.
     #[default]
-    Compat,
+    Legacy,
     /// The array encoding.
     ///
     /// Uses already the dynamic value format but still encodes
