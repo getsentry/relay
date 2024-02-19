@@ -1648,18 +1648,20 @@ def test_global_rate_limit(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
+    ts = datetime.utcnow().timestamp()
+    # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
+    window = ts
+
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting" + str(uuid.uuid4()),
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": 1000,
+            "window": window,
             "reasonCode": "global rate limit hit",
         }
     ]
-
-    ts = datetime.utcnow().timestamp()
 
     def send_buckets(n):
         buckets = [
