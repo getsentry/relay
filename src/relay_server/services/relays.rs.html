@@ -572,7 +572,7 @@
     /// If previous queries succeeded, this will be the general batch interval. Additionally, an
     /// exponentially increasing backoff is used for retrying the upstream request.
     </span><span class="kw">fn </span>next_backoff(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
-        <span class="self">self</span>.config.query_batch_interval() + <span class="self">self</span>.backoff.next_backoff()
+        <span class="self">self</span>.config.downstream_relays_batch_interval() + <span class="self">self</span>.backoff.next_backoff()
     }
 
     <span class="doccomment">/// Schedules a batched upstream query with exponential backoff.

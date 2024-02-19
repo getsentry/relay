@@ -2298,6 +2298,14 @@
 <a href="#2297" id="2297">2297</a>
 <a href="#2298" id="2298">2298</a>
 <a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
+<a href="#2303" id="2303">2303</a>
+<a href="#2304" id="2304">2304</a>
+<a href="#2305" id="2305">2305</a>
+<a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -3204,8 +3212,10 @@
     </span>envelope_buffer_size: u32,
     <span class="doccomment">/// The cache timeout for non-existing entries.
     </span>miss_expiry: u32,
-    <span class="doccomment">/// The buffer timeout for batched queries before sending them upstream in ms.
+    <span class="doccomment">/// The buffer timeout for batched project config queries before sending them upstream in ms.
     </span>batch_interval: u32,
+    <span class="doccomment">/// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
+    </span>downstream_relays_batch_interval: u32,
     <span class="doccomment">/// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
@@ -3227,8 +3237,9 @@
             relay_expiry: <span class="number">3600</span>,   <span class="comment">// 1 hour
             </span>envelope_expiry: <span class="number">600</span>, <span class="comment">// 10 minutes
             </span>envelope_buffer_size: <span class="number">1000</span>,
-            miss_expiry: <span class="number">60</span>,     <span class="comment">// 1 minute
-            </span>batch_interval: <span class="number">100</span>, <span class="comment">// 100ms
+            miss_expiry: <span class="number">60</span>,                       <span class="comment">// 1 minute
+            </span>batch_interval: <span class="number">100</span>,                   <span class="comment">// 100ms
+            </span>downstream_relays_batch_interval: <span class="number">100</span>, <span class="comment">// 100ms
             </span>batch_size: <span class="number">500</span>,
             file_interval: <span class="number">10</span>,                <span class="comment">// 10 seconds
             </span>eviction_interval: <span class="number">60</span>,            <span class="comment">// 60 seconds
@@ -4184,10 +4195,15 @@
         Duration::from_secs(<span class="self">self</span>.values.cache.project_grace_period.into())
     }
 
-    <span class="doccomment">/// Returns the number of seconds during which batchable queries are collected before sending
-    /// them in a single request.
+    <span class="doccomment">/// Returns the duration in which batchable project config queries are
+    /// collected before sending them in a single request.
     </span><span class="kw">pub fn </span>query_batch_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_millis(<span class="self">self</span>.values.cache.batch_interval.into())
+    }
+
+    <span class="doccomment">/// Returns the duration in which downstream relays are requested from upstream.
+    </span><span class="kw">pub fn </span>downstream_relays_batch_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_millis(<span class="self">self</span>.values.cache.downstream_relays_batch_interval.into())
     }
 
     <span class="doccomment">/// Returns the interval in seconds in which local project configurations should be reloaded.
