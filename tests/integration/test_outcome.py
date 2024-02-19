@@ -1648,9 +1648,7 @@ def test_global_rate_limit(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    ts = datetime.utcnow().timestamp()
-    # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
-    window = ts
+    now = datetime.utcnow().timestamp()
 
     projectconfig["config"]["quotas"] = [
         {
@@ -1658,7 +1656,8 @@ def test_global_rate_limit(
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": window,
+            # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
+            "window": int(now),
             "reasonCode": "global rate limit hit",
         }
     ]
@@ -1668,7 +1667,7 @@ def test_global_rate_limit(
             {
                 "org_id": 1,
                 "project_id": project_id,
-                "timestamp": ts,
+                "timestamp": now,
                 "name": "d:transactions/measurements.lcp@millisecond",
                 "type": "d",
                 "value": [1.0],
