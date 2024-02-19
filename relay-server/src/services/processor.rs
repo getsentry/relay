@@ -36,7 +36,7 @@ use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, M
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::{DataCategory, Quota, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
@@ -55,7 +55,7 @@ use {
     },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2725,6 +2725,27 @@ mod tests {
             reason_code: None,
             namespace: None,
         }
+    }
+
+    #[test]
+    fn test_dynamic_quota_empty() {
+        let glob_config = GlobalConfig::default();
+        let dynq = DynamicQuotas::new(&glob_config, &[]);
+        assert!(dynq.is_empty());
+    }
+
+    #[test]
+    fn test_dynamic_quota_len() {
+        let global_config = GlobalConfig {
+            measurements: None,
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            options: Options::default(),
+        };
+
+        let quotas = vec![mock_quota("baz")];
+
+        let dynq = DynamicQuotas::new(&global_config, &quotas);
+        assert_eq!(dynq.len(), 3);
     }
 
     #[test]
