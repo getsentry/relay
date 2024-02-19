@@ -507,32 +507,46 @@ mod tests {
             .into_value()
             .unwrap();
         insta::assert_debug_snapshot!(data, @r###"
-    SpanData {
-        code_filepath: String(
-            "task.py",
-        ),
-        code_lineno: I64(
-            123,
-        ),
-        code_function: String(
-            "fn()",
-        ),
-        code_namespace: String(
-            "ns",
-        ),
-        other: {
-            "bar": String(
-                "3",
+        SpanData {
+            app_start_type: ~,
+            browser_name: ~,
+            code_filepath: String(
+                "task.py",
             ),
-            "db.system": String(
+            code_lineno: I64(
+                123,
+            ),
+            code_function: String(
+                "fn()",
+            ),
+            code_namespace: String(
+                "ns",
+            ),
+            db_operation: ~,
+            db_system: String(
                 "mysql",
             ),
-            "foo": I64(
-                2,
-            ),
-        },
-    }
-    "###);
+            environment: ~,
+            http_decoded_response_content_length: ~,
+            http_request_method: ~,
+            http_response_content_length: ~,
+            http_response_transfer_size: ~,
+            resource_render_blocking_status: ~,
+            server_address: ~,
+            http_response_status_code: ~,
+            thread_name: ~,
+            ui_component_name: ~,
+            url_scheme: ~,
+            other: {
+                "bar": String(
+                    "3",
+                ),
+                "foo": I64(
+                    2,
+                ),
+            },
+        }
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));
