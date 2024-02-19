@@ -821,6 +821,11 @@
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
 <a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -1641,6 +1646,11 @@
     </span><span class="kw">fn </span>parse_deep_expression() {
         <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
         <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>, <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_dont_panic() {
+        <span class="macro">assert!</span>(parse_query_inner(<span class="prelude-val">None</span>, <span class="string">"REPLACE g;'341234c"</span>).is_err());
     }
 }
 </code></pre></div></section></main></body></html>
