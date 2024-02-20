@@ -413,6 +413,56 @@
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -627,9 +677,38 @@
         os_context.name = Annotated::new(os_major);
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
+    <span class="comment">// See https://github.com/EpicGames/UnrealEngine/blob/5.3.2-release/Engine/Source/Runtime/RHI/Private/DynamicRHI.cpp#L368-L376
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(adapter_name) = context.engine_data.get(<span class="string">"RHI.AdapterName"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.name = Annotated::new(adapter_name.into());
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
         <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
         gpu_context.name = Annotated::new(gpu_brand);
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(device_id) = context.engine_data.get(<span class="string">"RHI.DeviceId"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.id = Annotated::new(Value::String(device_id.into()));
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(feature_level) = context.engine_data.get(<span class="string">"RHI.FeatureLevel"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.graphics_shader_level = Annotated::new(feature_level.into());
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(vendor_name) = context.engine_data.get(<span class="string">"RHI.GPUVendor"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.vendor_name = Annotated::new(vendor_name.into());
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(driver_version) = context.engine_data.get(<span class="string">"RHI.UserDriverVersion"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.version = Annotated::new(driver_version.into());
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(rhi_name) = context.engine_data.get(<span class="string">"RHI.RHIName"</span>) {
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.api_type = Annotated::new(rhi_name.into());
     }
 
     <span class="kw">if </span>runtime_props.is_assert.unwrap_or(<span class="bool-val">false</span>) {
@@ -753,6 +832,27 @@
 		&lt;Modules&gt;\\Mac\Home\Desktop\WindowsNoEditor\YetAnother\Binaries\Win64\YetAnother.exe
 \\Mac\Home\Desktop\WindowsNoEditor\Engine\Binaries\ThirdParty\PhysX3\Win64\VS2015\PxFoundationPROFILE_x64.dll&lt;/Modules&gt;
 	&lt;/RuntimeProperties&gt;
+	&lt;EngineData&gt;
+		&lt;MatchingDPStatus&gt;WindowsNo errors&lt;/MatchingDPStatus&gt;
+		&lt;RHI.IntegratedGPU&gt;false&lt;/RHI.IntegratedGPU&gt;
+		&lt;RHI.DriverDenylisted&gt;false&lt;/RHI.DriverDenylisted&gt;
+		&lt;RHI.D3DDebug&gt;false&lt;/RHI.D3DDebug&gt;
+		&lt;RHI.Breadcrumbs&gt;true&lt;/RHI.Breadcrumbs&gt;
+		&lt;RHI.DRED&gt;true&lt;/RHI.DRED&gt;
+		&lt;RHI.DREDMarkersOnly&gt;false&lt;/RHI.DREDMarkersOnly&gt;
+		&lt;RHI.DREDContext&gt;true&lt;/RHI.DREDContext&gt;
+		&lt;RHI.Aftermath&gt;true&lt;/RHI.Aftermath&gt;
+		&lt;RHI.RHIName&gt;D3D12&lt;/RHI.RHIName&gt;
+		&lt;RHI.AdapterName&gt;NVIDIA GeForce RTX 4060 Laptop GPU&lt;/RHI.AdapterName&gt;
+		&lt;RHI.UserDriverVersion&gt;551.52&lt;/RHI.UserDriverVersion&gt;
+		&lt;RHI.InternalDriverVersion&gt;31.0.15.5152&lt;/RHI.InternalDriverVersion&gt;
+		&lt;RHI.DriverDate&gt;2-7-2024&lt;/RHI.DriverDate&gt;
+		&lt;RHI.FeatureLevel&gt;SM5&lt;/RHI.FeatureLevel&gt;
+		&lt;RHI.GPUVendor&gt;NVIDIA&lt;/RHI.GPUVendor&gt;
+		&lt;RHI.DeviceId&gt;28E0&lt;/RHI.DeviceId&gt;
+		&lt;DeviceProfile.Name&gt;Windows&lt;/DeviceProfile.Name&gt;
+		&lt;Platform.AppHasFocus&gt;true&lt;/Platform.AppHasFocus&gt;
+	&lt;/EngineData&gt;
 	&lt;PlatformProperties&gt;
 		&lt;PlatformIsRunningWindows&gt;1&lt;/PlatformIsRunningWindows&gt;
 		&lt;PlatformCallbackResult&gt;0&lt;/PlatformCallbackResult&gt;
