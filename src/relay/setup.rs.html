@@ -71,6 +71,10 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 
@@ -80,6 +84,10 @@
             <span class="string">"relay has no credentials, which are required in managed mode. \
              Generate some with \"relay credentials generate\" first."</span>,
         );
+    }
+
+    <span class="kw">if </span>config.relay_mode() == RelayMode::Proxy &amp;&amp; config.processing_enabled() {
+        <span class="macro">anyhow::bail!</span>(<span class="string">"Processing cannot be enabled while in proxy mode."</span>);
     }
 
     <span class="prelude-val">Ok</span>(())
