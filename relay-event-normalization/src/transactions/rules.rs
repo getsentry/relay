@@ -147,7 +147,7 @@ impl TransactionNameRule {
     /// Applies the rule to the provided value.
     ///
     /// Note: currently only `url` source for rules supported.
-    pub fn apply(&self, value: &str) -> String {
+    fn apply(&self, value: &str) -> String {
         match &self.redaction {
             RedactionRule::Replace { substitution } => self
                 .pattern
