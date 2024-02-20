@@ -1425,7 +1425,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::ProjectId;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
 
     use super::*;
 
@@ -1954,5 +1954,54 @@ mod tests {
         for item in envelope.items() {
             assert_eq!(item.ty(), &ItemType::Attachment);
         }
+    }
+
+    #[test]
+    fn test_parametrize_root_transaction() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("/auth/login/test/".into()), // the only important bit for this test
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule: TransactionNameRule = {
+            // here you see the pattern that'll transform the transaction name.
+            let json = r#"{
+                "pattern": "/auth/login/*/**",
+                "expiry": "3022-11-30T00:00:00.000000Z",
+                "redaction": {
+                    "method": "replace",
+                    "substitution": "*"
+                    }
+                }"#;
+
+            serde_json::from_str(json).unwrap()
+        };
+
+        // Envelope only created in order to run the parametrize dsc method.
+        let mut envelope = {
+            let bytes = bytes::Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
+            *Envelope::parse_bytes(bytes).unwrap()
+        };
+        envelope.set_dsc(dsc.clone());
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/test/"
+        );
+        // parametrize the transaciton name in the dsc.
+        envelope.parametrize_dsc_transaction(&[rule]);
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/*/"
+        );
     }
 }
