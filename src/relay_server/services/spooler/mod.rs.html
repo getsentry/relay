@@ -1871,6 +1871,16 @@
 <a href="#1870" id="1870">1870</a>
 <a href="#1871" id="1871">1871</a>
 <a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -3140,9 +3150,10 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::str::FromStr;
     <span class="kw">use </span>std::sync::Mutex;
-    <span class="kw">use </span>std::time::{Duration, Instant};
+    <span class="kw">use </span>std::time::Duration;
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
+    <span class="kw">use </span>rand::Rng;
     <span class="kw">use </span>relay_system::AsyncResponse;
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>sqlx::sqlite::SqliteConnectOptions;
@@ -3220,28 +3231,30 @@
 
         <span class="comment">// Test cases:
         </span><span class="kw">let </span>test_cases = [
-            <span class="comment">// The difference between the `Instant::now` and start_time is 2 seconds,
-            // that the start time is restored to the correct point in time.
-            </span>(<span class="number">2</span>, <span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>),
-            <span class="comment">// There is no delay, and the `Instant::now` must be within the same second.
-            </span>(<span class="number">0</span>, <span class="string">"aaaae32be2584e0bbd7a4cbb95971fff"</span>),
+            <span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>,
+            <span class="string">"aaaae32be2584e0bbd7a4cbb95971fff"</span>,
         ];
-        <span class="kw">for </span>(result, pub_key) <span class="kw">in </span>test_cases {
+        <span class="kw">for </span>pub_key <span class="kw">in </span>test_cases {
             <span class="kw">let </span>project_key = ProjectKey::parse(pub_key).unwrap();
             <span class="kw">let </span>key = QueueKey {
                 own_key: project_key,
                 sampling_key: project_key,
             };
 
+            <span class="kw">let </span>envelope = empty_managed_envelope();
+            <span class="kw">let </span>start_time_sent = envelope.start_time();
             addr.send(Enqueue {
                 key,
-                value: empty_managed_envelope(),
+                value: envelope,
             });
 
             <span class="comment">// How long to wait to dequeue the message from the spool.
             // This will also ensure that the start time will have to be restored to the time
             // when the request first came in.
-            </span>tokio::time::sleep(Duration::from_millis(<span class="number">1000 </span>* result)).<span class="kw">await</span>;
+            </span>tokio::time::sleep(Duration::from_millis(
+                <span class="number">1000 </span>* rand::thread_rng().gen_range(<span class="number">1</span>..<span class="number">3</span>),
+            ))
+            .<span class="kw">await</span>;
 
             addr.send(DequeueMany {
                 keys: [key].into(),
@@ -3252,9 +3265,16 @@
                 key: <span class="kw">_</span>,
                 managed_envelope,
             } = rx.recv().<span class="kw">await</span>.unwrap();
-            <span class="kw">let </span>start_time = managed_envelope.envelope().meta().start_time();
+            <span class="kw">let </span>start_time_received = managed_envelope.envelope().meta().start_time();
 
-            <span class="macro">assert_eq!</span>((Instant::now() - start_time).as_secs(), result);
+            <span class="comment">// Check if the original start time elapsed to the same second as the restored one.
+            //
+            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
+            // similar number of seconds if one of the instants runs forward a bit.
+            </span><span class="macro">assert_eq!</span>(
+                start_time_received.elapsed().as_secs_f64().round(),
+                start_time_sent.elapsed().as_secs_f64().round()
+            );
         }
     }
 
