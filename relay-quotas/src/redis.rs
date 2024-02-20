@@ -211,9 +211,9 @@ impl RedisRateLimiter {
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
-    pub fn is_rate_limited(
+    pub fn is_rate_limited<'a>(
         &self,
-        quotas: &[Quota],
+        quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
         over_accept_once: bool,
