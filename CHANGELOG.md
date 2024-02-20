@@ -9,7 +9,7 @@
 
 **Features**;
 
-- Parametrize dsc root transactions. ([#3141](https://github.com/getsentry/relay/pull/3141))
+- Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
 
 ## 24.2.0
 
