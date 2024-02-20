@@ -106,7 +106,8 @@ pub fn process(
             ) {
                 ProcessingAction::Drop(action) => action,
                 ProcessingAction::Keep => ItemAction::Keep,
-                ProcessingAction::Replace(replay_video) => {
+                ProcessingAction::Replace((replay_event, replay_recording, replay_video)) => {
+                    item.set_replay_video_events(replay_event, replay_recording);
                     item.set_payload(ContentType::OctetStream, replay_video);
                     ItemAction::Keep
                 }
@@ -238,7 +239,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> ProcessingAction<Vec<u8>> {
+) -> ProcessingAction<(Vec<u8>, Vec<u8>, Vec<u8>)> {
     let event: ReplayVideoEvent = match rmp_serde::from_slice(&item.payload()) {
         Ok(result) => result,
         Err(e) => {
@@ -280,20 +281,5 @@ fn handle_replay_video_item(
         )));
     }
 
-    // Because values were borrowed from the initial struct we take the newly copied
-    let out_event = ReplayVideoEvent {
-        replay_event,
-        replay_recording,
-        replay_video: event.replay_video,
-    };
-
-    match rmp_serde::to_vec(&out_event) {
-        Ok(vec) => ProcessingAction::Replace(vec),
-        Err(e) => {
-            relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
-                DiscardReason::InvalidReplayVideoEvent,
-            )))
-        }
-    }
+    ProcessingAction::Replace((replay_event, replay_recording, event.replay_video))
 }
