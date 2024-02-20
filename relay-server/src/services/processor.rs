@@ -1128,11 +1128,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let project_state = Arc::clone(&state.project_state);
-
-        state
-            .envelope_mut()
-            .parametrize_dsc_transaction(&project_state.config.tx_name_rules);
+        if let Some(sampling_state) = state.sampling_project_state.as_ref().map(Arc::clone) {
+            state
+                .envelope_mut()
+                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
+        }
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1166,26 +1166,29 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                breakdowns_config: project_state.config.breakdowns_v2.as_ref(),
-                performance_score: project_state.config.performance_score.as_ref(),
+                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                performance_score: state.project_state.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    rules: &project_state.config.tx_name_rules,
+                    rules: &state.project_state.config.tx_name_rules,
                 },
-                device_class_synthesis_config: project_state
+                device_class_synthesis_config: state
+                    .project_state
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: project_state.has_feature(Feature::SpanMetricsExtraction),
+                enrich_spans: state
+                    .project_state
+                    .has_feature(Feature::SpanMetricsExtraction),
                 max_tag_value_length: self
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                span_description_rules: project_state.config.span_description_rules.as_ref(),
+                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
                 measurements: Some(DynamicMeasurementsConfig::new(
-                    project_state.config().measurements.as_ref(),
+                    state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
             };
