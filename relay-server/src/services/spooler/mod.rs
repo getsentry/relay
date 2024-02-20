@@ -1385,9 +1385,12 @@ mod tests {
             let start_time_received = managed_envelope.envelope().meta().start_time();
 
             // Check if the original start time elapsed to the same second as the restored one.
+            //
+            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
+            // similar number of seconds if one of the instants runs forward a bit.
             assert_eq!(
-                start_time_received.elapsed().as_secs(),
-                start_time_sent.elapsed().as_secs()
+                start_time_received.elapsed().as_secs_f64().round(),
+                start_time_sent.elapsed().as_secs_f64().round()
             );
         }
     }
