@@ -40,8 +40,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                // TODO: Add the monitor IDs
-                DATADOG_MONITOR_IDS: '',
+                DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
                 SENTRY_PROJECT: 'pop-relay',
                 SENTRY_PROJECT_ID: '9',
                 SENTRY_SINGLE_TENANT: 'false',
@@ -80,8 +79,7 @@ local deploy_pop_canary_job(region) =
       DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
-      // TODO: Add the monitor IDs
-      DATADOG_MONITOR_IDS: '',
+      DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
       SENTRY_PROJECT: 'pop-relay',
       SENTRY_PROJECT_ID: '9',
       SENTRY_SINGLE_TENANT: 'false',
@@ -94,7 +92,8 @@ local deploy_pop_canary_job(region) =
     tasks: [
       gocdtasks.script(importstr '../bash/deploy-pop-canary.sh'),
       gocdtasks.script(importstr '../bash/wait-canary.sh'),
-      // TODO: use sentry release?
+      gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+      gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
       gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
       utils.pause_on_failure(),
     ],
