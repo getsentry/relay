@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
@@ -106,6 +107,14 @@ pub struct Options {
     )]
     pub span_usage_metric: bool,
 
+    /// Metric bucket encoding configuration by metric namespace.
+    #[serde(
+        rename = "relay.metric-bucket-encodings",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub metric_bucket_encodings: MetricBucketEncodings,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
@@ -126,6 +135,47 @@ pub enum CardinalityLimiterMode {
     Passive,
     /// Cardinality limiter is disabled.
     Disabled,
+}
+
+/// Configuration container to control [`MetricEncoding`] per namespace.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+#[serde(default)]
+pub struct MetricBucketEncodings {
+    sessions: MetricEncoding,
+    transactions: MetricEncoding,
+    spans: MetricEncoding,
+    custom: MetricEncoding,
+    unsupported: MetricEncoding,
+}
+
+impl MetricBucketEncodings {
+    /// Returns the configured encoding for a specific namespace.
+    pub fn for_namespace(&self, namespace: MetricNamespace) -> MetricEncoding {
+        match namespace {
+            MetricNamespace::Sessions => self.sessions,
+            MetricNamespace::Transactions => self.transactions,
+            MetricNamespace::Spans => self.spans,
+            MetricNamespace::Custom => self.custom,
+            MetricNamespace::Unsupported => self.unsupported,
+        }
+    }
+}
+
+/// All supported metric bucket encodings.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum MetricEncoding {
+    /// The default legacy encoding.
+    ///
+    /// A simple JSON array of numbers.
+    #[default]
+    Legacy,
+    /// The array encoding.
+    ///
+    /// Uses already the dynamic value format but still encodes
+    /// all values as a JSON number array.
+    Array,
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.
