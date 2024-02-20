@@ -6,7 +6,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use relay_event_schema::protocol::{
     Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
 };
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, FromValue, Object};
 
 use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
@@ -67,7 +67,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
-    let mut data = SpanData::default();
+    let mut data = Object::new();
     let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {
@@ -148,7 +148,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
 
     EventSpan {
         op: op.into(),
-        data: data.into(),
+        data: SpanData::from_value(Annotated::new(data.into())),
         description: name.into(),
         exclusive_time: exclusive_time_ms.into(),
         parent_span_id: SpanId(parent_span_id).into(),
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
-            get_path!(annotated_span.data["environment"]),
+            get_path!(annotated_span.data.environment),
             Some(&Annotated::new("test".into()))
         );
     }

@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+**Features**:
+
+- Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+
 **Bug Fixes**:
 
 - Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
+
+**Internal**:
+
+- Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
 
 ## 24.2.0
 
