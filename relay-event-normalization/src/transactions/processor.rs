@@ -53,8 +53,6 @@ pub fn apply_transaction_rename_rules(
                 .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
         });
 
-        dbg!(&result);
-
         if let Some((rule, result)) = result {
             if *transaction != result {
                 // If another rule was applied before, we don't want to

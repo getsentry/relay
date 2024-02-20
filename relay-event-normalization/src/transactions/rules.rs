@@ -131,7 +131,7 @@ impl TransactionNameRule {
         if !slash_is_present {
             transaction.to_mut().push('/');
         }
-        let is_matched = dbg!(self.matches(&transaction));
+        let is_matched = self.matches(&transaction);
 
         if is_matched {
             let mut result = self.apply(&transaction);
@@ -163,7 +163,7 @@ impl TransactionNameRule {
     /// Returns `true` if the current rule pattern matches transaction, expected transaction
     /// source, and not expired yet.
     fn matches(&self, transaction: &str) -> bool {
-        dbg!(self.expiry > Utc::now()) && dbg!(self.pattern.compiled().is_match(transaction))
+        self.expiry > Utc::now() && self.pattern.compiled().is_match(transaction)
     }
 }
 
@@ -236,8 +236,7 @@ mod tests {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
           "redaction": {
-            "method": "replace",
-            "substitution": "*"
+            "method": "update"
           }
         }
         "#;
@@ -245,7 +244,7 @@ mod tests {
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let result = rule.apply("/auth/login/test/");
 
-        assert_eq!(result, "/auth/login/*/".to_string());
+        assert_eq!(result, "/auth/login/test/".to_string());
     }
 
     #[test]

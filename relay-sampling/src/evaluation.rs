@@ -195,8 +195,7 @@ impl<'a> SamplingEvaluator<'a> {
         I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
-            if !dbg!(rule.time_range.contains(self.now)) || !dbg!(rule.condition.matches(instance))
-            {
+            if !rule.time_range.contains(self.now) || !rule.condition.matches(instance) {
                 continue;
             };
 

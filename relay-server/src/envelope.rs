@@ -1153,15 +1153,11 @@ impl Envelope {
             return;
         }
 
-        dbg!("lets param!");
-
         // Annotated requires an owned value, so we use a placeholder and swap before and after
         // parametrization.
         let mut placeholder_transaction = String::with_capacity(transaction.len());
         std::mem::swap(&mut placeholder_transaction, transaction);
-        dbg!(&placeholder_transaction);
         let mut annotated = Annotated::new(placeholder_transaction);
-        dbg!(&annotated);
 
         normalize_transaction_name(&mut annotated, rules);
 

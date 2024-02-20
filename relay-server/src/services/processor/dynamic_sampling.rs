@@ -143,8 +143,6 @@ fn compute_sampling_decision(
         return SamplingResult::NoMatch;
     }
 
-    dbg!();
-
     if sampling_config.map_or(false, |config| config.unsupported())
         || root_sampling_config.map_or(false, |config| config.unsupported())
     {
@@ -172,8 +170,6 @@ fn compute_sampling_decision(
             return SamplingResult::NoMatch;
         }
     };
-
-    dbg!();
 
     let mut evaluator = SamplingEvaluator::new(Utc::now())
         .adjust_client_sample_rate(adjustment_rate)
