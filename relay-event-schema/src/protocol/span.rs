@@ -175,6 +175,16 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
+    /// Mobile app start variant.
+    ///
+    /// Can be either "cold" or "warm".
+    #[metastructure(field = "app_start_type")] // TODO: no dot?
+    pub app_start_type: Annotated<Value>,
+
+    /// The client's browser name.
+    #[metastructure(field = "browser.name")]
+    pub browser_name: Annotated<Value>,
+
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
     pub code_filepath: Annotated<Value>,
@@ -194,44 +204,103 @@ pub struct SpanData {
     #[metastructure(field = "code.namespace", pii = "maybe")]
     pub code_namespace: Annotated<Value>,
 
+    /// The name of the operation being executed.
+    ///
+    /// E.g. the MongoDB command name such as findAndModify, or the SQL keyword.
+    /// Based on [OpenTelemetry's call level db attributes](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#call-level-attributes).
+    #[metastructure(field = "db.operation")]
+    pub db_operation: Annotated<Value>,
+
+    /// An identifier for the database management system (DBMS) product being used.
+    ///
+    /// See [OpenTelemetry docs for a list of well-known identifiers](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem).
+    #[metastructure(field = "db.system")]
+    pub db_system: Annotated<Value>,
+
+    /// The sentry environment.
+    #[metastructure(field = "environment")]
+    pub environment: Annotated<Value>,
+
+    /// The decoded body size of the response (in bytes).
+    #[metastructure(field = "http.decoded_response_content_length")]
+    pub http_decoded_response_content_length: Annotated<Value>,
+
+    /// The HTTP method used.
+    #[metastructure(
+        field = "http.request_method",
+        legacy_alias = "http.method",
+        legacy_alias = "method"
+    )]
+    pub http_request_method: Annotated<Value>,
+
+    /// The encoded body size of the response (in bytes).
+    #[metastructure(field = "http.response_content_length")]
+    pub http_response_content_length: Annotated<Value>,
+
+    /// The transfer size of the response (in bytes).
+    #[metastructure(field = "http.response_transfer_size")]
+    pub http_response_transfer_size: Annotated<Value>,
+
+    /// The render blocking status of the resource.
+    #[metastructure(field = "resource.render_blocking_status")]
+    pub resource_render_blocking_status: Annotated<Value>,
+
+    /// Name of the database host.
+    #[metastructure(field = "server.address")]
+    pub server_address: Annotated<Value>,
+
+    /// The status HTTP response.
+    #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
+    pub http_response_status_code: Annotated<Value>,
+
+    /// Label identifying a thread from where the span originated.
+    #[metastructure(field = "thread.name")]
+    pub thread_name: Annotated<Value>,
+
+    /// Name of the UI component (e.g. React).
+    #[metastructure(field = "ui.component_name")]
+    pub ui_component_name: Annotated<Value>,
+
+    /// The URL scheme, e.g. `"https"`.
+    #[metastructure(field = "url.scheme")]
+    pub url_scheme: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
 }
 
-impl SpanData {
-    /// Getter for compatibility with [`Object`].
-    pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
-        match key {
-            "code.filepath" => Some(&self.code_filepath),
-            "code.lineno" => Some(&self.code_lineno),
-            "code.function" => Some(&self.code_function),
-            "code.namespace" => Some(&self.code_namespace),
-            _ => self.other.get(key),
-        }
-    }
-
-    /// Setter for compatibility with [`Object`].
-    pub fn insert(&mut self, key: String, value: Annotated<Value>) {
-        match key.as_str() {
-            "code.filepath" => self.code_filepath = value,
-            "code.lineno" => self.code_lineno = value,
-            "code.function" => self.code_function = value,
-            "code.namespace" => self.code_namespace = value,
-            _ => {
-                self.other.insert(key, value);
-            }
-        }
-    }
-}
-
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
-            "code\\.filepath" => self.code_filepath.as_str()?.into(),
+            "app_start_type" => self.app_start_type.value()?.into(),
+            "browser\\.name" => self.browser_name.value()?.into(),
+            "code\\.filepath" => self.code_filepath.value()?.into(),
+            "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
-            "code\\.function" => self.code_function.as_str()?.into(),
-            "code\\.namespace" => self.code_namespace.as_str()?.into(),
+            "code\\.namespace" => self.code_namespace.value()?.into(),
+            "db.operation" => self.db_operation.value()?.into(),
+            "db\\.system" => self.db_system.value()?.into(),
+            "environment" => self.environment.value()?.into(),
+            "http\\.decoded_response_content_length" => {
+                self.http_decoded_response_content_length.value()?.into()
+            }
+            "http\\.request_method" | "http\\.method" | "method" => {
+                self.http_request_method.value()?.into()
+            }
+            "http\\.response_content_length" => self.http_response_content_length.value()?.into(),
+            "http\\.response_transfer_size" => self.http_response_transfer_size.value()?.into(),
+            "http\\.response.status_code" | "status_code" => {
+                self.http_response_status_code.value()?.into()
+            }
+            "resource\\.render_blocking_status" => {
+                self.resource_render_blocking_status.value()?.into()
+            }
+            "server\\.address" => self.server_address.value()?.into(),
+            "thread\\.name" => self.thread_name.value()?.into(),
+            "ui\\.component_name" => self.ui_component_name.value()?.into(),
+            "url\\.scheme" => self.url_scheme.value()?.into(),
+
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -432,11 +501,10 @@ mod tests {
 
         assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.800131)));
     }
-}
 
-#[test]
-fn test_span_data() {
-    let data = r#"{
+    #[test]
+    fn test_span_data() {
+        let data = r#"{
         "foo": 2,
         "bar": "3",
         "db.system": "mysql",
@@ -445,43 +513,58 @@ fn test_span_data() {
         "code.function": "fn()",
         "code.namespace": "ns"
     }"#;
-    let data = Annotated::<SpanData>::from_json(data)
-        .unwrap()
-        .into_value()
-        .unwrap();
-    insta::assert_debug_snapshot!(data, @r###"
-    SpanData {
-        code_filepath: String(
-            "task.py",
-        ),
-        code_lineno: I64(
-            123,
-        ),
-        code_function: String(
-            "fn()",
-        ),
-        code_namespace: String(
-            "ns",
-        ),
-        other: {
-            "bar": String(
-                "3",
+        let data = Annotated::<SpanData>::from_json(data)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        insta::assert_debug_snapshot!(data, @r###"
+        SpanData {
+            app_start_type: ~,
+            browser_name: ~,
+            code_filepath: String(
+                "task.py",
             ),
-            "db.system": String(
+            code_lineno: I64(
+                123,
+            ),
+            code_function: String(
+                "fn()",
+            ),
+            code_namespace: String(
+                "ns",
+            ),
+            db_operation: ~,
+            db_system: String(
                 "mysql",
             ),
-            "foo": I64(
-                2,
-            ),
-        },
-    }
-    "###);
+            environment: ~,
+            http_decoded_response_content_length: ~,
+            http_request_method: ~,
+            http_response_content_length: ~,
+            http_response_transfer_size: ~,
+            resource_render_blocking_status: ~,
+            server_address: ~,
+            http_response_status_code: ~,
+            thread_name: ~,
+            ui_component_name: ~,
+            url_scheme: ~,
+            other: {
+                "bar": String(
+                    "3",
+                ),
+                "foo": I64(
+                    2,
+                ),
+            },
+        }
+        "###);
 
-    assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
-    assert_eq!(data.get_value("bar"), Some(Val::String("3")));
-    assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
-    assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
-    assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
-    assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
-    assert_eq!(data.get_value("unknown"), None);
+        assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
+        assert_eq!(data.get_value("bar"), Some(Val::String("3")));
+        assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
+        assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
+        assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
+        assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
+        assert_eq!(data.get_value("unknown"), None);
+    }
 }

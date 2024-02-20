@@ -51,10 +51,12 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::CardinalityLimiterMode,
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::iter::Chain,
+    std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -1014,7 +1016,9 @@ impl EnvelopeProcessorService {
         };
 
         let project_state = &state.project_state;
-        let quotas = project_state.config.quotas.as_slice();
+        let global_config = self.inner.global_config.current();
+        let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
+
         if quotas.is_empty() {
             return Ok(());
         }
@@ -1839,11 +1843,14 @@ impl EnvelopeProcessorService {
                 namespace: None,
             };
 
+            let global_config = self.inner.global_config.current();
+            let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
+
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                bucket_limiter.quotas(),
+                quotas,
                 item_scoping,
                 bucket_limiter.transaction_count(),
                 over_accept_once,
@@ -1885,7 +1892,7 @@ impl EnvelopeProcessorService {
         &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: &[relay_quotas::Quota],
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1919,7 +1926,7 @@ impl EnvelopeProcessorService {
         &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: &[relay_quotas::Quota],
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
@@ -2036,6 +2043,8 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
+        let global_config = self.inner.global_config.current();
+
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
@@ -2046,13 +2055,9 @@ impl EnvelopeProcessorService {
             let limits = project_state.get_cardinality_limits();
 
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
+            let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
-            let buckets = self.rate_limit_buckets_by_namespace(
-                scoping,
-                buckets,
-                &project_state.config.quotas,
-                mode,
-            );
+            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
             if buckets.is_empty() {
                 continue;
@@ -2650,6 +2655,45 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 }
 
+/// Container for global and project level [`Quota`].
+#[cfg(feature = "processing")]
+#[derive(Copy, Clone)]
+struct DynamicQuotas<'a> {
+    global_quotas: &'a [Quota],
+    project_quotas: &'a [Quota],
+}
+
+#[cfg(feature = "processing")]
+impl<'a> DynamicQuotas<'a> {
+    /// Returns a new [`DynamicQuotas`]
+    pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
+        Self {
+            global_quotas: &global_config.quotas,
+            project_quotas,
+        }
+    }
+
+    /// Returns `true` if both global quotas and project quotas are empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the number of both global and project quotas.
+    pub fn len(&self) -> usize {
+        self.global_quotas.len() + self.project_quotas.len()
+    }
+}
+
+#[cfg(feature = "processing")]
+impl<'a> IntoIterator for DynamicQuotas<'a> {
+    type Item = &'a Quota;
+    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.global_quotas.iter().chain(self.project_quotas.iter())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -2675,12 +2719,47 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use {
+        relay_dynamic_config::Options,
         relay_metrics::BucketValue,
-        relay_quotas::{Quota, ReasonCode},
+        relay_quotas::{Quota, QuotaScope, ReasonCode},
         relay_test::mock_service,
     };
 
     use super::*;
+
+    #[cfg(feature = "processing")]
+    fn mock_quota(id: &str) -> Quota {
+        Quota {
+            id: Some(id.into()),
+            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+            namespace: None,
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_dynamic_quotas() {
+        let global_config = GlobalConfig {
+            measurements: None,
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            options: Options::default(),
+        };
+
+        let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
+
+        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+
+        assert_eq!(dynamic_quotas.len(), 4);
+        assert!(!dynamic_quotas.is_empty());
+
+        let quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
+        assert!(quota_ids.eq(["foo", "bar", "baz", "qux"]));
+    }
 
     /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
     /// also ratelimit the next batches in the same message automatically.
