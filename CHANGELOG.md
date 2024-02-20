@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+
 **Bug Fixes**:
 
 - Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
