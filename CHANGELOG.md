@@ -7,6 +7,10 @@
 - Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 
+**Features**;
+
+- Parametrize dsc root transactions. ([#3141](https://github.com/getsentry/relay/pull/3141))
+
 ## 24.2.0
 
 **Bug Fixes**:
