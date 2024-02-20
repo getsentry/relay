@@ -131,7 +131,7 @@ impl TransactionNameRule {
         if !slash_is_present {
             transaction.to_mut().push('/');
         }
-        let is_matched = self.matches(&transaction);
+        let is_matched = dbg!(self.matches(&transaction));
 
         if is_matched {
             let mut result = self.apply(&transaction);
@@ -147,7 +147,7 @@ impl TransactionNameRule {
     /// Applies the rule to the provided value.
     ///
     /// Note: currently only `url` source for rules supported.
-    fn apply(&self, value: &str) -> String {
+    pub fn apply(&self, value: &str) -> String {
         match &self.redaction {
             RedactionRule::Replace { substitution } => self
                 .pattern
@@ -163,7 +163,7 @@ impl TransactionNameRule {
     /// Returns `true` if the current rule pattern matches transaction, expected transaction
     /// source, and not expired yet.
     fn matches(&self, transaction: &str) -> bool {
-        self.expiry > Utc::now() && self.pattern.compiled().is_match(transaction)
+        dbg!(self.expiry > Utc::now()) && dbg!(self.pattern.compiled().is_match(transaction))
     }
 }
 
@@ -236,7 +236,8 @@ mod tests {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
           "redaction": {
-            "method": "update"
+            "method": "replace",
+            "substitution": "*"
           }
         }
         "#;
@@ -244,7 +245,7 @@ mod tests {
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let result = rule.apply("/auth/login/test/");
 
-        assert_eq!(result, "/auth/login/test/".to_string());
+        assert_eq!(result, "/auth/login/*/".to_string());
     }
 
     #[test]

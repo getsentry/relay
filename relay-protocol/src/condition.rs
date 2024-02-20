@@ -77,7 +77,10 @@ impl EqCondition {
     where
         T: Getter + ?Sized,
     {
-        match (instance.get_value(self.name.as_str()), &self.value) {
+        match (
+            dbg!(instance.get_value(self.name.as_str())),
+            dbg!(&self.value),
+        ) {
             (None, Value::Null) => true,
             (Some(Val::String(f)), Value::String(ref val)) => self.cmp(f, val),
             (Some(Val::String(f)), Value::Array(ref arr)) => arr
