@@ -42,7 +42,7 @@ pub(crate) fn scrub_span_description(
     let data = span.data.value();
 
     let db_system = data
-        .and_then(|v| v.get("db.system"))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
@@ -85,7 +85,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
-                .and_then(|data| data.get("ui.component_name"))
+                .and_then(|data| data.ui_component_name.value())
                 .and_then(|value| value.as_str())
                 .map(String::from),
             ("app", _) => {

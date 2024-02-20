@@ -8,8 +8,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, SpanData, Timestamp,
-    TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -263,7 +262,7 @@ pub fn extract_tags(
     let system = span
         .data
         .value()
-        .and_then(|v| v.get("db.system"))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase());
@@ -285,11 +284,7 @@ pub fn extract_tags(
             (Some("http"), _, _) => span
                 .data
                 .value()
-                .and_then(|v| {
-                    v.get("http.request.method")
-                        .or(v.get("http.method"))
-                        .or(v.get("method"))
-                })
+                .and_then(|data| data.http_request_method.value())
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
@@ -305,7 +300,7 @@ pub fn extract_tags(
                 let action_from_data = span
                     .data
                     .value()
-                    .and_then(|v| v.get("db.operation"))
+                    .and_then(|data| data.db_operation.value())
                     .and_then(|db_op| db_op.as_str())
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
@@ -343,7 +338,7 @@ pub fn extract_tags(
                 } else if let Some(server_host) = span
                     .data
                     .value()
-                    .and_then(|data| data.get("server.address"))
+                    .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
                     let lowercase_host = server_host.to_lowercase();
@@ -355,7 +350,7 @@ pub fn extract_tags(
                     if let Some(url_scheme) = span
                         .data
                         .value()
-                        .and_then(|data| data.get("url.scheme"))
+                        .and_then(|data| data.url_scheme.value())
                         .and_then(|value| value.as_str())
                     {
                         span_tags.insert(
@@ -413,24 +408,24 @@ pub fn extract_tags(
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
-                    .get("http.response_content_length")
-                    .and_then(Annotated::value)
+                    .http_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
                 }
 
                 if let Some(value) = data
-                    .get("http.decoded_response_content_length")
-                    .and_then(Annotated::value)
+                    .http_decoded_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
                 }
 
                 if let Some(value) = data
-                    .get("http.response_transfer_size")
-                    .and_then(Annotated::value)
+                    .http_response_transfer_size
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
@@ -440,7 +435,7 @@ pub fn extract_tags(
             if let Some(resource_render_blocking_status) = span
                 .data
                 .value()
-                .and_then(|data| data.get("resource.render_blocking_status"))
+                .and_then(|data| data.resource_render_blocking_status.value())
                 .and_then(|value| value.as_str())
             {
                 // Validate that it's a valid status:
@@ -460,7 +455,7 @@ pub fn extract_tags(
         if let Some(thread_name) = span
             .data
             .value()
-            .and_then(|data| data.get("thread.name"))
+            .and_then(|data| data.thread_name.value())
             .and_then(|value| value.as_str())
         {
             if thread_name == MAIN_THREAD_NAME {
@@ -473,7 +468,7 @@ pub fn extract_tags(
         if let Some(span_data_start_type) = span
             .data
             .value()
-            .and_then(|data| data.get(SpanTagKey::AppStartType.sentry_tag_key()))
+            .and_then(|data| data.app_start_type.value())
             .and_then(|value| value.as_str())
         {
             span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
@@ -498,7 +493,7 @@ pub fn extract_tags(
     if let Some(browser_name) = span
         .data
         .value()
-        .and_then(|data| data.get("browser.name"))
+        .and_then(|data| data.browser_name.value())
         .and_then(|browser_name| browser_name.as_str())
     {
         span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
@@ -515,8 +510,26 @@ pub fn extract_measurements(span: &mut Span) {
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
-            let mut try_measurement = |key: &str| {
-                if let Some(value) = measurement_from_data(data, key) {
+            for (field, key) in [
+                (
+                    &data.http_decoded_response_content_length,
+                    "http.decoded_response_content_length",
+                ),
+                (
+                    &data.http_response_content_length,
+                    "http.response_content_length",
+                ),
+                (
+                    &data.http_response_transfer_size,
+                    "http.response_transfer_size",
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -527,22 +540,9 @@ pub fn extract_measurements(span: &mut Span) {
                         .into(),
                     );
                 }
-            };
-            try_measurement("http.response_content_length");
-            try_measurement("http.decoded_response_content_length");
-            try_measurement("http.response_transfer_size");
+            }
         }
     }
-}
-
-fn measurement_from_data(data: &SpanData, key: &str) -> Option<f64> {
-    let value = data.get(key)?.value()?;
-    Some(match value {
-        Value::I64(n) => *n as f64,
-        Value::U64(n) => *n as f64,
-        Value::F64(f) => *f,
-        _ => return None,
-    })
 }
 
 /// Finds first matching span and get its timestamp.
