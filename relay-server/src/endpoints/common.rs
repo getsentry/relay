@@ -2,6 +2,7 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
+use relay_config::RelayMode;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
@@ -262,28 +263,31 @@ fn queue_envelope(
 ) -> Result<(), BadStoreRequest> {
     let envelope = managed_envelope.envelope_mut();
 
-    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
-    let metric_items = envelope.take_items_by(is_metric);
+    if state.config().relay_mode() != RelayMode::Proxy {
+        // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
+        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+        let metric_items = envelope.take_items_by(is_metric);
 
-    if !metric_items.is_empty() {
-        relay_log::trace!("sending metrics into processing queue");
-        state.processor().send(ProcessMetrics {
-            items: metric_items.into_vec(),
-            project_key: envelope.meta().public_key(),
-            start_time: envelope.meta().start_time(),
-            sent_at: envelope.sent_at(),
-        });
-    }
+        if !metric_items.is_empty() {
+            relay_log::trace!("sending metrics into processing queue");
+            state.processor().send(ProcessMetrics {
+                items: metric_items.into_vec(),
+                start_time: envelope.meta().start_time(),
+                sent_at: envelope.sent_at(),
+                project_key: envelope.meta().public_key(),
+            });
+        }
 
-    // Remove metric meta from the envelope and send them directly to processing.
-    let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
-    if !metric_meta.is_empty() {
-        relay_log::trace!("sending metric meta into processing queue");
-        state.processor().send(ProcessMetricMeta {
-            items: metric_meta.into_vec(),
-            project_key: envelope.meta().public_key(),
-        })
+        // Remove metric meta from the envelope and send them directly to processing.
+        let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
+        if !metric_meta.is_empty() {
+            relay_log::trace!("sending metric meta into processing queue");
+            state.processor().send(ProcessMetricMeta {
+                items: metric_meta.into_vec(),
+                project_key: envelope.meta().public_key(),
+            })
+        }
     }
 
     // Split off the envelopes by item type.

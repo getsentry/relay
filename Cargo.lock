@@ -4989,8 +4989,7 @@ dependencies = [
 [[package]]
 name = "sqlparser"
 version = "0.43.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f95c4bae5aba7cd30bd506f7140026ade63cff5afd778af8854026f9606bf5d4"
+source = "git+https://github.com/getsentry/sqlparser-rs?rev=1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3#1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3"
 dependencies = [
  "log",
  "sqlparser_derive",
@@ -4999,8 +4998,7 @@ dependencies = [
 [[package]]
 name = "sqlparser_derive"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01b2e185515564f15375f593fb966b5718bc624ba77fe49fa4616ad619690554"
+source = "git+https://github.com/getsentry/sqlparser-rs?rev=1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3#1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3"
 dependencies = [
  "proc-macro2",
  "quote",
