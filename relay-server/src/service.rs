@@ -136,9 +136,14 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store = match runtimes.store {
-            Some(ref rt) => {
-                Some(StoreService::create(config.clone(), outcome_aggregator.clone())?.start_in(rt))
-            }
+            Some(ref rt) => Some(
+                StoreService::create(
+                    config.clone(),
+                    global_config_handle.clone(),
+                    outcome_aggregator.clone(),
+                )?
+                .start_in(rt),
+            ),
             None => None,
         };
 

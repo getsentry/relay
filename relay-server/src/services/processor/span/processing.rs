@@ -341,10 +341,7 @@ fn normalize(
         .and_then(|v| v.name.value())
     {
         let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.insert(
-            "browser.name".into(),
-            Annotated::new(browser_name.to_owned().into()),
-        );
+        data.browser_name = Annotated::new(browser_name.to_owned().into());
     }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
