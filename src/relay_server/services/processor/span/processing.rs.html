@@ -483,9 +483,6 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -829,10 +826,7 @@
         .and_then(|v| v.name.value())
     {
         <span class="kw">let </span>data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.insert(
-            <span class="string">"browser.name"</span>.into(),
-            Annotated::new(browser_name.to_owned().into()),
-        );
+        data.browser_name = Annotated::new(browser_name.to_owned().into());
     }
 
     <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>measurement_values), <span class="kw-2">ref mut </span>meta) = span.measurements {

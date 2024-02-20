@@ -1061,7 +1061,7 @@
     <span class="kw">let </span>data = span.data.value();
 
     <span class="kw">let </span>db_system = data
-        .and_then(|v| v.get(<span class="string">"db.system"</span>))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     <span class="kw">let </span>span_origin = span.origin.as_str();
 
@@ -1104,7 +1104,7 @@
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
             (<span class="string">"ui"</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">"interaction."</span>) || sub.starts_with(<span class="string">"react."</span>) =&gt; data
-                .and_then(|data| data.get(<span class="string">"ui.component_name"</span>))
+                .and_then(|data| data.ui_component_name.value())
                 .and_then(|value| value.as_str())
                 .map(String::from),
             (<span class="string">"app"</span>, <span class="kw">_</span>) =&gt; {

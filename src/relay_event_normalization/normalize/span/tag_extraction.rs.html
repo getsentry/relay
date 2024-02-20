@@ -1440,8 +1440,7 @@
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_base_schema::metrics::{InformationUnit, MetricUnit};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, SpanData, Timestamp,
-    TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
@@ -1695,7 +1694,7 @@
     <span class="kw">let </span>system = span
         .data
         .value()
-        .and_then(|v| v.get(<span class="string">"db.system"</span>))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase());
@@ -1717,11 +1716,7 @@
             (<span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
                 .data
                 .value()
-                .and_then(|v| {
-                    v.get(<span class="string">"http.request.method"</span>)
-                        .or(v.get(<span class="string">"http.method"</span>))
-                        .or(v.get(<span class="string">"method"</span>))
-                })
+                .and_then(|data| data.http_request_method.value())
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (<span class="kw">_</span>, <span class="string">"db.redis"</span>, <span class="prelude-val">Some</span>(desc)) =&gt; {
@@ -1737,7 +1732,7 @@
                 <span class="kw">let </span>action_from_data = span
                     .data
                     .value()
-                    .and_then(|v| v.get(<span class="string">"db.operation"</span>))
+                    .and_then(|data| data.db_operation.value())
                     .and_then(|db_op| db_op.as_str())
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
@@ -1775,7 +1770,7 @@
                 } <span class="kw">else if let </span><span class="prelude-val">Some</span>(server_host) = span
                     .data
                     .value()
-                    .and_then(|data| data.get(<span class="string">"server.address"</span>))
+                    .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
                     <span class="kw">let </span>lowercase_host = server_host.to_lowercase();
@@ -1787,7 +1782,7 @@
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(url_scheme) = span
                         .data
                         .value()
-                        .and_then(|data| data.get(<span class="string">"url.scheme"</span>))
+                        .and_then(|data| data.url_scheme.value())
                         .and_then(|value| value.as_str())
                     {
                         span_tags.insert(
@@ -1845,24 +1840,24 @@
             <span class="comment">// TODO: Remove response size tags once product uses measurements instead.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">"http.response_content_length"</span>)
-                    .and_then(Annotated::value)
+                    .http_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">"http.decoded_response_content_length"</span>)
-                    .and_then(Annotated::value)
+                    .http_decoded_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-                    .get(<span class="string">"http.response_transfer_size"</span>)
-                    .and_then(Annotated::value)
+                    .http_response_transfer_size
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
@@ -1872,7 +1867,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(resource_render_blocking_status) = span
                 .data
                 .value()
-                .and_then(|data| data.get(<span class="string">"resource.render_blocking_status"</span>))
+                .and_then(|data| data.resource_render_blocking_status.value())
                 .and_then(|value| value.as_str())
             {
                 <span class="comment">// Validate that it's a valid status:
@@ -1892,7 +1887,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = span
             .data
             .value()
-            .and_then(|data| data.get(<span class="string">"thread.name"</span>))
+            .and_then(|data| data.thread_name.value())
             .and_then(|value| value.as_str())
         {
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
@@ -1905,7 +1900,7 @@
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(span_data_start_type) = span
             .data
             .value()
-            .and_then(|data| data.get(SpanTagKey::AppStartType.sentry_tag_key()))
+            .and_then(|data| data.app_start_type.value())
             .and_then(|value| value.as_str())
         {
             span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
@@ -1930,7 +1925,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = span
         .data
         .value()
-        .and_then(|data| data.get(<span class="string">"browser.name"</span>))
+        .and_then(|data| data.browser_name.value())
         .and_then(|browser_name| browser_name.as_str())
     {
         span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
@@ -1947,8 +1942,26 @@
 
     <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
-            <span class="kw">let </span><span class="kw-2">mut </span>try_measurement = |key: <span class="kw-2">&amp;</span>str| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurement_from_data(data, key) {
+            <span class="kw">for </span>(field, key) <span class="kw">in </span>[
+                (
+                    <span class="kw-2">&amp;</span>data.http_decoded_response_content_length,
+                    <span class="string">"http.decoded_response_content_length"</span>,
+                ),
+                (
+                    <span class="kw-2">&amp;</span>data.http_response_content_length,
+                    <span class="string">"http.response_content_length"</span>,
+                ),
+                (
+                    <span class="kw-2">&amp;</span>data.http_response_transfer_size,
+                    <span class="string">"http.response_transfer_size"</span>,
+                ),
+            ] {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = <span class="kw">match </span>field.value() {
+                    <span class="prelude-val">Some</span>(Value::F64(f)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>f),
+                    <span class="prelude-val">Some</span>(Value::I64(i)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>i <span class="kw">as </span>f64),
+                    <span class="prelude-val">Some</span>(Value::U64(u)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>u <span class="kw">as </span>f64),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                } {
                     <span class="kw">let </span>measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -1959,22 +1972,9 @@
                         .into(),
                     );
                 }
-            };
-            try_measurement(<span class="string">"http.response_content_length"</span>);
-            try_measurement(<span class="string">"http.decoded_response_content_length"</span>);
-            try_measurement(<span class="string">"http.response_transfer_size"</span>);
+            }
         }
     }
-}
-
-<span class="kw">fn </span>measurement_from_data(data: <span class="kw-2">&amp;</span>SpanData, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
-    <span class="kw">let </span>value = data.get(key)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(<span class="kw">match </span>value {
-        Value::I64(n) =&gt; <span class="kw-2">*</span>n <span class="kw">as </span>f64,
-        Value::U64(n) =&gt; <span class="kw-2">*</span>n <span class="kw">as </span>f64,
-        Value::F64(f) =&gt; <span class="kw-2">*</span>f,
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-    })
 }
 
 <span class="doccomment">/// Finds first matching span and get its timestamp.

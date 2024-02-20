@@ -295,7 +295,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{
     Span <span class="kw">as </span>EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
 };
-<span class="kw">use </span>relay_protocol::Annotated;
+<span class="kw">use </span>relay_protocol::{Annotated, FromValue, Object};
 
 <span class="kw">use </span><span class="kw">crate</span>::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 <span class="kw">use </span><span class="kw">crate</span>::otel_trace::{status::StatusCode <span class="kw">as </span>OtelStatusCode, Span <span class="kw">as </span>OtelSpan};
@@ -356,7 +356,7 @@
 <span class="doccomment">/// Transform an OtelSpan to a Sentry span.
 </span><span class="kw">pub fn </span>otel_to_sentry_span(otel_span: OtelSpan) -&gt; EventSpan {
     <span class="kw">let </span><span class="kw-2">mut </span>exclusive_time_ms = <span class="number">0f64</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>data = SpanData::default();
+    <span class="kw">let </span><span class="kw-2">mut </span>data = Object::new();
     <span class="kw">let </span>start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano <span class="kw">as </span>i64);
     <span class="kw">let </span>end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano <span class="kw">as </span>i64);
     <span class="kw">let </span>OtelSpan {
@@ -437,7 +437,7 @@
 
     EventSpan {
         op: op.into(),
-        data: data.into(),
+        data: SpanData::from_value(Annotated::new(data.into())),
         description: name.into(),
         exclusive_time: exclusive_time_ms.into(),
         parent_span_id: SpanId(parent_span_id).into(),
@@ -530,7 +530,7 @@
         <span class="macro">assert_eq!</span>(event_span.exclusive_time, Annotated::new(<span class="number">1000.0</span>));
         <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
         <span class="macro">assert_eq!</span>(
-            <span class="macro">get_path!</span>(annotated_span.data[<span class="string">"environment"</span>]),
+            <span class="macro">get_path!</span>(annotated_span.data.environment),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"test"</span>.into()))
         );
     }
