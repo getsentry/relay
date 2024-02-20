@@ -1097,7 +1097,7 @@
 /// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
 /// configured by the customer. Each piece of data (such as event, attachment) will be counted
 /// against all quotas that it matches with based on the `category`.
-</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
+</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Quota {
     <span class="doccomment">/// The unique identifier for counting this quota. Required, except for quotas with a `limit` of

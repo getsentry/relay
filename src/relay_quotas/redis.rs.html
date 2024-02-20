@@ -1137,9 +1137,9 @@
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
-    </span><span class="kw">pub fn </span>is_rate_limited(
+    </span><span class="kw">pub fn </span>is_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        quotas: <span class="kw-2">&amp;</span>[Quota],
+        quotas: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota&gt;,
         item_scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;,
         quantity: usize,
         over_accept_once: bool,

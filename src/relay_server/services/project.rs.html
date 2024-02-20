@@ -2416,39 +2416,39 @@
         envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         buckets: Vec&lt;Bucket&gt;,
     ) {
-        <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
-                State::Cached(state) =&gt; {
-                    <span class="kw">let </span>state = Arc::clone(state);
+        <span class="kw">if </span>!<span class="self">self</span>.metrics_allowed() {
+            <span class="macro">relay_log::debug!</span>(<span class="string">"dropping metric buckets, project disabled"</span>);
+            <span class="kw">return</span>;
+        }
 
-                    <span class="kw">let </span>buckets =
-                        <span class="self">self</span>.rate_limit_metrics(<span class="kw-2">&amp;</span>state, buckets, outcome_aggregator.clone());
+        <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
+            State::Cached(state) =&gt; {
+                <span class="kw">let </span>state = Arc::clone(state);
 
-                    <span class="kw">if </span>!buckets.is_empty() {
-                        <span class="comment">// We can send metrics straight to the aggregator.
-                        </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics straight to aggregator"</span>);
+                <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(<span class="kw-2">&amp;</span>state, buckets, outcome_aggregator.clone());
 
-                        <span class="comment">// TODO: When the state is present but expired, we should send buckets
-                        // to the metrics buffer instead. In practice, the project state should be
-                        // refreshed at the time when the buckets emerge from the aggregator though.
+                <span class="kw">if </span>!buckets.is_empty() {
+                    <span class="comment">// We can send metrics straight to the aggregator.
+                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics straight to aggregator"</span>);
 
-                        </span><span class="self">self</span>.rate_limit_and_merge_buckets(
-                            state,
-                            buckets,
-                            aggregator,
-                            envelope_processor,
-                            outcome_aggregator,
-                        );
-                    }
-                }
-                State::Pending(inner_agg) =&gt; {
-                    <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics to metrics-buffer"</span>);
-                    inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
+                    <span class="comment">// TODO: When the state is present but expired, we should send buckets
+                    // to the metrics buffer instead. In practice, the project state should be
+                    // refreshed at the time when the buckets emerge from the aggregator though.
+
+                    </span><span class="self">self</span>.rate_limit_and_merge_buckets(
+                        state,
+                        buckets,
+                        aggregator,
+                        envelope_processor,
+                        outcome_aggregator,
+                    );
                 }
             }
-        } <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">"dropping metric buckets, project disabled"</span>);
+            State::Pending(inner_agg) =&gt; {
+                <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics to metrics-buffer"</span>);
+                inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
+            }
         }
     }
 
