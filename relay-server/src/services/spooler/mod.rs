@@ -1267,9 +1267,10 @@ impl Drop for BufferService {
 mod tests {
     use std::str::FromStr;
     use std::sync::Mutex;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use insta::assert_debug_snapshot;
+    use rand::Rng;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
     use sqlx::sqlite::SqliteConnectOptions;
@@ -1347,28 +1348,30 @@ mod tests {
 
         // Test cases:
         let test_cases = [
-            // The difference between the `Instant::now` and start_time is 2 seconds,
-            // that the start time is restored to the correct point in time.
-            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
-            // There is no delay, and the `Instant::now` must be within the same second.
-            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+            "a94ae32be2584e0bbd7a4cbb95971fee",
+            "aaaae32be2584e0bbd7a4cbb95971fff",
         ];
-        for (result, pub_key) in test_cases {
+        for pub_key in test_cases {
             let project_key = ProjectKey::parse(pub_key).unwrap();
             let key = QueueKey {
                 own_key: project_key,
                 sampling_key: project_key,
             };
 
+            let envelope = empty_managed_envelope();
+            let start_time_sent = envelope.start_time();
             addr.send(Enqueue {
                 key,
-                value: empty_managed_envelope(),
+                value: envelope,
             });
 
             // How long to wait to dequeue the message from the spool.
             // This will also ensure that the start time will have to be restored to the time
             // when the request first came in.
-            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+            tokio::time::sleep(Duration::from_millis(
+                1000 * rand::thread_rng().gen_range(1..3),
+            ))
+            .await;
 
             addr.send(DequeueMany {
                 keys: [key].into(),
@@ -1379,9 +1382,13 @@ mod tests {
                 key: _,
                 managed_envelope,
             } = rx.recv().await.unwrap();
-            let start_time = managed_envelope.envelope().meta().start_time();
+            let start_time_received = managed_envelope.envelope().meta().start_time();
 
-            assert_eq!((Instant::now() - start_time).as_secs(), result);
+            // Check if the original start time elapsed to the same second as the restored one.
+            assert_eq!(
+                start_time_received.elapsed().as_secs(),
+                start_time_sent.elapsed().as_secs()
+            );
         }
     }
 
