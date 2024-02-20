@@ -972,7 +972,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, 7, timeout=6)
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
