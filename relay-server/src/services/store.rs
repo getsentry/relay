@@ -197,7 +197,6 @@ impl StoreService {
 
         let mut replay_event = None;
         let mut replay_recording = None;
-        let mut replay_video = None;
 
         for item in envelope.items() {
             match item.ty() {
@@ -247,7 +246,26 @@ impl StoreService {
                     start_time,
                     item,
                 )?,
-                ItemType::ReplayVideo => replay_video = Some(item),
+                ItemType::ReplayVideo => {
+                    // ReplayVideo item types set their headers in the processor with a special
+                    // replay_video_events field. This is done to save us from serializing the
+                    // payload in the processor and then deserializing the message in this stage.
+                    if let Some((event, recording)) = item.replay_video_events() {
+                        // ReplayVideo item types always produce the replay-event onto the
+                        // replay-recording Kafka topic regardless of the value of
+                        // "SessionReplayCombinedEnvelopeItems" feature which applies to legacy
+                        // events.
+                        self.produce_replay_recording(
+                            event_id,
+                            scoping,
+                            Bytes::from(recording),
+                            Some(Bytes::from(event)),
+                            Some(item.payload()),
+                            start_time,
+                            retention,
+                        )?;
+                    }
+                }
                 ItemType::ReplayRecording => {
                     replay_recording = Some(item);
                 }
@@ -262,7 +280,7 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         retention,
-                        item,
+                        item.payload(),
                     )?;
                 }
                 ItemType::CheckIn => self.produce_check_in(
@@ -281,12 +299,17 @@ impl StoreService {
         }
 
         if let Some(recording) = replay_recording {
+            // If a recording item type was seen we produce it to Kafka with the replay-event
+            // payload (should it have been provided).
+            //
+            // The replay_video value is always specified as `None`. We do not allow separate
+            // item types for `ReplayVideo` events.
             self.produce_replay_recording(
                 event_id,
                 scoping,
-                recording,
-                replay_event,
-                replay_video,
+                recording.payload(),
+                replay_event.map(|rv| rv.payload()),
+                None,
                 start_time,
                 retention,
             )?;
@@ -771,14 +794,14 @@ impl StoreService {
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
-        item: &Item,
+        payload: Bytes,
     ) -> Result<(), StoreError> {
         let message = ReplayEventKafkaMessage {
             replay_id,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: item.payload(),
+            payload: payload,
         };
         self.produce(
             KafkaTopic::ReplayEvents,
@@ -797,25 +820,21 @@ impl StoreService {
         &self,
         event_id: Option<EventId>,
         scoping: Scoping,
-        item: &Item,
-        replay_event: Option<&Item>,
-        replay_video: Option<&Item>,
+        payload: Bytes,
+        replay_event: Option<Bytes>,
+        replay_video: Option<Bytes>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // Map the event and video items to their byte payload values.
-        let replay_event_payload = replay_event.map(|rv| rv.payload());
-        let replay_video_payload = replay_video.map(|rv| rv.payload());
-
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
 
         // Size of the consumer message. We can be reasonably sure this won't overflow because
         // of the request size validation provided by Nginx and Relay.
         let mut payload_size = 2000; // Reserve 2KB for the message metadata.
-        payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
-        payload_size += replay_video_payload.as_ref().map_or(0, |b| b.len());
-        payload_size += item.payload().len();
+        payload_size += replay_event.as_ref().map_or(0, |b| b.len());
+        payload_size += replay_video.as_ref().map_or(0, |b| b.len());
+        payload_size += payload.len();
 
         // If the recording payload can not fit in to the message do not produce and quit early.
         if payload_size >= max_payload_size {
@@ -840,9 +859,9 @@ impl StoreService {
                 org_id: scoping.organization_id,
                 received: UnixTimestamp::from_instant(start_time).as_secs(),
                 retention_days: retention,
-                payload: item.payload(),
-                replay_event: replay_event_payload,
-                replay_video: replay_video_payload,
+                payload,
+                replay_event,
+                replay_video,
             });
 
         self.produce(
