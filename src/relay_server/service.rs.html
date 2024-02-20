@@ -313,6 +313,11 @@
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -451,9 +456,14 @@
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>store = <span class="kw">match </span>runtimes.store {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) =&gt; {
-                <span class="prelude-val">Some</span>(StoreService::create(config.clone(), outcome_aggregator.clone())<span class="question-mark">?</span>.start_in(rt))
-            }
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) =&gt; <span class="prelude-val">Some</span>(
+                StoreService::create(
+                    config.clone(),
+                    global_config_handle.clone(),
+                    outcome_aggregator.clone(),
+                )<span class="question-mark">?
+                </span>.start_in(rt),
+            ),
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
         };
 

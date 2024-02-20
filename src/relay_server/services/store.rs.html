@@ -1682,6 +1682,89 @@
 <a href="#1681" id="1681">1681</a>
 <a href="#1682" id="1682">1682</a>
 <a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1697,13 +1780,15 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::{instant_to_date_time, UnixTimestamp};
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_dynamic_config::MetricEncoding;
 <span class="kw">use </span>relay_event_schema::protocol::{
     <span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
+    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
+    MetricResourceIdentifier, SetView,
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1714,6 +1799,7 @@
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+<span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -1806,6 +1892,7 @@
 <span class="doccomment">/// Service implementing the [`Store`] interface.
 </span><span class="kw">pub struct </span>StoreService {
     config: Arc&lt;Config&gt;,
+    global_config: GlobalConfigHandle,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     producer: Producer,
 }
@@ -1813,11 +1900,13 @@
 <span class="kw">impl </span>StoreService {
     <span class="kw">pub fn </span>create(
         config: Arc&lt;Config&gt;,
+        global_config: GlobalConfigHandle,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             config,
+            global_config,
             outcome_aggregator,
             producer,
         })
@@ -2023,22 +2112,27 @@
         <span class="kw">let </span><span class="kw-2">mut </span>dropped = SourceQuantities::default();
         <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
 
+        <span class="kw">let </span>encodings = <span class="self">self</span>.global_config.current().options.metric_bucket_encodings;
+
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
             <span class="comment">// Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
             </span><span class="kw">for </span>view <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>[bucket]).by_size(batch_size).flatten() {
-                <span class="kw">let </span>message = MetricKafkaMessage {
-                    org_id: scoping.organization_id,
-                    project_id: scoping.project_id,
-                    name: view.name(),
-                    value: view.value(),
-                    timestamp: view.timestamp(),
-                    tags: view.tags(),
-                    retention_days: retention,
-                };
+                <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(view.name())
+                    .map(|mri| mri.namespace)
+                    .unwrap_or(MetricNamespace::Unsupported);
+                <span class="kw">let </span>encoding = encodings.for_namespace(namespace);
 
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.send_metric_message(scoping.organization_id, message) {
+                <span class="kw">let </span>message = <span class="self">self</span>.create_metric_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    encoding,
+                    <span class="kw-2">&amp;</span>view,
+                    retention,
+                );
+
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.send_metric_message(namespace, message) {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
@@ -2054,6 +2148,34 @@
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
             );
+        }
+    }
+
+    <span class="kw">fn </span>create_metric_message&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        organization_id: u64,
+        project_id: ProjectId,
+        encoding: MetricEncoding,
+        view: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BucketView&lt;<span class="lifetime">'a</span>&gt;,
+        retention_days: u16,
+    ) -&gt; MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
+        <span class="kw">let </span>value = <span class="kw">match </span>view.value() {
+            BucketViewValue::Counter(c) =&gt; MetricValue::Counter(c),
+            BucketViewValue::Distribution(d) =&gt; {
+                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
+            }
+            BucketViewValue::Set(s) =&gt; MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Gauge(g) =&gt; MetricValue::Gauge(g),
+        };
+
+        MetricKafkaMessage {
+            org_id: organization_id,
+            project_id,
+            name: view.name(),
+            value,
+            timestamp: view.timestamp(),
+            tags: view.tags(),
+            retention_days,
         }
     }
 
@@ -2342,20 +2464,20 @@
 
     <span class="kw">fn </span>send_metric_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
+        namespace: MetricNamespace,
         message: MetricKafkaMessage,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="kw">let </span>mri = MetricResourceIdentifier::parse(message.name);
-        <span class="kw">let </span>(topic, namespace) = <span class="kw">match </span>mri.map(|mri| mri.namespace) {
-            <span class="prelude-val">Ok</span>(namespace @ MetricNamespace::Sessions) =&gt; (KafkaTopic::MetricsSessions, namespace),
-            <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+        <span class="kw">let </span>organization_id = message.org_id;
+        <span class="kw">let </span>topic = <span class="kw">match </span>namespace {
+            MetricNamespace::Sessions =&gt; KafkaTopic::MetricsSessions,
+            MetricNamespace::Unsupported =&gt; {
                 relay_log::with_scope(
                     |scope| scope.set_extra(<span class="string">"metric_message.name"</span>, message.name.into()),
                     || <span class="macro">relay_log::error!</span>(<span class="string">"store service dropping unknown metric usecase"</span>),
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
-            <span class="prelude-val">Ok</span>(namespace) =&gt; (KafkaTopic::MetricsGeneric, namespace),
+            <span class="kw">_ </span>=&gt; KafkaTopic::MetricsGeneric,
         };
         <span class="kw">let </span>headers = BTreeMap::from([(<span class="string">"namespace"</span>.to_string(), namespace.to_string())]);
 
@@ -2379,20 +2501,19 @@
         retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>payload = item.payload();
+        <span class="kw">let </span>encodings = <span class="self">self</span>.global_config.current().options.metric_bucket_encodings;
 
         <span class="kw">for </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
-            <span class="self">self</span>.send_metric_message(
-                org_id,
-                MetricKafkaMessage {
-                    org_id,
-                    project_id,
-                    name: bucket.name.as_str(),
-                    value: (<span class="kw-2">&amp;</span>bucket.value).into(),
-                    timestamp: bucket.timestamp,
-                    tags: <span class="kw-2">&amp;</span>bucket.tags,
-                    retention_days: retention,
-                },
-            )<span class="question-mark">?</span>;
+            <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket);
+
+            <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(view.name())
+                .map(|mri| mri.namespace)
+                .unwrap_or(MetricNamespace::Unsupported);
+            <span class="kw">let </span>encoding = encodings.for_namespace(namespace);
+
+            <span class="kw">let </span>message =
+                <span class="self">self</span>.create_metric_message(org_id, project_id, encoding, <span class="kw-2">&amp;</span>view, retention);
+            <span class="self">self</span>.send_metric_message(namespace, message)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -2959,10 +3080,55 @@
     project_id: ProjectId,
     name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="attr">#[serde(flatten)]
-    </span>value: BucketViewValue&lt;<span class="lifetime">'a</span>&gt;,
+    </span>value: MetricValue&lt;<span class="lifetime">'a</span>&gt;,
     timestamp: UnixTimestamp,
     tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, String&gt;,
     retention_days: u16,
+}
+
+<span class="attr">#[derive(Clone, Debug, Serialize)]
+#[serde(tag = <span class="string">"type"</span>, content = <span class="string">"value"</span>)]
+</span><span class="kw">enum </span>MetricValue&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="attr">#[serde(rename = <span class="string">"c"</span>)]
+    </span>Counter(FiniteF64),
+    <span class="attr">#[serde(rename = <span class="string">"d"</span>)]
+    </span>Distribution(ArrayEncoding&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[FiniteF64]&gt;),
+    <span class="attr">#[serde(rename = <span class="string">"s"</span>)]
+    </span>Set(ArrayEncoding&lt;SetView&lt;<span class="lifetime">'a</span>&gt;&gt;),
+    <span class="attr">#[serde(rename = <span class="string">"g"</span>)]
+    </span>Gauge(GaugeValue),
+}
+
+<span class="attr">#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+</span><span class="kw">enum </span>ArrayEncoding&lt;T&gt; {
+    <span class="doccomment">/// The original, legacy, encoding.
+    ///
+    /// Encodes all values as a JSON array of numbers.
+    </span>Legacy(T),
+    <span class="doccomment">/// Dynamic encoding supporting multiple formats.
+    ///
+    /// Adds metadata and adds support for multiple different encodings.
+    </span>Dynamic(DynamicArrayEncoding&lt;T&gt;),
+}
+
+<span class="kw">impl</span>&lt;T&gt; ArrayEncoding&lt;T&gt; {
+    <span class="doccomment">/// Builds a [`ArrayEncoding`] from the format and the data.
+    </span><span class="kw">fn </span>new(encoding: MetricEncoding, data: T) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>encoding {
+            MetricEncoding::Legacy =&gt; <span class="self">Self</span>::Legacy(data),
+            MetricEncoding::Array =&gt; <span class="self">Self</span>::Dynamic(DynamicArrayEncoding::Array { data }),
+        }
+    }
+}
+
+<span class="attr">#[derive(Clone, Debug, Serialize)]
+#[serde(tag = <span class="string">"format"</span>, rename_all = <span class="string">"lowercase"</span>)]
+</span><span class="kw">enum </span>DynamicArrayEncoding&lt;T&gt; {
+    <span class="doccomment">/// JSON Array encoding.
+    ///
+    /// Encodes all items as a JSON array.
+    </span>Array { data: T },
 }
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
