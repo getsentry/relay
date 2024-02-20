@@ -92,6 +92,7 @@ def test_replay_recording_with_video(
                 replay_id,
             ],
             ["attachment_type", "replay_recording"],
+            ["attachment_type", "replay_video"],
         ]
     )
     payload = recording_payload(b"[]")

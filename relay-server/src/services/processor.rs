@@ -362,9 +362,6 @@ pub enum ProcessingError {
 
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
-
-    #[error("replay envelope was incomplete or partially dropped")]
-    IncompleteReplayEnvelope,
 }
 
 impl ProcessingError {
@@ -405,9 +402,6 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
-
-            // Replay
-            Self::IncompleteReplayEnvelope => None,
         }
     }
 
