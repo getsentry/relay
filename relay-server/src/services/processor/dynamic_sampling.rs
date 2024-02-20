@@ -14,7 +14,9 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::{profile, ProcessEnvelopeState, TransactionGroup};
+use crate::services::processor::{
+    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+};
 use crate::utils::{self, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -200,7 +202,10 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision<G>(state: &mut ProcessEnvelopeState<G>, config: &Config) {
+pub fn tag_error_with_sampling_decision<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) {
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -272,7 +277,6 @@ fn forward_unsampled_profiles(
 mod tests {
 
     use std::collections::BTreeMap;
-    use std::marker::PhantomData;
     use std::sync::Arc;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -288,7 +292,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, TransactionGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -333,7 +337,7 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction(TransactionGroup),
+                ProcessingGroup::Transaction,
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -479,12 +483,12 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Transaction(TransactionGroup),
-                ),
+                    ProcessingGroup::Transaction,
+                )
+                .into(),
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
-                _group: PhantomData::<TransactionGroup> {},
             }
         };
 

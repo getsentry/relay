@@ -182,6 +182,14 @@ impl ItemType {
             _ => self.name(),
         }
     }
+
+    /// Returns `true` if the item is a metric type.
+    pub fn is_metrics(&self) -> bool {
+        matches!(
+            self,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
+        )
+    }
 }
 
 impl fmt::Display for ItemType {
