@@ -1153,20 +1153,16 @@ impl Envelope {
             return;
         };
 
-        let Some(transaction) = &mut dsc.transaction else {
-            return;
+        let parametrized_transaction = match &dsc.transaction {
+            Some(transaction) if transaction.contains('/') => {
+                let mut annotated = Annotated::new(transaction.clone());
+                normalize_transaction_name(&mut annotated, rules);
+                annotated.into_value()
+            }
+            _ => return,
         };
 
-        if !transaction.contains('/') {
-            return;
-        }
-
-        let mut annotated = Annotated::new(transaction.clone());
-        normalize_transaction_name(&mut annotated, rules);
-
-        if let Some(parametrized) = annotated.into_value() {
-            *transaction = parametrized;
-        }
+        dsc.transaction = parametrized_transaction;
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
