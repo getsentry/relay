@@ -364,10 +364,10 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     parametrized_transaction = "/auth/login/*/"
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config2 = mini_sentry.add_basic_project_config(project_id)
-    public_key2 = config2["publicKeys"][0]["publicKey"]
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    public_key2 = sampling_config["publicKeys"][0]["publicKey"]
 
-    config2["config"]["txNameRules"] = [
+    sampling_config["config"]["txNameRules"] = [
         {
             "pattern": pattern,
             "expiry": "3022-11-30T00:00:00.000000Z",
@@ -376,7 +376,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     ]
     config["config"]["transactionMetrics"] = {"version": 1}
 
-    ds = config["config"].setdefault("sampling", {})
+    ds = sampling_config["config"].setdefault("sampling", {})
     ds.setdefault("version", 2)
 
     sampling_rule = {
