@@ -88,35 +88,19 @@ local deploy_canary(region) =
     [];
 
 // The purpose of this stage is to deploy to production
-local deploy_primary() = [
+local deploy_primary(region) = [
   {
     'deploy-primary': {
       fetch_materials: true,
       jobs: {
         create_sentry_release: {
           environment_variables: {
-            SENTRY_ORG: 'sentry',
-            SENTRY_PROJECT: 'relay',
-            SENTRY_URL: 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: if region == 's4s' then 'sentry-st' else 'sentry',
+            SENTRY_PROJECT: if region == 's4s' then 'sentry-for-sentry' else 'relay',
+            SENTRY_URL: if region == 's4s' then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
-          },
-          timeout: 1200,
-          elastic_profile_id: 'relay',
-          tasks: [
-            gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
-          ],
-        },
-        create_sentry_st_release: {
-          environment_variables: {
-            SENTRY_ORG: 'sentry-st',
-            // TODO: Should this be a different project?
-            SENTRY_PROJECT: 'sentry-for-sentry',
-            SENTRY_URL: 'https://sentry-st.sentry.io/',
-            // Temporary; self-service encrypted secrets aren't implemented yet.
-            // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}',
+            SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
           },
           timeout: 1200,
           elastic_profile_id: 'relay',
@@ -151,5 +135,5 @@ function(region) {
       destination: 'relay',
     },
   },
-  stages: utils.github_checks() + deploy_canary(region) + deploy_primary() + soak_time(region),
+  stages: utils.github_checks() + deploy_canary(region) + deploy_primary(region) + soak_time(region),
 }
