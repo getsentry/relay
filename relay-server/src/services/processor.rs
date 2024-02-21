@@ -204,7 +204,7 @@ impl ProcessingGroup {
         let replay_items = envelope.take_items_by(|item| {
             matches!(
                 item.ty(),
-                &ItemType::ReplayEvent | &ItemType::ReplayRecording
+                &ItemType::ReplayEvent | &ItemType::ReplayRecording | &ItemType::ReplayVideo
             )
         });
         if !replay_items.is_empty() {
