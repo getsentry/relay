@@ -287,6 +287,8 @@
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -373,7 +375,8 @@
     <span class="kw">let </span>trace_id = hex::encode(trace_id);
     <span class="kw">let </span>parent_span_id = hex::encode(parent_span_id);
 
-    <span class="kw">let </span>segment_id = <span class="kw">if </span>parent_span_id.is_empty() {
+    <span class="comment">// TODO: This is wrong, a segment could still have a parent in the trace.
+    </span><span class="kw">let </span>segment_id = <span class="kw">if </span>parent_span_id.is_empty() {
         Annotated::new(SpanId(span_id.clone()))
     } <span class="kw">else </span>{
         Annotated::empty()
@@ -433,7 +436,8 @@
             (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) <span class="kw">as </span>f64 / <span class="number">1e6f64</span>;
     }
 
-    <span class="kw">let </span>is_segment = parent_span_id.is_empty().into();
+    <span class="comment">// TODO: This is wrong, a segment could still have a parent in the trace.
+    </span><span class="kw">let </span>is_segment = parent_span_id.is_empty().into();
 
     EventSpan {
         op: op.into(),

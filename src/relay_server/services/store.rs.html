@@ -1765,6 +1765,19 @@
 <a href="#1764" id="1764">1764</a>
 <a href="#1765" id="1765">1765</a>
 <a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2732,6 +2745,9 @@
 
         <span class="self">self</span>.produce_metrics_summary(scoping, item, <span class="kw-2">&amp;</span>span);
 
+        <span class="kw">let </span>is_segment = span.is_segment;
+        <span class="kw">let </span>has_parent = span.parent_span_id.is_some();
+
         <span class="self">self</span>.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -2750,8 +2766,10 @@
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"span"
-        </span>);
+            event_type = <span class="string">"span"</span>,
+            is_segment = bool_to_str(is_segment),
+            has_parent = bool_to_str(has_parent),
+        );
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -3393,6 +3411,14 @@
 /// Slow items must be routed to the `Attachments` topic.
 </span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
     item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
+}
+
+<span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="kw">if </span>value {
+        <span class="string">"true"
+    </span>} <span class="kw">else </span>{
+        <span class="string">"false"
+    </span>}
 }
 
 <span class="attr">#[cfg(test)]
