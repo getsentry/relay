@@ -226,8 +226,11 @@ fn handle_replay_recording_item(
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ReplayVideoEvent {
+    #[serde(with = "serde_bytes")]
     replay_event: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     replay_recording: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     replay_video: Vec<u8>,
 }
 
