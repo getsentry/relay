@@ -1154,10 +1154,10 @@ impl Envelope {
         };
 
         let parametrized_transaction = match &dsc.transaction {
-            // Ideally we would only apply transaction rules to transactions with source `url`,
-            // but the DSC does not contain this information. The chance of a transaction rename rule
-            // accidentially matching a non-URL transaction should be very low.
             Some(transaction) if transaction.contains('/') => {
+                // Ideally we would only apply transaction rules to transactions with source `url`,
+                // but the DSC does not contain this information. The chance of a transaction rename rule
+                // accidentially matching a non-URL transaction should be very low.
                 let mut annotated = Annotated::new(transaction.clone());
                 normalize_transaction_name(&mut annotated, rules);
                 annotated.into_value()
