@@ -983,7 +983,9 @@ impl StoreService {
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "span"
+            event_type = "span",
+            is_segment = bool_to_str(span.is_segment),
+            has_parent = bool_to_str(span.parent_span_id.is_some()),
         );
 
         Ok(())
@@ -1626,6 +1628,14 @@ impl Message for KafkaMessage<'_> {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+fn bool_to_str(value: bool) -> &'static str {
+    if value {
+        "true"
+    } else {
+        "false"
+    }
 }
 
 #[cfg(test)]
