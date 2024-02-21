@@ -255,7 +255,7 @@ pub fn init<A: ToSocketAddrs>(
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             let next_step = statsdproxy::middleware::upstream::Upstream::new(host)
                 .expect("failed to create statsdproxy metric sink");
-            let next_step = statsdproxy::middleware::aggregate::AggregateMetrics::new(
+            statsdproxy::middleware::aggregate::AggregateMetrics::new(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
@@ -264,8 +264,7 @@ pub fn init<A: ToSocketAddrs>(
                     max_map_size: None,
                 },
                 next_step,
-            );
-            next_step
+            )
         });
         StatsdClient::from_sink(prefix, statsdproxy_sink)
     } else if buffering {
