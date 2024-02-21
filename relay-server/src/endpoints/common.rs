@@ -303,17 +303,9 @@ fn queue_envelope(
             .map_err(BadStoreRequest::QueueFailed)?;
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
-
-    if managed_envelope.envelope().is_empty() {
-        // The envelope can be empty here if it contained only metrics items which were removed
-        // above. In this case, the envelope was accepted and needs no further queueing.
-        managed_envelope.accept();
-    } else {
-        relay_log::trace!("queueing envelope");
-        state
-            .project_cache()
-            .send(ValidateEnvelope::new(managed_envelope));
-    }
+    // The entire envelope is taken for a split above, and it's empty at this point, we can just
+    // accept it without additional checks.
+    managed_envelope.accept();
 
     Ok(())
 }

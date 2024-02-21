@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
@@ -78,7 +78,8 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult, TypedEnvelope,
+    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    TypedEnvelope,
 };
 
 mod attachment;
@@ -106,57 +107,61 @@ macro_rules! if_processing {
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
+#[derive(Debug)]
+pub struct GroupTypeError;
+
+impl Display for GroupTypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("failed to convert processing group into corresponding type")
+    }
+}
+
+impl std::error::Error for GroupTypeError {}
+
+macro_rules! processing_group {
+    ($ty:ident, $variant:ident) => {
+        #[derive(Clone, Copy, Debug)]
+        pub struct $ty;
+
+        impl From<$ty> for ProcessingGroup {
+            fn from(_: $ty) -> Self {
+                ProcessingGroup::$variant
+            }
+        }
+
+        impl TryFrom<ProcessingGroup> for $ty {
+            type Error = GroupTypeError;
+
+            fn try_from(value: ProcessingGroup) -> Result<Self, Self::Error> {
+                if matches!(value, ProcessingGroup::$variant) {
+                    return Ok($ty);
+                }
+                return Err(GroupTypeError);
+            }
+        }
+    };
+}
+
 /// A marker trait.
 ///
 /// Should be used only with groups which are responsible for processing envelopes with events.
 pub trait EventProcessing {}
 
-/// Transaction group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct TransactionGroup;
-
+processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
-/// Error group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ErrorGroup;
+processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
 
-/// Session group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct SessionGroup;
-
-/// Standalone group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct StandaloneGroup;
-
-/// ClientReport group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ClientReportGroup;
-
-/// Replay group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ReplayGroup;
-
-/// CheckIn group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct CheckInGroup;
-
-/// Span group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct SpanGroup;
-
-/// Metrics group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct MetricsGroup;
-
-/// Unknown group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ForwardUnknownGroup;
-
-/// Ungrouped group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct Ungrouped;
+processing_group!(SessionGroup, Session);
+processing_group!(StandaloneGroup, Standalone);
+processing_group!(ClientReportGroup, ClientReport);
+processing_group!(ReplayGroup, Replay);
+processing_group!(CheckInGroup, CheckIn);
+processing_group!(SpanGroup, Span);
+processing_group!(MetricsGroup, Metrics);
+processing_group!(ForwardUnknownGroup, ForwardUnknown);
+processing_group!(Ungrouped, Ungrouped);
 
 /// Processed group type marker.
 ///
@@ -391,6 +396,9 @@ pub enum ProcessingError {
 
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
+
+    #[error("invalid processing group type")]
+    InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
 }
 
 impl ProcessingError {
@@ -431,6 +439,7 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
+            Self::InvalidProcessingGroup(_) => None,
         }
     }
 
@@ -1386,15 +1395,16 @@ impl EnvelopeProcessorService {
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> Result<ProcessingStateResult, (ProcessingError, TypedEnvelope<Processed>)> {
+    ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
 
         macro_rules! run {
             ($fn:ident) => {{
+                let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
-                    managed_envelope.into_typed(),
+                    managed_envelope,
                     project_id,
                     project_state,
                     sampling_project_state,
@@ -1405,12 +1415,17 @@ impl EnvelopeProcessorService {
                         managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    Err(e) => Err((e, state.managed_envelope.into_processed())),
+                    Err(e) => {
+                        if let Some(outcome) = e.to_outcome() {
+                            state.managed_envelope.reject(outcome);
+                        }
+                        return Err(e);
+                    }
                 }
             }};
         }
 
-        relay_log::trace!("Processing {group:?} group");
+        relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
             ProcessingGroup::Error => run!(process_errors),
@@ -1434,7 +1449,7 @@ impl EnvelopeProcessorService {
                 }
 
                 Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1446,7 +1461,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
                 Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1454,7 +1469,7 @@ impl EnvelopeProcessorService {
             //
             // This will later be forwarded to upstream.
             ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
-                managed_envelope: managed_envelope.into_typed(),
+                managed_envelope: managed_envelope.into_processed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -1546,12 +1561,7 @@ impl EnvelopeProcessorService {
                             envelope: envelope_response,
                         })
                     }
-                    Err((err, mut managed_envelope)) => {
-                        if let Some(outcome) = err.to_outcome() {
-                            managed_envelope.reject(outcome);
-                        }
-                        Err(err)
-                    }
+                    Err(err) => Err(err),
                 }
             },
         )
@@ -1819,7 +1829,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::ClientReport,
         );
         self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 
@@ -2137,7 +2147,7 @@ impl EnvelopeProcessorService {
                     );
 
                     self.handle_submit_envelope(SubmitEnvelope {
-                        envelope: envelope.into_typed(),
+                        envelope: envelope.into_processed(),
                     });
                     num_batches += 1;
                 }
@@ -2283,7 +2293,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Metrics,
         );
         self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 

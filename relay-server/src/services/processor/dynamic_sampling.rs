@@ -483,7 +483,8 @@ mod tests {
                     test_store.clone(),
                     ProcessingGroup::Transaction,
                 )
-                .into(),
+                .try_into()
+                .unwrap(),
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
