@@ -43,29 +43,21 @@ pub enum Status {
     Unhealthy,
 }
 
-impl Status {
-    fn combined(s: &[Status]) -> Self {
-        s.iter()
-            .copied()
-            .reduce(Self::combine)
-            .unwrap_or(Self::Unhealthy)
-    }
-
-    fn combine(self, other: Self) -> Self {
-        if matches!(self, Self::Unhealthy) || matches!(other, Self::Unhealthy) {
-            Self::Unhealthy
-        } else {
-            Self::Healthy
-        }
-    }
-}
-
 impl From<bool> for Status {
     fn from(value: bool) -> Self {
         match value {
             true => Self::Healthy,
             false => Self::Unhealthy,
         }
+    }
+}
+
+impl FromIterator<Status> for Status {
+    fn from_iter<T: IntoIterator<Item = Status>>(iter: T) -> Self {
+        let healthy = iter
+            .into_iter()
+            .all(|status| matches!(status, Self::Healthy));
+        Self::from(healthy)
     }
 }
 
@@ -198,7 +190,7 @@ impl HealthCheckService {
             self.project_cache_probe(),
         );
 
-        Status::combined(&[sys_mem, auth, agg, proj])
+        Status::from_iter([sys_mem, auth, agg, proj])
     }
 
     async fn handle_message(&self, message: HealthCheck) {
@@ -249,6 +241,9 @@ struct SystemInfo {
 }
 
 impl SystemInfo {
+    /// Creates a new [`SystemInfo`] to query system information.
+    ///
+    /// System information updates are debounced with the passed `refresh_interval`.
     pub fn new(refresh_interval: Duration) -> Self {
         let system = System::new_with_specifics(
             RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
@@ -261,6 +256,10 @@ impl SystemInfo {
         }
     }
 
+    /// Current snapshot of system memory.
+    ///
+    /// On Linux systems it uses the cgroup limits to determine used and total memory,
+    /// if available.
     pub fn memory(&mut self) -> Memory {
         self.refresh();
 
@@ -279,8 +278,7 @@ impl SystemInfo {
     }
 
     fn refresh(&mut self) {
-        let now = Instant::now();
-        if (now - self.last_refresh) >= self.refresh_interval {
+        if self.last_refresh.elapsed() >= self.refresh_interval {
             self.system
                 .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
 
@@ -289,13 +287,15 @@ impl SystemInfo {
     }
 }
 
+/// A memory measurement.
 #[derive(Debug)]
-pub struct Memory {
+struct Memory {
     pub used: u64,
     pub total: u64,
 }
 
 impl Memory {
+    /// Amount of used RAM in percent `0.0` to `1.0`.
     pub fn used_percent(&self) -> f32 {
         (self.used as f32 / self.total as f32).clamp(0.0, 1.0)
     }
@@ -304,6 +304,37 @@ impl Memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_status() {
+        assert!(matches!(Status::from(true), Status::Healthy));
+        assert!(matches!(Status::from(false), Status::Unhealthy));
+
+        let s = [Status::Unhealthy, Status::Unhealthy].into_iter().collect();
+        assert!(matches!(s, Status::Unhealthy));
+
+        let s = [Status::Unhealthy, Status::Healthy].into_iter().collect();
+        assert!(matches!(s, Status::Unhealthy));
+
+        let s = [Status::Healthy, Status::Unhealthy].into_iter().collect();
+        assert!(matches!(s, Status::Unhealthy));
+
+        let s = [Status::Unhealthy].into_iter().collect();
+        assert!(matches!(s, Status::Unhealthy));
+
+        // The iterator should short circuit.
+        let s = std::iter::repeat(Status::Unhealthy).collect();
+        assert!(matches!(s, Status::Unhealthy));
+
+        let s = [Status::Healthy, Status::Healthy].into_iter().collect();
+        assert!(matches!(s, Status::Healthy));
+
+        let s = [Status::Healthy].into_iter().collect();
+        assert!(matches!(s, Status::Healthy));
+
+        let s = [].into_iter().collect();
+        assert!(matches!(s, Status::Healthy));
+    }
 
     #[test]
     fn test_memory_used_percent_total_0() {
