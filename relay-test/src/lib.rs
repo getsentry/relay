@@ -34,7 +34,7 @@ use relay_event_schema::protocol::EventId;
 use relay_sampling::config::{RuleType, SamplingRule};
 use relay_system::{channel, Addr, Interface};
 use serde::{Serialize, Serializer};
-use serde_json::{json, to_value, Map, Value};
+use serde_json::{json, Map, Value};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -159,59 +159,6 @@ impl Envelope {
         }
     }
 
-    /// Returns the event in the envelope headers
-    pub fn event_id(&self) -> Option<EventId> {
-        let as_str = self.envelope_headers.get("event_id")?.to_string();
-        let as_str = as_str.trim_matches('\"');
-        let id = Uuid::parse_str(as_str).unwrap();
-
-        Some(EventId(id))
-    }
-
-    /// Adds basic trace info based on trace id of the last inserted item.
-    pub fn set_basic_trace_info(mut self, public_key: ProjectKey) -> Self {
-        let trace_id = self.items.last().unwrap().trace_id().unwrap();
-
-        let trace_info = json!({
-            "trace_id": trace_id.simple().to_string(),
-            "public_key": public_key,
-        });
-
-        self.envelope_headers.insert("trace".into(), trace_info);
-        self
-    }
-
-    pub fn set_client_sample_rate(mut self, sample_rate: f32) -> Self {
-        let trace_object = self
-            .envelope_headers
-            .get_mut("trace")
-            .unwrap()
-            .as_object_mut()
-            .unwrap();
-
-        let sample_rate = format!("{:.5}", sample_rate);
-        trace_object.insert(
-            "sample_rate".to_string(),
-            serde_json::Value::String(sample_rate),
-        );
-
-        self
-    }
-
-    pub fn add_basic_transaction(self, transaction: Option<&str>) -> Self {
-        self.add_transaction(transaction, None, None)
-    }
-
-    pub fn add_transaction(
-        self,
-        transaction: Option<&str>,
-        event_id: Option<Uuid>,
-        trace_id: Option<Uuid>,
-    ) -> Self {
-        let item = create_transaction_item(transaction, trace_id, event_id);
-        self.add_item(item)
-    }
-
     pub fn add_error_event_with_trace_info(self, public_key: ProjectKey) -> Self {
         let (item, trace_id, event_id) = create_error_item();
 
@@ -266,11 +213,6 @@ impl Envelope {
         self
     }
 
-    pub fn set_project_id(mut self, id: ProjectId) -> Self {
-        self.project_id = id;
-        self
-    }
-
     pub fn set_event_id(self, id: EventId) -> Self {
         self.add_header("event_id", &id.to_string())
     }
@@ -287,18 +229,7 @@ impl Envelope {
         self
     }
 
-    pub fn add_http_header(mut self, key: &str, val: &str) -> Self {
-        self.http_headers.insert(key.into(), val.into());
-        self
-    }
-
     pub fn add_item(mut self, item: RawItem) -> Self {
-        self.items.push(item);
-        self
-    }
-
-    pub fn add_item_from_json(mut self, payload: Value, ty: &str) -> Self {
-        let item = RawItem::from_json(payload).set_type(ty);
         self.items.push(item);
         self
     }
@@ -364,12 +295,6 @@ impl RawItem {
 
     pub fn from_parts(headers: HashMap<String, Value>, payload: PayLoad) -> Self {
         Self { headers, payload }
-    }
-
-    pub fn ty(&self) -> &str {
-        let as_str = self.headers.get("type").unwrap().as_str().unwrap();
-        let as_str = as_str.trim_matches('\"');
-        as_str
     }
 
     pub fn from_json(payload: Value) -> Self {
@@ -556,33 +481,6 @@ pub fn outcomes_enabled_config() -> Value {
     })
 }
 
-pub fn create_transaction_item(
-    transaction: Option<&str>,
-    trace_id: Option<Uuid>,
-    event_id: Option<Uuid>,
-) -> RawItem {
-    let trace_id = trace_id.unwrap_or_else(Uuid::new_v4);
-    let event_id = event_id.unwrap_or_else(Uuid::new_v4);
-
-    let item = json!({
-        "event_id": event_id,
-        "transaction": transaction.unwrap_or( "tr1"),
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "contexts": {
-            "trace": {
-                "trace_id": trace_id.simple(),
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-            }
-        },
-        "spans": [],
-        "extra": {"id": event_id},
-    });
-
-    RawItem::from_json(item).set_type("transaction")
-}
-
 #[derive(Clone, Debug)]
 pub struct ProjectState(serde_json::Map<String, Value>);
 
@@ -684,45 +582,6 @@ impl ProjectState {
         ProjectKey::parse(project_key).unwrap()
     }
 
-    pub fn enable_outcomes(mut self) -> Self {
-        let outcomes = json!({
-            "outcomes": {
-            "emit_outcomes": true,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "relay"
- }       });
-
-        self.config().insert("outcomes".to_string(), outcomes);
-
-        self
-    }
-
-    pub fn set_sampling_rule(self, sample_rate: f32, rule_type: RuleType) -> Self {
-        let rule = new_sampling_rule(sample_rate, rule_type.into(), vec![], None, None);
-        self.add_sampling_rule(rule)
-    }
-
-    pub fn set_transaction_metrics_version(mut self, version: u32) -> Self {
-        self.config().insert(
-            "transactionMetrics".to_string(),
-            json!({"version": version}),
-        );
-        self
-    }
-
-    pub fn set_project_id(mut self, id: ProjectId) -> Self {
-        self.0
-            .insert("projectId".to_string(), to_value(id).unwrap());
-        self
-    }
-
-    pub fn add_trusted_relays(mut self, relays: Vec<PublicKey>) -> Self {
-        self.config()
-            .insert("trustedRelays".to_string(), to_value(relays).unwrap());
-        self
-    }
-
     pub fn add_sampling_rule(mut self, rule: SamplingRule) -> Self {
         self.sampling_rules()
             .push(serde_json::to_value(rule).unwrap());
@@ -733,74 +592,4 @@ impl ProjectState {
         let rule = new_sampling_rule(sample_rate, Some(rule_type), vec![], None, None);
         self.add_sampling_rule(rule)
     }
-}
-
-#[derive(Debug)]
-pub struct Outcome(serde_json::Map<String, Value>);
-
-impl Outcome {
-    pub fn new(val: serde_json::Value) -> Self {
-        Self(val.as_object().unwrap().to_owned())
-    }
-
-    pub fn reason(&self) -> &str {
-        self.0.get("reason").unwrap().as_str().unwrap()
-    }
-
-    pub fn outcome(&self) -> u64 {
-        self.0.get("outcome").unwrap().as_u64().unwrap()
-    }
-
-    pub const ACCEPTED: u64 = 0;
-    pub const FILTERED: u64 = 1;
-    pub const RATE_LIMITED: u64 = 2;
-    pub const INVALID: u64 = 3;
-    pub const ABUSE: u64 = 4;
-    pub const CLIENT_DISCARD: u64 = 5;
-}
-
-impl Serialize for Outcome {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Value::Object(self.0.clone()).serialize(serializer)
-    }
-}
-
-pub fn get_topic_name(topic: &str) -> String {
-    let random = Uuid::new_v4().simple().to_string();
-    format!("relay-test-{}-{}", topic, random)
-}
-
-pub fn processing_config() -> Value {
-    let bootstrap_servers =
-        std::env::var("KAFKA_BOOTSTRAP_SERVER").unwrap_or_else(|_| "127.0.0.1:49092".to_string());
-
-    json!(
-        {
-            "enabled": true,
-            "kafka_config": [
-                {
-                    "name": "bootstrap.servers",
-                    "value": bootstrap_servers
-                }
-            ],
-            "topics": {
-                "events": get_topic_name("events"),
-                "attachments": get_topic_name("attachments"),
-                "transactions": get_topic_name("transactions"),
-                "outcomes": get_topic_name("outcomes"),
-                "sessions": get_topic_name("sessions"),
-                "metrics": get_topic_name("metrics"),
-                "metrics_generic": get_topic_name("metrics"),
-                "replay_events": get_topic_name("replay_events"),
-                "replay_recordings": get_topic_name("replay_recordings"),
-                "monitors": get_topic_name("monitors"),
-                "spans": get_topic_name("spans")
-            },
-            "redis": "redis://127.0.0.1",
-            "projectconfig_cache_prefix": format!("relay-test-relayconfig-{}", uuid::Uuid::new_v4())
-        }
-    )
 }

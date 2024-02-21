@@ -14,7 +14,7 @@ use relay_auth::PublicKey;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::{Config, Credentials};
 
-use crate::{outcomes_enabled_config, processing_config, random_port, Envelope, TempDir, Upstream};
+use crate::{outcomes_enabled_config, random_port, Envelope, TempDir, Upstream};
 
 pub struct Relay<'a, U: Upstream> {
     server_address: SocketAddr,
@@ -24,10 +24,6 @@ pub struct Relay<'a, U: Upstream> {
 }
 
 impl<'a, U: Upstream> Relay<'a, U> {
-    pub fn new(upstream: &'a U) -> Relay<'a, U> {
-        Self::builder(upstream).build()
-    }
-
     pub fn builder(upstream: &U) -> RelayBuilder<U> {
         let host = "127.0.0.1".into();
         let port = random_port();
@@ -186,12 +182,6 @@ pub struct RelayBuilder<'a, U: Upstream> {
 }
 
 impl<'a, U: Upstream> RelayBuilder<'a, U> {
-    pub fn enable_processing(mut self) -> Self {
-        let proc = processing_config();
-        self.config.insert("processing".to_string(), proc);
-        self
-    }
-
     pub fn enable_outcomes(mut self) -> Self {
         let outcome = outcomes_enabled_config();
         self.config.insert("outcomes".to_string(), outcome);
