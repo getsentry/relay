@@ -2041,6 +2041,16 @@ def test_span_ingestion_with_performance_scores(
                     "value": "Python Requests",
                 },
             },
+            {
+                "name": "Desktop INP",
+                "scoreComponents": [
+                    {"measurement": "inp", "weight": 1.0, "p10": 200, "p50": 400},
+                ],
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Python Requests",
+                },}
         ],
     }
     project_config["config"]["features"] = [
@@ -2074,6 +2084,28 @@ def test_span_ingestion_with_performance_scores(
                             "fid": {"value": 300},
                             "lcp": {"value": 400},
                             "ttfb": {"value": 500},
+                        },
+                    },
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "data": {"transaction": "/page/with/click/interaction/"},
+                        "op": "ui.interaction.click",
+                        "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "inp": {"value": 100},
                         },
                     },
                 ).encode()
@@ -2121,6 +2153,28 @@ def test_span_ingestion_with_performance_scores(
                 "lcp": {"value": 400.0},
                 "ttfb": {"value": 500.0},
                 "score.cls": {"value": 0.0},
+            },
+        },
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "bd429c44b67a3eb1",
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "ui.interaction.click",
+                "transaction": "/page/with/click/interaction/",
+            },
+            "span_id": "bd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "inp": {"value": 100.0},
+                      "score.inp": {"value": 0.9948129113413748},
+                      "score.total": {"value": 0.9948129113413748},
+                      "score.weight.inp": {"value": 1.0},
             },
         },
     ]
