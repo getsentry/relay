@@ -247,24 +247,13 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayVideo => {
-                    // ReplayVideo item types set their headers in the processor with a special
-                    // replay_video_events field. This is done to save us from serializing the
-                    // payload in the processor and then deserializing the message in this stage.
-                    if let Some((event, recording)) = item.replay_video_events() {
-                        // ReplayVideo item types always produce the replay-event onto the
-                        // replay-recording Kafka topic regardless of the value of
-                        // "SessionReplayCombinedEnvelopeItems" feature which applies to legacy
-                        // events.
-                        self.produce_replay_recording(
-                            event_id,
-                            scoping,
-                            Bytes::from(recording),
-                            Some(Bytes::from(event)),
-                            Some(item.payload()),
-                            start_time,
-                            retention,
-                        )?;
-                    }
+                    self.produce_replay_video(
+                        event_id,
+                        scoping,
+                        item.payload(),
+                        start_time,
+                        retention,
+                    );
                 }
                 ItemType::ReplayRecording => {
                     replay_recording = Some(item);
@@ -307,8 +296,8 @@ impl StoreService {
             self.produce_replay_recording(
                 event_id,
                 scoping,
-                recording.payload(),
-                replay_event.map(|rv| rv.payload()),
+                &recording.payload(),
+                replay_event.map(|rv| rv.payload().as_ref()),
                 None,
                 start_time,
                 retention,
@@ -820,9 +809,9 @@ impl StoreService {
         &self,
         event_id: Option<EventId>,
         scoping: Scoping,
-        payload: Bytes,
-        replay_event: Option<Bytes>,
-        replay_video: Option<Bytes>,
+        payload: &[u8],
+        replay_event: Option<&[u8]>,
+        replay_video: Option<&[u8]>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
@@ -876,6 +865,50 @@ impl StoreService {
         );
 
         Ok(())
+    }
+
+    fn produce_replay_video(
+        &self,
+        event_id: Option<EventId>,
+        scoping: Scoping,
+        payload: Bytes,
+        start_time: Instant,
+        retention: u16,
+    ) -> Result<(), StoreError> {
+        #[derive(Deserialize)]
+        struct VideoEvent<'a> {
+            replay_video: &'a [u8],
+            replay_event: &'a [u8],
+            replay_recording: &'a [u8],
+        }
+
+        let Ok(VideoEvent {
+            replay_video,
+            replay_event,
+            replay_recording,
+        }) = rmp_serde::from_slice::<VideoEvent>(&payload)
+        else {
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+            return Ok(());
+        };
+
+        self.produce_replay_recording(
+            event_id,
+            scoping,
+            replay_recording,
+            Some(replay_event),
+            Some(replay_video),
+            start_time,
+            retention,
+        )
     }
 
     fn produce_check_in(
@@ -1171,16 +1204,16 @@ struct ReplayRecordingKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct ReplayRecordingNotChunkedKafkaMessage {
+struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_id: EventId,
     key_id: Option<u64>,
     org_id: u64,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
-    payload: Bytes,
-    replay_event: Option<Bytes>,
-    replay_video: Option<Bytes>,
+    payload: &'a [u8],
+    replay_event: Option<&'a [u8]>,
+    replay_video: Option<&'a [u8]>,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -1363,7 +1396,7 @@ enum KafkaMessage<'a> {
     },
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
-    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
+    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
 }

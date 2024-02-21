@@ -2,6 +2,7 @@
 use std::error::Error;
 use std::net::IpAddr;
 
+use bytes::Bytes;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
@@ -106,11 +107,15 @@ pub fn process(
             ) {
                 ProcessingAction::Drop(action) => action,
                 ProcessingAction::Keep => ItemAction::Keep,
-                ProcessingAction::Replace((replay_event, replay_recording, replay_video)) => {
-                    item.set_replay_video_events(replay_event, replay_recording);
-                    item.set_payload(ContentType::OctetStream, replay_video);
-                    ItemAction::Keep
-                }
+                ProcessingAction::Replace(video_event) => match rmp_serde::to_vec(&video_event) {
+                    Ok(payload) => {
+                        item.set_payload(ContentType::OctetStream, payload);
+                        ItemAction::Keep
+                    }
+                    Err(_) => {
+                        ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent))
+                    }
+                },
             },
             _ => ItemAction::Keep,
         }
@@ -226,12 +231,9 @@ fn handle_replay_recording_item(
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ReplayVideoEvent {
-    #[serde(with = "serde_bytes")]
-    replay_event: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    replay_recording: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    replay_video: Vec<u8>,
+    replay_event: Bytes,
+    replay_recording: Bytes,
+    replay_video: Bytes,
 }
 
 fn handle_replay_video_item(
@@ -242,7 +244,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> ProcessingAction<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+) -> ProcessingAction<ReplayVideoEvent> {
     let event: ReplayVideoEvent = match rmp_serde::from_slice(&item.payload()) {
         Ok(result) => result,
         Err(e) => {
@@ -260,7 +262,7 @@ fn handle_replay_video_item(
                 return ProcessingAction::Drop(action);
             }
             ProcessingAction::Keep => event.replay_event,
-            ProcessingAction::Replace(msg) => msg.as_bytes().to_vec(),
+            ProcessingAction::Replace(msg) => msg.into_bytes().into(),
         };
 
     // Process as a replay-recording envelope item.
@@ -274,7 +276,7 @@ fn handle_replay_video_item(
             return ProcessingAction::Drop(action);
         }
         ProcessingAction::Keep => event.replay_recording,
-        ProcessingAction::Replace(msg) => msg,
+        ProcessingAction::Replace(msg) => msg.into(),
     };
 
     // Verify the replay-video payload is not empty.
@@ -284,5 +286,9 @@ fn handle_replay_video_item(
         )));
     }
 
-    ProcessingAction::Replace((replay_event, replay_recording, event.replay_video))
+    ProcessingAction::Replace(ReplayVideoEvent {
+        replay_event,
+        replay_recording,
+        replay_video: event.replay_video,
+    })
 }
