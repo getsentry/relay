@@ -86,14 +86,6 @@ impl std::error::Error for InvalidProcessingGroupType {}
 pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
 
 impl<G> TypedEnvelope<G> {
-    /// Create new typed envelope.
-    ///
-    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
-    /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
-        Self(managed_envelope, PhantomData::<G> {})
-    }
-
     /// Changes the typed of the current envelope to processed.
     ///
     /// Once it's marked processed it can be submitted to upstream.
@@ -108,6 +100,14 @@ impl<G> TypedEnvelope<G> {
     /// outcomes.
     pub fn accept(self) {
         self.0.accept()
+    }
+
+    /// Creates a new typed envelope.
+    ///
+    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
+    /// requires the check for the error if conversion is failing.
+    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
     }
 }
 
