@@ -1,4 +1,3 @@
-import pytest
 import zlib
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
