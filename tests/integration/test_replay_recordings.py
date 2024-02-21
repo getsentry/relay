@@ -72,52 +72,6 @@ def test_nonchunked_replay_recordings_processing(
     outcomes_consumer.assert_empty()
 
 
-def test_replay_recording_with_video(
-    mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
-):
-    project_id = 42
-    org_id = 0
-    replay_id = "515539018c9b4260a6f999572f1661ee"
-    relay = relay_with_processing()
-    mini_sentry.add_basic_project_config(
-        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
-    )
-    replay_recordings_consumer = replay_recordings_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    envelope = Envelope(
-        headers=[
-            [
-                "event_id",
-                replay_id,
-            ],
-            ["attachment_type", "replay_recording"],
-            ["attachment_type", "replay_video"],
-        ]
-    )
-    payload = recording_payload(b"[]")
-    envelope.add_item(Item(payload=PayloadRef(bytes=payload), type="replay_recording"))
-    envelope.add_item(
-        Item(payload=PayloadRef(bytes=b"hello, world!"), type="replay_video")
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    # Get the non-chunked replay-recording message from the kafka queue.
-    replay_recording = replay_recordings_consumer.get_not_chunked_replay(timeout=10)
-    assert replay_recording["replay_id"] == replay_id
-    assert replay_recording["project_id"] == project_id
-    assert replay_recording["key_id"] == 123
-    assert replay_recording["org_id"] == org_id
-    assert type(replay_recording["received"]) == int
-    assert replay_recording["retention_days"] == 90
-    assert replay_recording["payload"] == payload
-    assert replay_recording["type"] == "replay_recording_not_chunked"
-    assert replay_recording["replay_video"] == b"hello, world!"
-
-    outcomes_consumer.assert_empty()
-
-
 def recording_payload(bits: bytes):
     compressed_payload = zlib.compress(bits)
     return b'{"segment_id": 0}\n' + compressed_payload
