@@ -84,6 +84,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let trace_id = hex::encode(trace_id);
     let parent_span_id = hex::encode(parent_span_id);
 
+    // TODO: This is wrong, a segment could still have a parent in the trace.
     let segment_id = if parent_span_id.is_empty() {
         Annotated::new(SpanId(span_id.clone()))
     } else {
@@ -144,6 +145,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) as f64 / 1e6f64;
     }
 
+    // TODO: This is wrong, a segment could still have a parent in the trace.
     let is_segment = parent_span_id.is_empty().into();
 
     EventSpan {
