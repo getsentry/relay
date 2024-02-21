@@ -253,7 +253,7 @@ impl StoreService {
                         item.payload(),
                         start_time,
                         retention,
-                    );
+                    )?;
                 }
                 ItemType::ReplayRecording => {
                     replay_recording = Some(item);
@@ -293,11 +293,12 @@ impl StoreService {
             //
             // The replay_video value is always specified as `None`. We do not allow separate
             // item types for `ReplayVideo` events.
+            let replay_event = replay_event.map(|rv| rv.payload());
             self.produce_replay_recording(
                 event_id,
                 scoping,
                 &recording.payload(),
-                replay_event.map(|rv| rv.payload().as_ref()),
+                replay_event.as_deref(),
                 None,
                 start_time,
                 retention,
