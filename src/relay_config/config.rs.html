@@ -2306,6 +2306,59 @@
 <a href="#2305" id="2305">2305</a>
 <a href="#2306" id="2306">2306</a>
 <a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
+<a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
+<a href="#2333" id="2333">2333</a>
+<a href="#2334" id="2334">2334</a>
+<a href="#2335" id="2335">2335</a>
+<a href="#2336" id="2336">2336</a>
+<a href="#2337" id="2337">2337</a>
+<a href="#2338" id="2338">2338</a>
+<a href="#2339" id="2339">2339</a>
+<a href="#2340" id="2340">2340</a>
+<a href="#2341" id="2341">2341</a>
+<a href="#2342" id="2342">2342</a>
+<a href="#2343" id="2343">2343</a>
+<a href="#2344" id="2344">2344</a>
+<a href="#2345" id="2345">2345</a>
+<a href="#2346" id="2346">2346</a>
+<a href="#2347" id="2347">2347</a>
+<a href="#2348" id="2348">2348</a>
+<a href="#2349" id="2349">2349</a>
+<a href="#2350" id="2350">2350</a>
+<a href="#2351" id="2351">2351</a>
+<a href="#2352" id="2352">2352</a>
+<a href="#2353" id="2353">2353</a>
+<a href="#2354" id="2354">2354</a>
+<a href="#2355" id="2355">2355</a>
+<a href="#2356" id="2356">2356</a>
+<a href="#2357" id="2357">2357</a>
+<a href="#2358" id="2358">2358</a>
+<a href="#2359" id="2359">2359</a>
+<a href="#2360" id="2360">2360</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -3612,6 +3665,38 @@
     }
 }
 
+<span class="doccomment">/// Settings to control Relay's health checks.
+///
+/// After breaching one of the configured thresholds, Relay will
+/// return an `unhealthy` status from its health endpoint.
+</span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+</span><span class="kw">pub struct </span>Health {
+    <span class="doccomment">/// Interval in which Relay will refresh system information, like current memory usage.
+    ///
+    /// Defaults to 3 seconds.
+    </span><span class="kw">pub </span>sys_info_refresh_interval_secs: u64,
+    <span class="doccomment">/// Maximum memory watermark in bytes.
+    ///
+    /// By default there is no absolute limit set and the watermark
+    /// is only controlled by setting [`Self::max_memory_percent`].
+    </span><span class="kw">pub </span>max_memory_bytes: <span class="prelude-ty">Option</span>&lt;ByteSize&gt;,
+    <span class="doccomment">/// Maximum memory watermark as a percentage of maximum system memory.
+    ///
+    /// Defaults to `0.95` (95%).
+    </span><span class="kw">pub </span>max_memory_percent: f32,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>Health {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            sys_info_refresh_interval_secs: <span class="number">3</span>,
+            max_memory_bytes: <span class="prelude-val">None</span>,
+            max_memory_percent: <span class="number">0.95</span>,
+        }
+    }
+}
+
 <span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 </span><span class="kw">struct </span>ConfigValues {
     <span class="attr">#[serde(default)]
@@ -3650,6 +3735,8 @@
     </span>geoip: GeoIpConfig,
     <span class="attr">#[serde(default)]
     </span>cardinality_limiter: CardinalityLimiter,
+    <span class="attr">#[serde(default)]
+    </span>health: Health,
 }
 
 <span class="kw">impl </span>ConfigObject <span class="kw">for </span>ConfigValues {
@@ -4473,6 +4560,25 @@
     /// The cache will scan for expired values based on this interval.
     </span><span class="kw">pub fn </span>cardinality_limiter_cache_vacuum_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.cardinality_limiter.cache_vacuum_interval)
+    }
+
+    <span class="doccomment">/// Interval to refresh system information.
+    </span><span class="kw">pub fn </span>health_sys_info_refresh_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.health.sys_info_refresh_interval_secs)
+    }
+
+    <span class="doccomment">/// Maximum memory watermark in bytes.
+    </span><span class="kw">pub fn </span>health_max_memory_watermark_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.values
+            .health
+            .max_memory_bytes
+            .as_ref()
+            .map_or(u64::MAX, |b| b.as_bytes() <span class="kw">as </span>u64)
+    }
+
+    <span class="doccomment">/// Maximum memory watermark as a percentage of maximum system memory.
+    </span><span class="kw">pub fn </span>health_max_memory_watermark_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
+        <span class="self">self</span>.values.health.max_memory_percent
     }
 
     <span class="doccomment">/// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

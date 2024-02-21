@@ -788,6 +788,12 @@
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1157,6 +1163,11 @@
     /// This metric is tagged with:
     /// - `task`: The type of the task the processor does.
     </span>ProjectCacheTaskDuration,
+    <span class="doccomment">/// Timing in milliseconds for handling and responding to a health check request.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of the health check, `liveness` or `readiness`.
+    </span>HealthCheckDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1195,6 +1206,7 @@
             RelayTimers::ProjectCacheMessageDuration =&gt; <span class="string">"project_cache.message.duration"</span>,
             RelayTimers::BufferMessageProcessDuration =&gt; <span class="string">"buffer.message.duration"</span>,
             RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
+            RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
         }
     }
 }
