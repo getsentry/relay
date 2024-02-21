@@ -365,6 +365,17 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["transactionMetrics"] = {"version": 1}
+
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    sampling_config["config"]["txNameRules"] = [
+        {
+            "pattern": pattern,
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
+
     ds = sampling_config["config"].setdefault("sampling", {})
     ds.setdefault("version", 2)
 
@@ -389,16 +400,6 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     rules = ds.setdefault("rules", [sampling_rule])
     rules.append(sampling_rule)
-
-    sampling_config = mini_sentry.add_basic_project_config(43)
-    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
-    sampling_config["config"]["txNameRules"] = [
-        {
-            "pattern": pattern,
-            "expiry": "3022-11-30T00:00:00.000000Z",
-            "redaction": {"method": "replace", "substitution": "*"},
-        }
-    ]
 
     envelope = Envelope()
     transaction_event, trace_id, _ = _create_transaction_item()
