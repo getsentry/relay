@@ -39,8 +39,8 @@ pub enum KafkaTopic {
     Sessions,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
-    /// Any metric that is extracted from transactions.
-    MetricsTransactions,
+    /// Generic metrics topic, excluding sessions (release health).
+    MetricsGeneric,
     /// Profiles
     Profiles,
     /// ReplayEvents, breadcrumb + session updates for replays
@@ -51,6 +51,8 @@ pub enum KafkaTopic {
     Monitors,
     /// Standalone spans without a transaction.
     Spans,
+    /// Summary for metrics collected during a span.
+    MetricsSummaries,
 }
 
 impl KafkaTopic {
@@ -58,7 +60,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 13] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
@@ -66,12 +68,13 @@ impl KafkaTopic {
             OutcomesBilling,
             Sessions,
             MetricsSessions,
-            MetricsTransactions,
+            MetricsGeneric,
             Profiles,
             ReplayEvents,
             ReplayRecordings,
             Monitors,
             Spans,
+            MetricsSummaries,
         ];
         TOPICS.iter()
     }
@@ -94,13 +97,13 @@ pub struct TopicAssignments {
     /// Session health topic name.
     pub sessions: TopicAssignment,
     /// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// transaction-based metrics can be configured via `metrics_sessions` and
-    /// `metrics_transactions` each.
+    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
     pub metrics: TopicAssignment,
     /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
     pub metrics_sessions: Option<TopicAssignment>,
-    /// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.
-    pub metrics_transactions: TopicAssignment,
+    /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
+    #[serde(alias = "metrics_transactions")]
+    pub metrics_generic: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Replay Events topic name.
@@ -111,6 +114,8 @@ pub struct TopicAssignments {
     pub monitors: TopicAssignment,
     /// Standalone spans without a transaction.
     pub spans: TopicAssignment,
+    /// Summary for metrics collected during a span.
+    pub metrics_summaries: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -125,12 +130,13 @@ impl TopicAssignments {
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
-            KafkaTopic::MetricsTransactions => &self.metrics_transactions,
+            KafkaTopic::MetricsGeneric => &self.metrics_generic,
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
             KafkaTopic::Monitors => &self.monitors,
             KafkaTopic::Spans => &self.spans,
+            KafkaTopic::MetricsSummaries => &self.metrics_summaries,
         }
     }
 }
@@ -146,12 +152,13 @@ impl Default for TopicAssignments {
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
             metrics_sessions: None,
-            metrics_transactions: "ingest-performance-metrics".to_owned().into(),
+            metrics_generic: "ingest-performance-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
             monitors: "ingest-monitors".to_owned().into(),
-            spans: "ingest-spans".to_owned().into(),
+            spans: "snuba-spans".to_owned().into(),
+            metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
         }
     }
 }

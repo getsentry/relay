@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ProfileError {
     #[error(transparent)]
-    InvalidJson(#[from] serde_json::Error),
+    InvalidJson(#[from] serde_path_to_error::Error<serde_json::Error>),
     #[error("invalid base64 value")]
     InvalidBase64Value,
     #[error("invalid sampled profile")]
@@ -30,4 +30,13 @@ pub enum ProfileError {
     TooManyProfiles,
     #[error("duration is too long")]
     DurationIsTooLong,
+}
+
+impl ProfileError {
+    pub fn path(self) -> String {
+        match self {
+            Self::InvalidJson(err) => err.path().to_string(),
+            _ => "".into(),
+        }
+    }
 }

@@ -56,6 +56,10 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of bytes received by Relay for each individual envelope item type.
+    ///
+    /// Metric is tagged by the item type.
+    EnvelopeItemSize,
     /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
@@ -69,6 +73,12 @@ pub enum RelayHistograms {
     /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
     /// always be one.
     BufferDequeueAttempts,
+    /// The number of batches emitted per partition.
+    BatchesPerPartition,
+    /// The number of buckets in a batch emitted.
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    BucketsPerBatch,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -149,6 +159,15 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
+    UpstreamMetricsBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -156,7 +175,10 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::EnvelopeItemSize => "event.item_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
@@ -177,6 +199,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
@@ -318,6 +342,31 @@ pub enum RelayTimers {
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
+    /// Timing in milliseconds for processing a message in the internal CPU pool.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    ProcessMessageDuration,
+    /// Timing in milliseconds for handling a project cache message.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    ProjectCacheMessageDuration,
+    /// Timing in milliseconds for processing a message in the buffer service.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    BufferMessageProcessDuration,
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the processor does.
+    ProjectCacheTaskDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -352,6 +401,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
+            RelayTimers::ProcessMessageDuration => "processor.message.duration",
+            RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
+            RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
+            RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
         }
     }
 }
@@ -459,6 +512,16 @@ pub enum RelayCounters {
     /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
     /// many attempts were made respectively.
     ProjectUpstreamCompleted,
+    /// Number of times an upstream request for a project config failed.
+    ///
+    /// Failure can happen, for example, when there's a network error. Refer to
+    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
+    ProjectUpstreamFailed,
+    /// Number of full metric data flushes.
+    ///
+    /// A full flush takes all contained items of the aggregator and flushes them upstream,
+    /// at best this happens once per freshly loaded project.
+    ProjectStateFlushAllMetricMeta,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -470,6 +533,8 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `event_type`: The kind of message produced to Kafka.
+    ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
+    ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
     ///
     /// The message types can be:
     ///
@@ -535,6 +600,8 @@ pub enum RelayCounters {
     EvictingStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
+    /// Number of times that parsing a metric meta item from an envelope failed.
+    MetricMetaParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
@@ -550,6 +617,57 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
+    /// Number of times the batched metrics processing has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCalls,
+    /// Number of buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCount,
+    /// Bucket cost for all buckets processed in the batched metrics handling of the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorBatchedMetricsCost,
+    /// Number of times the metric encoding has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCalls,
+    /// Number of metric buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCount,
+    /// Bucket cost for all buckets encoded in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    ProcessorEncodeMetricsCost,
+    /// Number of times metric bucket rate limiting has been called with at least one bucket of
+    /// a namespace.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCalls,
+    /// Number of metric buckets rate limited in the envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCount,
+    /// Bucket cost for all buckets rate limited envelope processor.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    ProcessorRateLimitBucketsCost,
 }
 
 impl CounterMetric for RelayCounters {
@@ -567,9 +685,11 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
+            RelayCounters::ProjectStateFlushAllMetricMeta => "project_state.flush_all_metric_meta",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
+            RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
@@ -582,9 +702,22 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
+            RelayCounters::MetricMetaParsingFailed => "metrics.meta.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
+            RelayCounters::ProcessorBatchedMetricsCalls => "processor.batched_metrics.calls",
+            RelayCounters::ProcessorBatchedMetricsCount => "processor.batched_metrics.count",
+            RelayCounters::ProcessorBatchedMetricsCost => "processor.batched_metrics.cost",
+            RelayCounters::ProcessorEncodeMetricsCalls => "processor.encode_metrics.calls",
+            RelayCounters::ProcessorEncodeMetricsCount => "processor.encode_metrics.count",
+            RelayCounters::ProcessorEncodeMetricsCost => "processor.encode_metrics.cost",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCalls => "processor.rate_limit_buckets.calls",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
         }
     }
 }

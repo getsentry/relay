@@ -2,17 +2,18 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use relay_general::protocol::{EventId, EventType};
+use relay_config::RelayMode;
+use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::ProcessMetrics;
-use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
+use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
 };
@@ -77,9 +78,9 @@ pub enum BadStoreRequest {
     QueueFailed(#[from] BufferError),
 
     #[error(
-        "envelope exceeded size limits (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
+        "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
-    Overflow,
+    Overflow(ItemType),
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
@@ -250,7 +251,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`crate::actors::processor::EnvelopeProcessor`], bypassing the manager's queue and
+/// - Metrics are directly sent to the [`crate::services::processor::EnvelopeProcessor`], bypassing the manager's queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
@@ -260,43 +261,47 @@ fn queue_envelope(
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
-    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-    let mut metric_items = Vec::new();
-    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
     let envelope = managed_envelope.envelope_mut();
-    while let Some(item) = envelope.take_item_by(is_metric) {
-        metric_items.push(item);
+
+    if state.config().relay_mode() != RelayMode::Proxy {
+        // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+        // In proxy mode, we cannot aggregate metrics because we may not have a project ID.
+        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+        let metric_items = envelope.take_items_by(is_metric);
+
+        if !metric_items.is_empty() {
+            relay_log::trace!("sending metrics into processing queue");
+            state.processor().send(ProcessMetrics {
+                items: metric_items.into_vec(),
+                start_time: envelope.meta().start_time(),
+                sent_at: envelope.sent_at(),
+                project_key: envelope.meta().public_key(),
+            });
+        }
+
+        // Remove metric meta from the envelope and send them directly to processing.
+        let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
+        if !metric_meta.is_empty() {
+            relay_log::trace!("sending metric meta into processing queue");
+            state.processor().send(ProcessMetricMeta {
+                items: metric_meta.into_vec(),
+                project_key: envelope.meta().public_key(),
+            })
+        }
     }
 
-    if !metric_items.is_empty() {
-        relay_log::trace!("sending metrics into processing queue");
-        state.processor().send(ProcessMetrics {
-            items: metric_items,
-            project_key: envelope.meta().public_key(),
-            start_time: envelope.meta().start_time(),
-            sent_at: envelope.sent_at(),
-        });
-    }
-
-    // Split the envelope into event-related items and other items. This allows to fast-track:
-    //  1. Envelopes with only session items. They only require rate limiting.
-    //  2. Event envelope processing can bail out if the event is filtered or rate limited,
-    //     since all items depend on this event.
-    if let Some(event_envelope) = envelope.split_by(Item::requires_event) {
-        relay_log::trace!("queueing separate envelope for non-event items");
-
-        // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard.enter(
-            event_envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-        )?;
-
-        // Update the old context after successful forking.
-        managed_envelope.update();
-        state
-            .project_cache()
-            .send(ValidateEnvelope::new(event_context));
+    // Split off the envelopes by item type.
+    let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
+    for (group, envelope) in envelopes {
+        let envelope = buffer_guard
+            .enter(
+                envelope,
+                state.outcome_aggregator().clone(),
+                state.test_store().clone(),
+                group,
+            )
+            .map_err(BadStoreRequest::QueueFailed)?;
+        state.project_cache().send(ValidateEnvelope::new(envelope));
     }
 
     if managed_envelope.envelope().is_empty() {
@@ -325,12 +330,22 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
+    for item in envelope.items() {
+        metric!(
+            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
+            item_type = item.ty().name()
+        )
+    }
+
     let buffer_guard = state.buffer_guard();
     let mut managed_envelope = buffer_guard
         .enter(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
+            // It's not clear at this point which group this envelope belongs to.
+            // The decission will be made while queueing in `queue_envelope` function.
+            ProcessingGroup::Ungrouped,
         )
         .map_err(BadStoreRequest::QueueFailed)?;
 
@@ -353,17 +368,24 @@ pub async fn handle_envelope(
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {
+        // All items have been removed from the envelope.
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
-    if !utils::check_envelope_size_limits(state.config(), managed_envelope.envelope()) {
+    if let Err(offender) =
+        utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
+    {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        return Err(BadStoreRequest::Overflow);
+        return Err(BadStoreRequest::Overflow(offender));
     }
 
     queue_envelope(state, managed_envelope, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
+        // Even if some envelope items have been queued, there might be active rate limits on
+        // other items. Communicate these rate limits to the downstream (Relay or SDK).
+        //
+        // See `IntoResponse` implementation of `BadStoreRequest`.
         Err(BadStoreRequest::RateLimited(checked.rate_limits))
     } else {
         Ok(event_id)

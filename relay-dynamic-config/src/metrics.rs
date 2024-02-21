@@ -2,12 +2,49 @@
 
 use std::collections::BTreeSet;
 
-use relay_common::DataCategory;
-use relay_general::store::LazyGlob;
-use relay_sampling::RuleCondition;
+use relay_base_schema::data_category::DataCategory;
+use relay_cardinality::CardinalityLimit;
+use relay_common::glob2::LazyGlob;
+use relay_common::glob3::GlobPatterns;
+use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
+
+/// Configuration for metrics filtering.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Metrics {
+    /// List of cardinality limits to enforce for this project.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cardinality_limits: Vec<CardinalityLimit>,
+    /// List of patterns for blocking metrics based on their name.
+    #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
+    pub denied_names: GlobPatterns,
+    /// Configuration for removing tags from a bucket.
+    ///
+    /// Note that removing tags does not drop the overall metric bucket.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub denied_tags: Vec<TagBlock>,
+}
+
+impl Metrics {
+    /// Returns `true` if there are no changes to the metrics config.
+    pub fn is_empty(&self) -> bool {
+        self.cardinality_limits.is_empty()
+            && self.denied_names.is_empty()
+            && self.denied_tags.is_empty()
+    }
+}
+
+/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagBlock {
+    /// Name of metric of which we want to remove certain tags.
+    pub name: GlobPatterns,
+    /// Pattern to match keys of tags that we want to remove.
+    pub tags: GlobPatterns,
+}
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +67,7 @@ const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
 
 /// Configuration for metric extraction from sessions.
-#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SessionMetricsConfig {
     /// The revision of the extraction algorithm.
@@ -78,8 +115,14 @@ pub struct CustomMeasurementConfig {
 
 /// Maximum supported version of metrics extraction from transactions.
 ///
-/// The version is an integer scalar, incremented by one on each new version.
-const TRANSACTION_EXTRACT_VERSION: u16 = 1;
+/// The version is an integer scalar, incremented by one on each new version:
+///  - 1: Initial version.
+///  - 2: Moves `acceptTransactionNames` to global config.
+///  - 3:
+///      - Emit a `usage` metric and use it for rate limiting.
+///      - Delay metrics extraction for indexed transactions.
+///  - 4: Adds support for `RuleConfigs` with string comparisons.
+const TRANSACTION_EXTRACT_VERSION: u16 = 4;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -128,6 +171,11 @@ impl TransactionMetricsConfig {
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
     }
+
+    /// Returns `true` if usage should be tracked through a dedicated metric.
+    pub fn usage_metric(&self) -> bool {
+        self.version >= 3
+    }
 }
 
 /// Configuration for generic extraction of metrics from all data categories.
@@ -172,7 +220,9 @@ pub struct MetricExtractionConfig {
 
 impl MetricExtractionConfig {
     /// The latest version for this config struct.
-    pub const VERSION: u16 = 1;
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    pub const VERSION: u16 = 2;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
@@ -213,9 +263,8 @@ pub struct MetricSpec {
     /// A path to the field to extract the metric from.
     ///
     /// This value contains a fully qualified expression pointing at the data field in the payload
-    /// to extract the metric from. It follows the
-    /// [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax that is also used for
-    /// dynamic sampling.
+    /// to extract the metric from. It follows the `Getter` syntax that is also used for dynamic
+    /// sampling.
     ///
     /// How the value is treated depends on the metric type:
     ///
@@ -290,8 +339,7 @@ pub struct TagSpec {
 
     /// Path to a field containing the tag's value.
     ///
-    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
-    /// data from the payload.
+    /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -320,6 +368,71 @@ impl TagSpec {
             TagSource::Literal(value)
         } else {
             TagSource::Unknown
+        }
+    }
+}
+
+/// Builder for [`TagSpec`].
+pub struct Tag {
+    key: String,
+}
+
+impl Tag {
+    /// Prepares a tag with a given tag name.
+    pub fn with_key(key: impl Into<String>) -> Self {
+        Self { key: key.into() }
+    }
+
+    /// Defines the field from which the tag value gets its data.
+    pub fn from_field(self, field_name: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: Some(field_name.into()),
+            value: None,
+        }
+    }
+
+    /// Defines what value to set for a tag.
+    pub fn with_value(self, value: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: None,
+            value: Some(value.into()),
+        }
+    }
+}
+
+/// Intermediate result of the tag spec builder.
+///
+/// Can be transformed into `[TagSpec]`.
+pub struct TagWithSource {
+    key: String,
+    field: Option<String>,
+    value: Option<String>,
+}
+
+impl TagWithSource {
+    /// Defines a tag that is extracted unconditionally.
+    pub fn always(self) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: None,
+        }
+    }
+
+    /// Defines a tag that is extracted under the given condition.
+    pub fn when(self, condition: RuleCondition) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: Some(condition),
         }
     }
 }
@@ -405,6 +518,13 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
+
+    #[test]
+    fn test_empty_metrics_deserialize() {
+        let m: Metrics = serde_json::from_str("{}").unwrap();
+        assert!(m.is_empty());
+        assert_eq!(m, Metrics::default());
+    }
 
     #[test]
     fn parse_tag_spec_value() {

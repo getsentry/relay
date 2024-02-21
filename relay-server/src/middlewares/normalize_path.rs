@@ -62,7 +62,9 @@ where
 fn fold_duplicate_slashes(uri: &mut Uri) {
     static REPLACE: Lazy<Regex> = Lazy::new(|| Regex::new("/{2,}").unwrap());
 
-    let Cow::Owned(new_path) = REPLACE.replace_all(uri.path(), "/") else { return };
+    let Cow::Owned(new_path) = REPLACE.replace_all(uri.path(), "/") else {
+        return;
+    };
 
     let path_and_query = match uri.query() {
         Some(query) => format!("{new_path}?{query}"),

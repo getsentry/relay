@@ -9,13 +9,14 @@ use std::path::PathBuf;
 
 use anyhow::{format_err, Context, Result};
 use clap::Parser;
-use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::Event;
-use relay_general::store::{
-    light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
+use relay_event_normalization::{
+    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+    NormalizationConfig, StoreConfig, StoreProcessor, TransactionValidationConfig,
 };
-use relay_general::types::Annotated;
+use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::protocol::Event;
+use relay_pii::{PiiConfig, PiiProcessor};
+use relay_protocol::Annotated;
 
 /// Processes a Sentry event payload.
 ///
@@ -53,7 +54,7 @@ impl Cli {
         };
 
         let json = fs::read_to_string(path).with_context(|| "failed to read PII config")?;
-        let config = PiiConfig::from_json(&json).with_context(|| "failed to parse PII config")?;
+        let config = serde_json::from_str(&json).with_context(|| "failed to parse PII config")?;
         Ok(Some(config))
     }
 
@@ -83,9 +84,12 @@ impl Cli {
         }
 
         if self.store {
-            light_normalize_event(&mut event, LightNormalizationConfig::default())
+            validate_transaction(&event, &TransactionValidationConfig::default())
                 .map_err(|e| format_err!("{e}"))?;
-            let mut processor = StoreProcessor::new(StoreConfig::default(), None);
+            validate_event_timestamps(&mut event, &EventValidationConfig::default())
+                .map_err(|e| format_err!("{e}"))?;
+            normalize_event(&mut event, &NormalizationConfig::default());
+            let mut processor = StoreProcessor::new(StoreConfig::default());
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{e}"))
                 .with_context(|| "failed to store process event")?;

@@ -4,17 +4,16 @@
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
-use relay_common::ProjectKey;
-use relay_system::{Addr, FromMessage, NoResponse, Recipient, Service};
+use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 
+use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    AcceptsMetrics, Aggregator, AggregatorConfig, AggregatorService, Bucket, FlushBuckets,
-    InsertMetrics, MergeBuckets, Metric, MetricNamespace, MetricResourceIdentifier,
-    MetricsContainer,
+    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
+    MetricResourceIdentifier,
 };
 
-/// Contains an [`AggregatorConfig`] for a specific scope.
+/// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -25,7 +24,7 @@ pub struct ScopedAggregatorConfig {
     /// secondary aggregator.
     pub condition: Condition,
     /// The configuration of the secondary aggregator.
-    pub config: AggregatorConfig,
+    pub config: AggregatorServiceConfig,
 }
 
 /// Condition that needs to be met for a metric or bucket to be routed to a
@@ -58,7 +57,7 @@ pub struct RouterService {
 impl RouterService {
     /// Create a new router service.
     pub fn new(
-        aggregator_config: AggregatorConfig,
+        aggregator_config: AggregatorServiceConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
@@ -67,9 +66,7 @@ impl RouterService {
             secondary_aggregators: secondary_aggregators
                 .into_iter()
                 .map(|c| {
-                    let namespace = match c.condition {
-                        Condition::Eq(Field::Namespace(namespace)) => namespace,
-                    };
+                    let Condition::Eq(Field::Namespace(namespace)) = c.condition;
                     (
                         namespace,
                         AggregatorService::named(c.name, c.config, receiver.clone()),
@@ -101,53 +98,6 @@ impl Service for RouterService {
             }
             relay_log::info!("metrics router stopped");
         });
-    }
-}
-
-/// Generalization of [`InsertMetrics`] and [`MergeBuckets`].
-///
-/// Used to handle these messages generically.
-trait Insert {
-    type Item: MetricsContainer;
-    fn into_parts(self) -> (ProjectKey, Vec<Self::Item>);
-    fn from_parts(project_key: ProjectKey, items: Vec<Self::Item>) -> Self;
-}
-
-impl Insert for InsertMetrics {
-    type Item = Metric;
-
-    fn into_parts(self) -> (ProjectKey, Vec<Self::Item>) {
-        let InsertMetrics {
-            project_key,
-            metrics,
-        } = self;
-        (project_key, metrics)
-    }
-
-    fn from_parts(project_key: ProjectKey, items: Vec<Self::Item>) -> Self {
-        Self {
-            project_key,
-            metrics: items,
-        }
-    }
-}
-
-impl Insert for MergeBuckets {
-    type Item = Bucket;
-
-    fn into_parts(self) -> (ProjectKey, Vec<Self::Item>) {
-        let MergeBuckets {
-            project_key,
-            buckets,
-        } = self;
-        (project_key, buckets)
-    }
-
-    fn from_parts(project_key: ProjectKey, items: Vec<Self::Item>) -> Self {
-        Self {
-            project_key,
-            buckets: items,
-        }
     }
 }
 
@@ -188,30 +138,26 @@ impl StartedRouter {
                     sender.send(accepts);
                 });
             }
-            Aggregator::InsertMetrics(msg) => self.handle_metrics(msg),
-            Aggregator::MergeBuckets(msg) => self.handle_metrics(msg),
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
         }
     }
 
-    fn handle_metrics<M: Insert>(&mut self, message: M)
-    where
-        Aggregator: FromMessage<M>,
-    {
-        let (project_key, metrics) = message.into_parts();
-        let metrics_by_namespace = metrics.into_iter().group_by(|m| {
-            MetricResourceIdentifier::parse(m.name())
+    fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+        let metrics_by_namespace = message.buckets.into_iter().group_by(|bucket| {
+            MetricResourceIdentifier::parse(&bucket.name)
                 .map(|mri| mri.namespace)
                 .ok()
         });
+
         // TODO: Parse MRI only once, move validation from Aggregator here.
         for (namespace, group) in metrics_by_namespace.into_iter() {
-            let agg = namespace
-                .and_then(|ns| self.secondary_aggregators.get_mut(&ns))
-                .unwrap_or(&mut self.default_aggregator);
-            let message = M::from_parts(project_key, group.collect());
-            agg.send(message);
+            let aggregator = namespace
+                .and_then(|ns| self.secondary_aggregators.get(&ns))
+                .unwrap_or(&self.default_aggregator);
+
+            aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
         }
     }
 }

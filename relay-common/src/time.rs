@@ -26,7 +26,7 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
 /// use std::time::Duration;
 ///
 /// let duration = Duration::from_nanos(2_125_000);
-/// let millis = relay_common::duration_to_millis(duration);
+/// let millis = relay_common::time::duration_to_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
 pub fn duration_to_millis(duration: Duration) -> f64 {
@@ -44,7 +44,7 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(2_125_000);
-/// let millis = relay_common::chrono_to_positive_millis(duration);
+/// let millis = relay_common::time::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
 ///
@@ -54,25 +54,11 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(-2_125_000);
-/// let millis = relay_common::chrono_to_positive_millis(duration);
+/// let millis = relay_common::time::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 0.0);
 /// ```
 pub fn chrono_to_positive_millis(duration: chrono::Duration) -> f64 {
     duration_to_millis(duration.to_std().unwrap_or_default())
-}
-
-/// The conversion result of [`UnixTimestamp::to_instant`].
-///
-/// If the time is outside of what can be represented in an [`Instant`], this is `Past` or
-/// `Future`.
-#[derive(Clone, Copy, Debug)]
-pub enum MonotonicResult {
-    /// A time before the earliest representable `Instant`.
-    Past,
-    /// A representable `Instant`.
-    Instant(Instant),
-    /// A time after the latest representable `Instant`.
-    Future,
 }
 
 /// A unix timestamp (full seconds elapsed since 1970-01-01 00:00 UTC).
@@ -81,7 +67,7 @@ pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
     /// Creates a unix timestamp from the given number of seconds.
-    pub fn from_secs(secs: u64) -> Self {
+    pub const fn from_secs(secs: u64) -> Self {
         Self(secs)
     }
 
@@ -130,42 +116,8 @@ impl UnixTimestamp {
 
     /// Returns the timestamp as chrono datetime.
     pub fn as_datetime(self) -> Option<DateTime<Utc>> {
-        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0).map(|n| DateTime::from_utc(n, Utc))
-    }
-
-    /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
-    ///
-    /// Returns [`MonotonicResult::Instant`] if the timestamp can be represented. Otherwise, returns
-    /// [`MonotonicResult::Past`] or [`MonotonicResult::Future`].
-    ///
-    /// Note that the system time is subject to skew, so subsequent calls to `to_instant` may return
-    /// different values.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::time::{Duration, Instant};
-    /// use relay_common::{MonotonicResult, UnixTimestamp};
-    ///
-    /// let timestamp = UnixTimestamp::now();
-    /// if let MonotonicResult::Instant(instant) = timestamp.to_instant() {
-    ///    assert!((Instant::now() - instant) < Duration::from_millis(1));
-    /// }
-    /// ```
-    pub fn to_instant(self) -> MonotonicResult {
-        let now = Self::now();
-
-        if self > now {
-            match Instant::now().checked_add(self - now) {
-                Some(instant) => MonotonicResult::Instant(instant),
-                None => MonotonicResult::Future,
-            }
-        } else {
-            match Instant::now().checked_sub(now - self) {
-                Some(instant) => MonotonicResult::Instant(instant),
-                None => MonotonicResult::Past,
-            }
-        }
+        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
+            .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
     }
 }
 
@@ -178,6 +130,15 @@ impl fmt::Debug for UnixTimestamp {
 impl fmt::Display for UnixTimestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_secs().fmt(f)
+    }
+}
+
+/// Adds _whole_ seconds of the given duration to the timestamp.
+impl std::ops::Add<Duration> for UnixTimestamp {
+    type Output = Self;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0.saturating_add(rhs.as_secs()))
     }
 }
 

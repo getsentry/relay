@@ -31,8 +31,8 @@ SDKs as well as the Sentry server into a proxy process.
 
 ## License
 
-Like Sentry, Relay is licensed under the BUSL. See the `LICENSE` file and [this
-forum post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044)
+Like Sentry, Relay is licensed under the FSL. See the `LICENSE.md` file and [this
+blog post](https://blog.sentry.io/introducing-the-functional-source-license-freedom-without-free-riding/)
 for more information.
 
 ## Development
@@ -61,7 +61,7 @@ development:
   also performed in CI.
 - `make clean`: Removes all build artifacts, the virtualenv and cached files.
 
-For more avalibale make targets, please, run `make help`.
+For more available make targets, please, run `make help`.
 
 Integration tests require Redis and Kafka running in their default
 configuration. The most convenient way to get all required services is via
@@ -139,6 +139,9 @@ suite will create a virtualenv, build the Relay binary with processing enabled,
 and run a set of integration tests:
 
 ```bash
+# Make sure that kafka and redis are running
+sentry devservices up kafka redis
+
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
 
@@ -149,7 +152,7 @@ make build
 
 #### Snapshot tests
 
-We use `insta` for snapshot testing. It will run as part of the `make test` command 
+We use `insta` for snapshot testing. It will run as part of the `make test` command
 to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
 ```bash
 cargo install cargo-insta

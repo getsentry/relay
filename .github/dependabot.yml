@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    open-pull-requests-limit: 0 # security updates only
+    directory: "/"
+    schedule:
+      interval: daily
+    reviewers:
+      - "@getsentry/ingest"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    reviewers:
+      - "@getsentry/ingest"
+    open-pull-requests-limit: 0 # security updates only
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      # Check for updates to GitHub Actions every week
+      interval: "weekly"
+    reviewers:
+      - "@getsentry/ingest"

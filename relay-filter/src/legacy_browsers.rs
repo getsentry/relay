@@ -2,15 +2,15 @@
 
 use std::collections::BTreeSet;
 
-use relay_general::protocol::Event;
-use relay_general::user_agent::{self, UserAgent};
+use relay_event_schema::protocol::Event;
+use relay_ua::UserAgent;
 
 use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
 pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    if let Some(user_agent_string) = user_agent::get_user_agent(&event.request) {
-        let user_agent = user_agent::parse_user_agent(user_agent_string);
+    if let Some(user_agent_string) = event.user_agent() {
+        let user_agent = relay_ua::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
         let family = match user_agent.family.as_ref() {
@@ -39,6 +39,19 @@ pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
                 }
                 LegacyBrowser::SafariPre6 => {
                     filter_browser(family, &user_agent, "Safari", |x| x < 6)
+                }
+                LegacyBrowser::EdgePre79 => filter_browser(family, &user_agent, "Edge", |x| x < 79),
+                LegacyBrowser::Ie => filter_browser(family, &user_agent, "IE", |x| x < 12),
+                LegacyBrowser::OperaMini => {
+                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 35)
+                }
+                LegacyBrowser::Opera => filter_browser(family, &user_agent, "Opera", |x| x < 51),
+                LegacyBrowser::Android => filter_browser(family, &user_agent, "Android", |x| x < 4),
+                LegacyBrowser::Safari => filter_browser(family, &user_agent, "Safari", |x| x < 12),
+                LegacyBrowser::Edge => filter_browser(family, &user_agent, "Edge", |x| x < 79),
+                LegacyBrowser::Chrome => filter_browser(family, &user_agent, "Chrome", |x| x < 63),
+                LegacyBrowser::Firefox => {
+                    filter_browser(family, &user_agent, "Firefox", |x| x < 67)
                 }
                 LegacyBrowser::Unknown(_) => {
                     // unknown browsers should not be filtered
@@ -149,6 +162,21 @@ mod tests {
         "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 1063; tr-DE) AppleWebKit/533.16 (KHTML like Gecko) Version/5.0 Safari/533.16";
     const SAFARI_6_UA: &str =
         "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
+    const EDGE_ANDROID_118_UA: &str =
+        "Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.80 Mobile Safari/537.36 EdgA/118.0.2088.58";
+    const EDGE_79_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3919.0 Safari/537.36 Edg/79.0.294.1";
+    const EDGE_18_UA: &str =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582";
+    const EDGE_12_UA: &str =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246";
+    const OPERA_UA : &str = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.45 Safari/537.36 OPR/49.0.1147.61";
+    const OPERA_MINI_UA: &str = "Opera/20.80 (J2ME/MIDP; Opera Mini/16.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16";
+    const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.2228.0 Safari/537.36";
+    const FIREFOX_UA: &str = "Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0";
+    const IE_UA: &str = "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
+    const EDGE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582";
+    const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
+    const ANDROID_UA: &str = "Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13";
 
     use std::collections::BTreeSet;
 
@@ -270,6 +298,19 @@ mod tests {
                 SAFARI_PRE6_UA,
                 &[LegacyBrowser::OperaPre15, LegacyBrowser::SafariPre6][..],
             ),
+            (EDGE_12_UA, &[LegacyBrowser::EdgePre79][..]),
+            (
+                EDGE_18_UA,
+                &[LegacyBrowser::OperaPre15, LegacyBrowser::EdgePre79][..],
+            ),
+            (OPERA_UA, &[LegacyBrowser::Opera][..]),
+            (OPERA_MINI_UA, &[LegacyBrowser::OperaMini][..]),
+            (CHROME_UA, &[LegacyBrowser::Chrome][..]),
+            (FIREFOX_UA, &[LegacyBrowser::Firefox][..]),
+            (IE_UA, &[LegacyBrowser::Ie][..]),
+            (EDGE_UA, &[LegacyBrowser::Edge][..]),
+            (SAFARI_UA, &[LegacyBrowser::Safari][..]),
+            (ANDROID_UA, &[LegacyBrowser::Android][..]),
         ];
 
         for (ref user_agent, ref active_filters) in &test_configs {
@@ -295,6 +336,10 @@ mod tests {
             (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
             (ANDROID_4_UA, LegacyBrowser::AndroidPre4),
             (SAFARI_6_UA, LegacyBrowser::SafariPre6),
+            (EDGE_12_UA, LegacyBrowser::Ie10),
+            (EDGE_18_UA, LegacyBrowser::Ie10),
+            (EDGE_79_UA, LegacyBrowser::EdgePre79),
+            (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
         ];
 
         for (user_agent, active_filter) in &test_configs {

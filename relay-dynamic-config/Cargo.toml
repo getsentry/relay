@@ -4,27 +4,32 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic configuration passed down from sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "24.2.0"
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [features]
 default = []
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 assert-json-diff = "2.0.2"
 relay-auth = { path = "../relay-auth" }
+relay-base-schema = { path = "../relay-base-schema" }
+relay-cardinality = { path = "../relay-cardinality" }
 relay-common = { path = "../relay-common" }
+relay-event-normalization = { path = "../relay-event-normalization" }
 relay-filter = { path = "../relay-filter" }
-relay-general = { path = "../relay-general" }
+relay-log = { path = "../relay-log" }
+relay-pii = { path = "../relay-pii" }
+relay-protocol  = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-sampling = { path = "../relay-sampling" }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
-smallvec = "1.10.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
+smallvec = { workspace = true }
 
 [dev-dependencies]
-insta = "1.26.0"
-similar-asserts = "1.4.2"
+insta = { workspace = true }
+similar-asserts = { workspace = true }

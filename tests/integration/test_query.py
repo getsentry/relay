@@ -1,7 +1,6 @@
 import json
 import math
 import queue
-import redis
 import socket
 import time
 import threading
@@ -140,9 +139,9 @@ def test_query_retry(failure_type, mini_sentry, relay):
     try:
         relay.send_event(42)
 
-        event = mini_sentry.captured_events.get(timeout=8).get_event()
+        event = mini_sentry.captured_events.get(timeout=12).get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
-        assert retry_count == 2
+        assert retry_count == 3
 
         if mini_sentry.test_failures:
             for _, error in mini_sentry.test_failures:
@@ -202,7 +201,12 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
 @pytest.mark.parametrize("disabled", (True, False))
 def test_processing_redis_query(
-    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer, disabled
+    mini_sentry,
+    redis_client,
+    relay_with_processing,
+    events_consumer,
+    outcomes_consumer,
+    disabled,
 ):
     outcomes_consumer = outcomes_consumer()
     events_consumer = events_consumer()
@@ -213,7 +217,6 @@ def test_processing_redis_query(
     cfg["disabled"] = disabled
 
     key = mini_sentry.get_dsn_public_key(project_id)
-    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"
     ]
@@ -230,7 +233,7 @@ def test_processing_redis_query(
 
 
 def test_processing_redis_query_compressed(
-    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+    mini_sentry, redis_client, relay_with_processing, events_consumer, outcomes_consumer
 ):
     outcomes_consumer = outcomes_consumer()
     events_consumer = events_consumer()
@@ -240,7 +243,6 @@ def test_processing_redis_query_compressed(
     cfg = mini_sentry.add_full_project_config(project_id)
 
     key = mini_sentry.get_dsn_public_key(project_id)
-    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"
     ]

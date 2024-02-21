@@ -1,17 +1,20 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
-use relay_common::{DataCategory, UnixTimestamp};
-use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
-use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+use relay_common::time::UnixTimestamp;
+use relay_metrics::{
+    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
+};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::envelope::SourceQuantities;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
-pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>> {
-    /// A list of metrics or buckets.
-    metrics: Vec<M>,
+pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
+    /// A list of aggregated metric buckets.
+    metrics: Vec<Bucket>,
 
     /// The quotas set on the current project.
     quotas: Q,
@@ -34,57 +37,140 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
 
 const PROFILE_TAG: &str = "has_profile";
 
-impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
+/// Extracts quota information from a metric.
+///
+/// If the metric was extracted from a or multiple transaction, it returns the amount
+/// of datapoints contained in the bucket.
+///
+/// Additionally tracks whether the transactions also contained profiling information.
+///
+/// Returns `None` if the metric was not extracted from transactions.
+fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<TransactionCount> {
+    let mri = match MetricResourceIdentifier::parse(metric.name()) {
+        Ok(mri) => mri,
+        Err(_) => {
+            relay_log::error!("invalid MRI: {}", metric.name());
+            return None;
+        }
+    };
+
+    if mri.namespace != MetricNamespace::Transactions {
+        return None;
+    }
+
+    let usage = matches!(mode, ExtractionMode::Usage);
+    let count = match metric.value() {
+        BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
+        BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+        _ => 0,
+    };
+
+    let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+        && metric.tag(PROFILE_TAG) == Some("true");
+
+    Some(TransactionCount { count, has_profile })
+}
+
+/// Extracts quota information from a list of metric buckets.
+pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
+where
+    I: IntoIterator<Item = V>,
+    BucketView<'a>: From<V>,
+{
+    let mut quantities = SourceQuantities::default();
+
+    for bucket in buckets {
+        quantities.buckets += 1;
+        if let Some(count) = count_metric_bucket(bucket.into(), mode) {
+            quantities.transactions += count.count;
+            if count.has_profile {
+                quantities.profiles += count.count;
+            }
+        }
+    }
+
+    quantities
+}
+
+pub fn reject_metrics(
+    addr: &Addr<TrackOutcome>,
+    quantities: SourceQuantities,
+    scoping: Scoping,
+    outcome: Outcome,
+) {
+    let timestamp = Utc::now();
+
+    let categories = [
+        (DataCategory::Transaction, quantities.transactions as u32),
+        (DataCategory::Profile, quantities.profiles as u32),
+        (DataCategory::MetricBucket, quantities.buckets as u32),
+    ];
+
+    for (category, quantity) in categories {
+        if quantity > 0 {
+            addr.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: outcome.clone(),
+                event_id: None,
+                remote_addr: None,
+                category,
+                quantity,
+            });
+        }
+    }
+}
+
+/// Wether to extract transaction and profile count based on the usage or duration metric.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExtractionMode {
+    /// Use the usage count metric.
+    Usage,
+    /// Use the duration distribution metric.
+    Duration,
+}
+
+/// Return value of [`count_metric_bucket`], containing the extracted
+/// count of transactions and wether they have associated profiles.
+#[derive(Debug, Clone, Copy)]
+struct TransactionCount {
+    /// Number of transactions.
+    pub count: usize,
+    /// Whether the transactions have associated profiles.
+    pub has_profile: bool,
+}
+
+impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    pub fn create(buckets: Vec<M>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<M>> {
+    pub fn create(
+        buckets: Vec<Bucket>,
+        quotas: Q,
+        scoping: Scoping,
+        mode: ExtractionMode,
+    ) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
-            .map(|metric| {
-                let mri = match MetricResourceIdentifier::parse(metric.name()) {
-                    Ok(mri) => mri,
-                    Err(_) => {
-                        relay_log::error!("invalid MRI: {}", metric.name());
-                        return None;
-                    }
-                };
-
-                // Keep all metrics that are not transaction related:
-                if mri.namespace != MetricNamespace::Transactions {
-                    return None;
-                }
-
-                if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
-                    let count = metric.len();
-                    let has_profile = metric.tag(PROFILE_TAG) == Some("true");
-                    Some((count, has_profile))
-                } else {
-                    // For any other metric in the transaction namespace, we check the limit with
-                    // quantity=0 so transactions are not double counted against the quota.
-                    Some((0, false))
-                }
-            })
+            .map(|metric| count_metric_bucket(BucketView::new(metric), mode))
             .collect();
 
-        // Accumulate the total transaction count:
-        let mut total_counts: Option<(usize, usize)> = None;
-        for (tx_count, has_profile) in counts.iter().flatten() {
-            let (total_txs, total_profiles) = total_counts.get_or_insert((0, 0));
-            *total_txs += tx_count;
-            if *has_profile {
-                *total_profiles += tx_count;
-            }
-        }
+        // Accumulate the total transaction count and profile count
+        let total_counts = counts
+            .iter()
+            .filter_map(Option::as_ref)
+            .map(|c| {
+                let profile_count = if c.has_profile { c.count } else { 0 };
+                (c.count, profile_count)
+            })
+            .reduce(|a, b| (a.0 + b.0, a.1 + b.1));
 
         if let Some((transaction_count, profile_count)) = total_counts {
             let transaction_buckets = counts.iter().map(Option::is_some).collect();
             let profile_buckets = counts
                 .iter()
                 .map(|o| match o {
-                    Some((_, has_profile)) => *has_profile,
+                    Some(c) => c.has_profile,
                     None => false,
                 })
                 .collect();
@@ -120,6 +206,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
         // Drop transaction buckets:
         let metrics = std::mem::take(&mut self.metrics);
+        let timestamp = Utc::now();
 
         self.metrics = metrics
             .into_iter()
@@ -131,7 +218,6 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
-            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: self.scoping,
@@ -191,6 +277,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 let item_scoping = ItemScoping {
                     category: DataCategory::Transaction,
                     scoping: &self.scoping,
+                    namespace: None,
                 };
                 let active_rate_limits =
                     rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -207,6 +294,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     let item_scoping = ItemScoping {
                         category: DataCategory::Profile,
                         scoping: &self.scoping,
+                        namespace: None,
                     };
                     let active_rate_limits =
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -235,15 +323,15 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     }
 
     /// Consume this struct and return the contained metrics.
-    pub fn into_metrics(self) -> Vec<M> {
+    pub fn into_metrics(self) -> Vec<Bucket> {
         self.metrics
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_common::{ProjectId, ProjectKey};
-    use relay_metrics::{Metric, MetricValue};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_metrics::{Bucket, BucketValue};
     use relay_quotas::{Quota, QuotaScope};
     use smallvec::smallvec;
 
@@ -252,26 +340,45 @@ mod tests {
     #[test]
     fn profiles_limits_are_reported() {
         let metrics = vec![
-            Metric {
+            Bucket {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
-            Metric {
+            Bucket {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(456.0),
+                value: BucketValue::distribution(456.into()),
             },
-            Metric {
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
         ];
         let quotas = vec![Quota {
@@ -282,6 +389,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 
@@ -294,6 +402,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            ExtractionMode::Usage,
         )
         .unwrap();
 
@@ -320,26 +429,45 @@ mod tests {
     #[test]
     fn profiles_quota_is_enforced() {
         let metrics = vec![
-            Metric {
+            Bucket {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
-            Metric {
+            Bucket {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(456.0),
+                value: BucketValue::distribution(456.into()),
             },
-            Metric {
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
         ];
         let quotas = vec![Quota {
@@ -350,6 +478,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 
@@ -362,6 +491,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            ExtractionMode::Usage,
         )
         .unwrap();
 
@@ -369,12 +499,14 @@ mod tests {
         let metrics = limiter.into_metrics();
 
         // All metrics have been preserved:
-        assert_eq!(metrics.len(), 3);
+        assert_eq!(metrics.len(), 5);
 
         // Profile tag has been removed:
         assert!(metrics[0].tags.is_empty());
         assert!(metrics[1].tags.is_empty());
-        assert!(!metrics[2].tags.is_empty());
+        assert!(metrics[2].tags.is_empty());
+        assert!(metrics[3].tags.is_empty());
+        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
 
         rx.close();
 

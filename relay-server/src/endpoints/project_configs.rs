@@ -7,17 +7,17 @@ use axum::http::Request;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::global_config;
-use crate::actors::project::{LimitedProjectState, ProjectState};
-use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
+use crate::services::global_config::{self, StatusResponse};
+use crate::services::project::{LimitedProjectState, ProjectState};
+use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
 ///
@@ -31,11 +31,6 @@ const ENDPOINT_V2: u16 = 2;
 /// next time a downstream relay polls for this it is hopefully in our cache and will be
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
-
-/// V4 version of this endpoint.
-///
-/// Can be used for fetching global configs.
-const ENDPOINT_V4: u16 = 4;
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -76,9 +71,8 @@ impl ProjectStateWrapper {
 /// made by an external relay who's public key is not configured as authorised on the project.
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
-/// be in both collections.  This list is always empty before V3.
-///
-/// Version 4 adds a global config [`GlobalConfig`] if `global` is enabled.
+/// be in both collections. This list is always empty before V3. If `global` is
+/// enabled, version 3 also responds with [`GlobalConfig`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
@@ -87,11 +81,13 @@ struct GetProjectStatesResponseWrapper {
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
     global: Option<Arc<GlobalConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_status: Option<StatusResponse>,
 }
 
 /// Request payload of the project config endpoint.
 ///
-/// This is a replica of [`GetProjectStates`](crate::actors::project_upstream::GetProjectStates)
+/// This is a replica of [`GetProjectStates`](crate::services::project_upstream::GetProjectStates)
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -133,13 +129,22 @@ async fn inner(
         (project_key, state_result)
     });
 
-    let mut configs = HashMap::with_capacity(keys_len);
-    let mut pending = Vec::with_capacity(keys_len);
-    let global_config = match inner.global {
-        true => Some(state.global_config().send(global_config::Get).await?),
-        false => None,
+    let (global, global_status) = if inner.global {
+        match state.global_config().send(global_config::Get).await? {
+            global_config::Status::Ready(config) => (Some(config), Some(StatusResponse::Ready)),
+            // Old relays expect to get a global config no matter what, even if it's not ready
+            // yet. We therefore give them a default global config.
+            global_config::Status::Pending => (
+                Some(GlobalConfig::default().into()),
+                Some(StatusResponse::Pending),
+            ),
+        }
+    } else {
+        (None, None)
     };
 
+    let mut pending = Vec::with_capacity(keys_len);
+    let mut configs = HashMap::with_capacity(keys_len);
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
             pending.push(project_key);
@@ -170,13 +175,14 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global: global_config,
+        global,
+        global_status,
     }))
 }
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
 }
 
 /// Endpoint handler for the project configs endpoint.

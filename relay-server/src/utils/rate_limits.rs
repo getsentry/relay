@@ -1,15 +1,14 @@
 use std::fmt::{self, Write};
 
-use relay_common::DataCategory;
 use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{
-    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-    Scoping,
+    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    ReasonCode, Scoping,
 };
 use relay_system::Addr;
 
-use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -76,6 +75,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             scope,
             reason_code,
             retry_after,
+            namespace: None,
         });
     }
 
@@ -94,13 +94,16 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+        ItemType::Nel => Some(DataCategory::Error),
         ItemType::UnrealReport => Some(DataCategory::Error),
+        ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
-        ItemType::Metrics => None,
+        ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
+        ItemType::MetricMeta => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
         ItemType::Profile => None,
@@ -109,6 +112,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
         ItemType::Span => None,
+        ItemType::OtelSpan => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -137,6 +141,16 @@ pub struct EnvelopeSummary {
 
     /// The number of monitor check-ins.
     pub checkin_quantity: usize,
+
+    /// Secondary number of transactions.
+    ///
+    /// This is 0 for envelopes which contain a transaction,
+    /// only secondary transaction quantity should be tracked here,
+    /// these are for example transaction counts extracted from metrics.
+    ///
+    /// A "primary" transaction is contained within the envelope,
+    /// marking the envelope data category a [`DataCategory::Transaction`].
+    pub secondary_transaction_quantity: usize,
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
@@ -174,6 +188,11 @@ impl EnvelopeSummary {
             // emitted. We can skip it here.
             if item.rate_limited() {
                 continue;
+            }
+
+            if let Some(source_quantities) = item.source_quantities() {
+                summary.secondary_transaction_quantity += source_quantities.transactions;
+                summary.profile_quantity += source_quantities.profiles;
             }
 
             summary.payload_size += item.len();
@@ -290,7 +309,7 @@ impl Enforcement {
         envelope: &Envelope,
         scoping: &Scoping,
     ) -> impl Iterator<Item = TrackOutcome> {
-        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let timestamp = relay_common::time::instant_to_date_time(envelope.meta().start_time());
         let scoping = *scoping;
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().remote_addr();
@@ -645,13 +664,16 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
     use smallvec::smallvec;
 
     use super::*;
-    use crate::envelope::{AttachmentType, ContentType};
+    use crate::{
+        envelope::{AttachmentType, ContentType, SourceQuantities},
+        extractors::RequestMeta,
+    };
 
     #[test]
     fn test_format_rate_limits() {
@@ -663,6 +685,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
+            namespace: None,
         });
 
         // Add a more specific rate limit for just one category.
@@ -671,6 +694,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
+            namespace: None,
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -715,6 +739,7 @@ mod tests {
                     scope: RateLimitScope::Organization(42),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
+                    namespace: None,
                 },
                 RateLimit {
                     categories: smallvec![
@@ -725,6 +750,7 @@ mod tests {
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
+                    namespace: None,
                 }
             ]
         );
@@ -754,6 +780,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
+                namespace: None,
             },]
         );
     }
@@ -795,6 +822,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
+            namespace: None,
         }
     }
 
@@ -1235,5 +1263,36 @@ mod tests {
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::TransactionIndexed, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
+    }
+
+    #[test]
+    fn test_source_quantity_for_total_quantity() {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_source_quantities(SourceQuantities {
+            transactions: 5,
+            profiles: 2,
+            buckets: 5,
+        });
+        envelope.add_item(item);
+
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_source_quantities(SourceQuantities {
+            transactions: 2,
+            profiles: 0,
+            buckets: 3,
+        });
+        envelope.add_item(item);
+
+        let summary = EnvelopeSummary::compute(&envelope);
+
+        assert_eq!(summary.profile_quantity, 2);
+        assert_eq!(summary.secondary_transaction_quantity, 7);
     }
 }

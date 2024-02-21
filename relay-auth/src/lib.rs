@@ -31,10 +31,11 @@ use ed25519_dalek::{Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
 use rand::{thread_rng, RngCore};
-use relay_common::{UnixTimestamp, Uuid};
+use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
+use uuid::Uuid;
 
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
@@ -374,7 +375,7 @@ impl FromStr for PublicKey {
 
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
         let Ok(bytes) = BASE64URL_NOPAD.decode(s.as_bytes()) else {
-            return Err(KeyParseError::BadEncoding)
+            return Err(KeyParseError::BadEncoding);
         };
 
         let inner = match bytes.try_into() {

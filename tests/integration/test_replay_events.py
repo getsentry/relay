@@ -1,18 +1,19 @@
 import json
+import uuid
 
 
-def generate_replay_sdk_event():
+def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
     return {
         "type": "replay_event",
-        "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "replay_id": replay_id,
         "replay_type": "session",
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "event_id": replay_id,
         "segment_id": 0,
         "timestamp": 1597977777.6189718,
         "replay_start_timestamp": 1597976392.6542819,
         "urls": ["sentry.io"],
-        "error_ids": ["1", "2"],
-        "trace_ids": ["3", "4"],
+        "error_ids": [str(uuid.uuid4())],
+        "trace_ids": [str(uuid.uuid4())],
         "dist": "1.12",
         "platform": "javascript",
         "environment": "production",

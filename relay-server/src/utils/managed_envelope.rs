@@ -1,17 +1,20 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-use relay_common::DataCategory;
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::{Processed, ProcessingGroup};
+use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -60,7 +63,52 @@ struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
+    partition_key: Option<u64>,
     done: bool,
+    group: ProcessingGroup,
+}
+
+/// A wraper for [`ManagedEnvelope`] with assigned processing group type.
+pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
+
+impl<G> TypedEnvelope<G> {
+    pub fn new(managed_envelope: ManagedEnvelope) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
+    }
+
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self.0)
+    }
+
+    pub fn accept(self) {
+        self.0.accept()
+    }
+}
+
+impl<G> From<ManagedEnvelope> for TypedEnvelope<G> {
+    fn from(value: ManagedEnvelope) -> Self {
+        TypedEnvelope::new(value)
+    }
+}
+
+impl<G> Debug for TypedEnvelope<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
+    }
+}
+
+impl<G> Deref for TypedEnvelope<G> {
+    type Target = ManagedEnvelope;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<G> DerefMut for TypedEnvelope<G> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -87,12 +135,18 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
+    /// Returns typed envelope.
+    pub fn into_typed<G>(self) -> TypedEnvelope<G> {
+        TypedEnvelope::new(self)
+    }
+
     /// Computes a managed envelope from the given envelope.
     fn new_internal(
         envelope: Box<Envelope>,
         slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -103,24 +157,13 @@ impl ManagedEnvelope {
                 summary,
                 scoping,
                 slot,
+                partition_key: None,
                 done: false,
+                group,
             },
             outcome_aggregator,
             test_store,
         }
-    }
-
-    /// Creates a standalone envelope for testing purposes.
-    ///
-    /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
-    /// suitable for unit testing internals of the processing pipeline.
-    #[cfg(test)]
-    pub fn standalone(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-    ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store)
     }
 
     #[cfg(test)]
@@ -129,9 +172,31 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
+        let mut envelope = Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        );
         envelope.context.done = true;
         envelope
+    }
+
+    /// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
+    ///
+    /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal
+    /// event. They are extracted, aggregated and regularily flushed, after the
+    /// source event has already been processed.
+    ///
+    /// The constructor is also suitable for unit testing internals of the processing pipeline.
+    pub fn standalone(
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+        group: ProcessingGroup,
+    ) -> Self {
+        Self::new_internal(envelope, None, outcome_aggregator, test_store, group)
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -142,13 +207,19 @@ impl ManagedEnvelope {
         slot: SemaphorePermit,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store)
+        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store, group)
     }
 
     /// Returns a reference to the contained [`Envelope`].
     pub fn envelope(&self) -> &Envelope {
         self.envelope.as_ref()
+    }
+
+    /// Returns the [`ProcessingGroup`] where this envelope belongs to.
+    pub fn group(&self) -> ProcessingGroup {
+        self.context.group
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].
@@ -193,14 +264,18 @@ impl ManagedEnvelope {
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
+            ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
+                let use_indexed = if item.ty() == &ItemType::Span {
+                    item.metrics_extracted()
+                } else {
+                    use_indexed
+                };
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
-                }
-
+                };
                 false
             }
-            ItemAction::DropSilently => false,
         });
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);
@@ -224,11 +299,21 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Removes event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
+    }
+
     /// Records an outcome scoped to this envelope's context.
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
             scoping: self.context.scoping,
@@ -294,9 +379,11 @@ impl ManagedEnvelope {
                 let summary = &self.context.summary;
 
                 relay_log::error!(
+                    tags.project_key = self.scoping().project_key.to_string(),
                     tags.has_attachments = summary.attachment_quantity > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
+                    tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,
@@ -325,7 +412,7 @@ impl ManagedEnvelope {
 
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
-                outcome,
+                outcome.clone(),
                 if self.use_index_category() {
                     DataCategory::ProfileIndexed
                 } else {
@@ -335,12 +422,34 @@ impl ManagedEnvelope {
             );
         }
 
+        // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
+        //
+        // Primary transaction count is already tracked through the event category
+        // (see: `Self::event_category()`).
+        if self.context.summary.secondary_transaction_quantity > 0 {
+            self.track_outcome(
+                outcome,
+                // Secondary transaction counts are never indexed transactions
+                DataCategory::Transaction,
+                self.context.summary.secondary_transaction_quantity,
+            );
+        }
+
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
     /// Returns scoping stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.context.scoping
+    }
+
+    pub fn partition_key(&self) -> Option<u64> {
+        self.context.partition_key
+    }
+
+    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+        self.context.partition_key = partition_key;
+        self
     }
 
     pub fn meta(&self) -> &RequestMeta {
@@ -374,7 +483,7 @@ impl ManagedEnvelope {
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::instant_to_date_time(self.envelope().meta().start_time())
+        relay_common::time::instant_to_date_time(self.envelope().meta().start_time())
     }
 
     /// Resets inner state to ensure there's no more logging.
