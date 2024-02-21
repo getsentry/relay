@@ -251,19 +251,22 @@ pub fn init<A: ToSocketAddrs>(
     socket.set_nonblocking(true).unwrap();
 
     let statsd_client = if aggregating {
-        let statsdproxy_sink = statsdproxy::middleware::Upstream::new(host)
-            .expect("failed to create statsdproxy metric sink");
-        let statsdproxy_sink = statsdproxy::middleware::aggregate::AggregateMetrics::new(
-            AggregateMetricsConfig {
-                aggregate_gauges: true,
-                aggregate_counters: true,
-                flush_interval: 1,
-                flush_offset: 0,
-                max_map_size: None,
-            },
-            statsdproxy_sink,
-        );
-        let statsdproxy_sink = StatsdProxyMetricSink::new(statsdproxy_sink);
+        let host = host.to_socket_addrs().unwrap().next().unwrap();
+        let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
+            let next_step = statsdproxy::middleware::upstream::Upstream::new(host)
+                .expect("failed to create statsdproxy metric sink");
+            let next_step = statsdproxy::middleware::aggregate::AggregateMetrics::new(
+                AggregateMetricsConfig {
+                    aggregate_gauges: true,
+                    aggregate_counters: true,
+                    flush_interval: 1,
+                    flush_offset: 0,
+                    max_map_size: None,
+                },
+                next_step,
+            );
+            next_step
+        });
         StatsdClient::from_sink(prefix, statsdproxy_sink)
     } else if buffering {
         let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();

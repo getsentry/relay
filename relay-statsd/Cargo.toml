@@ -15,7 +15,7 @@ crossbeam-channel = "0.5.6"
 parking_lot = { workspace = true }
 rand = { workspace = true }
 relay-log = { path = "../relay-log" }
-statsdproxy = { git = "https://github.com/getsentry/statsdproxy", default-features = false, features = ["cadence"] }
+statsdproxy = { version = "0.1.2", features = ["cadence-adapter"], default-features = false }
 
 [features]
 default = []
