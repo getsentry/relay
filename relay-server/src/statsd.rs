@@ -533,6 +533,8 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `event_type`: The kind of message produced to Kafka.
+    ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
+    ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
     ///
     /// The message types can be:
     ///
