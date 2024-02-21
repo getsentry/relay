@@ -86,6 +86,41 @@ def test_readiness_proxy(mini_sentry, relay):
         mini_sentry.test_failures.clear()
 
 
+def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
+    try:
+        relay = relay(
+            mini_sentry,
+            {"health": {"max_memory_bytes": 42}},
+            wait_health_check=False,
+        )
+
+        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        time.sleep(0.3)  # Wait for error
+        error = str(mini_sentry.test_failures.pop())
+        assert "Not enough memory" in error and ">= 42" in error
+        assert response.status_code == 503
+    finally:
+        # Authentication failures would fail the test
+        mini_sentry.test_failures.clear()
+
+
+def test_readiness_not_enough_memory_percent(mini_sentry, relay):
+    try:
+        relay = relay(
+            mini_sentry,
+            {"health": {"max_memory_percent": 0.01}},
+            wait_health_check=False,
+        )
+        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        time.sleep(0.3)  # Wait for error
+        error = str(mini_sentry.test_failures.pop())
+        assert "Not enough memory" in error and ">= 1.00%" in error
+        assert response.status_code == 503
+    finally:
+        # Authentication failures would fail the test
+        mini_sentry.test_failures.clear()
+
+
 def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
     try:
         relay = relay(
