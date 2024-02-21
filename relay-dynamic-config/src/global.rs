@@ -5,6 +5,7 @@ use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
+use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -19,6 +20,9 @@ pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
+    /// Quotas that apply to all projects.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub quotas: Vec<Quota>,
     /// Sentry options passed down to Relay.
     #[serde(
         deserialize_with = "default_on_error",
@@ -201,8 +205,22 @@ where
 mod tests {
     use relay_base_schema::metrics::MetricUnit;
     use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
+    use relay_quotas::{DataCategory, QuotaScope};
 
     use super::*;
+
+    fn mock_quota(id: &str) -> Quota {
+        Quota {
+            id: Some(id.into()),
+            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+            namespace: None,
+        }
+    }
 
     #[test]
     fn test_global_config_roundtrip() {
@@ -219,6 +237,7 @@ mod tests {
                 unsampled_profiles_enabled: true,
                 ..Default::default()
             },
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
         };
 
         let serialized =

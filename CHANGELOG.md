@@ -13,6 +13,7 @@
 
 **Internal**:
 
+- Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
 - Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
 
 ## 24.2.0
