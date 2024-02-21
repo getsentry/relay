@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
@@ -17,14 +17,13 @@ use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
-    TransactionNameConfig, TransactionValidationConfig,
+    DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
+    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
 };
-use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
@@ -52,10 +51,12 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::CardinalityLimiterMode,
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::iter::Chain,
+    std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -77,7 +78,8 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult, TypedEnvelope,
+    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    TypedEnvelope,
 };
 
 mod attachment;
@@ -105,57 +107,61 @@ macro_rules! if_processing {
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
+#[derive(Debug)]
+pub struct GroupTypeError;
+
+impl Display for GroupTypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("failed to convert processing group into corresponding type")
+    }
+}
+
+impl std::error::Error for GroupTypeError {}
+
+macro_rules! processing_group {
+    ($ty:ident, $variant:ident) => {
+        #[derive(Clone, Copy, Debug)]
+        pub struct $ty;
+
+        impl From<$ty> for ProcessingGroup {
+            fn from(_: $ty) -> Self {
+                ProcessingGroup::$variant
+            }
+        }
+
+        impl TryFrom<ProcessingGroup> for $ty {
+            type Error = GroupTypeError;
+
+            fn try_from(value: ProcessingGroup) -> Result<Self, Self::Error> {
+                if matches!(value, ProcessingGroup::$variant) {
+                    return Ok($ty);
+                }
+                return Err(GroupTypeError);
+            }
+        }
+    };
+}
+
 /// A marker trait.
 ///
 /// Should be used only with groups which are responsible for processing envelopes with events.
 pub trait EventProcessing {}
 
-/// Transaction group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct TransactionGroup;
-
+processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
-/// Error group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ErrorGroup;
+processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
 
-/// Session group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct SessionGroup;
-
-/// Standalone group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct StandaloneGroup;
-
-/// ClientReport group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ClientReportGroup;
-
-/// Replay group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ReplayGroup;
-
-/// CheckIn group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct CheckInGroup;
-
-/// Span group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct SpanGroup;
-
-/// Metrics group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct MetricsGroup;
-
-/// Unknown group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct ForwardUnknownGroup;
-
-/// Ungrouped group type marker.
-#[derive(Clone, Copy, Debug)]
-pub struct Ungrouped;
+processing_group!(SessionGroup, Session);
+processing_group!(StandaloneGroup, Standalone);
+processing_group!(ClientReportGroup, ClientReport);
+processing_group!(ReplayGroup, Replay);
+processing_group!(CheckInGroup, CheckIn);
+processing_group!(SpanGroup, Span);
+processing_group!(MetricsGroup, Metrics);
+processing_group!(ForwardUnknownGroup, ForwardUnknown);
+processing_group!(Ungrouped, Ungrouped);
 
 /// Processed group type marker.
 ///
@@ -247,6 +253,18 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Exract all metric items.
+        //
+        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
+        // a separate pipeline.
+        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
+        if !metric_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Metrics,
+                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -378,6 +396,9 @@ pub enum ProcessingError {
 
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
+
+    #[error("invalid processing group type")]
+    InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
 }
 
 impl ProcessingError {
@@ -418,6 +439,7 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
+            Self::InvalidProcessingGroup(_) => None,
         }
     }
 
@@ -1003,7 +1025,9 @@ impl EnvelopeProcessorService {
         };
 
         let project_state = &state.project_state;
-        let quotas = project_state.config.quotas.as_slice();
+        let global_config = self.inner.global_config.current();
+        let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
+
         if quotas.is_empty() {
             return Ok(());
         }
@@ -1371,15 +1395,16 @@ impl EnvelopeProcessorService {
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> Result<ProcessingStateResult, (ProcessingError, TypedEnvelope<Processed>)> {
+    ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
 
         macro_rules! run {
             ($fn:ident) => {{
+                let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
-                    managed_envelope.into_typed(),
+                    managed_envelope,
                     project_id,
                     project_state,
                     sampling_project_state,
@@ -1390,12 +1415,17 @@ impl EnvelopeProcessorService {
                         managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    Err(e) => Err((e, state.managed_envelope.into_processed())),
+                    Err(e) => {
+                        if let Some(outcome) = e.to_outcome() {
+                            state.managed_envelope.reject(outcome);
+                        }
+                        return Err(e);
+                    }
                 }
             }};
         }
 
-        relay_log::trace!("Processing {group:?} group");
+        relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
             ProcessingGroup::Error => run!(process_errors),
@@ -1408,13 +1438,18 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Span => run!(process_spans),
             // Currently is not used.
             ProcessingGroup::Metrics => {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                    "received metrics in the process_state"
-                );
+                // In proxy mode we simply forward the metrics.
+                // This group shouldn't be used outside of proxy mode.
+                if self.inner.config.relay_mode() != RelayMode::Proxy {
+                    relay_log::error!(
+                        tags.project = %project_id,
+                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                        "received metrics in the process_state"
+                    );
+                }
+
                 Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1426,7 +1461,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
                 Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -1434,7 +1469,7 @@ impl EnvelopeProcessorService {
             //
             // This will later be forwarded to upstream.
             ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
-                managed_envelope: managed_envelope.into_typed(),
+                managed_envelope: managed_envelope.into_processed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -1526,12 +1561,7 @@ impl EnvelopeProcessorService {
                             envelope: envelope_response,
                         })
                     }
-                    Err((err, mut managed_envelope)) => {
-                        if let Some(outcome) = err.to_outcome() {
-                            managed_envelope.reject(outcome);
-                        }
-                        Err(err)
-                    }
+                    Err(err) => Err(err),
                 }
             },
         )
@@ -1799,7 +1829,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::ClientReport,
         );
         self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 
@@ -1817,11 +1847,14 @@ impl EnvelopeProcessorService {
                 namespace: None,
             };
 
+            let global_config = self.inner.global_config.current();
+            let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
+
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                bucket_limiter.quotas(),
+                quotas,
                 item_scoping,
                 bucket_limiter.transaction_count(),
                 over_accept_once,
@@ -1863,7 +1896,7 @@ impl EnvelopeProcessorService {
         &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: &[relay_quotas::Quota],
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -1897,7 +1930,7 @@ impl EnvelopeProcessorService {
         &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        quotas: &[relay_quotas::Quota],
+        quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
@@ -2014,6 +2047,8 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
+        let global_config = self.inner.global_config.current();
+
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
@@ -2024,13 +2059,9 @@ impl EnvelopeProcessorService {
             let limits = project_state.get_cardinality_limits();
 
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
+            let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
-            let buckets = self.rate_limit_buckets_by_namespace(
-                scoping,
-                buckets,
-                &project_state.config.quotas,
-                mode,
-            );
+            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
             if buckets.is_empty() {
                 continue;
@@ -2116,7 +2147,7 @@ impl EnvelopeProcessorService {
                     );
 
                     self.handle_submit_envelope(SubmitEnvelope {
-                        envelope: envelope.into_typed(),
+                        envelope: envelope.into_processed(),
                     });
                     num_batches += 1;
                 }
@@ -2262,7 +2293,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Metrics,
         );
         self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 
@@ -2628,6 +2659,45 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 }
 
+/// Container for global and project level [`Quota`].
+#[cfg(feature = "processing")]
+#[derive(Copy, Clone)]
+struct DynamicQuotas<'a> {
+    global_quotas: &'a [Quota],
+    project_quotas: &'a [Quota],
+}
+
+#[cfg(feature = "processing")]
+impl<'a> DynamicQuotas<'a> {
+    /// Returns a new [`DynamicQuotas`]
+    pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
+        Self {
+            global_quotas: &global_config.quotas,
+            project_quotas,
+        }
+    }
+
+    /// Returns `true` if both global quotas and project quotas are empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the number of both global and project quotas.
+    pub fn len(&self) -> usize {
+        self.global_quotas.len() + self.project_quotas.len()
+    }
+}
+
+#[cfg(feature = "processing")]
+impl<'a> IntoIterator for DynamicQuotas<'a> {
+    type Item = &'a Quota;
+    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.global_quotas.iter().chain(self.project_quotas.iter())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -2653,12 +2723,47 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use {
+        relay_dynamic_config::Options,
         relay_metrics::BucketValue,
-        relay_quotas::{Quota, ReasonCode},
+        relay_quotas::{Quota, QuotaScope, ReasonCode},
         relay_test::mock_service,
     };
 
     use super::*;
+
+    #[cfg(feature = "processing")]
+    fn mock_quota(id: &str) -> Quota {
+        Quota {
+            id: Some(id.into()),
+            categories: smallvec::smallvec![DataCategory::MetricBucket],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+            namespace: None,
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_dynamic_quotas() {
+        let global_config = GlobalConfig {
+            measurements: None,
+            quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            options: Options::default(),
+        };
+
+        let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
+
+        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+
+        assert_eq!(dynamic_quotas.len(), 4);
+        assert!(!dynamic_quotas.is_empty());
+
+        let quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
+        assert!(quota_ids.eq(["foo", "bar", "baz", "qux"]));
+    }
 
     /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
     /// also ratelimit the next batches in the same message automatically.

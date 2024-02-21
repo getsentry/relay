@@ -15,7 +15,12 @@ expression: "Annotated::new(event).to_json_pretty().unwrap()"
       "type": "device"
     },
     "gpu": {
-      "name": "Parallels Display Adapter (WDDM)",
+      "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "version": "551.52",
+      "id": "28E0",
+      "vendor_name": "NVIDIA",
+      "api_type": "D3D12",
+      "graphics_shader_level": "SM5",
       "type": "gpu"
     },
     "os": {
@@ -29,7 +34,8 @@ expression: "Annotated::new(event).to_json_pretty().unwrap()"
       },
       "memory_stats_total_virtual": 140737488224256,
       "misc_cpu_brand": "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
-      "misc_cpu_vendor": "GenuineIntel"
+      "misc_cpu_vendor": "GenuineIntel",
+      "misc_primary_gpu_brand": "Parallels Display Adapter (WDDM)"
     }
   },
   "sdk": {

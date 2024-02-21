@@ -13,13 +13,15 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
+use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
+    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
+    MetricResourceIdentifier, SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -30,6 +32,7 @@ use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
@@ -122,6 +125,7 @@ impl FromMessage<StoreMetrics> for Store {
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
+    global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
     producer: Producer,
 }
@@ -129,11 +133,13 @@ pub struct StoreService {
 impl StoreService {
     pub fn create(
         config: Arc<Config>,
+        global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
+            global_config,
             outcome_aggregator,
             producer,
         })
@@ -339,22 +345,27 @@ impl StoreService {
         let mut dropped = SourceQuantities::default();
         let mut error = None;
 
+        let encodings = self.global_config.current().options.metric_bucket_encodings;
+
         for bucket in buckets {
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
             for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
-                let message = MetricKafkaMessage {
-                    org_id: scoping.organization_id,
-                    project_id: scoping.project_id,
-                    name: view.name(),
-                    value: view.value(),
-                    timestamp: view.timestamp(),
-                    tags: view.tags(),
-                    retention_days: retention,
-                };
+                let namespace = MetricResourceIdentifier::parse(view.name())
+                    .map(|mri| mri.namespace)
+                    .unwrap_or(MetricNamespace::Unsupported);
+                let encoding = encodings.for_namespace(namespace);
 
-                if let Err(e) = self.send_metric_message(scoping.organization_id, message) {
+                let message = self.create_metric_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    encoding,
+                    &view,
+                    retention,
+                );
+
+                if let Err(e) = self.send_metric_message(namespace, message) {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
@@ -370,6 +381,34 @@ impl StoreService {
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
             );
+        }
+    }
+
+    fn create_metric_message<'a>(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        encoding: MetricEncoding,
+        view: &'a BucketView<'a>,
+        retention_days: u16,
+    ) -> MetricKafkaMessage<'a> {
+        let value = match view.value() {
+            BucketViewValue::Counter(c) => MetricValue::Counter(c),
+            BucketViewValue::Distribution(d) => {
+                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
+            }
+            BucketViewValue::Set(s) => MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
+        };
+
+        MetricKafkaMessage {
+            org_id: organization_id,
+            project_id,
+            name: view.name(),
+            value,
+            timestamp: view.timestamp(),
+            tags: view.tags(),
+            retention_days,
         }
     }
 
@@ -658,20 +697,20 @@ impl StoreService {
 
     fn send_metric_message(
         &self,
-        organization_id: u64,
+        namespace: MetricNamespace,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::parse(message.name);
-        let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
-            Ok(MetricNamespace::Unsupported) | Err(_) => {
+        let organization_id = message.org_id;
+        let topic = match namespace {
+            MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
+            MetricNamespace::Unsupported => {
                 relay_log::with_scope(
                     |scope| scope.set_extra("metric_message.name", message.name.into()),
                     || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
-            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
+            _ => KafkaTopic::MetricsGeneric,
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
@@ -695,20 +734,19 @@ impl StoreService {
         retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
+        let encodings = self.global_config.current().options.metric_bucket_encodings;
 
         for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
-            self.send_metric_message(
-                org_id,
-                MetricKafkaMessage {
-                    org_id,
-                    project_id,
-                    name: bucket.name.as_str(),
-                    value: (&bucket.value).into(),
-                    timestamp: bucket.timestamp,
-                    tags: &bucket.tags,
-                    retention_days: retention,
-                },
-            )?;
+            let view = BucketView::new(&bucket);
+
+            let namespace = MetricResourceIdentifier::parse(view.name())
+                .map(|mri| mri.namespace)
+                .unwrap_or(MetricNamespace::Unsupported);
+            let encoding = encodings.for_namespace(namespace);
+
+            let message =
+                self.create_metric_message(org_id, project_id, encoding, &view, retention);
+            self.send_metric_message(namespace, message)?;
         }
 
         Ok(())
@@ -927,6 +965,9 @@ impl StoreService {
 
         self.produce_metrics_summary(scoping, item, &span);
 
+        let is_segment = span.is_segment;
+        let has_parent = span.parent_span_id.is_some();
+
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -945,7 +986,9 @@ impl StoreService {
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "span"
+            event_type = "span",
+            is_segment = bool_to_str(is_segment),
+            has_parent = bool_to_str(has_parent),
         );
 
         Ok(())
@@ -1275,10 +1318,55 @@ struct MetricKafkaMessage<'a> {
     project_id: ProjectId,
     name: &'a str,
     #[serde(flatten)]
-    value: BucketViewValue<'a>,
+    value: MetricValue<'a>,
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", content = "value")]
+enum MetricValue<'a> {
+    #[serde(rename = "c")]
+    Counter(FiniteF64),
+    #[serde(rename = "d")]
+    Distribution(ArrayEncoding<&'a [FiniteF64]>),
+    #[serde(rename = "s")]
+    Set(ArrayEncoding<SetView<'a>>),
+    #[serde(rename = "g")]
+    Gauge(GaugeValue),
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+enum ArrayEncoding<T> {
+    /// The original, legacy, encoding.
+    ///
+    /// Encodes all values as a JSON array of numbers.
+    Legacy(T),
+    /// Dynamic encoding supporting multiple formats.
+    ///
+    /// Adds metadata and adds support for multiple different encodings.
+    Dynamic(DynamicArrayEncoding<T>),
+}
+
+impl<T> ArrayEncoding<T> {
+    /// Builds a [`ArrayEncoding`] from the format and the data.
+    fn new(encoding: MetricEncoding, data: T) -> Self {
+        match encoding {
+            MetricEncoding::Legacy => Self::Legacy(data),
+            MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "format", rename_all = "lowercase")]
+enum DynamicArrayEncoding<T> {
+    /// JSON Array encoding.
+    ///
+    /// Encodes all items as a JSON array.
+    Array { data: T },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1543,6 +1631,14 @@ impl Message for KafkaMessage<'_> {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+fn bool_to_str(value: bool) -> &'static str {
+    if value {
+        "true"
+    } else {
+        "false"
+    }
 }
 
 #[cfg(test)]
