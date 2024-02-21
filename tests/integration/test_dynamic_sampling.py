@@ -365,8 +365,10 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
+    config2 = mini_sentry.add_basic_project_config(project_id)
+    public_key2 = config2["publicKeys"][0]["publicKey"]
 
-    config["config"]["txNameRules"] = [
+    config2["config"]["txNameRules"] = [
         {
             "pattern": pattern,
             "expiry": "3022-11-30T00:00:00.000000Z",
@@ -403,7 +405,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     envelope = Envelope()
     transaction_event, trace_id, _ = _create_transaction_item()
     envelope.add_transaction(transaction_event)
-    _add_trace_info(envelope, trace_id, public_key, transaction=original_transaction)
+    _add_trace_info(envelope, trace_id, public_key2, transaction=original_transaction)
 
     relay.send_envelope(project_id, envelope)
 
