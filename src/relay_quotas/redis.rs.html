@@ -924,6 +924,78 @@
 <a href="#923" id="923">923</a>
 <a href="#924" id="924">924</a>
 <a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -1066,10 +1138,11 @@
         <span class="kw">let </span>org = <span class="self">self</span>.scoping.organization_id;
 
         <span class="macro">format!</span>(
-            <span class="string">"quota:{id}{{{org}}}{subscope}:{slot}"</span>,
+            <span class="string">"quota:{id}{{{org}}}{subscope}{namespace}:{slot}"</span>,
             id = <span class="self">self</span>.prefix,
             org = org,
             subscope = OptionalDisplay(subscope),
+            namespace = OptionalDisplay(<span class="self">self</span>.namespace),
             slot = <span class="self">self</span>.slot(),
         )
     }
@@ -1235,6 +1308,7 @@
     <span class="kw">use </span>std::sync::Arc;
     <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
+    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_redis::redis::Commands;
     <span class="kw">use </span>relay_redis::RedisConfigOptions;
@@ -1307,6 +1381,76 @@
                 namespace: <span class="prelude-val">None</span>,
             }]
         );
+    }
+
+    <span class="doccomment">/// Tests that a quota with and without namespace are counted separately.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_non_global_namespace_quota() {
+        <span class="kw">let </span>quota_limit = <span class="number">5</span>;
+        <span class="kw">let </span>get_quota = |namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;| -&gt; Quota {
+            Quota {
+                id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"test_simple_quota_{}"</span>, uuid::Uuid::new_v4())),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: <span class="prelude-val">None</span>,
+                limit: <span class="prelude-val">Some</span>(quota_limit),
+                window: <span class="prelude-val">Some</span>(<span class="number">600</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="macro">format!</span>(<span class="string">"ns: {:?}"</span>, namespace))),
+                namespace,
+            }
+        };
+
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[get_quota(<span class="prelude-val">None</span>)];
+        <span class="kw">let </span>quota_with_namespace = <span class="kw-2">&amp;</span>[get_quota(<span class="prelude-val">Some</span>(MetricNamespace::Transactions))];
+
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+            },
+            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Transactions),
+        };
+
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+
+        <span class="comment">// First confirm normal behaviour without namespace.
+        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">"rate limiting failed"</span>)
+                .into_iter()
+                .collect();
+
+            <span class="kw">if </span>i &lt; quota_limit {
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(
+                    rate_limits[<span class="number">0</span>].reason_code,
+                    <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"ns: None"</span>))
+                );
+            }
+        }
+
+        <span class="comment">// Then, send identical quota with namespace and confirm it counts separately.
+        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quota_with_namespace, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">"rate limiting failed"</span>)
+                .into_iter()
+                .collect();
+
+            <span class="kw">if </span>i &lt; quota_limit {
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(
+                    rate_limits[<span class="number">0</span>].reason_code,
+                    <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"ns: Some(Transactions)"</span>))
+                );
+            }
+        }
     }
 
     <span class="attr">#[test]
