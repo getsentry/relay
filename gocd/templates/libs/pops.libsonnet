@@ -123,6 +123,28 @@ local deploy_jobs(regions, deploy_job, partition='-') =
 // and wait for a few minutes to see if there are any issues.
 local deploy_canary_pops_stage(region) =
   {
+    'deploy-canary': {
+      fetch_materials: true,
+      jobs: {
+        create_sentry_release: {
+          timeout: 1200,
+          elastic_profile_id: 'relay',
+          environment_variables: {
+            SENTRY_ORG: 'sentry',
+            SENTRY_PROJECT: 'pop-relay',
+            SENTRY_URL: 'https://sentry.my.sentry.io/',
+            // Temporary; self-service encrypted secrets aren't implemented yet.
+            // This should really be rotated to an internal integration token.
+            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+            SENTRY_ENVIRONMENT: 'canary',
+          },
+          tasks: [
+            gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
+          ],
+        },
+      },
+    },
+  } {
     'deploy-canary'+: {
       fetch_materials: true,
       jobs+: deploy_jobs(
@@ -147,12 +169,12 @@ local deploy_pops_stage(region) =
           timeout: 1200,
           elastic_profile_id: 'relay',
           environment_variables: {
-            SENTRY_ORG: 'sentry',
-            SENTRY_PROJECT: 'pop-relay',
-            SENTRY_URL: 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: if region == 's4s' then 'sentry-st' else 'sentry',
+            SENTRY_PROJECT: if region == 's4s' then 'sentry-for-sentry' else 'pop-relay',
+            SENTRY_URL: if region == 's4s' then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+            SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
           },
           tasks: [
             gocdtasks.script(importstr '../bash/create-sentry-relay-pop-release.sh'),

@@ -53,6 +53,22 @@ local deploy_canary(region) =
         'deploy-canary': {
           fetch_materials: true,
           jobs: {
+            create_sentry_release: {
+              environment_variables: {
+                SENTRY_ORG: 'sentry',
+                SENTRY_PROJECT: 'relay',
+                SENTRY_URL: 'https://sentry.my.sentry.io/',
+                // Temporary; self-service encrypted secrets aren't implemented yet.
+                // This should really be rotated to an internal integration token.
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+                SENTRY_ENVIRONMENT: 'canary',
+              },
+              timeout: 1200,
+              elastic_profile_id: 'relay',
+              tasks: [
+                gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
+              ],
+            },
             deploy: {
               timeout: 1200,
               elastic_profile_id: 'relay',
