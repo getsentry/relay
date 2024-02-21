@@ -801,7 +801,7 @@ impl StoreService {
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: payload,
+            payload,
         };
         self.produce(
             KafkaTopic::ReplayEvents,
