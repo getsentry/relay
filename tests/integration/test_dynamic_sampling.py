@@ -364,18 +364,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     parametrized_transaction = "/auth/login/*/"
 
     config = mini_sentry.add_basic_project_config(project_id)
-    sampling_config = mini_sentry.add_basic_project_config(43)
-    public_key2 = sampling_config["publicKeys"][0]["publicKey"]
-
-    sampling_config["config"]["txNameRules"] = [
-        {
-            "pattern": pattern,
-            "expiry": "3022-11-30T00:00:00.000000Z",
-            "redaction": {"method": "replace", "substitution": "*"},
-        }
-    ]
     config["config"]["transactionMetrics"] = {"version": 1}
-
     ds = sampling_config["config"].setdefault("sampling", {})
     ds.setdefault("version", 2)
 
@@ -401,10 +390,22 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     rules = ds.setdefault("rules", [sampling_rule])
     rules.append(sampling_rule)
 
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    sampling_config["config"]["txNameRules"] = [
+        {
+            "pattern": pattern,
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
+
     envelope = Envelope()
     transaction_event, trace_id, _ = _create_transaction_item()
     envelope.add_transaction(transaction_event)
-    _add_trace_info(envelope, trace_id, public_key2, transaction=original_transaction)
+    _add_trace_info(
+        envelope, trace_id, sampling_public_key, transaction=original_transaction
+    )
 
     relay.send_envelope(project_id, envelope)
 
