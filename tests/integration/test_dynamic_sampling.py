@@ -364,7 +364,6 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     parametrized_transaction = "/auth/login/*/"
 
     config = mini_sentry.add_basic_project_config(project_id)
-    public_key = config["publicKeys"][0]["publicKey"]
     config2 = mini_sentry.add_basic_project_config(project_id)
     public_key2 = config2["publicKeys"][0]["publicKey"]
 

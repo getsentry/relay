@@ -280,9 +280,7 @@ mod tests {
     use std::sync::Arc;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_event_normalization::TransactionNameRule;
     use relay_event_schema::protocol::{EventId, LenientString};
-    use relay_protocol::condition::EqCondition;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
