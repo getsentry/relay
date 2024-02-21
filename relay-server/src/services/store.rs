@@ -965,6 +965,9 @@ impl StoreService {
 
         self.produce_metrics_summary(scoping, item, &span);
 
+        let is_segment = span.is_segment;
+        let has_parent = span.parent_span_id.is_some();
+
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -984,8 +987,8 @@ impl StoreService {
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "span",
-            is_segment = bool_to_str(span.is_segment),
-            has_parent = bool_to_str(span.parent_span_id.is_some()),
+            is_segment = bool_to_str(is_segment),
+            has_parent = bool_to_str(has_parent),
         );
 
         Ok(())
