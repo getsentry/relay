@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::response::Json;
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::Router;
 use flate2::read::GzDecoder;
 use serde_json::{json, Value};
@@ -190,19 +190,15 @@ impl MiniSentry {
 
         let envelope_handler = make_handle_envelope(mini_sentry.inner.clone());
         let config_handler = make_handle_project_config(mini_sentry.inner.clone());
-        let public_key_handler = make_handle_public_keys(mini_sentry.inner.clone());
         let challenge_handler = make_handle_register_challenge(mini_sentry.inner.clone());
 
         let router = Router::new()
-            .route("/", get("hello minisentry"))
-            .route("/api/0/relays/live/", get(is_live))
             .route("/api/42/envelope/", post(envelope_handler))
             .route("/api/0/relays/register/challenge/", post(challenge_handler))
             .route(
                 "/api/0/relays/register/response/",
                 post(|| async { Json(register_response()) }),
             )
-            .route("/api/0/relays/publickeys/", post(public_key_handler))
             .route("/api/0/relays/projectconfigs/", post(config_handler));
 
         println!("MiniSentry listening on {}", addr);
@@ -225,39 +221,6 @@ fn decompress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let mut decompressed_data = Vec::new();
     decoder.read_to_end(&mut decompressed_data)?;
     Ok(decompressed_data)
-}
-
-fn make_handle_public_keys(
-    mini_sentry: Arc<Mutex<MiniSentryInner>>,
-) -> impl Fn(Bytes) -> Pin<Box<dyn Future<Output = Json<Value>> + Send>> + Clone {
-    move |bytes| {
-        let mini_sentry = mini_sentry.clone();
-
-        Box::pin(async move {
-            let get_relays = serde_json::from_slice::<Value>(&bytes).unwrap();
-
-            let mut keys = HashMap::new();
-            let mut relays = HashMap::new();
-
-            for id in get_relays
-                .as_object()
-                .unwrap()
-                .get("relay_ids")
-                .unwrap()
-                .as_array()
-                .unwrap()
-            {
-                let relay_id: RelayId = id.as_str().unwrap().parse().unwrap();
-                let guard = mini_sentry.lock().unwrap();
-                if let Some(relay) = guard.known_relays.get(&relay_id).cloned() {
-                    keys.insert(relay_id, Some(relay.public_key.clone()));
-                    relays.insert(relay_id, Some(relay));
-                }
-            }
-
-            Json(json!( { "relays": relays }))
-        })
-    }
 }
 
 fn make_handle_project_config(
@@ -376,8 +339,4 @@ fn make_handle_register_challenge(
             }))
         })
     }
-}
-
-async fn is_live() -> &'static str {
-    "is_healthy: true"
 }
