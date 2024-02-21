@@ -745,6 +745,7 @@
 <a href="#744" id="744">744</a>
 <a href="#745" id="745">745</a>
 <a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1230,7 +1231,8 @@
                     test_store.clone(),
                     ProcessingGroup::Transaction,
                 )
-                .into(),
+                .try_into()
+                .unwrap(),
                 profile_id: <span class="prelude-val">None</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 reservoir: dummy_reservoir(),

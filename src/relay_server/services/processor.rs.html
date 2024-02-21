@@ -3107,10 +3107,20 @@
 <a href="#3106" id="3106">3106</a>
 <a href="#3107" id="3107">3107</a>
 <a href="#3108" id="3108">3108</a>
+<a href="#3109" id="3109">3109</a>
+<a href="#3110" id="3110">3110</a>
+<a href="#3111" id="3111">3111</a>
+<a href="#3112" id="3112">3112</a>
+<a href="#3113" id="3113">3113</a>
+<a href="#3114" id="3114">3114</a>
+<a href="#3115" id="3115">3115</a>
+<a href="#3116" id="3116">3116</a>
+<a href="#3117" id="3117">3117</a>
+<a href="#3118" id="3118">3118</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::fmt::Debug;
+<span class="kw">use </span>std::fmt::{Debug, Display};
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::pin::Pin;
@@ -3187,7 +3197,8 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, ExtractionMode, ManagedEnvelope, MetricStats, SamplingResult, TypedEnvelope,
+    <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    TypedEnvelope,
 };
 
 <span class="kw">mod </span>attachment;
@@ -3215,57 +3226,61 @@
 <span class="doccomment">/// The minimum clock drift for correction to apply.
 </span><span class="kw">const </span>MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(<span class="number">55 </span>* <span class="number">60</span>);
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>GroupTypeError;
+
+<span class="kw">impl </span>Display <span class="kw">for </span>GroupTypeError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        f.write_str(<span class="string">"failed to convert processing group into corresponding type"</span>)
+    }
+}
+
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>GroupTypeError {}
+
+<span class="macro">macro_rules! </span>processing_group {
+    (<span class="macro-nonterminal">$ty</span>:ident, <span class="macro-nonterminal">$variant</span>:ident) =&gt; {
+        <span class="attr">#[derive(Clone, Copy, Debug)]
+        </span><span class="kw">pub struct </span><span class="macro-nonterminal">$ty</span>;
+
+        <span class="kw">impl </span>From&lt;<span class="macro-nonterminal">$ty</span>&gt; <span class="kw">for </span>ProcessingGroup {
+            <span class="kw">fn </span>from(<span class="kw">_</span>: <span class="macro-nonterminal">$ty</span>) -&gt; <span class="self">Self </span>{
+                ProcessingGroup::<span class="macro-nonterminal">$variant
+            </span>}
+        }
+
+        <span class="kw">impl </span>TryFrom&lt;ProcessingGroup&gt; <span class="kw">for </span><span class="macro-nonterminal">$ty </span>{
+            <span class="kw">type </span>Error = GroupTypeError;
+
+            <span class="kw">fn </span>try_from(value: ProcessingGroup) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+                <span class="kw">if </span><span class="macro">matches!</span>(value, ProcessingGroup::<span class="macro-nonterminal">$variant</span>) {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro-nonterminal">$ty</span>);
+                }
+                <span class="kw">return </span><span class="prelude-val">Err</span>(GroupTypeError);
+            }
+        }
+    };
+}
+
 <span class="doccomment">/// A marker trait.
 ///
 /// Should be used only with groups which are responsible for processing envelopes with events.
 </span><span class="kw">pub trait </span>EventProcessing {}
 
-<span class="doccomment">/// Transaction group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>TransactionGroup;
-
+<span class="macro">processing_group!</span>(TransactionGroup, Transaction);
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>TransactionGroup {}
 
-<span class="doccomment">/// Error group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>ErrorGroup;
+<span class="macro">processing_group!</span>(ErrorGroup, Error);
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>ErrorGroup {}
 
-<span class="doccomment">/// Session group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>SessionGroup;
-
-<span class="doccomment">/// Standalone group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>StandaloneGroup;
-
-<span class="doccomment">/// ClientReport group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>ClientReportGroup;
-
-<span class="doccomment">/// Replay group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>ReplayGroup;
-
-<span class="doccomment">/// CheckIn group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>CheckInGroup;
-
-<span class="doccomment">/// Span group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>SpanGroup;
-
-<span class="doccomment">/// Metrics group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>MetricsGroup;
-
-<span class="doccomment">/// Unknown group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>ForwardUnknownGroup;
-
-<span class="doccomment">/// Ungrouped group type marker.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>Ungrouped;
+<span class="macro">processing_group!</span>(SessionGroup, Session);
+<span class="macro">processing_group!</span>(StandaloneGroup, Standalone);
+<span class="macro">processing_group!</span>(ClientReportGroup, ClientReport);
+<span class="macro">processing_group!</span>(ReplayGroup, Replay);
+<span class="macro">processing_group!</span>(CheckInGroup, CheckIn);
+<span class="macro">processing_group!</span>(SpanGroup, Span);
+<span class="macro">processing_group!</span>(MetricsGroup, Metrics);
+<span class="macro">processing_group!</span>(ForwardUnknownGroup, ForwardUnknown);
+<span class="macro">processing_group!</span>(Ungrouped, Ungrouped);
 
 <span class="doccomment">/// Processed group type marker.
 ///
@@ -3500,6 +3515,9 @@
 
     <span class="attr">#[error(<span class="string">"invalid pii config"</span>)]
     </span>PiiConfigError(PiiConfigError),
+
+    <span class="attr">#[error(<span class="string">"invalid processing group type"</span>)]
+    </span>InvalidProcessingGroup(<span class="attr">#[from] </span>InvalidProcessingGroupType),
 }
 
 <span class="kw">impl </span>ProcessingError {
@@ -3540,6 +3558,7 @@
             <span class="comment">// These outcomes are emitted at the source.
             </span><span class="self">Self</span>::MissingProjectId =&gt; <span class="prelude-val">None</span>,
             <span class="self">Self</span>::EventFiltered(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="self">Self</span>::InvalidProcessingGroup(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
 
@@ -4495,15 +4514,16 @@
         project_state: Arc&lt;ProjectState&gt;,
         sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, (ProcessingError, TypedEnvelope&lt;Processed&gt;)&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, ProcessingError&gt; {
         <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         </span><span class="kw">let </span>group = managed_envelope.group();
 
         <span class="macro">macro_rules! </span>run {
             (<span class="macro-nonterminal">$</span><span class="kw">fn</span>:<span class="macro-nonterminal">ident</span>) =&gt; {{
+                <span class="kw">let </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>state = <span class="self">self</span>.prepare_state(
-                    managed_envelope.into_typed(),
+                    managed_envelope,
                     project_id,
                     project_state,
                     sampling_project_state,
@@ -4514,12 +4534,17 @@
                         managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics,
                     }),
-                    <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>((e, state.managed_envelope.into_processed())),
+                    <span class="prelude-val">Err</span>(e) =&gt; {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = e.to_outcome() {
+                            state.managed_envelope.reject(outcome);
+                        }
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(e);
+                    }
                 }
             }};
         }
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group:?} group"</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group} group"</span>, group = group.variant());
 
         <span class="kw">match </span>group {
             ProcessingGroup::Error =&gt; <span class="macro">run!</span>(process_errors),
@@ -4543,7 +4568,7 @@
                 }
 
                 <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -4555,7 +4580,7 @@
                     <span class="string">"could not identify the processing group based on the envelope's items"
                 </span>);
                 <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_typed(),
+                    managed_envelope: managed_envelope.into_processed(),
                     extracted_metrics: Default::default(),
                 })
             }
@@ -4563,7 +4588,7 @@
             //
             // This will later be forwarded to upstream.
             </span>ProcessingGroup::ForwardUnknown =&gt; <span class="prelude-val">Ok</span>(ProcessingStateResult {
-                managed_envelope: managed_envelope.into_typed(),
+                managed_envelope: managed_envelope.into_processed(),
                 extracted_metrics: Default::default(),
             }),
         }
@@ -4655,12 +4680,7 @@
                             envelope: envelope_response,
                         })
                     }
-                    <span class="prelude-val">Err</span>((err, <span class="kw-2">mut </span>managed_envelope)) =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = err.to_outcome() {
-                            managed_envelope.reject(outcome);
-                        }
-                        <span class="prelude-val">Err</span>(err)
-                    }
+                    <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(err),
                 }
             },
         )
@@ -4928,7 +4948,7 @@
             ProcessingGroup::ClientReport,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 
@@ -5246,7 +5266,7 @@
                     );
 
                     <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-                        envelope: envelope.into_typed(),
+                        envelope: envelope.into_processed(),
                     });
                     num_batches += <span class="number">1</span>;
                 }
@@ -5392,7 +5412,7 @@
             ProcessingGroup::Metrics,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_typed(),
+            envelope: envelope.into_processed(),
         });
     }
 
