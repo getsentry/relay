@@ -2051,7 +2051,8 @@ def test_span_ingestion_with_performance_scores(
                     "op": "eq",
                     "name": "event.contexts.browser.name",
                     "value": "Python Requests",
-                },}
+                },
+            },
         ],
     }
     project_config["config"]["features"] = [
@@ -2173,9 +2174,9 @@ def test_span_ingestion_with_performance_scores(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "inp": {"value": 100.0},
-                      "score.inp": {"value": 0.9948129113413748},
-                      "score.total": {"value": 0.9948129113413748},
-                      "score.weight.inp": {"value": 1.0},
+                "score.inp": {"value": 0.9948129113413748},
+                "score.total": {"value": 0.9948129113413748},
+                "score.weight.inp": {"value": 1.0},
             },
         },
     ]
