@@ -2,6 +2,7 @@
 use std::error::Error;
 use std::net::IpAddr;
 
+use bytes::Bytes;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
@@ -15,7 +16,7 @@ use relay_statsd::metric;
 use rmp_serde;
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
@@ -67,14 +68,13 @@ pub fn process(
         match item.ty() {
             ItemType::ReplayEvent => {
                 match handle_replay_event_item(
-                    &item.payload(),
+                    item.payload(),
                     project_config,
                     client_addr,
                     user_agent,
                 ) {
-                    ProcessingAction::Drop(action) => action,
-                    ProcessingAction::Keep => ItemAction::Keep,
-                    ProcessingAction::Replace(replay_event) => {
+                    Err(outcome) => ItemAction::Drop(outcome),
+                    Ok(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
                         ItemAction::Keep
                     }
@@ -82,21 +82,20 @@ pub fn process(
             }
             ItemType::ReplayRecording => {
                 match handle_replay_recording_item(
-                    &item.payload(),
+                    item.payload(),
                     &event_id,
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    ProcessingAction::Drop(action) => action,
-                    ProcessingAction::Keep => ItemAction::Keep,
-                    ProcessingAction::Replace(replay_recording) => {
+                    Err(outcome) => ItemAction::Drop(outcome),
+                    Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
                         ItemAction::Keep
                     }
                 }
             }
             ItemType::ReplayVideo => match handle_replay_video_item(
-                item,
+                item.payload(),
                 &event_id,
                 project_config,
                 client_addr,
@@ -104,11 +103,9 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                ProcessingAction::Drop(action) => action,
-                ProcessingAction::Keep => ItemAction::Keep,
-                ProcessingAction::Replace((replay_event, replay_recording, replay_video)) => {
-                    item.set_replay_video_events(replay_event, replay_recording);
-                    item.set_payload(ContentType::OctetStream, replay_video);
+                Err(outcome) => ItemAction::Drop(outcome),
+                Ok(payload) => {
+                    item.set_payload(ContentType::OctetStream, payload);
                     ItemAction::Keep
                 }
             },
@@ -119,36 +116,30 @@ pub fn process(
     Ok(())
 }
 
-enum ProcessingAction<T> {
-    Drop(ItemAction),
-    Keep,
-    Replace(T),
-}
-
 // Replay Event Processing.
 
 fn handle_replay_event_item(
-    payload: &[u8],
+    payload: Bytes,
     config: &ProjectConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-) -> ProcessingAction<String> {
-    match process_replay_event(payload, config, client_ip, user_agent) {
+) -> Result<Bytes, Outcome> {
+    match process_replay_event(&payload, config, client_ip, user_agent) {
         Ok(replay) => match replay.to_json() {
-            Ok(json) => ProcessingAction::Replace(json),
+            Ok(json) => Ok(json.into_bytes().into()),
             Err(error) => {
                 relay_log::error!(error = &error as &dyn Error, "failed to serialize replay");
-                ProcessingAction::Keep
+                Ok(payload)
             }
         },
         Err(error) => {
             relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
-            ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(match error {
+            Err(Outcome::Invalid(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
                 ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
                 ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-            })))
+            }))
         }
     }
 }
@@ -192,15 +183,15 @@ fn process_replay_event(
 // Replay Recording Processing
 
 fn handle_replay_recording_item(
-    payload: &[u8],
+    payload: Bytes,
     event_id: &Option<EventId>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> ProcessingAction<Vec<u8>> {
+) -> Result<Bytes, Outcome> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
     if !scrubbing_enabled || scrubber.is_empty() {
-        return ProcessingAction::Keep;
+        return Ok(payload);
     }
 
     // Limit expansion of recordings to the max replay size. The payload is
@@ -208,16 +199,14 @@ fn handle_replay_recording_item(
     // limit memory pressure, we use the replay limit as a good overall limit for
     // allocations.
     let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-        scrubber.process_recording(payload)
+        scrubber.process_recording(&payload)
     });
 
     match parsed_recording {
-        Ok(recording) => ProcessingAction::Replace(recording),
+        Ok(recording) => Ok(recording.into()),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
-                DiscardReason::InvalidReplayRecordingEvent,
-            )))
+            Err(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
         }
     }
 }
@@ -226,63 +215,50 @@ fn handle_replay_recording_item(
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ReplayVideoEvent {
-    #[serde(with = "serde_bytes")]
-    replay_event: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    replay_recording: Vec<u8>,
-    #[serde(with = "serde_bytes")]
-    replay_video: Vec<u8>,
+    replay_event: Bytes,
+    replay_recording: Bytes,
+    replay_video: Bytes,
 }
 
 fn handle_replay_video_item(
-    item: &mut Item,
+    payload: Bytes,
     event_id: &Option<EventId>,
     config: &ProjectConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> ProcessingAction<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    let event: ReplayVideoEvent = match rmp_serde::from_slice(&item.payload()) {
+) -> Result<Bytes, Outcome> {
+    let ReplayVideoEvent {
+        replay_event,
+        replay_recording,
+        replay_video,
+    } = match rmp_serde::from_slice(&payload) {
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
-                DiscardReason::InvalidReplayVideoEvent,
-            )));
+            return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
         }
     };
 
     // Process as a replay-event envelope item.
-    let replay_event =
-        match handle_replay_event_item(&event.replay_event, config, client_ip, user_agent) {
-            ProcessingAction::Drop(action) => {
-                return ProcessingAction::Drop(action);
-            }
-            ProcessingAction::Keep => event.replay_event,
-            ProcessingAction::Replace(msg) => msg.as_bytes().to_vec(),
-        };
+    let replay_event = handle_replay_event_item(replay_event, config, client_ip, user_agent)?;
 
     // Process as a replay-recording envelope item.
-    let replay_recording = match handle_replay_recording_item(
-        &event.replay_recording,
-        event_id,
-        scrubbing_enabled,
-        scrubber,
-    ) {
-        ProcessingAction::Drop(action) => {
-            return ProcessingAction::Drop(action);
-        }
-        ProcessingAction::Keep => event.replay_recording,
-        ProcessingAction::Replace(msg) => msg,
-    };
+    let replay_recording =
+        handle_replay_recording_item(replay_recording, event_id, scrubbing_enabled, scrubber)?;
 
     // Verify the replay-video payload is not empty.
-    if event.replay_video.is_empty() {
-        return ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
-            DiscardReason::InvalidReplayVideoEvent,
-        )));
+    if replay_video.is_empty() {
+        return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
     }
 
-    ProcessingAction::Replace((replay_event, replay_recording, event.replay_video))
+    match rmp_serde::to_vec_named(&ReplayVideoEvent {
+        replay_event,
+        replay_recording,
+        replay_video,
+    }) {
+        Ok(payload) => Ok(payload.into()),
+        Err(_) => Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent)),
+    }
 }
