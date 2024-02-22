@@ -365,6 +365,12 @@ pub fn extract_tags(
             } else {
                 None
             }
+        } else if span.origin.as_str() == Some("auto.db.supabase") {
+            scrubbed_description.as_deref().map(|s| {
+                s.trim_start_matches("from(")
+                    .trim_end_matches(')')
+                    .to_owned()
+            })
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -1426,6 +1432,40 @@ LIMIT 1
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
             Some(&"Chrome".to_string())
+        );
+    }
+
+    #[test]
+    fn supabase() {
+        let json = r#"{
+            "description": "from(my_table00)",
+            "op": "db.select",
+            "origin": "auto.db.supabase"
+        }"#;
+
+        let span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        let tags = extract_tags(
+            &span,
+            &Config {
+                max_tag_value_size: 200,
+            },
+            None,
+            None,
+            false,
+            None,
+        );
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Description).map(String::as_str),
+            Some("from(my_table{%s})")
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            Some("my_table{%s}")
         );
     }
 }

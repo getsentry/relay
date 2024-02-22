@@ -13,7 +13,8 @@ use relay_event_schema::protocol::Span;
 use url::Url;
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -70,12 +71,14 @@ pub(crate) fn scrub_span_description(
                     // The description will only contain the entity queried and
                     // the query type ("User find" for example).
                     Some(description.to_owned())
+                } else if span_origin == Some("auto.db.supabase") {
+                    scrub_supabase(description)
                 } else {
                     let (scrubbed, mode) = sql::scrub_queries(db_system, description);
                     if let sql::Mode::Parsed(ast) = mode {
                         parsed_sql = Some(ast);
                     }
-                    scrubbed
+                    dbg!(scrubbed)
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
@@ -136,6 +139,13 @@ fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
 
 fn scrub_core_data(string: &str) -> Option<String> {
     match DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, "*") {
+        Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(_) => None,
+    }
+}
+
+fn scrub_supabase(string: &str) -> Option<String> {
+    match DB_SUPABASE_REGEX.replace_all(string, "{%s}") {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(_) => None,
     }
@@ -911,6 +921,13 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
+
+    span_description_test!(
+        db_supabase,
+        "from(my_table)",
+        "db.auto.supabase",
+        "from(my_table)"
+    );
 
     #[test]
     fn informed_sql_parser() {
