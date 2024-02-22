@@ -91,6 +91,7 @@ mod replay;
 mod report;
 mod session;
 mod span;
+#[cfg(feature = "processing")]
 mod state;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -1386,11 +1387,11 @@ impl EnvelopeProcessorService {
     /// Processes cron check-ins.
     fn process_checkins<'a>(
         &'_ self,
-        mut state: ProcessEnvelopeState<'a, CheckInGroup>,
+        state: ProcessEnvelopeState<'a, CheckInGroup>,
     ) -> Result<ProcessEnvelopeState<'a, CheckInGroup>, ProcessError<'a, CheckInGroup>> {
         if_processing!(self.inner.config, {
             let enforced_state = self.enforce_quotas(state)?;
-            state = self.process_check_ins(enforced_state);
+            return Ok(self.process_check_ins(enforced_state));
         });
         Ok(state)
     }
@@ -1400,15 +1401,17 @@ impl EnvelopeProcessorService {
         &'_ self,
         state: ProcessEnvelopeState<'a, SpanGroup>,
     ) -> Result<ProcessEnvelopeState<'a, SpanGroup>, ProcessError<'a, SpanGroup>> {
-        let mut state = span::filter(state);
+        let state = span::filter(state);
         if_processing!(self.inner.config, {
             let enforced_state = self.enforce_quotas(state)?;
-            state = span::process(
+            let state = span::process(
                 enforced_state,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             );
+            return Ok(state);
         });
+
         Ok(state)
     }
 
