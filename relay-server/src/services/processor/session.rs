@@ -22,7 +22,10 @@ use crate::utils::ItemAction;
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) {
+pub fn process<'a>(
+    mut state: ProcessEnvelopeState<'a, SessionGroup>,
+    config: &'_ Config,
+) -> ProcessEnvelopeState<'a, SessionGroup> {
     let received = state.managed_envelope.received_at();
     let extracted_metrics = &mut state.extracted_metrics.project_metrics;
     let metrics_config = state.project_state.config().session_metrics;
@@ -63,6 +66,8 @@ pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) 
             ItemAction::DropSilently // sessions never log outcomes.
         }
     });
+
+    state
 }
 
 /// Returns Ok(true) if attributes were modified.

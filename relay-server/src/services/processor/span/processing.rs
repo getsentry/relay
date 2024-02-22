@@ -27,11 +27,11 @@ use crate::services::processor::{
 };
 use crate::utils::ItemAction;
 
-pub fn process(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
+pub fn process<'a>(
+    mut state: ProcessEnvelopeState<'a, SpanGroup>,
     config: Arc<Config>,
-    global_config: &GlobalConfig,
-) {
+    global_config: &'_ GlobalConfig,
+) -> ProcessEnvelopeState<'a, SpanGroup> {
     use relay_event_normalization::RemoveOtherProcessor;
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
@@ -138,12 +138,16 @@ pub fn process(
 
         ItemAction::Keep
     });
+
+    state
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn extract_from_event(
+    mut state: ProcessEnvelopeState<TransactionGroup>,
+) -> ProcessEnvelopeState<TransactionGroup> {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
-        return;
+        return state;
     };
 
     let mut add_span = |span: Annotated<Span>| {
@@ -184,7 +188,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
 
     let Some(event) = state.event.value() else {
-        return;
+        return state;
     };
 
     let extract_transaction_span = span_metrics_extraction_enabled
@@ -234,6 +238,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         );
         add_span(transaction_span.into());
     }
+
+    state
 }
 
 /// Config needed to normalize a standalone span.

@@ -39,11 +39,11 @@ pub enum ClientReportField {
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-pub fn process_client_reports(
-    state: &mut ProcessEnvelopeState<ClientReportGroup>,
-    config: &Config,
+pub fn process_client_reports<'a>(
+    mut state: ProcessEnvelopeState<'a, ClientReportGroup>,
+    config: &'_ Config,
     outcome_aggregator: Addr<TrackOutcome>,
-) {
+) -> ProcessEnvelopeState<'a, ClientReportGroup> {
     // if client outcomes are disabled we leave the the client reports unprocessed
     // and pass them on.
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
@@ -54,7 +54,7 @@ pub fn process_client_reports(
                 _ => ItemAction::Keep,
             });
         }
-        return;
+        return state;
     }
 
     let mut timestamp = None;
@@ -120,7 +120,7 @@ pub fn process_client_reports(
     });
 
     if output_events.is_empty() {
-        return;
+        return state;
     }
 
     let timestamp =
@@ -142,7 +142,7 @@ pub fn process_client_reports(
             "skipping client outcomes older than {} days",
             max_age.num_days()
         );
-        return;
+        return state;
     }
 
     let max_future = SignedDuration::seconds(config.max_secs_in_future());
@@ -156,7 +156,7 @@ pub fn process_client_reports(
             "skipping client outcomes more than {}s in the future",
             max_future.num_seconds()
         );
-        return;
+        return state;
     }
 
     for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
@@ -181,6 +181,8 @@ pub fn process_client_reports(
             quantity,
         });
     }
+
+    state
 }
 
 /// Validates and normalizes all user report items in the envelope.
@@ -188,7 +190,7 @@ pub fn process_client_reports(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn process_user_reports<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
     state.managed_envelope.retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;
@@ -221,6 +223,8 @@ pub fn process_user_reports<G>(state: &mut ProcessEnvelopeState<G>) {
         item.set_payload(ContentType::Json, json_string);
         ItemAction::Keep
     });
+
+    state
 }
 
 fn trim_whitespaces(data: &[u8]) -> &[u8] {

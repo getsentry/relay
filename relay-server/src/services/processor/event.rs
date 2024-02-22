@@ -30,7 +30,8 @@ use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
+    EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessError, ProcessingError,
+    MINIMUM_CLOCK_DRIFT,
 };
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
@@ -43,34 +44,54 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let envelope = &mut state.envelope_mut();
-
+pub fn extract<'a, G: EventProcessing>(
+    mut state: ProcessEnvelopeState<'a, G>,
+    config: &'_ Config,
+) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
     // `process_event`.
-    let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-    let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
-    let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
-    let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
-    let nel_item = envelope.take_item_by(|item| item.ty() == &ItemType::Nel);
-    let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
-    let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
-    let attachment_item =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
-    let breadcrumbs1 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
-    let breadcrumbs2 =
-        envelope.take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+    let event_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::Event);
+    let transaction_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::Transaction);
+    let security_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::Security);
+    let raw_security_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+    let nel_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::Nel);
+    let user_report_v2_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::UserReportV2);
+    let form_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.ty() == &ItemType::FormData);
+    let attachment_item = state
+        .envelope_mut()
+        .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
+    let breadcrumbs1 = state
+        .envelope_mut()
+        .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
+    let breadcrumbs2 = state
+        .envelope_mut()
+        .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
 
     // Event items can never occur twice in an envelope.
-    if let Some(duplicate) =
-        envelope.get_item_by(|item| is_duplicate(item, config.processing_enabled()))
+    if let Some(duplicate) = state
+        .envelope()
+        .get_item_by(|item| is_duplicate(item, config.processing_enabled()))
+        .cloned()
     {
-        return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
+        return Err((
+            state,
+            ProcessingError::DuplicateItem(duplicate.ty().clone()),
+        ));
     }
 
     let mut sample_rates = None;
@@ -80,7 +101,10 @@ pub fn extract<G: EventProcessing>(
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during store normalization.
-            event_from_json_payload(item, None)?
+            match event_from_json_payload(item, None) {
+                Ok((event, event_len)) => (event, event_len),
+                Err(err) => return Err((state, err)),
+            }
         })
     } else if let Some(mut item) = transaction_item {
         relay_log::trace!("processing json transaction");
@@ -89,35 +113,50 @@ pub fn extract<G: EventProcessing>(
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(item, Some(EventType::Transaction))?
+            match event_from_json_payload(item, Some(EventType::Transaction)) {
+                Ok((event, event_len)) => (event, event_len),
+                Err(err) => return Err((state, err)),
+            }
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
         let project_state = &state.project_state;
         let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
         if !user_report_v2_ingest {
-            return Err(ProcessingError::NoEventPayload);
+            return Err((state, ProcessingError::NoEventPayload));
         }
-        event_from_json_payload(item, Some(EventType::UserReportV2))?
+        match event_from_json_payload(item, Some(EventType::UserReportV2)) {
+            Ok((event, event_len)) => (event, event_len),
+            Err(err) => return Err((state, err)),
+        }
     } else if let Some(mut item) = raw_security_item {
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
-        event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
-            error
-        })?
+        match event_from_security_report(item, state.envelope().meta()) {
+            Ok((event, event_len)) => (event, event_len),
+            Err(err) => {
+                relay_log::error!(
+                    error = &err as &dyn Error,
+                    "failed to extract security report"
+                );
+                return Err((state, err));
+            }
+        }
     } else if let Some(item) = nel_item {
         relay_log::trace!("processing nel report");
-        event_from_nel_item(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
-            error
-        })?
+        match event_from_nel_item(item, state.envelope().meta()) {
+            Ok((event, event_len)) => (event, event_len),
+            Err(err) => {
+                relay_log::error!(error = &err as &dyn Error, "failed to extract NEL report");
+                return Err((state, err));
+            }
+        }
     } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
         relay_log::trace!("extracting attached event data");
-        event_from_attachments(config, attachment_item, breadcrumbs1, breadcrumbs2)?
+        match event_from_attachments(config, attachment_item, breadcrumbs1, breadcrumbs2) {
+            Ok((event, event_len)) => (event, event_len),
+            Err(err) => return Err((state, err)),
+        }
     } else if let Some(item) = form_item {
         relay_log::trace!("extracting form data");
         let len = item.len();
@@ -136,20 +175,20 @@ pub fn extract<G: EventProcessing>(
     state.sample_rates = sample_rates;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(())
+    Ok(state)
 }
 
-pub fn finalize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
+pub fn finalize<'a, G: EventProcessing>(
+    mut state: ProcessEnvelopeState<'a, G>,
+    config: &'_ Config,
+) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
         Some(event) => event,
-        None if !config.processing_enabled() => return Ok(()),
-        None => return Err(ProcessingError::NoEventPayload),
+        None if !config.processing_enabled() => return Ok(state),
+        None => return Err((state, ProcessingError::NoEventPayload)),
     };
 
     if !config.processing_enabled() {
@@ -251,8 +290,10 @@ pub fn finalize<G: EventProcessing>(
 
     let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
         .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
-        .map_err(|_| ProcessingError::InvalidTransaction)?;
+    if processor::process_value(&mut state.event, &mut processor, ProcessingState::root()).is_err()
+    {
+        return Err((state, ProcessingError::InvalidTransaction));
+    }
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
@@ -268,73 +309,82 @@ pub fn finalize<G: EventProcessing>(
         }
     }
 
-    Ok(())
+    Ok(state)
 }
 
 pub fn filter<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-) -> Result<(), ProcessingError> {
+    mut state: ProcessEnvelopeState<G>,
+) -> Result<ProcessEnvelopeState<G>, ProcessError<G>> {
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        None => return Ok(()),
+        None => return Ok(state),
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
+        if let Err(err) = relay_filter::should_filter(event, client_ip, filter_settings) {
             state
                 .managed_envelope
                 .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
-    })
+            return Err((state, ProcessingError::EventFiltered(err)));
+        }
+    });
+
+    Ok(state)
 }
 
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
 pub fn scrub<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-) -> Result<(), ProcessingError> {
-    let event = &mut state.event;
-    let config = &state.project_state.config;
+    mut state: ProcessEnvelopeState<G>,
+) -> Result<ProcessEnvelopeState<G>, ProcessError<G>> {
+    let project_state = state.project_state.clone();
 
-    if config.datascrubbing_settings.scrub_data {
-        if let Some(event) = event.value_mut() {
+    if state.project_state.config.datascrubbing_settings.scrub_data {
+        if let Some(event) = state.event.value_mut() {
             relay_pii::scrub_graphql(event);
         }
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
-        if let Some(ref config) = config.pii_config {
+        if let Some(ref config) = project_state.config.pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
+            if let Err(err) =
+                processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
+            {
+                return Err((state, ProcessingError::ProcessingFailed(err)));
+            }
         }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        let pii_config = match project_state.config.datascrubbing_settings.pii_config() {
+            Ok(config) => config,
+            Err(err) => return Err((state, ProcessingError::PiiConfigError(err.clone()))),
+        };
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
+            if let Err(err) =
+                processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
+            {
+                return Err((state, ProcessingError::ProcessingFailed(err)));
+            }
         }
     });
 
-    Ok(())
+    Ok(state)
 }
 
 pub fn serialize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-) -> Result<(), ProcessingError> {
+    mut state: ProcessEnvelopeState<G>,
+) -> Result<ProcessEnvelopeState<G>, ProcessError<G>> {
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-        state
-            .event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
+        match state.event.to_json() {
+            Ok(data) => data,
+            Err(err) => return Err((state, ProcessingError::SerializeFailed(err))),
+        }
     });
 
     let event_type = state.event_type().unwrap_or_default();
@@ -352,22 +402,16 @@ pub fn serialize<G: EventProcessing>(
 
     state.envelope_mut().add_item(event_item);
 
-    Ok(())
+    Ok(state)
 }
 
 #[cfg(feature = "processing")]
-pub fn store<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let ProcessEnvelopeState {
-        ref mut event,
-        ref project_state,
-        ref managed_envelope,
-        ..
-    } = *state;
-
-    let key_id = project_state
+pub fn store<'a, G: EventProcessing>(
+    mut state: ProcessEnvelopeState<'a, G>,
+    config: &'_ Config,
+) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
+    let key_id = state
+        .project_state
         .get_public_key_config()
         .and_then(|k| Some(k.numeric_id?.to_string()));
 
@@ -386,7 +430,7 @@ pub fn store<G: EventProcessing>(
         client: envelope.meta().client().map(str::to_owned),
         key_id,
         protocol_version: Some(envelope.meta().version().to_string()),
-        grouping_config: project_state.config.grouping_config.clone(),
+        grouping_config: state.project_state.config.grouping_config.clone(),
         user_agent: envelope.meta().user_agent().map(str::to_owned),
         max_secs_in_future: Some(config.max_secs_in_future()),
         max_secs_in_past: Some(config.max_secs_in_past()),
@@ -395,8 +439,8 @@ pub fn store<G: EventProcessing>(
         remove_other: Some(true),
         normalize_user_agent: Some(true),
         sent_at: envelope.sent_at(),
-        received_at: Some(managed_envelope.received_at()),
-        breakdowns: project_state.config.breakdowns_v2.clone(),
+        received_at: Some(state.managed_envelope.received_at()),
+        breakdowns: state.project_state.config.breakdowns_v2.clone(),
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
@@ -404,14 +448,21 @@ pub fn store<G: EventProcessing>(
 
     let mut store_processor = StoreProcessor::new(store_config);
     metric!(timer(RelayTimers::EventProcessingProcess), {
-        processor::process_value(event, &mut store_processor, ProcessingState::root())
-            .map_err(|_| ProcessingError::InvalidTransaction)?;
-        if has_unprintable_fields(event) {
+        if processor::process_value(
+            &mut state.event,
+            &mut store_processor,
+            ProcessingState::root(),
+        )
+        .is_err()
+        {
+            return Err((state, ProcessingError::InvalidTransaction));
+        }
+        if has_unprintable_fields(&state.event) {
             metric!(counter(RelayCounters::EventCorrupted) += 1);
         }
     });
 
-    Ok(())
+    Ok(state)
 }
 
 /// Checks if the Event includes unprintable fields.

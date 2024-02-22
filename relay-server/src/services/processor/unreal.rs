@@ -5,7 +5,7 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
-use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessingError};
+use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessError, ProcessingError};
 use crate::utils;
 
 /// Expands Unreal 4 items inside an envelope.
@@ -20,24 +20,32 @@ use crate::utils;
 ///
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
-pub fn expand(
-    state: &mut ProcessEnvelopeState<ErrorGroup>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
+pub fn expand<'a>(
+    mut state: ProcessEnvelopeState<'a, ErrorGroup>,
+    config: &'_ Config,
+) -> Result<ProcessEnvelopeState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
     let envelope = &mut state.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
-        utils::expand_unreal_envelope(item, envelope, config)?;
+        if let Err(err) = utils::expand_unreal_envelope(item, envelope, config) {
+            return Err((state, ProcessingError::InvalidUnrealReport(err)));
+        };
     }
 
-    Ok(())
+    Ok(state)
 }
 
 /// Extracts event information from an unreal context.
 ///
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
-pub fn process(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Result<(), ProcessingError> {
-    utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
-        .map_err(ProcessingError::InvalidUnrealReport)
+pub fn process(
+    mut state: ProcessEnvelopeState<ErrorGroup>,
+) -> Result<ProcessEnvelopeState<ErrorGroup>, ProcessError<ErrorGroup>> {
+    if let Err(err) =
+        utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
+    {
+        return Err((state, ProcessingError::InvalidUnrealReport(err)));
+    }
+    Ok(state)
 }

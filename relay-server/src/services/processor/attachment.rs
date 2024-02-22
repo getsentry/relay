@@ -23,7 +23,9 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<G>) {
+pub fn create_placeholders<G: EventProcessing>(
+    mut state: ProcessEnvelopeState<G>,
+) -> ProcessEnvelopeState<G> {
     let envelope = state.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -39,6 +41,8 @@ pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
     }
+
+    state
 }
 
 /// Apply data privacy rules to attachments in the envelope.
@@ -46,7 +50,7 @@ pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn scrub<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
     let envelope = state.managed_envelope.envelope_mut();
     if let Some(ref config) = state.project_state.config.pii_config {
         let minidump = envelope
@@ -92,4 +96,5 @@ pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) {
             item.set_payload(content_type, payload);
         }
     }
+    state
 }

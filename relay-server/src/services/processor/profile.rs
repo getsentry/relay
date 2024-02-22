@@ -15,7 +15,7 @@ use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
     let transaction_count: usize = state
         .managed_envelope
         .envelope()
@@ -49,12 +49,15 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         _ => ItemAction::Keep,
     });
     state.profile_id = profile_id;
+    state
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
 /// If profile processing happens at a later stage, we remove the context again.
-pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn transfer_id(
+    mut state: ProcessEnvelopeState<TransactionGroup>,
+) -> ProcessEnvelopeState<TransactionGroup> {
     if let Some(event) = state.event.value_mut() {
         if event.ty.value() == Some(&EventType::Transaction) {
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -66,11 +69,15 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
             }
         }
     }
+    state
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn process<'a>(
+    mut state: ProcessEnvelopeState<'a, TransactionGroup>,
+    config: &'_ Config,
+) -> ProcessEnvelopeState<'a, TransactionGroup> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
@@ -98,6 +105,8 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
             }
         }
     }
+
+    state
 }
 
 /// Transfers transaction metadata to profile and check its size.

@@ -10,7 +10,7 @@ mod processing;
 #[cfg(feature = "processing")]
 pub use processing::*;
 
-pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
+pub fn filter(mut state: ProcessEnvelopeState<SpanGroup>) -> ProcessEnvelopeState<SpanGroup> {
     let standalone_span_ingestion_enabled = state
         .project_state
         .has_feature(Feature::StandaloneSpanIngestion);
@@ -25,4 +25,5 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
         }
         _ => ItemAction::Keep,
     });
+    state
 }

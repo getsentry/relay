@@ -17,16 +17,18 @@ use relay_statsd::metric;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
+use crate::services::processor::{
+    ProcessEnvelopeState, ProcessError, ProcessingError, ReplayGroup,
+};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
-pub fn process(
-    state: &mut ProcessEnvelopeState<ReplayGroup>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let project_state = &state.project_state;
+pub fn process<'a>(
+    mut state: ProcessEnvelopeState<'a, ReplayGroup>,
+    config: &'_ Config,
+) -> Result<ProcessEnvelopeState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
+    let project_state = state.project_state.clone();
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
@@ -36,11 +38,10 @@ pub fn process(
 
     let limit = config.max_replay_uncompressed_size();
     let project_config = project_state.config();
-    let datascrubbing_config = project_config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
-        .as_ref();
+    let datascrubbing_config = match project_config.datascrubbing_settings.pii_config() {
+        Ok(config) => config.as_ref(),
+        Err(err) => return Err((state, ProcessingError::PiiConfigError(err.clone()))),
+    };
     let mut scrubber = RecordingScrubber::new(
         limit,
         project_config.pii_config.as_ref(),
@@ -124,7 +125,7 @@ pub fn process(
         _ => ItemAction::Keep,
     });
 
-    Ok(())
+    Ok(state)
 }
 
 /// Validates, normalizes, and scrubs PII from a replay event.
