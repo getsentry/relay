@@ -6,6 +6,7 @@
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
+- Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
 
 **Bug Fixes**:
 
@@ -28,7 +29,6 @@
 **Features**:
 
 - Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
-- Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
 
 **Internal**:
 
