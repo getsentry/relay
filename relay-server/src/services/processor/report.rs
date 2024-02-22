@@ -15,6 +15,7 @@ use relay_system::Addr;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::services::processor::state::{EnforcedOrRaw, ProcessedState};
 use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
@@ -40,10 +41,11 @@ pub enum ClientReportField {
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 pub fn process_client_reports<'a>(
-    mut state: ProcessEnvelopeState<'a, ClientReportGroup>,
+    state: EnforcedOrRaw<'a, ClientReportGroup>,
     config: &'_ Config,
     outcome_aggregator: Addr<TrackOutcome>,
-) -> ProcessEnvelopeState<'a, ClientReportGroup> {
+) -> ProcessedState<'a, ClientReportGroup> {
+    let mut state = state.inner();
     // if client outcomes are disabled we leave the the client reports unprocessed
     // and pass them on.
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
@@ -54,7 +56,7 @@ pub fn process_client_reports<'a>(
                 _ => ItemAction::Keep,
             });
         }
-        return state;
+        return ProcessedState::new(state);
     }
 
     let mut timestamp = None;
@@ -120,7 +122,7 @@ pub fn process_client_reports<'a>(
     });
 
     if output_events.is_empty() {
-        return state;
+        return ProcessedState::new(state);
     }
 
     let timestamp =
@@ -142,7 +144,7 @@ pub fn process_client_reports<'a>(
             "skipping client outcomes older than {} days",
             max_age.num_days()
         );
-        return state;
+        return ProcessedState::new(state);
     }
 
     let max_future = SignedDuration::seconds(config.max_secs_in_future());
@@ -156,7 +158,7 @@ pub fn process_client_reports<'a>(
             "skipping client outcomes more than {}s in the future",
             max_future.num_seconds()
         );
-        return state;
+        return ProcessedState::new(state);
     }
 
     for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
@@ -182,7 +184,7 @@ pub fn process_client_reports<'a>(
         });
     }
 
-    state
+    ProcessedState::new(state)
 }
 
 /// Validates and normalizes all user report items in the envelope.
@@ -190,7 +192,9 @@ pub fn process_client_reports<'a>(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
+pub fn process_user_reports<G>(state: EnforcedOrRaw<G>) -> ProcessEnvelopeState<G> {
+    let mut state = state.inner();
+
     state.managed_envelope.retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;

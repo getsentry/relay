@@ -71,6 +71,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::state::{EnforcedOrRaw, ProcessedState};
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 use crate::services::test_store::{Capture, TestStore};
@@ -91,7 +92,6 @@ mod replay;
 mod report;
 mod session;
 mod span;
-#[cfg(feature = "processing")]
 mod state;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -948,15 +948,16 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_check_ins<'a>(
         &'_ self,
-        mut enforced_state: EnforcedQuotasState<'a, CheckInGroup>,
-    ) -> ProcessEnvelopeState<'a, CheckInGroup> {
-        enforced_state.state.managed_envelope.retain_items(|item| {
+        enforced_state: EnforcedQuotasState<'a, CheckInGroup>,
+    ) -> ProcessedState<'a, CheckInGroup> {
+        let mut state = enforced_state.inner();
+
+        state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload(), enforced_state.state.project_id)
-            {
+            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
                 Ok(result) => {
                     item.set_routing_hint(result.routing_hint);
                     item.set_payload(ContentType::Json, result.payload);
@@ -973,7 +974,7 @@ impl EnvelopeProcessorService {
             }
         });
 
-        enforced_state.inner()
+        ProcessedState::new(state)
     }
 
     /// Creates and initializes the processing state.
@@ -1246,9 +1247,9 @@ impl EnvelopeProcessorService {
     fn process_errors<'a>(
         &'_ self,
         mut state: ProcessEnvelopeState<'a, ErrorGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
+    ) -> Result<ProcessedState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
         // Events can also contain user reports.
-        state = report::process_user_reports(state);
+        state = report::process_user_reports(EnforcedOrRaw::State(state));
 
         if_processing!(self.inner.config, {
             state = unreal::expand(state, &self.inner.config)?;
@@ -1276,7 +1277,7 @@ impl EnvelopeProcessorService {
             state = event::serialize(state)?;
         }
 
-        state = attachment::scrub(state);
+        let state = attachment::scrub(state);
 
         Ok(state)
     }
@@ -1285,8 +1286,7 @@ impl EnvelopeProcessorService {
     fn process_transactions<'a>(
         &'_ self,
         mut state: ProcessEnvelopeState<'a, TransactionGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, TransactionGroup>, ProcessError<'a, TransactionGroup>>
-    {
+    ) -> Result<ProcessedState<'a, TransactionGroup>, ProcessError<'a, TransactionGroup>> {
         state = profile::filter(state);
         state = event::extract(state, &self.inner.config)?;
         state = profile::transfer_id(state);
@@ -1327,49 +1327,52 @@ impl EnvelopeProcessorService {
             });
         }
 
-        state = attachment::scrub(state);
+        let state = attachment::scrub(state);
         Ok(state)
     }
 
     /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
     fn process_standalone<'a>(
         &'_ self,
-        mut state: ProcessEnvelopeState<'a, StandaloneGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, StandaloneGroup>, ProcessError<'a, StandaloneGroup>> {
-        state = profile::filter(state);
+        state: ProcessEnvelopeState<'a, StandaloneGroup>,
+    ) -> Result<ProcessedState<'a, StandaloneGroup>, ProcessError<'a, StandaloneGroup>> {
+        #[allow(unused_mut)]
+        let mut state = EnforcedOrRaw::State(profile::filter(state));
 
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?.inner();
+            state = EnforcedOrRaw::EnforcedQuotasState(self.enforce_quotas(state.inner())?);
         });
 
-        state = report::process_user_reports(state);
-        state = attachment::scrub(state);
+        let state = report::process_user_reports(state);
+        let state = attachment::scrub(state);
         Ok(state)
     }
 
     /// Processes user sessions.
     fn process_sessions<'a>(
         &'_ self,
-        mut state: ProcessEnvelopeState<'a, SessionGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, SessionGroup>, ProcessError<'a, SessionGroup>> {
-        state = session::process(state, &self.inner.config);
+        state: ProcessEnvelopeState<'a, SessionGroup>,
+    ) -> Result<ProcessedState<'a, SessionGroup>, ProcessError<'a, SessionGroup>> {
+        #[allow(unused_mut)]
+        let mut state = EnforcedOrRaw::State(session::process(state, &self.inner.config));
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?.inner();
+            state = EnforcedOrRaw::EnforcedQuotasState(self.enforce_quotas(state.inner())?);
         });
-        Ok(state)
+        Ok(ProcessedState::new(state.inner()))
     }
 
     /// Processes user and client reports.
     fn process_client_reports<'a>(
         &'_ self,
-        mut state: ProcessEnvelopeState<'a, ClientReportGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, ClientReportGroup>, ProcessError<'a, ClientReportGroup>>
-    {
+        state: ProcessEnvelopeState<'a, ClientReportGroup>,
+    ) -> Result<ProcessedState<'a, ClientReportGroup>, ProcessError<'a, ClientReportGroup>> {
+        #[allow(unused_mut)]
+        let mut state = EnforcedOrRaw::State(state);
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?.inner();
+            state = EnforcedOrRaw::EnforcedQuotasState(self.enforce_quotas(state.inner())?);
         });
 
-        state = report::process_client_reports(
+        let state = report::process_client_reports(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
@@ -1382,31 +1385,32 @@ impl EnvelopeProcessorService {
     fn process_replays<'a>(
         &'_ self,
         mut state: ProcessEnvelopeState<'a, ReplayGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
+    ) -> Result<ProcessedState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
         state = replay::process(state, &self.inner.config)?;
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?.inner();
+            let state = self.enforce_quotas(state)?;
+            return Ok(ProcessedState::new(state.inner()));
         });
-        Ok(state)
+        Ok(ProcessedState::new(state))
     }
 
     /// Processes cron check-ins.
     fn process_checkins<'a>(
         &'_ self,
         state: ProcessEnvelopeState<'a, CheckInGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, CheckInGroup>, ProcessError<'a, CheckInGroup>> {
+    ) -> Result<ProcessedState<'a, CheckInGroup>, ProcessError<'a, CheckInGroup>> {
         if_processing!(self.inner.config, {
             let enforced_state = self.enforce_quotas(state)?;
             return Ok(self.process_check_ins(enforced_state));
         });
-        Ok(state)
+        Ok(ProcessedState::new(state))
     }
 
     /// Processes spans.
     fn process_spans<'a>(
         &'_ self,
         state: ProcessEnvelopeState<'a, SpanGroup>,
-    ) -> Result<ProcessEnvelopeState<'a, SpanGroup>, ProcessError<'a, SpanGroup>> {
+    ) -> Result<ProcessedState<'a, SpanGroup>, ProcessError<'a, SpanGroup>> {
         let state = span::filter(state);
         if_processing!(self.inner.config, {
             let enforced_state = self.enforce_quotas(state)?;
@@ -1418,7 +1422,7 @@ impl EnvelopeProcessorService {
             return Ok(state);
         });
 
-        Ok(state)
+        Ok(ProcessedState::new(state))
     }
 
     fn process_envelope(
@@ -1444,10 +1448,13 @@ impl EnvelopeProcessorService {
                     reservoir_counters,
                 );
                 match self.$fn(state) {
-                    Ok(state) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope.into_processed(),
-                        extracted_metrics: state.extracted_metrics,
-                    }),
+                    Ok(state) => {
+                        let state = state.inner();
+                        Ok(ProcessingStateResult {
+                            managed_envelope: state.managed_envelope.into_processed(),
+                            extracted_metrics: state.extracted_metrics,
+                        })
+                    }
                     Err((mut state, err)) => {
                         if let Some(outcome) = err.to_outcome() {
                             state.managed_envelope.reject(outcome);

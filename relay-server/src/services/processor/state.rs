@@ -3,16 +3,38 @@
 
 use crate::services::processor::ProcessEnvelopeState;
 
-pub struct EnforcedQuotasState<'a, G> {
-    pub state: ProcessEnvelopeState<'a, G>,
+macro_rules! state_type {
+    ($name:ident) => {
+        pub struct $name<'a, G>(ProcessEnvelopeState<'a, G>);
+
+        impl<'a, G> $name<'a, G> {
+            pub fn new(state: ProcessEnvelopeState<'a, G>) -> $name<'a, G> {
+                Self(state)
+            }
+
+            pub fn inner(self) -> ProcessEnvelopeState<'a, G> {
+                self.0
+            }
+        }
+    };
 }
 
-impl<'a, G> EnforcedQuotasState<'a, G> {
-    pub fn new(state: ProcessEnvelopeState<'a, G>) -> EnforcedQuotasState<'a, G> {
-        Self { state }
-    }
+#[cfg(feature = "processing")]
+state_type!(EnforcedQuotasState);
+state_type!(ProcessedState);
 
+pub enum EnforcedOrRaw<'a, G> {
+    #[cfg(feature = "processing")]
+    EnforcedQuotasState(EnforcedQuotasState<'a, G>),
+    State(ProcessEnvelopeState<'a, G>),
+}
+
+impl<'a, G> EnforcedOrRaw<'a, G> {
     pub fn inner(self) -> ProcessEnvelopeState<'a, G> {
-        self.state
+        match self {
+            #[cfg(feature = "processing")]
+            EnforcedOrRaw::EnforcedQuotasState(state) => state.inner(),
+            EnforcedOrRaw::State(state) => state,
+        }
     }
 }
