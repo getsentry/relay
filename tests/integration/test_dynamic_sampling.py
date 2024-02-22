@@ -348,6 +348,72 @@ def test_it_tags_error(mini_sentry, relay, expected_sampled, sample_rate):
     assert evt_id == event_id
 
 
+def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
+    """
+    Tests that dynamic sampling on traces operate on
+    the parametrized version of the root transaction.
+    """
+    project_id = 42
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    # The pattern used to parametrize the transaction
+    pattern = "/auth/login/*/**"
+    # How the original transaction is in the DSC.
+    original_transaction = "/auth/login/test/"
+    # What the transaction is transformed into, which the dynamic sampling rules should respect.
+    parametrized_transaction = "/auth/login/*/"
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["transactionMetrics"] = {"version": 1}
+
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    sampling_config["config"]["txNameRules"] = [
+        {
+            "pattern": pattern,
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
+
+    ds = sampling_config["config"].setdefault("sampling", {})
+    ds.setdefault("version", 2)
+
+    sampling_rule = {
+        "samplingValue": {"type": "sampleRate", "value": 0.0},
+        "type": "trace",
+        "condition": {
+            "op": "and",
+            "inner": [
+                {
+                    "op": "eq",
+                    "name": "trace.transaction",
+                    "value": parametrized_transaction,
+                    "options": {
+                        "ignoreCase": True,
+                    },
+                }
+            ],
+        },
+        "id": 1,
+    }
+
+    rules = ds.setdefault("rules", [sampling_rule])
+    rules.append(sampling_rule)
+
+    envelope = Envelope()
+    transaction_event, trace_id, _ = _create_transaction_item()
+    envelope.add_transaction(transaction_event)
+    _add_trace_info(
+        envelope, trace_id, sampling_public_key, transaction=original_transaction
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcome = mini_sentry.captured_outcomes.get(timeout=2)
+    assert outcome["outcomes"][0]["reason"] == "Sampled:1"
+
+
 def test_it_keeps_events(mini_sentry, relay):
     """
     Tests that when sampling is set to 100% for the trace context project the events are kept
