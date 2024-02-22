@@ -104,15 +104,10 @@ pub fn process(
                 &mut scrubber,
             ) {
                 Err(outcome) => ItemAction::Drop(outcome),
-                Ok(video_event) => match rmp_serde::to_vec_named(&video_event) {
-                    Ok(payload) => {
-                        item.set_payload(ContentType::OctetStream, payload);
-                        ItemAction::Keep
-                    }
-                    Err(_) => {
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent))
-                    }
-                },
+                Ok(payload) => {
+                    item.set_payload(ContentType::OctetStream, payload);
+                    ItemAction::Keep
+                }
             },
             _ => ItemAction::Keep,
         }
@@ -233,7 +228,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<ReplayVideoEvent, Outcome> {
+) -> Result<Bytes, Outcome> {
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
@@ -258,9 +253,12 @@ fn handle_replay_video_item(
         return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
     }
 
-    Ok(ReplayVideoEvent {
+    match rmp_serde::to_vec_named(&ReplayVideoEvent {
         replay_event,
         replay_recording,
         replay_video,
-    })
+    }) {
+        Ok(payload) => Ok(payload.into()),
+        Err(_) => Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent)),
+    }
 }
