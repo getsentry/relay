@@ -3934,6 +3934,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "sentry_user": {
+              "description": " The user string representation as handled in Sentry.\n\n This field is computed by concatenating the name of specific fields of the `User`\n struct with their value. For example, if `id` is set, `sentry_user` will be equal to\n `\"id:id-of-the-user\".",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "username": {
               "description": " Username of the user.",
               "default": null,

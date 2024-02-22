@@ -670,6 +670,9 @@ impl Getter for Event {
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
+            // Computed fields (after light normalization).
+            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
+
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
                 self.context::<AppContext>()?.in_foreground.value()?.into()
@@ -1081,6 +1084,7 @@ mod tests {
                 ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
+                sentry_user: Annotated::new("id:user-id".into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -1157,6 +1161,10 @@ mod tests {
         assert_eq!(
             Some(Val::String("user-id")),
             event.get_value("event.user.id")
+        );
+        assert_eq!(
+            Some(Val::String("id:user-id")),
+            event.get_value("event.sentry_user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),

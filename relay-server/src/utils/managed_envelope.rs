@@ -1,6 +1,9 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -10,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::ProcessingGroup;
+use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -63,6 +66,79 @@ struct EnvelopeContext {
     partition_key: Option<u64>,
     done: bool,
     group: ProcessingGroup,
+}
+
+#[derive(Debug)]
+pub struct InvalidProcessingGroupType(pub ManagedEnvelope);
+
+impl Display for InvalidProcessingGroupType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "failed to convert to the processing group {} based on the provided type",
+            self.0.group().variant()
+        ))
+    }
+}
+
+impl std::error::Error for InvalidProcessingGroupType {}
+
+/// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
+pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
+
+impl<G> TypedEnvelope<G> {
+    /// Changes the typed of the current envelope to processed.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self.0, Processed)
+    }
+
+    /// Accepts the envelope and drops the internal managed envelope with its context.
+    ///
+    /// This should be called if the envelope has been accepted by the upstream, which means that
+    /// the responsibility for logging outcomes has been moved. This function will not log any
+    /// outcomes.
+    pub fn accept(self) {
+        self.0.accept()
+    }
+
+    /// Creates a new typed envelope.
+    ///
+    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
+    /// requires the check for the error if conversion is failing.
+    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
+    }
+}
+
+impl<G: TryFrom<ProcessingGroup>> TryFrom<ManagedEnvelope> for TypedEnvelope<G> {
+    type Error = InvalidProcessingGroupType;
+    fn try_from(value: ManagedEnvelope) -> Result<Self, Self::Error> {
+        match value.group().try_into() {
+            Ok(group) => Ok(TypedEnvelope::new(value, group)),
+            Err(_) => Err(InvalidProcessingGroupType(value)),
+        }
+    }
+}
+
+impl<G> Debug for TypedEnvelope<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
+    }
+}
+
+impl<G> Deref for TypedEnvelope<G> {
+    type Target = ManagedEnvelope;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<G> DerefMut for TypedEnvelope<G> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -121,14 +197,12 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        use crate::services::processor::Ungrouped;
-
         let mut envelope = Self::new_internal(
             envelope,
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Ungrouped(Ungrouped),
+            ProcessingGroup::Ungrouped,
         );
         envelope.context.done = true;
         envelope
@@ -186,6 +260,13 @@ impl ManagedEnvelope {
         self.context.slot.take();
         self.context.done = true;
         Box::new(self.envelope.take_items())
+    }
+
+    /// Converts current managed envelope into processed envelope.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self, Processed)
     }
 
     /// Take the envelope out of the context and replace it with a dummy.
@@ -451,5 +532,11 @@ impl ManagedEnvelope {
 impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
+    }
+}
+
+impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
+    fn from(value: TypedEnvelope<G>) -> Self {
+        value.0
     }
 }

@@ -30,7 +30,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
 smallvec = { workspace = true }
-sqlparser = { version = "0.43.1", features = ["visitor"] }
+# Temporary fix until https://github.com/sqlparser-rs/sqlparser-rs/pull/1140 is merged.
+sqlparser = { git = "https://github.com/getsentry/sqlparser-rs", rev = "1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3", features = [
+    "visitor",
+] }
+
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }

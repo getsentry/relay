@@ -904,8 +904,10 @@ struct Cache {
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The buffer timeout for batched queries before sending them upstream in ms.
+    /// The buffer timeout for batched project config queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
+    downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
@@ -927,8 +929,9 @@ impl Default for Cache {
             relay_expiry: 3600,   // 1 hour
             envelope_expiry: 600, // 10 minutes
             envelope_buffer_size: 1000,
-            miss_expiry: 60,     // 1 minute
-            batch_interval: 100, // 100ms
+            miss_expiry: 60,                       // 1 minute
+            batch_interval: 100,                   // 100ms
+            downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
             eviction_interval: 60,            // 60 seconds
@@ -1301,6 +1304,38 @@ impl Default for CardinalityLimiter {
     }
 }
 
+/// Settings to control Relay's health checks.
+///
+/// After breaching one of the configured thresholds, Relay will
+/// return an `unhealthy` status from its health endpoint.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Health {
+    /// Interval in which Relay will refresh system information, like current memory usage.
+    ///
+    /// Defaults to 3 seconds.
+    pub sys_info_refresh_interval_secs: u64,
+    /// Maximum memory watermark in bytes.
+    ///
+    /// By default there is no absolute limit set and the watermark
+    /// is only controlled by setting [`Self::max_memory_percent`].
+    pub max_memory_bytes: Option<ByteSize>,
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    ///
+    /// Defaults to `0.95` (95%).
+    pub max_memory_percent: f32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self {
+            sys_info_refresh_interval_secs: 3,
+            max_memory_bytes: None,
+            max_memory_percent: 0.95,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1339,6 +1374,8 @@ struct ConfigValues {
     geoip: GeoIpConfig,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
+    #[serde(default)]
+    health: Health,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1884,10 +1921,15 @@ impl Config {
         Duration::from_secs(self.values.cache.project_grace_period.into())
     }
 
-    /// Returns the number of seconds during which batchable queries are collected before sending
-    /// them in a single request.
+    /// Returns the duration in which batchable project config queries are
+    /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
         Duration::from_millis(self.values.cache.batch_interval.into())
+    }
+
+    /// Returns the duration in which downstream relays are requested from upstream.
+    pub fn downstream_relays_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
@@ -2157,6 +2199,25 @@ impl Config {
     /// The cache will scan for expired values based on this interval.
     pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
+    }
+
+    /// Interval to refresh system information.
+    pub fn health_sys_info_refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    }
+
+    /// Maximum memory watermark in bytes.
+    pub fn health_max_memory_watermark_bytes(&self) -> u64 {
+        self.values
+            .health
+            .max_memory_bytes
+            .as_ref()
+            .map_or(u64::MAX, |b| b.as_bytes() as u64)
+    }
+
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    pub fn health_max_memory_watermark_percent(&self) -> f32 {
+        self.values.health.max_memory_percent
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

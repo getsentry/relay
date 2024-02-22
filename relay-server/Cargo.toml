@@ -109,6 +109,7 @@ symbolic-common = { version = "12.1.2", optional = true, default-features = fals
 symbolic-unreal = { version = "12.1.2", optional = true, default-features = false, features = [
     "serde",
 ] }
+sysinfo = "0.30"
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { version = "0.4.13", default-features = false }

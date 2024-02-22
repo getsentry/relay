@@ -1,6 +1,7 @@
 import hashlib
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
 
@@ -62,6 +63,109 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
+def test_metrics_proxy_mode_buckets(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    bucket_name = "d:transactions/measurements.lcp@millisecond"
+
+    bucket = {
+        "org_id": 1,
+        "project_id": project_id,
+        "timestamp": int(datetime.utcnow().timestamp()),
+        "name": bucket_name,
+        "type": "d",
+        "value": [1.0],
+        "width": 1,
+    }
+    relay.send_metrics_buckets(project_id, [bucket])
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    payload = envelope.items[0].payload.json[0]
+    assert payload["name"] == bucket_name
+
+
+def test_metrics_proxy_mode_statsd(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    now = int(datetime.now(tz=timezone.utc).timestamp())
+
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{now}"
+    relay.send_metrics(project_id, metrics_payload)
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "statsd"
+    assert metric_meta_item.get_bytes().decode() == metrics_payload
+
+
+def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    location = {
+        "type": "location",
+        "function": "_scan_for_suspect_projects",
+        "module": "sentry.tasks.low_priority_symbolication",
+        "filename": "sentry/tasks/low_priority_symbolication.py",
+        "abs_path": "/usr/src/sentry/src/sentry/tasks/low_priority_symbolication.py",
+        "lineno": 45,
+    }
+
+    meta_payload = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "mapping": {
+            "d:custom/sentry.process_profile.track_outcome@second": [
+                location,
+            ]
+        },
+    }
+    meta_payload = json.dumps(meta_payload, sort_keys=True)
+
+    envelope = Envelope()
+    envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
+    relay.send_envelope(42, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "metric_meta"
+    assert json.loads(metric_meta_item.get_bytes().decode()) == meta_payload
+
+
 def test_metrics(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -69,7 +173,9 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
@@ -383,7 +489,9 @@ def test_global_metrics_with_processing(
     project_config["config"]["features"] = ["organizations:custom-metrics"]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\nbar@second:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -864,7 +972,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, 7, timeout=6)
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -1708,3 +1816,67 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
             }
     else:
         assert False, "add new else-branch if you add another denied tag"
+
+
+@pytest.mark.parametrize("mode", [None, "legacy"])
+def test_metric_bucket_encoding_legacy(
+    mini_sentry, relay_with_processing, metrics_consumer, mode
+):
+    if mode is not None:
+        mini_sentry.global_config["options"]["relay.metric-bucket-encodings"] = {
+            "transactions": mode
+        }
+
+    metrics_consumer = metrics_consumer()
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_metrics(project_id, "transactions/foo:1337|d\ntransactions/bar:42|s")
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+    assert metrics["d:transactions/foo@none"]["value"] == [1337.0]
+    assert metrics["s:transactions/bar@none"]["value"] == [42.0]
+
+
+@pytest.mark.parametrize(
+    "namespace", [None, "spans", "custom", "transactions", "spans"]
+)
+def test_metric_bucket_encoding_dynamic_global_config_option(
+    mini_sentry, relay_with_processing, metrics_consumer, namespace
+):
+    if namespace is not None:
+        mini_sentry.global_config["options"]["relay.metric-bucket-encodings"] = {
+            namespace: "array"
+        }
+
+    print(mini_sentry.global_config)
+
+    metrics_consumer = metrics_consumer()
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+    ]
+
+    metrics_payload = (
+        f"{namespace or 'custom'}/foo:1337|d\n{namespace or 'custom'}/bar:42|s"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    dname = f"d:{namespace or 'custom'}/foo@none"
+    sname = f"s:{namespace or 'custom'}/bar@none"
+    assert dname in metrics
+    assert sname in metrics
+    if namespace is not None:
+        assert metrics[dname]["value"] == {"format": "array", "data": [1337.0]}
+        assert metrics[sname]["value"] == {"format": "array", "data": [42.0]}
+    else:
+        assert metrics[dname]["value"] == [1337.0]
+        assert metrics[sname]["value"] == [42.0]

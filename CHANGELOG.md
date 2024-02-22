@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+**Features**:
+
+- Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+- Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
+
 **Bug Fixes**:
 
+- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
+
+**Internal**:
+
+- Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
+- Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
 
 ## 24.2.0
 
@@ -20,9 +31,11 @@
 
 **Internal**:
 
+- Add ability to use namespace in non-global quotas. ([#3090](https://github.com/getsentry/relay/pull/3090))
 - Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
 - Skip profiles without required measurements. ([#3112](https://github.com/getsentry/relay/pull/3112))
 - Push metrics summaries to their own topic. ([#3045](https://github.com/getsentry/relay/pull/3045))
+- Add `user.sentry_user` computed field for the on demand metrics extraction pipeline. ([#3122](https://github.com/getsentry/relay/pull/3122))
 
 ## 24.1.2
 

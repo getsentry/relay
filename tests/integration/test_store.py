@@ -477,6 +477,7 @@ def test_processing_quotas(
         with pytest.raises(HTTPError) as excinfo:
             # Failed: DID NOT RAISE <class 'requests.exceptions.HTTPError'>
             relay.send_event(project_id, transform({"message": "rate_limited"}))
+            sleep(0.2)
         headers = excinfo.value.response.headers
 
         retry_after = headers["retry-after"]

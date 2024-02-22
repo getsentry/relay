@@ -30,6 +30,7 @@
 //!
 //! ```
 
+use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -42,7 +43,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_protocol::Value;
+use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
@@ -180,6 +181,14 @@ impl ItemType {
             Self::Unknown(ref s) => s,
             _ => self.name(),
         }
+    }
+
+    /// Returns `true` if the item is a metric type.
+    pub fn is_metrics(&self) -> bool {
+        matches!(
+            self,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
+        )
     }
 }
 
@@ -1136,6 +1145,29 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
+    /// Runs transaction parametrization on the DSC trace transaction.
+    ///
+    /// The purpose is for trace rules to match on the parametrized version of the transaction.
+    pub fn parametrize_dsc_transaction(&mut self, rules: &[TransactionNameRule]) {
+        let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
+            return;
+        };
+
+        let parametrized_transaction = match &dsc.transaction {
+            Some(transaction) if transaction.contains('/') => {
+                // Ideally we would only apply transaction rules to transactions with source `url`,
+                // but the DSC does not contain this information. The chance of a transaction rename rule
+                // accidentially matching a non-URL transaction should be very low.
+                let mut annotated = Annotated::new(transaction.clone());
+                normalize_transaction_name(&mut annotated, rules);
+                annotated.into_value()
+            }
+            _ => return,
+        };
+
+        dsc.transaction = parametrized_transaction;
+    }
+
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
@@ -1396,7 +1428,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::ProjectId;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
 
     use super::*;
 
@@ -1925,5 +1957,54 @@ mod tests {
         for item in envelope.items() {
             assert_eq!(item.ty(), &ItemType::Attachment);
         }
+    }
+
+    #[test]
+    fn test_parametrize_root_transaction() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("/auth/login/test/".into()), // the only important bit for this test
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule: TransactionNameRule = {
+            // here you see the pattern that'll transform the transaction name.
+            let json = r#"{
+                "pattern": "/auth/login/*/**",
+                "expiry": "3022-11-30T00:00:00.000000Z",
+                "redaction": {
+                    "method": "replace",
+                    "substitution": "*"
+                    }
+                }"#;
+
+            serde_json::from_str(json).unwrap()
+        };
+
+        // Envelope only created in order to run the parametrize dsc method.
+        let mut envelope = {
+            let bytes = bytes::Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
+            *Envelope::parse_bytes(bytes).unwrap()
+        };
+        envelope.set_dsc(dsc.clone());
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/test/"
+        );
+        // parametrize the transaciton name in the dsc.
+        envelope.parametrize_dsc_transaction(&[rule]);
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/*/"
+        );
     }
 }

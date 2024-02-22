@@ -77,7 +77,14 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_allowed_browser = RuleCondition::eq(
         "span.sentry_tags.browser.name",
-        vec!["Chrome", "Firefox", "Safari", "Edge", "Opera"],
+        vec![
+            "Google Chrome",
+            "Chrome",
+            "Firefox",
+            "Safari",
+            "Edge",
+            "Opera",
+        ],
     );
 
     // This filter is based on

@@ -136,9 +136,14 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let store = match runtimes.store {
-            Some(ref rt) => {
-                Some(StoreService::create(config.clone(), outcome_aggregator.clone())?.start_in(rt))
-            }
+            Some(ref rt) => Some(
+                StoreService::create(
+                    config.clone(),
+                    global_config_handle.clone(),
+                    outcome_aggregator.clone(),
+                )?
+                .start_in(rt),
+            ),
             None => None,
         };
 
@@ -293,7 +298,7 @@ impl Runtimes {
     pub fn new(config: &Config) -> Self {
         Self {
             upstream: create_runtime("upstream-rt", 1),
-            project: create_runtime("project-rt", 1),
+            project: create_runtime("project-rt", 2),
             aggregator: create_runtime("aggregator-rt", 1),
             outcome: create_runtime("outcome-rt", 1),
             #[cfg(feature = "processing")]
