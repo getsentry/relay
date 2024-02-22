@@ -450,7 +450,7 @@ pub fn extract_tags(
                 if let Some(transaction) = span
                     .data
                     .value()
-                    .and_then(|data| data.get("transaction"))
+                    .and_then(|data| data.transaction.value())
                     .and_then(|transaction| transaction.as_str())
                 {
                     span_tags.insert(SpanTagKey::Transaction, transaction.into());

@@ -265,6 +265,10 @@ pub struct SpanData {
     #[metastructure(field = "url.scheme")]
     pub url_scheme: Annotated<Value>,
 
+    /// Origin Transaction name of the span.
+    /// For INP spans, this is the route name where the interaction occurred.
+    pub transaction: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
