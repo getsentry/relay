@@ -1660,6 +1660,17 @@
 <a href="#1659" id="1659">1659</a>
 <a href="#1660" id="1660">1660</a>
 <a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1681,6 +1692,59 @@
     </span><span class="kw">pub </span>rules: <span class="kw-2">&amp;</span><span class="lifetime">'r </span>[TransactionNameRule],
 }
 
+<span class="doccomment">/// Apply parametrization to transaction.
+</span><span class="kw">pub fn </span>normalize_transaction_name(
+    transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
+    rules: <span class="kw-2">&amp;</span>[TransactionNameRule],
+) {
+    <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
+    // This in addition to renaming rules can catch some high cardinality parts.
+    </span>scrub_identifiers(transaction);
+
+    <span class="comment">// Apply rules discovered by the transaction clusterer in sentry.
+    </span><span class="kw">if </span>!rules.is_empty() {
+        apply_transaction_rename_rules(transaction, rules);
+    }
+}
+
+<span class="doccomment">/// Applies the rule if any found to the transaction name.
+///
+/// It find the first rule matching the criteria:
+/// - source matchining the one provided in the rule sorce
+/// - rule hasn't epired yet
+/// - glob pattern matches the transaction name
+///
+/// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
+/// patterns like `/&lt;something&gt;/*/**` where we have `**` at the end are a match.
+</span><span class="kw">pub fn </span>apply_transaction_rename_rules(
+    transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
+    rules: <span class="kw-2">&amp;</span>[TransactionNameRule],
+) {
+    <span class="kw">let _ </span>= processor::apply(transaction, |transaction, meta| {
+        <span class="kw">let </span>result = rules.iter().find_map(|rule| {
+            rule.match_and_apply(Cow::Borrowed(transaction))
+                .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+        });
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
+            <span class="kw">if </span><span class="kw-2">*</span>transaction != result {
+                <span class="comment">// If another rule was applied before, we don't want to
+                // rename the transaction name to keep the original one.
+                // We do want to continue adding remarks though, in
+                // order to keep track of all rules applied.
+                </span><span class="kw">if </span>meta.original_value().is_none() {
+                    meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
+                }
+                <span class="comment">// add also the rule which was applied to the transaction name
+                </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                <span class="kw-2">*</span>transaction = result;
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    });
+}
+
 <span class="doccomment">/// Rejects transactions based on required fields.
 </span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>TransactionsProcessor&lt;<span class="lifetime">'r</span>&gt; {
@@ -1691,41 +1755,6 @@
     <span class="doccomment">/// Creates a new `TransactionsProcessor` instance.
     </span><span class="kw">pub fn </span>new(name_config: TransactionNameConfig&lt;<span class="lifetime">'r</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ name_config }
-    }
-
-    <span class="doccomment">/// Applies the rule if any found to the transaction name.
-    ///
-    /// It find the first rule matching the criteria:
-    /// - source matchining the one provided in the rule sorce
-    /// - rule hasn't epired yet
-    /// - glob pattern matches the transaction name
-    ///
-    /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
-    /// patterns like `/&lt;something&gt;/*/**` where we have `**` at the end are a match.
-    </span><span class="kw">pub fn </span>apply_transaction_rename_rule(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) {
-        <span class="kw">let _ </span>= processor::apply(transaction, |transaction, meta| {
-            <span class="kw">let </span>result = <span class="self">self</span>.name_config.rules.iter().find_map(|rule| {
-                rule.match_and_apply(Cow::Borrowed(transaction))
-                    .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
-            });
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
-                <span class="kw">if </span><span class="kw-2">*</span>transaction != result {
-                    <span class="comment">// If another rule was applied before, we don't want to
-                    // rename the transaction name to keep the original one.
-                    // We do want to continue adding remarks though, in
-                    // order to keep track of all rules applied.
-                    </span><span class="kw">if </span>meta.original_value().is_none() {
-                        meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
-                    }
-                    <span class="comment">// add also the rule which was applied to the transaction name
-                    </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                    <span class="kw-2">*</span>transaction = result;
-                }
-            }
-
-            <span class="prelude-val">Ok</span>(())
-        });
     }
 
     <span class="doccomment">/// Returns `true` if the given transaction name should be treated as a URL.
@@ -1751,14 +1780,7 @@
 
     <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) {
         <span class="kw">if </span><span class="self">self</span>.treat_transaction_as_url(event) {
-            <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction);
-
-            <span class="comment">// Apply rules discovered by the transaction clusterer in sentry.
-            </span><span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
-                <span class="self">self</span>.apply_transaction_rename_rule(<span class="kw-2">&amp;mut </span>event.transaction);
-            }
+            normalize_transaction_name(<span class="kw-2">&amp;mut </span>event.transaction, <span class="self">self</span>.name_config.rules);
 
             <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
             // clusterer rules or regex matchers. This has the consequence that the transaction name
