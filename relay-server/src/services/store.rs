@@ -878,9 +878,9 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
         struct VideoEvent<'a> {
-            replay_video: &'a [u8],
             replay_event: &'a [u8],
             replay_recording: &'a [u8],
+            replay_video: &'a [u8],
         }
 
         let Ok(VideoEvent {
@@ -1212,10 +1212,27 @@ struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
+    #[serde(with = "serde_bytes")]
     payload: &'a [u8],
+    #[serde(with = "serde_bytes")]
     replay_event: Option<&'a [u8]>,
+    #[serde(with = "serde_bytes")]
     replay_video: Option<&'a [u8]>,
 }
+
+// fn serialize_bytes<S: Serializer>(b: &[u8], serializer: &S) -> Result<S::Ok, S::Error> {
+//     serializer.serialize_bytes(b)
+// }
+
+// fn serialize_option_bytes<S: Serializer>(
+//     b: &Option<&[u8]>,
+//     serializer: &S,
+// ) -> Result<S::Ok, S::Error> {
+//     match b {
+//         Some(b) => serializer.serialize_bytes(b),
+//         None => serializer.serialize_none(),
+//     }
+// }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
 ///

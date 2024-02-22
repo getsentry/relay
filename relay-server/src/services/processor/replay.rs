@@ -107,15 +107,17 @@ pub fn process(
             ) {
                 ProcessingAction::Drop(action) => action,
                 ProcessingAction::Keep => ItemAction::Keep,
-                ProcessingAction::Replace(video_event) => match rmp_serde::to_vec(&video_event) {
-                    Ok(payload) => {
-                        item.set_payload(ContentType::OctetStream, payload);
-                        ItemAction::Keep
+                ProcessingAction::Replace(video_event) => {
+                    match rmp_serde::to_vec_named(&video_event) {
+                        Ok(payload) => {
+                            item.set_payload(ContentType::OctetStream, payload);
+                            ItemAction::Keep
+                        }
+                        Err(_) => ItemAction::Drop(Outcome::Invalid(
+                            DiscardReason::InvalidReplayVideoEvent,
+                        )),
                     }
-                    Err(_) => {
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent))
-                    }
-                },
+                }
             },
             _ => ItemAction::Keep,
         }
