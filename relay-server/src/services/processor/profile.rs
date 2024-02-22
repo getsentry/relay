@@ -11,6 +11,8 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
+#[cfg(feature = "processing")]
+use crate::services::processor::state::EnforcedQuotasState;
 use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
@@ -75,29 +77,35 @@ pub fn transfer_id(
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
 pub fn process<'a>(
-    mut state: ProcessEnvelopeState<'a, TransactionGroup>,
+    mut enforced_state: EnforcedQuotasState<'a, TransactionGroup>,
     config: &'_ Config,
 ) -> ProcessEnvelopeState<'a, TransactionGroup> {
-    let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let profiling_enabled = enforced_state
+        .state
+        .project_state
+        .has_feature(Feature::Profiling);
     let mut found_profile_id = None;
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
+    enforced_state
+        .state
+        .managed_envelope
+        .retain_items(|item| match item.ty() {
+            ItemType::Profile => {
+                if !profiling_enabled {
+                    return ItemAction::DropSilently;
+                }
+                // If we don't have an event at this stage, we need to drop the profile.
+                let Some(event) = enforced_state.state.event.value() else {
+                    return ItemAction::DropSilently;
+                };
+                let (profile_id, action) = expand_profile(item, event, config);
+                found_profile_id = profile_id;
+                action
             }
-            // If we don't have an event at this stage, we need to drop the profile.
-            let Some(event) = state.event.value() else {
-                return ItemAction::DropSilently;
-            };
-            let (profile_id, action) = expand_profile(item, event, config);
-            found_profile_id = profile_id;
-            action
-        }
-        _ => ItemAction::Keep,
-    });
+            _ => ItemAction::Keep,
+        });
     if found_profile_id.is_none() {
         // Remove profile context from event.
-        if let Some(event) = state.event.value_mut() {
+        if let Some(event) = enforced_state.state.event.value_mut() {
             if event.ty.value() == Some(&EventType::Transaction) {
                 if let Some(contexts) = event.contexts.value_mut() {
                     contexts.remove::<ProfileContext>();
@@ -106,7 +114,7 @@ pub fn process<'a>(
         }
     }
 
-    state
+    enforced_state.inner()
 }
 
 /// Transfers transaction metadata to profile and check its size.

@@ -45,6 +45,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
+    crate::services::processor::state::EnforcedQuotasState,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -946,14 +947,15 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_check_ins<'a>(
         &'_ self,
-        mut state: ProcessEnvelopeState<'a, CheckInGroup>,
+        mut enforced_state: EnforcedQuotasState<'a, CheckInGroup>,
     ) -> ProcessEnvelopeState<'a, CheckInGroup> {
-        state.managed_envelope.retain_items(|item| {
+        enforced_state.state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+            match relay_monitors::process_check_in(&item.payload(), enforced_state.state.project_id)
+            {
                 Ok(result) => {
                     item.set_routing_hint(result.routing_hint);
                     item.set_payload(ContentType::Json, result.payload);
@@ -970,7 +972,7 @@ impl EnvelopeProcessorService {
             }
         });
 
-        state
+        enforced_state.inner()
     }
 
     /// Creates and initializes the processing state.
@@ -1026,10 +1028,10 @@ impl EnvelopeProcessorService {
     fn enforce_quotas<'a, G>(
         &'_ self,
         mut state: ProcessEnvelopeState<'a, G>,
-    ) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
+    ) -> Result<EnforcedQuotasState<'a, G>, ProcessError<'a, G>> {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
-            None => return Ok(state),
+            None => return Ok(EnforcedQuotasState::new(state)),
         };
 
         let project_state = &state.project_state;
@@ -1037,7 +1039,7 @@ impl EnvelopeProcessorService {
         let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
         if quotas.is_empty() {
-            return Ok(state);
+            return Ok(EnforcedQuotasState::new(state));
         }
 
         let event_category = state.event_category();
@@ -1080,7 +1082,7 @@ impl EnvelopeProcessorService {
             self.inner.outcome_aggregator.clone(),
         );
 
-        Ok(state)
+        Ok(EnforcedQuotasState::new(state))
     }
 
     /// Extract metrics from all envelope items.
@@ -1259,7 +1261,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             state = event::store(state, &self.inner.config)?;
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(state)?.inner();
         });
 
         if state.has_event() {
@@ -1306,8 +1308,8 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             state = event::store(state, &self.inner.config)?;
-            state = self.enforce_quotas(state)?;
-            state = profile::process(state, &self.inner.config);
+            let enforced_state = self.enforce_quotas(state)?;
+            state = profile::process(enforced_state, &self.inner.config);
         });
 
         if state.has_event() {
@@ -1330,7 +1332,7 @@ impl EnvelopeProcessorService {
         state = profile::filter(state);
 
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(state)?.inner();
         });
 
         state = report::process_user_reports(state);
@@ -1345,7 +1347,7 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessEnvelopeState<'a, SessionGroup>, ProcessError<'a, SessionGroup>> {
         state = session::process(state, &self.inner.config);
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(state)?.inner();
         });
         Ok(state)
     }
@@ -1357,7 +1359,7 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessEnvelopeState<'a, ClientReportGroup>, ProcessError<'a, ClientReportGroup>>
     {
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(state)?.inner();
         });
 
         state = report::process_client_reports(
@@ -1376,7 +1378,7 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessEnvelopeState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
         state = replay::process(state, &self.inner.config)?;
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(state)?.inner();
         });
         Ok(state)
     }
@@ -1387,8 +1389,8 @@ impl EnvelopeProcessorService {
         mut state: ProcessEnvelopeState<'a, CheckInGroup>,
     ) -> Result<ProcessEnvelopeState<'a, CheckInGroup>, ProcessError<'a, CheckInGroup>> {
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
-            state = self.process_check_ins(state);
+            let enforced_state = self.enforce_quotas(state)?;
+            state = self.process_check_ins(enforced_state);
         });
         Ok(state)
     }
@@ -1400,9 +1402,9 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessEnvelopeState<'a, SpanGroup>, ProcessError<'a, SpanGroup>> {
         let mut state = span::filter(state);
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            let enforced_state = self.enforce_quotas(state)?;
             state = span::process(
-                state,
+                enforced_state,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             );
