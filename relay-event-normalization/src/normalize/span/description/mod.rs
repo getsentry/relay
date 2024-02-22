@@ -78,7 +78,7 @@ pub(crate) fn scrub_span_description(
                     if let sql::Mode::Parsed(ast) = mode {
                         parsed_sql = Some(ast);
                     }
-                    dbg!(scrubbed)
+                    scrubbed
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
