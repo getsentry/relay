@@ -275,10 +275,29 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: ~,
             origin: ~,
             profile_id: ~,
-            data: {
-                "app_start_type": String(
+            data: SpanData {
+                app_start_type: String(
                     "cold",
                 ),
+                browser_name: ~,
+                code_filepath: ~,
+                code_lineno: ~,
+                code_function: ~,
+                code_namespace: ~,
+                db_operation: ~,
+                db_system: ~,
+                environment: ~,
+                http_decoded_response_content_length: ~,
+                http_request_method: ~,
+                http_response_content_length: ~,
+                http_response_transfer_size: ~,
+                resource_render_blocking_status: ~,
+                server_address: ~,
+                http_response_status_code: ~,
+                thread_name: ~,
+                ui_component_name: ~,
+                url_scheme: ~,
+                other: {},
             },
             sentry_tags: {
                 "app_start_type": "cold",

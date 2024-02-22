@@ -13,10 +13,10 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Object};
+use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -299,7 +299,7 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range: timestmap_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -323,7 +323,7 @@ fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(&timestmap_range))?;
+        validate_span(span, Some(&timestamp_range))?;
     }
     process_value(
         annotated_span,
@@ -340,11 +340,8 @@ fn normalize(
         .and_then(|contexts| contexts.get::<BrowserContext>())
         .and_then(|v| v.name.value())
     {
-        let data = span.data.value_mut().get_or_insert_with(Object::new);
-        data.insert(
-            "browser.name".into(),
-            Annotated::new(browser_name.to_owned().into()),
-        );
+        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
+        data.browser_name = Annotated::new(browser_name.to_owned().into());
     }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {

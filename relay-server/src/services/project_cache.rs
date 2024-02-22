@@ -1113,20 +1113,42 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        match subscription.borrow().clone() {
-                            global_config::Status::Ready(_) => broker.set_global_config_ready(),
-                            // The watch should only be updated if it gets a new value.
-                            // This would imply a logical bug.
-                            global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
-                        }
+                        metric!(timer(RelayTimers::EventProcessingDeserialize), task = "update_global_config", {
+                            match subscription.borrow().clone() {
+                                global_config::Status::Ready(_) => broker.set_global_config_ready(),
+                                // The watch should only be updated if it gets a new value.
+                                // This would imply a logical bug.
+                                global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
+                            }
+                        })
                     },
-                    Some(message) = state_rx.recv() => broker.merge_state(message),
+                    Some(message) = state_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "merge_state", {
+                            broker.merge_state(message)
+                        })
+                    }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() => broker.handle_processing(key, managed_envelope),
-                    _ = ticker.tick() => broker.evict_stale_project_caches(),
-                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
-                    Some(message) = rx.recv() => broker.handle_message(message),
+                    Some(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
+                            broker.handle_processing(key, managed_envelope)
+                        })
+                    },
+                    _ = ticker.tick() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "evict_project_caches", {
+                            broker.evict_stale_project_caches()
+                        })
+                    }
+                    () = &mut broker.buffer_unspool_handle => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
+                            broker.handle_periodic_unspool()
+                        })
+                    }
+                    Some(message) = rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
+                            broker.handle_message(message)
+                        })
+                    }
                     else => break,
                 }
             }
@@ -1164,7 +1186,7 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
-    use crate::services::processor::{ProcessingGroup, Ungrouped};
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
 
     use super::*;
@@ -1265,7 +1287,7 @@ mod tests {
                     empty_envelope(),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped(Ungrouped),
+                    ProcessingGroup::Ungrouped,
                 )
                 .unwrap();
             let message = ValidateEnvelope { envelope };
@@ -1357,7 +1379,7 @@ mod tests {
                     empty_envelope_with_dsn(dsn),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped(Ungrouped),
+                    ProcessingGroup::Ungrouped,
                 )
                 .unwrap();
 
@@ -1440,7 +1462,7 @@ mod tests {
                 empty_envelope_with_dsn(dsn),
                 services.outcome_aggregator.clone(),
                 services.test_store.clone(),
-                ProcessingGroup::Ungrouped(Ungrouped),
+                ProcessingGroup::Ungrouped,
             )
             .unwrap();
 

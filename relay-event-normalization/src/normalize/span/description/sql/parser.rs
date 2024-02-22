@@ -63,7 +63,6 @@ pub fn normalize_parsed_queries(
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    let original_ast = parsed.clone();
     parsed.visit(&mut NormalizeVisitor);
     parsed.visit(&mut MaxDepthVisitor::new());
 
@@ -75,7 +74,7 @@ pub fn normalize_parsed_queries(
     // Insert placeholders that the SQL serializer cannot provide.
     let replaced = concatenated.replace("___UPDATE_LHS___ = NULL", "..");
 
-    Ok((replaced, original_ast))
+    Ok((replaced, parsed))
 }
 
 /// A visitor that normalizes the SQL AST in-place.
@@ -819,5 +818,10 @@ mod tests {
     fn parse_deep_expression() {
         let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
         assert_eq!(normalize_parsed_queries(None, query).unwrap().0, "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s");
+    }
+
+    #[test]
+    fn parse_dont_panic() {
+        assert!(parse_query_inner(None, "REPLACE g;'341234c").is_err());
     }
 }

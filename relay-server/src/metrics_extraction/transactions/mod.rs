@@ -452,10 +452,14 @@ impl TransactionExtractor<'_> {
 
         // User
         if let Some(user) = event.user.value() {
-            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
-                metrics
-                    .project_metrics
-                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+            if let Some(value) = user.sentry_user.value() {
+                metrics.project_metrics.push(
+                    TransactionMetric::User {
+                        value: value.clone(),
+                        tags,
+                    }
+                    .into_metric(timestamp),
+                );
             }
         }
 
@@ -499,7 +503,6 @@ mod tests {
         MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
         PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
-    use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
 
@@ -1842,62 +1845,6 @@ mod tests {
             "d:transactions/duration_light@millisecond",
         ]
         "###);
-    }
-
-    #[test]
-    fn test_get_eventuser_tag() {
-        // Note: If this order changes,
-        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
-        // has to be changed. Though it is probably not a good idea!
-        let user = User {
-            id: Annotated::new("ident".to_owned().into()),
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "id:ident"
-        );
-
-        let user = User {
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "username:username"
-        );
-
-        let user = User {
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "email:email"
-        );
-
-        let user = User {
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "ip:127.0.0.1"
-        );
-
-        let user = User::default();
-
-        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
     }
 
     #[test]

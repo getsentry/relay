@@ -13,13 +13,15 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
+use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
+    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
+    MetricResourceIdentifier, SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -30,9 +32,11 @@ use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode, ManagedEnvelope};
+use crate::utils::{self, ExtractionMode, TypedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -81,7 +85,7 @@ impl Producer {
 /// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: ManagedEnvelope,
+    pub envelope: TypedEnvelope<Processed>,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -121,6 +125,7 @@ impl FromMessage<StoreMetrics> for Store {
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
+    global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
     producer: Producer,
 }
@@ -128,11 +133,13 @@ pub struct StoreService {
 impl StoreService {
     pub fn create(
         config: Arc<Config>,
+        global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
+            global_config,
             outcome_aggregator,
             producer,
         })
@@ -364,22 +371,27 @@ impl StoreService {
         let mut dropped = SourceQuantities::default();
         let mut error = None;
 
+        let encodings = self.global_config.current().options.metric_bucket_encodings;
+
         for bucket in buckets {
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
             for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
-                let message = MetricKafkaMessage {
-                    org_id: scoping.organization_id,
-                    project_id: scoping.project_id,
-                    name: view.name(),
-                    value: view.value(),
-                    timestamp: view.timestamp(),
-                    tags: view.tags(),
-                    retention_days: retention,
-                };
+                let namespace = MetricResourceIdentifier::parse(view.name())
+                    .map(|mri| mri.namespace)
+                    .unwrap_or(MetricNamespace::Unsupported);
+                let encoding = encodings.for_namespace(namespace);
 
-                if let Err(e) = self.send_metric_message(scoping.organization_id, message) {
+                let message = self.create_metric_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    encoding,
+                    &view,
+                    retention,
+                );
+
+                if let Err(e) = self.send_metric_message(namespace, message) {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
@@ -395,6 +407,34 @@ impl StoreService {
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
             );
+        }
+    }
+
+    fn create_metric_message<'a>(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        encoding: MetricEncoding,
+        view: &'a BucketView<'a>,
+        retention_days: u16,
+    ) -> MetricKafkaMessage<'a> {
+        let value = match view.value() {
+            BucketViewValue::Counter(c) => MetricValue::Counter(c),
+            BucketViewValue::Distribution(d) => {
+                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
+            }
+            BucketViewValue::Set(s) => MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
+        };
+
+        MetricKafkaMessage {
+            org_id: organization_id,
+            project_id,
+            name: view.name(),
+            value,
+            timestamp: view.timestamp(),
+            tags: view.tags(),
+            retention_days,
         }
     }
 
@@ -683,20 +723,20 @@ impl StoreService {
 
     fn send_metric_message(
         &self,
-        organization_id: u64,
+        namespace: MetricNamespace,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::parse(message.name);
-        let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
-            Ok(MetricNamespace::Unsupported) | Err(_) => {
+        let organization_id = message.org_id;
+        let topic = match namespace {
+            MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
+            MetricNamespace::Unsupported => {
                 relay_log::with_scope(
                     |scope| scope.set_extra("metric_message.name", message.name.into()),
                     || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
-            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
+            _ => KafkaTopic::MetricsGeneric,
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
@@ -720,20 +760,19 @@ impl StoreService {
         retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
+        let encodings = self.global_config.current().options.metric_bucket_encodings;
 
         for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
-            self.send_metric_message(
-                org_id,
-                MetricKafkaMessage {
-                    org_id,
-                    project_id,
-                    name: bucket.name.as_str(),
-                    value: (&bucket.value).into(),
-                    timestamp: bucket.timestamp,
-                    tags: &bucket.tags,
-                    retention_days: retention,
-                },
-            )?;
+            let view = BucketView::new(&bucket);
+
+            let namespace = MetricResourceIdentifier::parse(view.name())
+                .map(|mri| mri.namespace)
+                .unwrap_or(MetricNamespace::Unsupported);
+            let encoding = encodings.for_namespace(namespace);
+
+            let message =
+                self.create_metric_message(org_id, project_id, encoding, &view, retention);
+            self.send_metric_message(namespace, message)?;
         }
 
         Ok(())
@@ -937,6 +976,12 @@ impl StoreService {
             }
         };
 
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.event_id = event_id;
+        span.project_id = scoping.project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
                 v.as_ref()
@@ -945,30 +990,10 @@ impl StoreService {
             });
         }
 
-        if let Some(metrics_summary) = &mut span.metrics_summary {
-            metrics_summary.retain(|_, mut v| {
-                if let Some(v) = &mut v {
-                    v.retain(|v| {
-                        if let Some(v) = v {
-                            return v.min.is_some()
-                                || v.max.is_some()
-                                || v.sum.is_some()
-                                || v.count.is_some();
-                        }
-                        false
-                    });
-                    !v.is_empty()
-                } else {
-                    false
-                }
-            });
-        }
+        self.produce_metrics_summary(scoping, item, &span);
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
-        span.event_id = event_id;
-        span.project_id = scoping.project_id.value();
-        span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        let is_segment = span.is_segment;
+        let has_parent = span.parent_span_id.is_some();
 
         self.produce(
             KafkaTopic::Spans,
@@ -988,10 +1013,108 @@ impl StoreService {
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "span"
+            event_type = "span",
+            is_segment = bool_to_str(is_segment),
+            has_parent = bool_to_str(has_parent),
         );
 
         Ok(())
+    }
+
+    fn produce_metrics_summary(&self, scoping: Scoping, item: &Item, span: &SpanKafkaMessage) {
+        let payload = item.payload();
+        let d = &mut Deserializer::from_slice(&payload);
+        let mut metrics_summary: SpanWithMetricsSummary = match serde_path_to_error::deserialize(d)
+        {
+            Ok(span) => span,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse metrics summary of span"
+                );
+                return;
+            }
+        };
+        let Some(metrics_summary) = &mut metrics_summary.metrics_summary else {
+            return;
+        };
+        let &SpanKafkaMessage {
+            duration_ms,
+            end_timestamp,
+            is_segment,
+            project_id,
+            received,
+            retention_days,
+            segment_id,
+            span_id,
+            trace_id,
+            ..
+        } = span;
+        let group = span
+            .sentry_tags
+            .as_ref()
+            .and_then(|sentry_tags| sentry_tags.get("group"))
+            .map_or("", String::as_str);
+
+        for (mri, summaries) in metrics_summary {
+            let Some(summaries) = summaries else {
+                continue;
+            };
+            for summary in summaries {
+                let Some(SpanMetricsSummary {
+                    count,
+                    max,
+                    min,
+                    sum,
+                    tags,
+                }) = summary
+                else {
+                    continue;
+                };
+
+                let &mut Some(count) = count else {
+                    continue;
+                };
+
+                if count == 0 {
+                    continue;
+                }
+
+                // If none of the values are there, the summary is invalid.
+                if max.is_none() && min.is_none() && sum.is_none() {
+                    continue;
+                }
+
+                // Ignore immediate errors on produce.
+                if let Err(error) = self.produce(
+                    KafkaTopic::MetricsSummaries,
+                    scoping.organization_id,
+                    KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
+                        count,
+                        duration_ms,
+                        end_timestamp,
+                        group,
+                        is_segment,
+                        max,
+                        min,
+                        mri,
+                        project_id,
+                        received,
+                        retention_days,
+                        segment_id: segment_id.unwrap_or_default(),
+                        span_id,
+                        sum,
+                        tags,
+                        trace_id,
+                    }),
+                ) {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to push metrics summary to kafka",
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1223,10 +1346,55 @@ struct MetricKafkaMessage<'a> {
     project_id: ProjectId,
     name: &'a str,
     #[serde(flatten)]
-    value: BucketViewValue<'a>,
+    value: MetricValue<'a>,
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", content = "value")]
+enum MetricValue<'a> {
+    #[serde(rename = "c")]
+    Counter(FiniteF64),
+    #[serde(rename = "d")]
+    Distribution(ArrayEncoding<&'a [FiniteF64]>),
+    #[serde(rename = "s")]
+    Set(ArrayEncoding<SetView<'a>>),
+    #[serde(rename = "g")]
+    Gauge(GaugeValue),
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+enum ArrayEncoding<T> {
+    /// The original, legacy, encoding.
+    ///
+    /// Encodes all values as a JSON array of numbers.
+    Legacy(T),
+    /// Dynamic encoding supporting multiple formats.
+    ///
+    /// Adds metadata and adds support for multiple different encodings.
+    Dynamic(DynamicArrayEncoding<T>),
+}
+
+impl<T> ArrayEncoding<T> {
+    /// Builds a [`ArrayEncoding`] from the format and the data.
+    fn new(encoding: MetricEncoding, data: T) -> Self {
+        match encoding {
+            MetricEncoding::Legacy => Self::Legacy(data),
+            MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "format", rename_all = "lowercase")]
+enum DynamicArrayEncoding<T> {
+    /// JSON Array encoding.
+    ///
+    /// Encodes all items as a JSON array.
+    Array { data: T },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1279,22 +1447,6 @@ struct SpanMeasurement {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SpanMetricsSummary {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    count: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    max: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    min: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sum: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<BTreeMap<String, String>>,
-}
-
-type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
-
-#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
     start_timestamp: f64,
@@ -1314,13 +1466,6 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
-    #[serde(
-        borrow,
-        default,
-        rename = "_metrics_summary",
-        skip_serializing_if = "Option::is_none"
-    )]
-    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1336,13 +1481,60 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    sentry_tags: Option<&'a RawValue>,
+    sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpanMetricsSummary {
+    #[serde(default)]
+    count: Option<u64>,
+    #[serde(default)]
+    max: Option<f64>,
+    #[serde(default)]
+    min: Option<f64>,
+    #[serde(default)]
+    sum: Option<f64>,
+    #[serde(default)]
+    tags: BTreeMap<String, String>,
+}
+
+type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
+
+#[derive(Debug, Deserialize)]
+struct SpanWithMetricsSummary {
+    #[serde(default, rename(deserialize = "_metrics_summary"))]
+    metrics_summary: Option<BTreeMap<String, Option<SpanMetricsSummaries>>>,
+}
+
+#[derive(Debug, Serialize)]
+struct MetricsSummaryKafkaMessage<'a> {
+    duration_ms: u32,
+    end_timestamp: f64,
+    group: &'a str,
+    is_segment: bool,
+    mri: &'a str,
+    project_id: u64,
+    received: f64,
+    retention_days: u16,
+    segment_id: &'a str,
+    span_id: &'a str,
+    trace_id: &'a str,
+
+    count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min: &'a Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sum: &'a Option<f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    tags: &'a BTreeMap<String, String>,
 }
 
 /// An enum over all possible ingest messages.
@@ -1366,6 +1558,7 @@ enum KafkaMessage<'a> {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
+    MetricsSummary(MetricsSummaryKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1382,6 +1575,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span(_) => "span",
+            KafkaMessage::MetricsSummary(_) => "metrics_summary",
         }
     }
 
@@ -1404,7 +1598,8 @@ impl Message for KafkaMessage<'_> {
             Self::Session(_)
             | Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_) => Uuid::nil(),
+            | Self::Span(_)
+            | Self::MetricsSummary(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1450,6 +1645,10 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
+            KafkaMessage::MetricsSummary(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
@@ -1460,6 +1659,14 @@ impl Message for KafkaMessage<'_> {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
+}
+
+fn bool_to_str(value: bool) -> &'static str {
+    if value {
+        "true"
+    } else {
+        "false"
+    }
 }
 
 #[cfg(test)]

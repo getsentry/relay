@@ -76,6 +76,14 @@ pub struct User {
     #[metastructure(skip_serialization = "empty")]
     pub segment: Annotated<String>,
 
+    /// The user string representation as handled in Sentry.
+    ///
+    /// This field is computed by concatenating the name of specific fields of the `User`
+    /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
+    /// `"id:id-of-the-user".
+    #[metastructure(skip_serialization = "empty")]
+    pub sentry_user: Annotated<String>,
+
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
     #[metastructure(pii = "true", skip_serialization = "empty")]
@@ -174,6 +182,7 @@ mod tests {
                 );
                 map
             },
+            ..Default::default()
         });
 
         assert_eq!(user, Annotated::from_json(json).unwrap());

@@ -234,7 +234,7 @@ impl fmt::Display for ReasonCode {
 /// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
 /// configured by the customer. Each piece of data (such as event, attachment) will be counted
 /// against all quotas that it matches with based on the `category`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
     /// The unique identifier for counting this quota. Required, except for quotas with a `limit` of

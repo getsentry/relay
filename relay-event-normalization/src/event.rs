@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
@@ -203,7 +203,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
-    normalize_user(&mut event.user);
+    normalize_user(event);
     normalize_logentry(&mut event.logentry, meta);
     normalize_debug_meta(event);
     normalize_breadcrumbs(event);
@@ -373,14 +373,20 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_user(user: &mut Annotated<User>) {
-    let Annotated(Some(user), _) = user else {
+fn normalize_user(event: &mut Event) {
+    let Annotated(Some(user), _) = &mut event.user else {
         return;
     };
+
     if !user.other.is_empty() {
         let data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(&mut user.other));
     }
+
+    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    let event_user_tag = get_event_user_tag(user);
+    user.sentry_user.set_value(event_user_tag);
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
@@ -755,9 +761,9 @@ pub fn normalize_performance_score(
                         && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
-                    break;
+                    continue;
                 }
                 let mut score_total = 0.0f64;
                 let mut weight_total = 0.0f64;
@@ -773,7 +779,7 @@ pub fn normalize_performance_score(
                 if weight_total.abs() < f64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    break;
+                    continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -807,7 +813,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-
                 if should_add_total {
                     measurements.insert(
                         "score.total".to_owned(),
@@ -818,7 +823,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
@@ -2560,6 +2564,89 @@ mod tests {
     }
 
     #[test]
+    fn test_computed_performance_score_multiple_profiles() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_normalization_removes_reprocessing_context() {
         let json = r#"{
             "contexts": {
@@ -2592,23 +2679,18 @@ mod tests {
     }
 
     #[test]
-    fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
+    fn test_normalize_user() {
+        let json = r#"{
+            "user": {
+                "id": "123456",
+                "username": "john",
+                "other": "value"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
 
-        normalize_user(&mut user);
-
-        let user = user.value().unwrap();
-
+        let user = event.value().unwrap().user.value().unwrap();
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
@@ -2617,8 +2699,9 @@ mod tests {
             );
             Annotated::new(map)
         });
-
         assert_eq!(user.other, Object::new());
+        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 
     #[test]
