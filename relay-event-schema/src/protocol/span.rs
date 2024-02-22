@@ -552,6 +552,7 @@ mod tests {
             thread_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
+            transaction: ~,
             other: {
                 "bar": String(
                     "3",
