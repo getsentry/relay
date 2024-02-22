@@ -43,6 +43,17 @@ pub enum Status {
     Unhealthy,
 }
 
+impl Status {
+    /// Internal helper to report/log failing health checks.
+    fn report(self, probe: &'static str) -> Self {
+        if matches!(self, Self::Unhealthy) {
+            relay_log::error!("Health check probe '{probe}' failed");
+        }
+
+        self
+    }
+}
+
 impl From<bool> for Status {
     fn from(value: bool) -> Self {
         match value {
@@ -147,6 +158,7 @@ impl HealthCheckService {
             .send(IsAuthenticated)
             .await
             .map_or(Status::Unhealthy, Status::from)
+            .report("relay authentication")
     }
 
     async fn aggregator_probe(&self) -> Status {
@@ -154,6 +166,7 @@ impl HealthCheckService {
             .send(AcceptsMetrics)
             .await
             .map_or(Status::Unhealthy, Status::from)
+            .report("aggregator accept metrics")
     }
 
     async fn project_cache_probe(&self) -> Status {
@@ -161,6 +174,7 @@ impl HealthCheckService {
             .send(SpoolHealth)
             .await
             .map_or(Status::Unhealthy, Status::from)
+            .report("project cache spool health")
     }
 
     async fn handle_is_healthy(&self, message: IsHealthy) -> Status {
