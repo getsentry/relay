@@ -22,19 +22,22 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::state::{EnforcedQuotasState, ProcessedState};
+use crate::services::processor::state::{
+    EnforcedQuotastate, ProcessedState, ScrubAttachementState,
+};
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::ItemAction;
 
 pub fn process<'a>(
-    enforced_state: EnforcedQuotasState<'a, SpanGroup>,
+    state: EnforcedQuotastate<'a, SpanGroup>,
     config: Arc<Config>,
     global_config: &'_ GlobalConfig,
 ) -> ProcessedState<'a, SpanGroup> {
+    let mut state = state.inner();
+
     use relay_event_normalization::RemoveOtherProcessor;
-    let mut state = enforced_state.inner();
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -146,10 +149,10 @@ pub fn process<'a>(
 
 pub fn extract_from_event(
     mut state: ProcessEnvelopeState<TransactionGroup>,
-) -> ProcessEnvelopeState<TransactionGroup> {
+) -> ScrubAttachementState<TransactionGroup> {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
-        return state;
+        return ScrubAttachementState::new(state);
     };
 
     let mut add_span = |span: Annotated<Span>| {
@@ -190,7 +193,7 @@ pub fn extract_from_event(
     let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
 
     let Some(event) = state.event.value() else {
-        return state;
+        return ScrubAttachementState::new(state);
     };
 
     let extract_transaction_span = span_metrics_extraction_enabled
@@ -241,7 +244,7 @@ pub fn extract_from_event(
         add_span(transaction_span.into());
     }
 
-    state
+    ScrubAttachementState::new(state)
 }
 
 /// Config needed to normalize a standalone span.

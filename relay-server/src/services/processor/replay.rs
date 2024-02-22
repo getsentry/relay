@@ -17,6 +17,7 @@ use relay_statsd::metric;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::state::EnforceQuotasState;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessError, ProcessingError, ReplayGroup,
 };
@@ -27,7 +28,7 @@ use crate::utils::ItemAction;
 pub fn process<'a>(
     mut state: ProcessEnvelopeState<'a, ReplayGroup>,
     config: &'_ Config,
-) -> Result<ProcessEnvelopeState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
+) -> Result<EnforceQuotasState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
     let project_state = state.project_state.clone();
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
@@ -125,7 +126,7 @@ pub fn process<'a>(
         _ => ItemAction::Keep,
     });
 
-    Ok(state)
+    Ok(EnforceQuotasState::new(state))
 }
 
 /// Validates, normalizes, and scrubs PII from a replay event.

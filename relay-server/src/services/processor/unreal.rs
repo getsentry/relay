@@ -5,6 +5,7 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
+use crate::services::processor::state::ExtractEventState;
 use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessError, ProcessingError};
 use crate::utils;
 
@@ -21,9 +22,11 @@ use crate::utils;
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 pub fn expand<'a>(
-    mut state: ProcessEnvelopeState<'a, ErrorGroup>,
+    state: ExtractEventState<'a, ErrorGroup>,
     config: &'_ Config,
-) -> Result<ProcessEnvelopeState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
+) -> Result<ExtractEventState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
+    let mut state = state.inner();
+
     let envelope = &mut state.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
@@ -32,7 +35,7 @@ pub fn expand<'a>(
         };
     }
 
-    Ok(state)
+    Ok(ExtractEventState::new(state))
 }
 
 /// Extracts event information from an unreal context.

@@ -14,6 +14,7 @@ use relay_metrics::Bucket;
 use relay_statsd::metric;
 
 use crate::envelope::{ContentType, Item, ItemType};
+use crate::services::processor::state::EnforceQuotasState;
 use crate::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
@@ -25,7 +26,7 @@ use crate::utils::ItemAction;
 pub fn process<'a>(
     mut state: ProcessEnvelopeState<'a, SessionGroup>,
     config: &'_ Config,
-) -> ProcessEnvelopeState<'a, SessionGroup> {
+) -> EnforceQuotasState<'a, SessionGroup> {
     let received = state.managed_envelope.received_at();
     let extracted_metrics = &mut state.extracted_metrics.project_metrics;
     let metrics_config = state.project_state.config().session_metrics;
@@ -67,7 +68,7 @@ pub fn process<'a>(
         }
     });
 
-    state
+    EnforceQuotasState::new(state)
 }
 
 /// Returns Ok(true) if attributes were modified.

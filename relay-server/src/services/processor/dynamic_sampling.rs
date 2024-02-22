@@ -14,6 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
+use crate::services::processor::state::{FilterState, NormalizedEventState, SampledState};
 use crate::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
@@ -40,19 +41,20 @@ use crate::utils::{self, ItemAction, SamplingResult};
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
 pub fn normalize(
-    mut state: ProcessEnvelopeState<TransactionGroup>,
-) -> ProcessEnvelopeState<TransactionGroup> {
+    state: NormalizedEventState<TransactionGroup>,
+) -> NormalizedEventState<TransactionGroup> {
+    let mut state = state.inner();
     if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
-        return state;
+        return NormalizedEventState::new(state);
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
     let Some(event) = state.event.value() else {
-        return state;
+        return NormalizedEventState::new(state);
     };
     let Some(key_config) = state.project_state.get_public_key_config() else {
-        return state;
+        return NormalizedEventState::new(state);
     };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
@@ -60,25 +62,26 @@ pub fn normalize(
         state.sampling_project_state = Some(state.project_state.clone());
     }
 
-    state
+    NormalizedEventState::new(state)
 }
 
 /// Computes the sampling decision on the incoming event
 pub fn run<'a>(
-    mut state: ProcessEnvelopeState<'a, TransactionGroup>,
+    state: FilterState<'a, TransactionGroup>,
     config: &'_ Config,
-) -> ProcessEnvelopeState<'a, TransactionGroup> {
+) -> SampledState<'a, TransactionGroup> {
+    let mut state = state.inner();
     // Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
     match state.event_type().unwrap_or_default() {
         EventType::Default | EventType::Error => {
-            state = tag_error_with_sampling_decision(state, config);
+            state = tag_error_with_sampling_decision(FilterState::new(state), config).inner();
         }
         EventType::Transaction => {
             match state.project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
-                _ => return state,
+                _ => return SampledState::new(state),
             }
 
             let sampling_config = match state.project_state.config.sampling {
@@ -104,15 +107,17 @@ pub fn run<'a>(
         _ => {}
     };
 
-    state
+    SampledState::new(state)
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
 pub fn sample_envelope_items<'a>(
-    mut state: ProcessEnvelopeState<'a, TransactionGroup>,
+    state: SampledState<'a, TransactionGroup>,
     config: &'_ Config,
     global_config: &'_ GlobalConfig,
 ) -> ProcessEnvelopeState<'a, TransactionGroup> {
+    let mut state = state.inner();
+
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
         let Some(event) = state.event.value() else {
@@ -214,20 +219,21 @@ fn compute_sampling_decision(
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
 pub fn tag_error_with_sampling_decision<'a, G: EventProcessing>(
-    mut state: ProcessEnvelopeState<'a, G>,
+    state: FilterState<'a, G>,
     config: &'_ Config,
-) -> ProcessEnvelopeState<'a, G> {
+) -> SampledState<'a, G> {
+    let mut state = state.inner();
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
     ) else {
-        return state;
+        return SampledState::new(state);
     };
 
     let root_state = state.sampling_project_state.as_ref();
     let sampling_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
         Some(ErrorBoundary::Ok(ref config)) => config,
-        _ => return state,
+        _ => return SampledState::new(state),
     };
 
     if sampling_config.unsupported() {
@@ -235,11 +241,11 @@ pub fn tag_error_with_sampling_decision<'a, G: EventProcessing>(
             relay_log::error!("found unsupported rules even as processing relay");
         }
 
-        return state;
+        return SampledState::new(state);
     }
 
     let Some(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc) else {
-        return state;
+        return SampledState::new(state);
     };
 
     // We want to get the trace context, in which we will inject the `sampled` field.
@@ -256,7 +262,7 @@ pub fn tag_error_with_sampling_decision<'a, G: EventProcessing>(
         context.sampled = Annotated::new(sampled);
     }
 
-    state
+    SampledState::new(state)
 }
 
 /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
@@ -506,18 +512,18 @@ mod tests {
 
         // None represents no TransactionMetricsConfig, DS will not be run
         let state = get_state(None);
-        let state = run(state, &config);
-        assert!(state.sampling_result.should_keep());
+        let state = run(FilterState::new(state), &config);
+        assert!(state.sampling_should_drop());
 
         // Current version is 1, so it won't run DS if it's outdated
         let state = get_state(Some(0));
-        let state = run(state, &config);
-        assert!(state.sampling_result.should_keep());
+        let state = run(FilterState::new(state), &config);
+        assert!(state.sampling_should_drop());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let state = get_state(Some(1));
-        let state = run(state, &config);
-        assert!(state.sampling_result.should_drop());
+        let state = run(FilterState::new(state), &config);
+        assert!(state.sampling_should_drop());
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {

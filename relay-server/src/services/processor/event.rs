@@ -29,6 +29,12 @@ use {
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
+#[cfg(feature = "processing")]
+use crate::services::processor::state::{EnforceQuotasState, SampledState};
+use crate::services::processor::state::{
+    ExtractEventState, ExtractedEventState, FilterState, FinalizedEventState, NormalizedEventState,
+    ScrubAttachementState,
+};
 use crate::services::processor::{
     EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessError, ProcessingError,
     MINIMUM_CLOCK_DRIFT,
@@ -45,9 +51,11 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
 pub fn extract<'a, G: EventProcessing>(
-    mut state: ProcessEnvelopeState<'a, G>,
+    state: ExtractEventState<'a, G>,
     config: &'_ Config,
-) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
+) -> Result<ExtractedEventState<'a, G>, ProcessError<'a, G>> {
+    let mut state = state.inner();
+
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
     // `process_event`.
@@ -175,19 +183,19 @@ pub fn extract<'a, G: EventProcessing>(
     state.sample_rates = sample_rates;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(state)
+    Ok(ExtractedEventState::new(state))
 }
 
 pub fn finalize<'a, G: EventProcessing>(
     mut state: ProcessEnvelopeState<'a, G>,
     config: &'_ Config,
-) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
+) -> Result<FinalizedEventState<'a, G>, ProcessError<'a, G>> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
         Some(event) => event,
-        None if !config.processing_enabled() => return Ok(state),
+        None if !config.processing_enabled() => return Ok(FinalizedEventState::new(state)),
         None => return Err((state, ProcessingError::NoEventPayload)),
     };
 
@@ -309,17 +317,18 @@ pub fn finalize<'a, G: EventProcessing>(
         }
     }
 
-    Ok(state)
+    Ok(FinalizedEventState::new(state))
 }
 
 pub fn filter<G: EventProcessing>(
-    mut state: ProcessEnvelopeState<G>,
-) -> Result<ProcessEnvelopeState<G>, ProcessError<G>> {
+    state: NormalizedEventState<G>,
+) -> Result<FilterState<G>, ProcessError<G>> {
+    let mut state = state.inner();
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        None => return Ok(state),
+        None => return Ok(FilterState::new(state)),
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -334,7 +343,7 @@ pub fn filter<G: EventProcessing>(
         }
     });
 
-    Ok(state)
+    Ok(FilterState::new(state))
 }
 
 /// Apply data privacy rules to the event payload.
@@ -379,7 +388,7 @@ pub fn scrub<G: EventProcessing>(
 
 pub fn serialize<G: EventProcessing>(
     mut state: ProcessEnvelopeState<G>,
-) -> Result<ProcessEnvelopeState<G>, ProcessError<G>> {
+) -> Result<ScrubAttachementState<G>, ProcessError<G>> {
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         match state.event.to_json() {
             Ok(data) => data,
@@ -402,14 +411,15 @@ pub fn serialize<G: EventProcessing>(
 
     state.envelope_mut().add_item(event_item);
 
-    Ok(state)
+    Ok(ScrubAttachementState::new(state))
 }
 
 #[cfg(feature = "processing")]
 pub fn store<'a, G: EventProcessing>(
-    mut state: ProcessEnvelopeState<'a, G>,
+    state: SampledState<'a, G>,
     config: &'_ Config,
-) -> Result<ProcessEnvelopeState<'a, G>, ProcessError<'a, G>> {
+) -> Result<EnforceQuotasState<'a, G>, ProcessError<'a, G>> {
+    let mut state = state.inner();
     let key_id = state
         .project_state
         .get_public_key_config()
@@ -462,7 +472,7 @@ pub fn store<'a, G: EventProcessing>(
         }
     });
 
-    Ok(state)
+    Ok(EnforceQuotasState::new(state))
 }
 
 /// Checks if the Event includes unprintable fields.

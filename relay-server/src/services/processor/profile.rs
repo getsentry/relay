@@ -12,12 +12,13 @@ use relay_protocol::Annotated;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 #[cfg(feature = "processing")]
-use crate::services::processor::state::EnforcedQuotasState;
+use crate::services::processor::state::EnforcedQuotastate;
+use crate::services::processor::state::{ExtractedEventState, FilterState};
 use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
-pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
+pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> FilterState<G> {
     let transaction_count: usize = state
         .managed_envelope
         .envelope()
@@ -51,15 +52,18 @@ pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> 
         _ => ItemAction::Keep,
     });
     state.profile_id = profile_id;
-    state
+
+    FilterState::new(state)
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
 /// If profile processing happens at a later stage, we remove the context again.
 pub fn transfer_id(
-    mut state: ProcessEnvelopeState<TransactionGroup>,
+    state: ExtractedEventState<TransactionGroup>,
 ) -> ProcessEnvelopeState<TransactionGroup> {
+    let mut state = state.inner();
+
     if let Some(event) = state.event.value_mut() {
         if event.ty.value() == Some(&EventType::Transaction) {
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -77,10 +81,11 @@ pub fn transfer_id(
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
 pub fn process<'a>(
-    enforced_state: EnforcedQuotasState<'a, TransactionGroup>,
+    state: EnforcedQuotastate<'a, TransactionGroup>,
     config: &'_ Config,
 ) -> ProcessEnvelopeState<'a, TransactionGroup> {
-    let mut state = enforced_state.inner();
+    let mut state = state.inner();
+
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
