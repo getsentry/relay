@@ -522,11 +522,6 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     replay_combined_payload: bool,
 
-    /// The parsed replay-event and replay-recording payloads.
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    replay_video_events: Option<(Vec<u8>, Vec<u8>)>,
-
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -615,7 +610,6 @@ impl Item {
                 routing_hint: None,
                 rate_limited: false,
                 replay_combined_payload: false,
-                replay_video_events: None,
                 source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -790,17 +784,6 @@ impl Item {
     /// Sets the replay_combined_payload for this item.
     pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
         self.headers.replay_combined_payload = combined_payload;
-    }
-
-    /// Returns the payload's replay video events.
-    #[cfg(feature = "processing")]
-    pub fn replay_video_events(&self) -> Option<(Vec<u8>, Vec<u8>)> {
-        self.headers.replay_video_events.clone()
-    }
-
-    /// Set the replay video events attribute for this item.
-    pub fn set_replay_video_events(&mut self, replay_event: Vec<u8>, replay_recording: Vec<u8>) {
-        self.headers.replay_video_events = Some((replay_event, replay_recording));
     }
 
     /// Sets sample rates for this item.
