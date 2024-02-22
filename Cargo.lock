@@ -601,8 +601,10 @@ checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.48.5",
 ]
 
@@ -3654,6 +3656,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cogs"
+version = "24.2.0"
+
+[[package]]
 name = "relay-common"
 version = "24.2.0"
 dependencies = [
@@ -3900,6 +3906,7 @@ dependencies = [
  "rand",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -4103,6 +4110,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",
@@ -4127,6 +4135,7 @@ dependencies = [
  "reqwest",
  "rmp-serde",
  "rust-embed",
+ "sentry_usage_accountant",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -4684,6 +4693,19 @@ dependencies = [
  "time",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "sentry_usage_accountant"
+version = "0.0.4"
+source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=477434e#477434e7c60b7a925fd3220ffce6c6caa6cd1ae8"
+dependencies = [
+ "chrono",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

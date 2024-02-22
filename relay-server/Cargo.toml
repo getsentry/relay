@@ -24,6 +24,7 @@ processing = [
     "dep:symbolic-unreal",
     "dep:zstd",
     "bytes/serde",
+    "sentry_usage_accountant/kafka",
     "relay-cardinality/redis",
     "relay-config/processing",
     "relay-kafka/producer",
@@ -68,6 +69,7 @@ relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-cardinality = { path = "../relay-cardinality" }
+relay-cogs = { path = "../relay-cogs" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-dynamic-config = { path = "../relay-dynamic-config" }
@@ -96,6 +98,7 @@ reqwest = { version = "0.11.1", features = [
 ] }
 rmp-serde = "1.1.1"
 rust-embed = { version = "8.0.0", optional = true }
+sentry_usage_accountant = { git = "https://github.com/getsentry/rust-usage-accountant.git", rev = "477434e" } 
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }

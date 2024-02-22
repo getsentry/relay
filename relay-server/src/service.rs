@@ -6,12 +6,14 @@ use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
+use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
+use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -147,9 +149,14 @@ impl ServiceState {
             None => None,
         };
 
+        #[cfg(feature = "processing")]
+        let cogs = CogsService::new(&config, store.clone());
+        let cogs = Cogs::new(CogsServiceRecorder::new(cogs.start(), &config));
+
         EnvelopeProcessorService::new(
             config.clone(),
             global_config_handle,
+            cogs,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
             outcome_aggregator.clone(),

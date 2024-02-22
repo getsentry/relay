@@ -97,11 +97,15 @@ pub struct StoreMetrics {
     pub mode: ExtractionMode,
 }
 
+#[derive(Debug)]
+pub struct StoreCogs(pub sentry_usage_accountant::Message);
+
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
     Envelope(StoreEnvelope),
     Metrics(StoreMetrics),
+    Cogs(StoreCogs),
 }
 
 impl Interface for Store {}
@@ -119,6 +123,14 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
+    }
+}
+
+impl FromMessage<StoreCogs> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: StoreCogs, _: ()) -> Self {
+        Self::Cogs(message)
     }
 }
 
@@ -149,6 +161,7 @@ impl StoreService {
         match message {
             Store::Envelope(message) => self.handle_store_envelope(message),
             Store::Metrics(message) => self.handle_store_metrics(message),
+            Store::Cogs(message) => self.handle_store_cogs(message),
         }
     }
 
@@ -380,6 +393,16 @@ impl StoreService {
                 dropped,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+            );
+        }
+    }
+
+    fn handle_store_cogs(&self, StoreCogs(message): StoreCogs) {
+        let message = KafkaMessage::Cogs(CogsKafkaMessage(message));
+        if let Err(error) = self.produce(KafkaTopic::Cogs, 0, message) {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "failed to store cogs measurement"
             );
         }
     }
@@ -1509,6 +1532,10 @@ struct MetricsSummaryKafkaMessage<'a> {
     tags: &'a BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(transparent)]
+struct CogsKafkaMessage(sentry_usage_accountant::Message);
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1531,6 +1558,7 @@ enum KafkaMessage<'a> {
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
+    Cogs(CogsKafkaMessage),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1548,6 +1576,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span(_) => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
+            KafkaMessage::Cogs(_) => "cogs",
         }
     }
 
@@ -1571,7 +1600,8 @@ impl Message for KafkaMessage<'_> {
             | Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
             | Self::Span(_)
-            | Self::MetricsSummary(_) => Uuid::nil(),
+            | Self::MetricsSummary(_)
+            | Self::Cogs(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1618,6 +1648,9 @@ impl Message for KafkaMessage<'_> {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::MetricsSummary(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+            KafkaMessage::Cogs(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
 

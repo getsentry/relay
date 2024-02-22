@@ -16,6 +16,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_cogs::{AppFeature, AppFeatures, Cogs, CogsToken, ResourceId};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
@@ -854,6 +855,7 @@ pub struct EnvelopeProcessorService {
 struct InnerProcessor {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
+    cogs: Cogs,
     #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
     project_cache: Addr<ProjectCache>,
@@ -879,6 +881,7 @@ impl EnvelopeProcessorService {
     pub fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
+        cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
@@ -899,6 +902,7 @@ impl EnvelopeProcessorService {
 
         let inner = InnerProcessor {
             global_config,
+            cogs,
             #[cfg(feature = "processing")]
             redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
@@ -1602,7 +1606,7 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_process_metrics(&self, message: ProcessMetrics) {
+    fn handle_process_metrics(&self, cogs: &mut CogsToken, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
             project_key: public_key,
@@ -1616,15 +1620,15 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
+        let mut buckets: Option<Vec<Bucket>> = None;
         for item in items {
             let payload = item.payload();
             if item.ty() == &ItemType::Statsd {
-                let mut buckets = Vec::new();
                 for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
                     match bucket_result {
                         Ok(mut bucket) => {
                             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                            buckets.push(bucket);
+                            buckets.get_or_insert_with(Vec::new).push(bucket);
                         }
                         Err(error) => relay_log::debug!(
                             error = &error as &dyn Error,
@@ -1632,22 +1636,19 @@ impl EnvelopeProcessorService {
                         ),
                     }
                 }
-
-                relay_log::trace!("inserting metric buckets into project cache");
-                self.inner
-                    .project_cache
-                    .send(MergeBuckets::new(public_key, buckets));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(mut buckets) => {
-                        for bucket in &mut buckets {
+                    Ok(mut b) => {
+                        for bucket in &mut b {
                             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                         }
 
-                        relay_log::trace!("merging metric buckets into project cache");
-                        self.inner
-                            .project_cache
-                            .send(MergeBuckets::new(public_key, buckets));
+                        // Re-use the allocation of `b` if possible.
+                        if let Some(buckets) = buckets.as_mut() {
+                            buckets.extend(b);
+                        } else {
+                            buckets = Some(b);
+                        }
                     }
                     Err(error) => {
                         relay_log::debug!(
@@ -1664,9 +1665,20 @@ impl EnvelopeProcessorService {
                 );
             }
         }
+
+        let Some(buckets) = buckets else {
+            return;
+        };
+
+        cogs.update(relay_metrics::cogs::BySize(&buckets));
+
+        relay_log::trace!("merging metric buckets into project cache");
+        self.inner
+            .project_cache
+            .send(MergeBuckets::new(public_key, buckets));
     }
 
-    fn handle_process_batched_metrics(&self, message: ProcessBatchedMetrics) {
+    fn handle_process_batched_metrics(&self, cogs: &mut CogsToken, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
             start_time,
@@ -1694,6 +1706,8 @@ impl EnvelopeProcessorService {
                         RelayCounters::ProcessorBatchedMetricsCount,
                         RelayCounters::ProcessorBatchedMetricsCost,
                     );
+
+                    cogs.update(relay_metrics::cogs::BySize(&buckets));
 
                     relay_log::trace!("merging metric buckets into project cache");
                     self.inner
@@ -2327,12 +2341,16 @@ impl EnvelopeProcessorService {
 
     fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
+        let app_features = self.app_features(&message);
+
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            let mut cogs = self.inner.cogs.record(ResourceId::Relay, app_features);
+
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
-                EnvelopeProcessor::ProcessMetrics(m) => self.handle_process_metrics(*m),
+                EnvelopeProcessor::ProcessMetrics(m) => self.handle_process_metrics(&mut cogs, *m),
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
-                    self.handle_process_batched_metrics(*m)
+                    self.handle_process_batched_metrics(&mut cogs, *m)
                 }
                 EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
                 EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
@@ -2343,6 +2361,47 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
         });
+    }
+
+    fn app_features(&self, message: &EnvelopeProcessor) -> AppFeatures {
+        match message {
+            EnvelopeProcessor::ProcessEnvelope(v) => match v.envelope.group() {
+                ProcessingGroup::Transaction => AppFeature::Transactions,
+                ProcessingGroup::Error => AppFeature::Errors,
+                ProcessingGroup::Session => AppFeature::Sessions,
+                ProcessingGroup::Standalone => AppFeature::UnattributedProcessing,
+                ProcessingGroup::ClientReport => AppFeature::ClientReports,
+                ProcessingGroup::Replay => AppFeature::Replays,
+                ProcessingGroup::CheckIn => AppFeature::CheckIns,
+                ProcessingGroup::Span => AppFeature::Spans,
+                ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
+                ProcessingGroup::ForwardUnknown => AppFeature::UnattributedProcessing,
+                ProcessingGroup::Ungrouped => AppFeature::UnattributedProcessing,
+            }
+            .into(),
+            EnvelopeProcessor::ProcessMetrics(_) => AppFeature::Unattributed.into(),
+            EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
+            EnvelopeProcessor::ProcessMetricMeta(_) => AppFeature::MetricMeta.into(),
+            EnvelopeProcessor::EncodeMetrics(v) => v
+                .scopes
+                .values()
+                .map(|s| {
+                    if self.inner.config.processing_enabled() {
+                        // Processing does not encode the metrics but instead rate and cardinality
+                        // limits the metrics, which scales by count and not size.
+                        relay_metrics::cogs::ByCount(&s.buckets).into()
+                    } else {
+                        relay_metrics::cogs::BySize(&s.buckets).into()
+                    }
+                })
+                .fold(AppFeatures::none(), AppFeatures::merge),
+            EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
+            EnvelopeProcessor::SubmitEnvelope(_) => todo!(),
+            EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
+            EnvelopeProcessor::RateLimitBuckets(v) => {
+                relay_metrics::cogs::ByCount(v.bucket_limiter.metrics()).into()
+            }
+        }
     }
 }
 
@@ -2848,7 +2907,7 @@ mod tests {
             let f = |org_ids: &mut Vec<u64>, msg: Store| {
                 let org_id = match msg {
                     Store::Metrics(x) => x.scoping.organization_id,
-                    Store::Envelope(_) => panic!("received envelope when expecting only metrics"),
+                    _ => panic!("received envelope when expecting only metrics"),
                 };
                 org_ids.push(org_id);
             };
