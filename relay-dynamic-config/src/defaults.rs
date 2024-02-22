@@ -445,6 +445,29 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
+            mri: "d:transactions/measurements.score.total@ratio".into(),
+            field: Some("span.measurements.score.total.value".into()),
+            condition: Some(is_allowed_browser.clone()),
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.browser.name")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
             mri: "d:spans/webvital.score.inp@ratio".into(),
             field: Some("span.measurements.score.inp.value".into()),
             condition: Some(is_allowed_browser.clone()),
