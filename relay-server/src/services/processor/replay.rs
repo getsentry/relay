@@ -72,7 +72,7 @@ pub fn process(
                     client_addr,
                     user_agent,
                 ) {
-                    ProcessingAction::Drop(outcome) => ItemAction::Drop(outcome),
+                    ProcessingAction::Drop(action) => action,
                     ProcessingAction::Keep => ItemAction::Keep,
                     ProcessingAction::Replace(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
@@ -87,7 +87,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    ProcessingAction::Drop(outcome) => ItemAction::Drop(outcome),
+                    ProcessingAction::Drop(action) => action,
                     ProcessingAction::Keep => ItemAction::Keep,
                     ProcessingAction::Replace(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
@@ -104,7 +104,7 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                ProcessingAction::Drop(outcome) => ItemAction::Drop(outcome),
+                ProcessingAction::Drop(action) => action,
                 ProcessingAction::Keep => ItemAction::Keep,
                 ProcessingAction::Replace((replay_event, replay_recording, replay_video)) => {
                     item.set_replay_video_events(replay_event, replay_recording);
@@ -120,7 +120,7 @@ pub fn process(
 }
 
 enum ProcessingAction<T> {
-    Drop(Outcome),
+    Drop(ItemAction),
     Keep,
     Replace(T),
 }
@@ -143,12 +143,12 @@ fn handle_replay_event_item(
         },
         Err(error) => {
             relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
-            ProcessingAction::Drop(Outcome::Invalid(match error {
+            ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
                 ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
                 ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-            }))
+            })))
         }
     }
 }
@@ -215,7 +215,9 @@ fn handle_replay_recording_item(
         Ok(recording) => ProcessingAction::Replace(recording),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            ProcessingAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
+            ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
+                DiscardReason::InvalidReplayRecordingEvent,
+            )))
         }
     }
 }
@@ -245,9 +247,9 @@ fn handle_replay_video_item(
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return ProcessingAction::Drop(Outcome::Invalid(
+            return ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
                 DiscardReason::InvalidReplayVideoEvent,
-            ));
+            )));
         }
     };
 
@@ -277,7 +279,9 @@ fn handle_replay_video_item(
 
     // Verify the replay-video payload is not empty.
     if event.replay_video.is_empty() {
-        return ProcessingAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+        return ProcessingAction::Drop(ItemAction::Drop(Outcome::Invalid(
+            DiscardReason::InvalidReplayVideoEvent,
+        )));
     }
 
     ProcessingAction::Replace((replay_event, replay_recording, event.replay_video))
