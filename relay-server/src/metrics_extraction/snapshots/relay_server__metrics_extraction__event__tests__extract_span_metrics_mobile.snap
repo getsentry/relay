@@ -297,6 +297,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 thread_name: ~,
                 ui_component_name: ~,
                 url_scheme: ~,
+                transaction: ~,
                 other: {},
             },
             sentry_tags: {
