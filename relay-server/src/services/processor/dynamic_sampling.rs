@@ -513,12 +513,12 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let state = get_state(None);
         let state = run(FilterState::new(state), &config);
-        assert!(state.sampling_should_drop());
+        assert!(state.inner().sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
         let state = get_state(Some(0));
         let state = run(FilterState::new(state), &config);
-        assert!(state.sampling_should_drop());
+        assert!(state.inner().sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let state = get_state(Some(1));
