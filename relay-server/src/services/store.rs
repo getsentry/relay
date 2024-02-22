@@ -1220,20 +1220,6 @@ struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_video: Option<&'a [u8]>,
 }
 
-// fn serialize_bytes<S: Serializer>(b: &[u8], serializer: &S) -> Result<S::Ok, S::Error> {
-//     serializer.serialize_bytes(b)
-// }
-
-// fn serialize_option_bytes<S: Serializer>(
-//     b: &Option<&[u8]>,
-//     serializer: &S,
-// ) -> Result<S::Ok, S::Error> {
-//     match b {
-//         Some(b) => serializer.serialize_bytes(b),
-//         None => serializer.serialize_none(),
-//     }
-// }
-
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
 ///
 /// Is always independent of an event and can be sent as part of any envelope.
