@@ -941,6 +941,15 @@ impl StoreService {
             return Ok(());
         };
 
+        self.produce_replay_event(
+            event_id.ok_or(StoreError::NoEventId)?,
+            scoping.organization_id,
+            scoping.project_id,
+            start_time,
+            retention,
+            replay_event,
+        )?;
+
         self.produce_replay_recording(
             event_id,
             scoping,
