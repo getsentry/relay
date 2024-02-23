@@ -2359,6 +2359,16 @@
 <a href="#2358" id="2358">2358</a>
 <a href="#2359" id="2359">2359</a>
 <a href="#2360" id="2360">2360</a>
+<a href="#2361" id="2361">2361</a>
+<a href="#2362" id="2362">2362</a>
+<a href="#2363" id="2363">2363</a>
+<a href="#2364" id="2364">2364</a>
+<a href="#2365" id="2365">2365</a>
+<a href="#2366" id="2366">2366</a>
+<a href="#2367" id="2367">2367</a>
+<a href="#2368" id="2368">2368</a>
+<a href="#2369" id="2369">2369</a>
+<a href="#2370" id="2370">2370</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2858,6 +2868,10 @@
     ///
     /// Defaults to `true`.
     </span>buffering: bool,
+    <span class="doccomment">/// Emitted metrics will be aggregated to optimize bandwidth.
+    ///
+    /// Defaults to `true`.
+    </span>aggregation: bool,
     <span class="doccomment">/// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
@@ -2873,6 +2887,7 @@
             default_tags: BTreeMap::new(),
             hostname_tag: <span class="prelude-val">None</span>,
             buffering: <span class="bool-val">true</span>,
+            aggregation: <span class="bool-val">true</span>,
             sample_rate: <span class="number">1.0</span>,
         }
     }
@@ -4216,6 +4231,11 @@
     <span class="doccomment">/// Returns true if metrics buffering is enabled, false otherwise.
     </span><span class="kw">pub fn </span>metrics_buffering(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.values.metrics.buffering
+    }
+
+    <span class="doccomment">/// Returns true if metrics aggregation is enabled, false otherwise.
+    </span><span class="kw">pub fn </span>metrics_aggregation(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values.metrics.aggregation
     }
 
     <span class="doccomment">/// Returns the global sample rate for all metrics.

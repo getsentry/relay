@@ -75,6 +75,7 @@
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
 <a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 
@@ -146,6 +147,7 @@
         <span class="kw-2">&amp;</span>addrs[..],
         default_tags,
         config.metrics_buffering(),
+        config.metrics_aggregation(),
         config.metrics_sample_rate(),
     );
 

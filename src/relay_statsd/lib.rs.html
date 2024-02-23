@@ -665,6 +665,26 @@
 <a href="#664" id="664">664</a>
 <a href="#665" id="665">665</a>
 <a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
@@ -690,7 +710,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), true, true, 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -733,6 +753,8 @@
 };
 <span class="kw">use </span>parking_lot::RwLock;
 <span class="kw">use </span>rand::distributions::{Distribution, Uniform};
+<span class="kw">use </span>statsdproxy::cadence::StatsdProxyMetricSink;
+<span class="kw">use </span>statsdproxy::config::AggregateMetricsConfig;
 
 <span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them
 </span><span class="kw">const </span>METRICS_MAX_QUEUE_SIZE: usize = <span class="number">100_000</span>;
@@ -893,6 +915,7 @@
     host: A,
     default_tags: BTreeMap&lt;String, String&gt;,
     buffering: bool,
+    aggregating: bool,
     sample_rate: f32,
 ) {
     <span class="kw">let </span>addrs: Vec&lt;<span class="kw">_</span>&gt; = host.to_socket_addrs().unwrap().collect();
@@ -914,7 +937,24 @@
     <span class="kw">let </span>socket = UdpSocket::bind(<span class="string">"0.0.0.0:0"</span>).unwrap();
     socket.set_nonblocking(<span class="bool-val">true</span>).unwrap();
 
-    <span class="kw">let </span>statsd_client = <span class="kw">if </span>buffering {
+    <span class="kw">let </span>statsd_client = <span class="kw">if </span>aggregating {
+        <span class="kw">let </span>host = host.to_socket_addrs().unwrap().next().unwrap();
+        <span class="kw">let </span>statsdproxy_sink = StatsdProxyMetricSink::new(<span class="kw">move </span>|| {
+            <span class="kw">let </span>next_step = statsdproxy::middleware::upstream::Upstream::new(host)
+                .expect(<span class="string">"failed to create statsdproxy metric sink"</span>);
+            statsdproxy::middleware::aggregate::AggregateMetrics::new(
+                AggregateMetricsConfig {
+                    aggregate_gauges: <span class="bool-val">true</span>,
+                    aggregate_counters: <span class="bool-val">true</span>,
+                    flush_interval: <span class="number">1</span>,
+                    flush_offset: <span class="number">0</span>,
+                    max_map_size: <span class="prelude-val">None</span>,
+                },
+                next_step,
+            )
+        });
+        StatsdClient::from_sink(prefix, statsdproxy_sink)
+    } <span class="kw">else if </span>buffering {
         <span class="kw">let </span>udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
         <span class="kw">let </span>queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
         StatsdClient::from_sink(prefix, queuing_sink)
