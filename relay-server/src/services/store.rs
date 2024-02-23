@@ -737,7 +737,8 @@ impl StoreService {
         )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "metric"
+            event_type = "metric",
+            namespace = namespace.as_str()
         );
         Ok(())
     }
