@@ -1440,7 +1440,13 @@ LIMIT 1
         let json = r#"{
             "description": "from(my_table00)",
             "op": "db.select",
-            "origin": "auto.db.supabase"
+            "origin": "auto.db.supabase",
+            "data": {
+                "query": [
+                    "select(*,other(*))",
+                    "in(something, (value1,value2))"
+                ]
+            }
         }"#;
 
         let span = Annotated::<Span>::from_json(json)

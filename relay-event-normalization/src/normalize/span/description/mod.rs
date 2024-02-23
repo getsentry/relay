@@ -72,6 +72,9 @@ pub(crate) fn scrub_span_description(
                     // the query type ("User find" for example).
                     Some(description.to_owned())
                 } else if span_origin == Some("auto.db.supabase") {
+                    // The description only contains the table name, e.g. `"from(users)`.
+                    // In the future, we might want to parse `data.query` as well.
+                    // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
                     scrub_supabase(description)
                 } else {
                     let (scrubbed, mode) = sql::scrub_queries(db_system, description);
@@ -921,13 +924,6 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
-
-    span_description_test!(
-        db_supabase,
-        "from(my_table)",
-        "db.auto.supabase",
-        "from(my_table)"
-    );
 
     #[test]
     fn informed_sql_parser() {
