@@ -372,7 +372,7 @@ fn normalize(
         .as_mut()
         .map(|data| &mut data.transaction)
     {
-        normalize_transaction_name(transaction, &project_config.tx_name_rules);
+        normalize_transaction_name(transaction, dbg!(&project_config.tx_name_rules));
     }
 
     // Tag extraction:

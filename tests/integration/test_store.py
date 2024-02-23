@@ -2020,7 +2020,16 @@ def test_span_ingestion_with_performance_scores(
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
-    relay = relay_with_processing()
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            }
+        }
+    )
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -2058,11 +2067,10 @@ def test_span_ingestion_with_performance_scores(
         "organizations:performance-calculate-score-relay",
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
     ]
-    project_config["txNameRules"] = [
+    project_config["config"]["txNameRules"] = [
         {
-            "pattern": "/page/with/click/interaction/*/**",
+            "pattern": "**/interaction/*/**",
             "expiry": "3022-11-30T00:00:00.000000Z",
             "redaction": {"method": "replace", "substitution": "*"},
         }
@@ -2190,11 +2198,8 @@ def test_span_ingestion_with_performance_scores(
     ]
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
-    for metric in metrics:
-        try:
-            metric["value"].sort()
-        except AttributeError:
-            pass
-
-    assert metrics == []
+    assert any(
+        metric["name"] == "d:spans/exclusive_time@millisecond"
+        and metric["tags"].get("transaction") == "/page/with/click/interaction/*/*"
+        for metric in metrics
+    )
