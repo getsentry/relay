@@ -14,7 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::state::{FilterState, NormalizedEventState, SampledState};
+use crate::services::processor::state::{FilterEventState, NormalizedEventState, SampledState};
 use crate::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
@@ -67,7 +67,7 @@ pub fn normalize(
 
 /// Computes the sampling decision on the incoming event
 pub fn run<'a>(
-    state: FilterState<'a, TransactionGroup>,
+    state: FilterEventState<'a, TransactionGroup>,
     config: &'_ Config,
 ) -> SampledState<'a, TransactionGroup> {
     let mut state = state.inner();
@@ -76,7 +76,7 @@ pub fn run<'a>(
     // - Computing the actual sampling decision on an incoming transaction.
     match state.event_type().unwrap_or_default() {
         EventType::Default | EventType::Error => {
-            state = tag_error_with_sampling_decision(FilterState::new(state), config).inner();
+            state = tag_error_with_sampling_decision(FilterEventState::new(state), config).inner();
         }
         EventType::Transaction => {
             match state.project_state.config.transaction_metrics {
@@ -115,13 +115,13 @@ pub fn sample_envelope_items<'a>(
     state: SampledState<'a, TransactionGroup>,
     config: &'_ Config,
     global_config: &'_ GlobalConfig,
-) -> ProcessEnvelopeState<'a, TransactionGroup> {
+) -> SampledState<'a, TransactionGroup> {
     let mut state = state.inner();
 
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
         let Some(event) = state.event.value() else {
-            return state;
+            return SampledState::new(state);
         };
         if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
             let unsampled_profiles_enabled = forward_unsampled_profiles(&state, global_config);
@@ -143,7 +143,7 @@ pub fn sample_envelope_items<'a>(
         }
     }
 
-    state
+    SampledState::new(state)
 }
 
 /// Computes the sampling decision on the incoming transaction.
@@ -219,7 +219,7 @@ fn compute_sampling_decision(
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
 pub fn tag_error_with_sampling_decision<'a, G: EventProcessing>(
-    state: FilterState<'a, G>,
+    state: FilterEventState<'a, G>,
     config: &'_ Config,
 ) -> SampledState<'a, G> {
     let mut state = state.inner();
@@ -512,17 +512,17 @@ mod tests {
 
         // None represents no TransactionMetricsConfig, DS will not be run
         let state = get_state(None);
-        let state = run(FilterState::new(state), &config);
+        let state = run(FilterEventState::new(state), &config);
         assert!(state.inner().sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
         let state = get_state(Some(0));
-        let state = run(FilterState::new(state), &config);
+        let state = run(FilterEventState::new(state), &config);
         assert!(state.inner().sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let state = get_state(Some(1));
-        let state = run(FilterState::new(state), &config);
+        let state = run(FilterEventState::new(state), &config);
         assert!(state.sampling_should_drop());
     }
 

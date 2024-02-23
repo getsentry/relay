@@ -25,9 +25,7 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders<G: EventProcessing>(
-    mut state: ProcessEnvelopeState<G>,
-) -> ProcessEnvelopeState<G> {
+pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<G>) {
     let envelope = state.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -43,8 +41,6 @@ pub fn create_placeholders<G: EventProcessing>(
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
     }
-
-    state
 }
 
 /// Apply data privacy rules to attachments in the envelope.

@@ -22,16 +22,14 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::state::{
-    EnforcedQuotastate, ProcessedState, ScrubAttachementState,
-};
+use crate::services::processor::state::{EnforcedQuotasState, ProcessedState};
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::ItemAction;
 
 pub fn process<'a>(
-    state: EnforcedQuotastate<'a, SpanGroup>,
+    state: EnforcedQuotasState<'a, SpanGroup>,
     config: Arc<Config>,
     global_config: &'_ GlobalConfig,
 ) -> ProcessedState<'a, SpanGroup> {
@@ -147,12 +145,10 @@ pub fn process<'a>(
     ProcessedState::new(state)
 }
 
-pub fn extract_from_event(
-    mut state: ProcessEnvelopeState<TransactionGroup>,
-) -> ScrubAttachementState<TransactionGroup> {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
-        return ScrubAttachementState::new(state);
+        return;
     };
 
     let mut add_span = |span: Annotated<Span>| {
@@ -193,7 +189,7 @@ pub fn extract_from_event(
     let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
 
     let Some(event) = state.event.value() else {
-        return ScrubAttachementState::new(state);
+        return;
     };
 
     let extract_transaction_span = span_metrics_extraction_enabled
@@ -243,8 +239,6 @@ pub fn extract_from_event(
         );
         add_span(transaction_span.into());
     }
-
-    ScrubAttachementState::new(state)
 }
 
 /// Config needed to normalize a standalone span.

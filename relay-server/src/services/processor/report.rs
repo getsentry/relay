@@ -15,10 +15,8 @@ use relay_system::Addr;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, TrackOutcome};
-use crate::services::processor::state::{
-    EnforcedQuotastate, FilterState, ProcessedState, ScrubAttachementState,
-};
-use crate::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::state::ProcessedState;
+use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -43,12 +41,10 @@ pub enum ClientReportField {
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 pub fn process_client_reports<'a>(
-    state: EnforcedQuotastate<'a, ClientReportGroup>,
+    mut state: ProcessEnvelopeState<'a, ClientReportGroup>,
     config: &'_ Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) -> ProcessedState<'a, ClientReportGroup> {
-    let mut state = state.inner();
-
     // if client outcomes are disabled we leave the the client reports unprocessed
     // and pass them on.
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
@@ -195,9 +191,7 @@ pub fn process_client_reports<'a>(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<G>(state: FilterState<G>) -> ScrubAttachementState<G> {
-    let mut state = state.inner();
-
+pub fn process_user_reports<G>(mut state: ProcessEnvelopeState<G>) -> ProcessEnvelopeState<G> {
     state.managed_envelope.retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;
@@ -231,7 +225,7 @@ pub fn process_user_reports<G>(state: FilterState<G>) -> ScrubAttachementState<G
         ItemAction::Keep
     });
 
-    ScrubAttachementState::new(state)
+    state
 }
 
 fn trim_whitespaces(data: &[u8]) -> &[u8] {

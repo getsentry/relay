@@ -45,7 +45,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::state::EnforcedQuotastate,
+    crate::services::processor::state::{EnforceQuotasState, EnforcedQuotasState},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -72,7 +72,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::state::{
-    EnforceQuotasState, FilterState, FinalizedEventState, NormalizedEventState, SampledState,
+    ExtractEventState, FinalizedEventState, NormalizedEventState, SampledState,
 };
 use crate::services::processor::state::{ProcessedState, ScrubAttachementState};
 use crate::services::project::ProjectState;
@@ -951,7 +951,7 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_check_ins<'a>(
         &'_ self,
-        state: EnforcedQuotastate<'a, CheckInGroup>,
+        state: EnforcedQuotasState<'a, CheckInGroup>,
     ) -> ProcessedState<'a, CheckInGroup> {
         let mut state = state.inner();
 
@@ -1033,12 +1033,12 @@ impl EnvelopeProcessorService {
     fn enforce_quotas<'a, G>(
         &'_ self,
         state: EnforceQuotasState<'a, G>,
-    ) -> Result<EnforceQuotasState<'a, G>, ProcessError<'a, G>> {
+    ) -> Result<EnforcedQuotasState<'a, G>, ProcessError<'a, G>> {
         let mut state = state.inner();
 
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
-            None => return Ok(EnforceQuotasState::new(state)),
+            None => return Ok(EnforcedQuotasState::new(state)),
         };
 
         let project_state = &state.project_state;
@@ -1046,7 +1046,7 @@ impl EnvelopeProcessorService {
         let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
         if quotas.is_empty() {
-            return Ok(EnforceQuotasState::new(state));
+            return Ok(EnforcedQuotasState::new(state));
         }
 
         let event_category = state.event_category();
@@ -1089,7 +1089,7 @@ impl EnvelopeProcessorService {
             self.inner.outcome_aggregator.clone(),
         );
 
-        Ok(EnforceQuotasState::new(state))
+        Ok(EnforcedQuotasState::new(state))
     }
 
     /// Extract metrics from all envelope items.
@@ -1253,22 +1253,25 @@ impl EnvelopeProcessorService {
     /// Processes the general errors, and the items which require or create the events.
     fn process_errors<'a>(
         &'_ self,
-        state: ProcessEnvelopeState<'a, ErrorGroup>,
+        mut state: ProcessEnvelopeState<'a, ErrorGroup>,
     ) -> Result<ProcessedState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
         // Events can also contain user reports.
-        #[allow(unused_mut)]
-        let mut state = report::process_user_reports(FilterState::new(state)).into();
+        state = report::process_user_reports(state);
 
         if_processing!(self.inner.config, {
-            state = unreal::expand(state, &self.inner.config)?;
+            if let Err(err) = unreal::expand(&mut state, &self.inner.config) {
+                return Err((state, err));
+            }
         });
 
         #[allow(unused_mut)]
-        let mut state = event::extract(state, &self.inner.config)?.inner();
+        let mut state = event::extract(ExtractEventState::new(state), &self.inner.config)?;
 
         if_processing!(self.inner.config, {
-            state = unreal::process(state)?;
-            state = attachment::create_placeholders(state);
+            if let Err(err) = unreal::process(&mut state) {
+                return Err((state.inner(), err));
+            }
+            attachment::create_placeholders(&mut state);
         });
 
         let state = event::finalize(state, &self.inner.config)?;
@@ -1279,18 +1282,17 @@ impl EnvelopeProcessorService {
             dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
-            let enforce_state = event::store(state, &self.inner.config)?;
-            state = self.enforce_quotas(enforce_state)?.into();
+            let enforced = event::store(state, &self.inner.config)
+                .and_then(|state| self.enforce_quotas(state))?;
+            state = enforced.into();
         });
 
-        let mut state = state.inner();
-
         let state = if state.has_event() {
-            state = event::scrub(state)?;
+            let state = event::scrub(state.inner())?;
             event::serialize(state)?
         } else {
             // if there is no event we need to create expected type
-            ScrubAttachementState::new(state)
+            ScrubAttachementState::new(state.inner())
         };
 
         let state = attachment::scrub(state);
@@ -1304,12 +1306,11 @@ impl EnvelopeProcessorService {
         state: ProcessEnvelopeState<'a, TransactionGroup>,
     ) -> Result<ProcessedState<'a, TransactionGroup>, ProcessError<'a, TransactionGroup>> {
         let state = profile::filter(state);
-        let state = event::extract(state.into(), &self.inner.config)?;
-        #[allow(unused_mut)]
-        let mut state = profile::transfer_id(state);
+        let mut state = event::extract(state.into(), &self.inner.config)?;
+        state = profile::transfer_id(state);
 
         if_processing!(self.inner.config, {
-            state = attachment::create_placeholders(state);
+            attachment::create_placeholders(&mut state);
         });
 
         let state = event::finalize(state, &self.inner.config)?;
@@ -1324,6 +1325,7 @@ impl EnvelopeProcessorService {
             state = self.extract_metrics(state)?;
         }
 
+        #[allow(unused_mut)]
         let mut state = dynamic_sampling::sample_envelope_items(
             state,
             &self.inner.config,
@@ -1331,21 +1333,21 @@ impl EnvelopeProcessorService {
         );
 
         if_processing!(self.inner.config, {
-            let mut enforce_state = event::store(SampledState::new(state), &self.inner.config)?;
-            enforce_state = self.enforce_quotas(enforce_state)?;
-            state = profile::process(enforce_state.into(), &self.inner.config);
+            let enforced = event::store(state, &self.inner.config)
+                .and_then(|state| self.enforce_quotas(state))?;
+            state = profile::process(enforced, &self.inner.config).into();
         });
 
         let state = if state.has_event() {
-            state = event::scrub(state)?;
+            let state = event::scrub(state.inner())?;
             #[allow(unused_mut)]
             let mut state = event::serialize(state)?;
             if_processing!(self.inner.config, {
-                state = span::extract_from_event(state.inner());
+                span::extract_from_event(&mut state);
             });
             state
         } else {
-            ScrubAttachementState::new(state)
+            ScrubAttachementState::new(state.inner())
         };
 
         let state = attachment::scrub(state);
@@ -1364,8 +1366,8 @@ impl EnvelopeProcessorService {
             state = self.enforce_quotas(state.into())?.into();
         });
 
-        let state = report::process_user_reports(state);
-        let state = attachment::scrub(state);
+        let state = report::process_user_reports(state.inner());
+        let state = attachment::scrub(ScrubAttachementState::new(state));
         Ok(state)
     }
 
@@ -1374,13 +1376,12 @@ impl EnvelopeProcessorService {
         &'_ self,
         state: ProcessEnvelopeState<'a, SessionGroup>,
     ) -> Result<ProcessedState<'a, SessionGroup>, ProcessError<'a, SessionGroup>> {
-        #[allow(unused_mut)]
-        let mut state = session::process(state, &self.inner.config);
+        let pre_enfore = session::process(state, &self.inner.config);
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            let state = self.enforce_quotas(pre_enfore)?.inner();
+            return Ok(ProcessedState::new(state));
         });
-
-        Ok(state.into())
+        Ok(ProcessedState::new(pre_enfore.inner()))
     }
 
     /// Processes user and client reports.
@@ -1389,13 +1390,13 @@ impl EnvelopeProcessorService {
         state: ProcessEnvelopeState<'a, ClientReportGroup>,
     ) -> Result<ProcessedState<'a, ClientReportGroup>, ProcessError<'a, ClientReportGroup>> {
         #[allow(unused_mut)]
-        let mut state = EnforceQuotasState::new(state);
+        let mut state = state;
         if_processing!(self.inner.config, {
-            state = self.enforce_quotas(state)?;
+            state = self.enforce_quotas(EnforceQuotasState::new(state))?.inner();
         });
 
         let state = report::process_client_reports(
-            state.into(),
+            state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
@@ -1408,11 +1409,13 @@ impl EnvelopeProcessorService {
         &'_ self,
         state: ProcessEnvelopeState<'a, ReplayGroup>,
     ) -> Result<ProcessedState<'a, ReplayGroup>, ProcessError<'a, ReplayGroup>> {
-        #[allow(unused_mut)]
-        let mut state = replay::process(state, &self.inner.config)?;
-        if_processing!(self.inner.config, { state = self.enforce_quotas(state)? });
+        let pre_enfore = replay::process(state, &self.inner.config)?;
+        if_processing!(self.inner.config, {
+            let state = self.enforce_quotas(pre_enfore)?.inner();
+            return Ok(ProcessedState::new(state));
+        });
 
-        Ok(state.into())
+        Ok(ProcessedState::new(pre_enfore.inner()))
     }
 
     /// Processes cron check-ins.
@@ -1422,7 +1425,7 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessedState<'a, CheckInGroup>, ProcessError<'a, CheckInGroup>> {
         if_processing!(self.inner.config, {
             let enforced_state = self.enforce_quotas(EnforceQuotasState::new(state))?;
-            return Ok(self.process_check_ins(enforced_state.into()));
+            return Ok(self.process_check_ins(enforced_state));
         });
         Ok(ProcessedState::new(state))
     }
@@ -1438,7 +1441,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let state = self.enforce_quotas(state.into())?;
             return Ok(span::process(
-                state.into(),
+                state,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             ));

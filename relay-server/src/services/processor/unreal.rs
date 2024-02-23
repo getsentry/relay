@@ -5,8 +5,7 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
-use crate::services::processor::state::ExtractEventState;
-use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessError, ProcessingError};
+use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessingError};
 use crate::utils;
 
 /// Expands Unreal 4 items inside an envelope.
@@ -21,34 +20,25 @@ use crate::utils;
 ///
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
-pub fn expand<'a>(
-    state: ExtractEventState<'a, ErrorGroup>,
+pub fn expand(
+    state: &mut ProcessEnvelopeState<ErrorGroup>,
     config: &'_ Config,
-) -> Result<ExtractEventState<'a, ErrorGroup>, ProcessError<'a, ErrorGroup>> {
-    let mut state = state.inner();
-
+) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
-        if let Err(err) = utils::expand_unreal_envelope(item, envelope, config) {
-            return Err((state, ProcessingError::InvalidUnrealReport(err)));
-        };
+        utils::expand_unreal_envelope(item, envelope, config)
+            .map_err(ProcessingError::InvalidUnrealReport)?;
     }
-
-    Ok(ExtractEventState::new(state))
+    Ok(())
 }
 
 /// Extracts event information from an unreal context.
 ///
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
-pub fn process(
-    mut state: ProcessEnvelopeState<ErrorGroup>,
-) -> Result<ProcessEnvelopeState<ErrorGroup>, ProcessError<ErrorGroup>> {
-    if let Err(err) =
-        utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
-    {
-        return Err((state, ProcessingError::InvalidUnrealReport(err)));
-    }
-    Ok(state)
+pub fn process(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Result<(), ProcessingError> {
+    utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
+        .map_err(ProcessingError::InvalidUnrealReport)?;
+    Ok(())
 }

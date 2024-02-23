@@ -12,13 +12,13 @@ use relay_protocol::Annotated;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 #[cfg(feature = "processing")]
-use crate::services::processor::state::EnforcedQuotastate;
-use crate::services::processor::state::{ExtractedEventState, FilterState};
+use crate::services::processor::state::{EnforcedQuotasState, ProfileProcessedState};
+use crate::services::processor::state::{ExtractedEventState, FilterProfileState};
 use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
-pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> FilterState<G> {
+pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> FilterProfileState<G> {
     let transaction_count: usize = state
         .managed_envelope
         .envelope()
@@ -53,7 +53,7 @@ pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> FilterState<G> {
     });
     state.profile_id = profile_id;
 
-    FilterState::new(state)
+    FilterProfileState::new(state)
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
@@ -61,7 +61,7 @@ pub fn filter<G>(mut state: ProcessEnvelopeState<G>) -> FilterState<G> {
 /// If profile processing happens at a later stage, we remove the context again.
 pub fn transfer_id(
     state: ExtractedEventState<TransactionGroup>,
-) -> ProcessEnvelopeState<TransactionGroup> {
+) -> ExtractedEventState<TransactionGroup> {
     let mut state = state.inner();
 
     if let Some(event) = state.event.value_mut() {
@@ -75,15 +75,15 @@ pub fn transfer_id(
             }
         }
     }
-    state
+    ExtractedEventState::new(state)
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
 pub fn process<'a>(
-    state: EnforcedQuotastate<'a, TransactionGroup>,
+    state: EnforcedQuotasState<'a, TransactionGroup>,
     config: &'_ Config,
-) -> ProcessEnvelopeState<'a, TransactionGroup> {
+) -> ProfileProcessedState<'a, TransactionGroup> {
     let mut state = state.inner();
 
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
@@ -114,7 +114,7 @@ pub fn process<'a>(
         }
     }
 
-    state
+    ProfileProcessedState::new(state)
 }
 
 /// Transfers transaction metadata to profile and check its size.

@@ -32,8 +32,8 @@ use crate::services::outcome::Outcome;
 #[cfg(feature = "processing")]
 use crate::services::processor::state::{EnforceQuotasState, SampledState};
 use crate::services::processor::state::{
-    ExtractEventState, ExtractedEventState, FilterState, FinalizedEventState, NormalizedEventState,
-    ScrubAttachementState,
+    ExtractEventState, ExtractedEventState, FilterEventState, FinalizedEventState,
+    NormalizedEventState, ScrubAttachementState,
 };
 use crate::services::processor::{
     EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessError, ProcessingError,
@@ -187,9 +187,11 @@ pub fn extract<'a, G: EventProcessing>(
 }
 
 pub fn finalize<'a, G: EventProcessing>(
-    mut state: ProcessEnvelopeState<'a, G>,
+    state: ExtractedEventState<'a, G>,
     config: &'_ Config,
 ) -> Result<FinalizedEventState<'a, G>, ProcessError<'a, G>> {
+    let mut state = state.inner();
+
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
@@ -322,13 +324,13 @@ pub fn finalize<'a, G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: NormalizedEventState<G>,
-) -> Result<FilterState<G>, ProcessError<G>> {
+) -> Result<FilterEventState<G>, ProcessError<G>> {
     let mut state = state.inner();
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        None => return Ok(FilterState::new(state)),
+        None => return Ok(FilterEventState::new(state)),
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -343,7 +345,7 @@ pub fn filter<G: EventProcessing>(
         }
     });
 
-    Ok(FilterState::new(state))
+    Ok(FilterEventState::new(state))
 }
 
 /// Apply data privacy rules to the event payload.
