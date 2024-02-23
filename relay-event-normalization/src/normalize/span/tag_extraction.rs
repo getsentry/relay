@@ -366,11 +366,11 @@ pub fn extract_tags(
                 None
             }
         } else if span.origin.as_str() == Some("auto.db.supabase") {
-            scrubbed_description.as_deref().map(|s| {
-                s.trim_start_matches("from(")
-                    .trim_end_matches(')')
-                    .to_owned()
-            })
+            scrubbed_description
+                .as_deref()
+                .and_then(|s| s.strip_prefix("from("))
+                .and_then(|s| s.strip_suffix(')'))
+                .map(String::from)
         } else if span_op.starts_with("db") {
             span.description
                 .value()
