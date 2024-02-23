@@ -37,6 +37,8 @@ pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
 
+pub use crate::generic::VERSION as GENERIC_FILTERS_VERSION;
+
 /// Checks whether an event should be filtered for a particular configuration.
 ///
 /// If the event should be filtered, the `Err` returned contains a filter reason.
@@ -44,12 +46,13 @@ pub use crate::csp::matches_any_origin;
 pub fn should_filter(
     event: &Event,
     client_ip: Option<IpAddr>,
-    config: &FiltersConfig,
+    config: &ProjectFiltersConfig,
+    global_config: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
     // In order to maintain backwards compatibility, we still want to run the old matching logic,
     // but we will try to match generic filters first, since the goal is to eventually fade out the
     // the normal filters except for the ones that have complex conditions.
-    generic::should_filter(event, &config.generic)?;
+    generic::should_filter(event, &config.generic, global_config)?;
 
     // The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.

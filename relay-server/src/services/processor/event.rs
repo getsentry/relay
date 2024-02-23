@@ -14,6 +14,7 @@ use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
+use relay_filter::GenericFiltersConfig;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, FromValue, Object, Value};
 use relay_quotas::DataCategory;
@@ -273,6 +274,7 @@ pub fn finalize<G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -285,12 +287,14 @@ pub fn filter<G: EventProcessing>(
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_filters).map_err(
+            |err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            },
+        )
     })
 }
 

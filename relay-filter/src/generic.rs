@@ -4,7 +4,7 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
-use crate::{FilterStatKey, GenericFiltersConfig};
+use crate::{CombinedFiltersConfig, FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
@@ -12,10 +12,6 @@ use relay_protocol::RuleCondition;
 ///
 /// If the version in the project config is higher, no generic filters are applied.
 pub const VERSION: u16 = 1;
-
-fn is_enabled(config: &GenericFiltersConfig) -> bool {
-    config.version > 0 && config.version <= VERSION
-}
 
 /// Checks events by patterns in their error messages.
 fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
@@ -27,16 +23,15 @@ fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
 /// Filters events by patterns in their error messages.
 pub(crate) fn should_filter(
     event: &Event,
-    config: &GenericFiltersConfig,
+    project_filters: &GenericFiltersConfig,
+    global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
-    // We check if the configuration is enabled, since we support only configuration with a version
-    // <= than the maximum one in this Relay instance.
-    if !is_enabled(config) {
-        return Ok(());
-    }
+    let generic_filters_config =
+        CombinedFiltersConfig::new(project_filters, global_filters, VERSION);
+    let filters = generic_filters_config.into_iter();
 
-    for filter_config in config.filters.iter() {
-        if !filter_config.is_empty() && matches(event, filter_config.condition.as_ref()) {
+    for filter_config in filters {
+        if matches(event, filter_config.condition.as_ref()) {
             return Err(FilterStatKey::GenericFilter(filter_config.id.clone()));
         }
     }
@@ -48,23 +43,30 @@ pub(crate) fn should_filter(
 mod tests {
     use crate::generic::{should_filter, VERSION};
     use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
+    use indexmap::IndexMap;
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
 
-    fn mock_filters() -> Vec<GenericFilterConfig> {
-        vec![
-            GenericFilterConfig {
-                id: "firstReleases".to_string(),
-                is_enabled: true,
-                condition: Some(RuleCondition::eq("event.release", "1.0")),
-            },
-            GenericFilterConfig {
-                id: "helloTransactions".to_string(),
-                is_enabled: true,
-                condition: Some(RuleCondition::eq("event.transaction", "/hello")),
-            },
-        ]
+    fn mock_filters() -> IndexMap<String, GenericFilterConfig> {
+        IndexMap::from([
+            (
+                "firstReleases".to_owned(),
+                GenericFilterConfig {
+                    id: "firstReleases".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.release", "1.0")),
+                },
+            ),
+            (
+                "helloTransactions".to_owned(),
+                GenericFilterConfig {
+                    id: "helloTransactions".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
+                },
+            ),
+        ])
     }
 
     #[test]
@@ -80,7 +82,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config),
+            should_filter(&event, &config, None),
             Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
         );
 
@@ -90,7 +92,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config),
+            should_filter(&event, &config, None),
             Err(FilterStatKey::GenericFilter(
                 "helloTransactions".to_string()
             ))
@@ -111,7 +113,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config),
+            should_filter(&event, &config, None),
             Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
         );
     }
@@ -128,7 +130,7 @@ mod tests {
             transaction: Annotated::new("/world".to_string()),
             ..Default::default()
         };
-        assert_eq!(should_filter(&event, &config), Ok(()));
+        assert_eq!(should_filter(&event, &config, None), Ok(()));
     }
 
     #[test]
@@ -144,6 +146,45 @@ mod tests {
             transaction: Annotated::new("/hello".to_string()),
             ..Default::default()
         };
-        assert_eq!(should_filter(&event, &config), Ok(()));
+        assert_eq!(should_filter(&event, &config, None), Ok(()));
+    }
+
+    #[test]
+    fn test_should_filter_from_global_filters() {
+        let project = GenericFiltersConfig {
+            version: 1,
+            filters: IndexMap::from([(
+                "firstReleases".to_owned(),
+                GenericFilterConfig {
+                    id: "firstReleases".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.release", "1.0")),
+                },
+            )]),
+        };
+
+        let global = GenericFiltersConfig {
+            version: 1,
+            filters: IndexMap::from([(
+                "helloTransactions".to_owned(),
+                GenericFilterConfig {
+                    id: "helloTransactions".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
+                },
+            )]),
+        };
+
+        let event = Event {
+            transaction: Annotated::new("/hello".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            should_filter(&event, &project, Some(&global)),
+            Err(FilterStatKey::GenericFilter(
+                "helloTransactions".to_string()
+            ))
+        );
     }
 }

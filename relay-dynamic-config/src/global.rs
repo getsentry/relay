@@ -3,8 +3,10 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+use crate::ErrorBoundary;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
+use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,12 +25,25 @@ pub struct GlobalConfig {
     /// Quotas that apply to all projects.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
+    /// Configuration for global inbound filters.
+    #[serde(
+        // deserialize_with = "default_on_error",
+        skip_serializing_if = "skip_default_error_boundary"
+    )]
+    pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub options: Options,
+}
+
+fn skip_default_error_boundary<T: Default + PartialEq>(t: &ErrorBoundary<T>) -> bool {
+    match t {
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(value) => value == &T::default(),
+    }
 }
 
 impl GlobalConfig {
@@ -45,6 +60,21 @@ impl GlobalConfig {
         } else {
             Ok(None)
         }
+    }
+
+    /// Returns the generic inbound filters.
+    pub fn filters(&self) -> Option<&GenericFiltersConfig> {
+        match &self.filters {
+            ErrorBoundary::Err(_) => None,
+            ErrorBoundary::Ok(f) => Some(f),
+        }
+    }
+
+    /// Returns the version of generic inbound filters.
+    ///
+    /// If the filters failed to deserialize, [`u16::MAX`] is returned.
+    pub fn generic_filters_version(&self) -> u16 {
+        self.filters().map(|f| f.version).unwrap_or(u16::MAX)
     }
 }
 
@@ -246,6 +276,20 @@ mod tests {
       "namespace": null
     }
   ],
+  "filters": {
+    "version": 1,
+    "filters": [
+      {
+        "id": "myError",
+        "isEnabled": true,
+        "condition": {
+          "op": "eq",
+          "name": "event.exceptions",
+          "value": "myError"
+        }
+      }
+    ]
+  },
   "options": {
     "profiling.profile_metrics.unsampled_profiles.enabled": true
   }

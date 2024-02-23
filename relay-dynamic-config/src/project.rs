@@ -3,7 +3,7 @@ use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
 };
-use relay_filter::FiltersConfig;
+use relay_filter::ProjectFiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
@@ -32,8 +32,8 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_config: Option<Value>,
     /// Configuration for filter rules.
-    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
-    pub filter_settings: FiltersConfig,
+    #[serde(skip_serializing_if = "ProjectFiltersConfig::is_empty")]
+    pub filter_settings: ProjectFiltersConfig,
     /// Configuration for data scrubbers.
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
@@ -109,7 +109,7 @@ impl Default for ProjectConfig {
             trusted_relays: vec![],
             pii_config: None,
             grouping_config: None,
-            filter_settings: FiltersConfig::default(),
+            filter_settings: ProjectFiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             quotas: Vec::new(),
@@ -154,8 +154,8 @@ pub struct LimitedProjectConfig {
     pub allowed_domains: Vec<String>,
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
-    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
-    pub filter_settings: FiltersConfig,
+    #[serde(skip_serializing_if = "ProjectFiltersConfig::is_empty")]
+    pub filter_settings: ProjectFiltersConfig,
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
     #[serde(skip_serializing_if = "Option::is_none")]

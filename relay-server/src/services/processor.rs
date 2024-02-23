@@ -1240,7 +1240,7 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
-        event::filter(state)?;
+        event::filter(state, self.inner.global_config.current().filters())?;
         dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
@@ -1274,12 +1274,22 @@ impl EnvelopeProcessorService {
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
         dynamic_sampling::normalize(state);
-        event::filter(state)?;
+        let global_config = self.inner.global_config.current();
+        event::filter(state, global_config.filters())?;
         dynamic_sampling::run(state, &self.inner.config);
 
+        // Don't extract metrics if relay can't apply generic inbound filters.
+        // An inbound filter applied in another up-to-date relay in chain may
+        // need to drop the event, and there should not be metrics from dropped
+        // events.
+        let supported_generic_filters = state.project_state.config.filter_settings.generic.version
+            <= relay_filter::GENERIC_FILTERS_VERSION
+            && global_config.generic_filters_version() <= relay_filter::GENERIC_FILTERS_VERSION;
         // We avoid extracting metrics if we are not sampling the event while in non-processing
         // relays, in order to synchronize rate limits on indexed and processed transactions.
-        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+        let extract_metrics_from_sampling =
+            self.inner.config.processing_enabled() || state.sampling_result.should_drop();
+        if supported_generic_filters && extract_metrics_from_sampling {
             self.extract_metrics(state)?;
         }
 
@@ -2757,6 +2767,7 @@ mod tests {
         let global_config = GlobalConfig {
             measurements: None,
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
+            filters: Default::default(),
             options: Options::default(),
         };
 
