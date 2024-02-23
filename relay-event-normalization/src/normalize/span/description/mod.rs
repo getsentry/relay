@@ -71,7 +71,9 @@ pub(crate) fn scrub_span_description(
                     // The description will only contain the entity queried and
                     // the query type ("User find" for example).
                     Some(description.to_owned())
-                } else if span_origin == Some("auto.db.supabase") {
+                } else if span_origin == Some("auto.db.supabase")
+                    && description.starts_with("from(")
+                {
                     // The description only contains the table name, e.g. `"from(users)`.
                     // In the future, we might want to parse `data.query` as well.
                     // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
@@ -148,10 +150,7 @@ fn scrub_core_data(string: &str) -> Option<String> {
 }
 
 fn scrub_supabase(string: &str) -> Option<String> {
-    match DB_SUPABASE_REGEX.replace_all(string, "{%s}") {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(_) => None,
-    }
+    Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
 fn scrub_http(string: &str) -> Option<String> {
