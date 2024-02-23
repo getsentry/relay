@@ -82,6 +82,20 @@
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -165,4 +179,18 @@
 
 <span class="kw">pub static </span>DB_SQL_TRANSACTION_CORE_DATA_REGEX: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r"(?P&lt;int&gt;\d+)"</span>).unwrap());
+
+<span class="kw">pub static </span>DB_SUPABASE_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
+        <span class="string">r"(?xi)
+        # UUIDs.
+        (?P&lt;uuid&gt;[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Hexadecimal strings with more than 5 digits.
+        (?P&lt;hex&gt;[a-f0-9]{5}[a-f0-9]+) |
+        # Integer IDs with more than one digit.
+        (?P&lt;int&gt;\d\d+)
+        "</span>,
+    )
+    .unwrap()
+});
 </code></pre></div></section></main></body></html>

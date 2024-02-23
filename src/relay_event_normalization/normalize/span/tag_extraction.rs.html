@@ -1430,6 +1430,52 @@
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1797,6 +1843,12 @@
             } <span class="kw">else </span>{
                 <span class="prelude-val">None
             </span>}
+        } <span class="kw">else if </span>span.origin.as_str() == <span class="prelude-val">Some</span>(<span class="string">"auto.db.supabase"</span>) {
+            scrubbed_description.as_deref().map(|s| {
+                s.trim_start_matches(<span class="string">"from("</span>)
+                    .trim_end_matches(<span class="string">')'</span>)
+                    .to_owned()
+            })
         } <span class="kw">else if </span>span_op.starts_with(<span class="string">"db"</span>) {
             span.description
                 .value()
@@ -2858,6 +2910,46 @@ LIMIT 1
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::BrowserName),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_string())
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>supabase() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "description": "from(my_table00)",
+            "op": "db.select",
+            "origin": "auto.db.supabase",
+            "data": {
+                "query": [
+                    "select(*,other(*))",
+                    "in(something, (value1,value2))"
+                ]
+            }
+        }"#</span>;
+
+        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        <span class="kw">let </span>tags = extract_tags(
+            <span class="kw-2">&amp;</span>span,
+            <span class="kw-2">&amp;</span>Config {
+                max_tag_value_size: <span class="number">200</span>,
+            },
+            <span class="prelude-val">None</span>,
+            <span class="prelude-val">None</span>,
+            <span class="bool-val">false</span>,
+            <span class="prelude-val">None</span>,
+        );
+
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description).map(String::as_str),
+            <span class="prelude-val">Some</span>(<span class="string">"from(my_table{%s})"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain).map(String::as_str),
+            <span class="prelude-val">Some</span>(<span class="string">"my_table{%s}"</span>)
         );
     }
 }
