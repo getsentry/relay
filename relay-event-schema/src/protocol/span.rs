@@ -489,6 +489,7 @@ mod tests {
                     ],
                 },
             ),
+            platform: ~,
             other: {},
         }
         "###);
