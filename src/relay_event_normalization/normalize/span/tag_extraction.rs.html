@@ -1476,6 +1476,32 @@
 <a href="#1475" id="1475">1475</a>
 <a href="#1476" id="1476">1476</a>
 <a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1844,11 +1870,11 @@
                 <span class="prelude-val">None
             </span>}
         } <span class="kw">else if </span>span.origin.as_str() == <span class="prelude-val">Some</span>(<span class="string">"auto.db.supabase"</span>) {
-            scrubbed_description.as_deref().map(|s| {
-                s.trim_start_matches(<span class="string">"from("</span>)
-                    .trim_end_matches(<span class="string">')'</span>)
-                    .to_owned()
-            })
+            scrubbed_description
+                .as_deref()
+                .and_then(|s| s.strip_prefix(<span class="string">"from("</span>))
+                .and_then(|s| s.strip_suffix(<span class="string">')'</span>))
+                .map(String::from)
         } <span class="kw">else if </span>span_op.starts_with(<span class="string">"db"</span>) {
             span.description
                 .value()
@@ -2913,10 +2939,9 @@ LIMIT 1
         );
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>supabase() {
+    <span class="kw">fn </span>extract_tags_supabase(description: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
         <span class="kw">let </span>json = <span class="string">r#"{
-            "description": "from(my_table00)",
+            "description": "from(my_table)",
             "op": "db.select",
             "origin": "auto.db.supabase",
             "data": {
@@ -2927,12 +2952,13 @@ LIMIT 1
             }
         }"#</span>;
 
-        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(json)
+        <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json)
             .unwrap()
             .into_value()
             .unwrap();
+        span.description.set_value(<span class="prelude-val">Some</span>(description.into()));
 
-        <span class="kw">let </span>tags = extract_tags(
+        extract_tags(
             <span class="kw-2">&amp;</span>span,
             <span class="kw-2">&amp;</span>Config {
                 max_tag_value_size: <span class="number">200</span>,
@@ -2941,7 +2967,25 @@ LIMIT 1
             <span class="prelude-val">None</span>,
             <span class="bool-val">false</span>,
             <span class="prelude-val">None</span>,
+        )
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>supabase() {
+        <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"from(mytable)"</span>);
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description).map(String::as_str),
+            <span class="prelude-val">Some</span>(<span class="string">"from(mytable)"</span>)
         );
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain).map(String::as_str),
+            <span class="prelude-val">Some</span>(<span class="string">"mytable"</span>)
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>supabase_with_identifiers() {
+        <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"from(my_table00)"</span>);
 
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description).map(String::as_str),
@@ -2951,6 +2995,14 @@ LIMIT 1
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain).map(String::as_str),
             <span class="prelude-val">Some</span>(<span class="string">"my_table{%s}"</span>)
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>supabase_unsupported() {
+        <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"something else"</span>);
+
+        <span class="macro">assert_eq!</span>(tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain), <span class="prelude-val">None</span>);
     }
 }
 </code></pre></div></section></main></body></html>
