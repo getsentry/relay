@@ -13,7 +13,7 @@ use serde_json::Value;
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
@@ -203,50 +203,57 @@ where
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::metrics::MetricUnit;
-    use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
-    use relay_quotas::{DataCategory, QuotaScope};
 
     use super::*;
 
-    fn mock_quota(id: &str) -> Quota {
-        Quota {
-            id: Some(id.into()),
-            categories: smallvec::smallvec![DataCategory::MetricBucket],
-            scope: QuotaScope::Organization,
-            scope_id: None,
-            limit: Some(0),
-            window: None,
-            reason_code: None,
-            namespace: None,
-        }
-    }
-
     #[test]
     fn test_global_config_roundtrip() {
-        let global_config = GlobalConfig {
-            measurements: Some(MeasurementsConfig {
-                builtin_measurements: vec![
-                    BuiltinMeasurementKey::new("foo", MetricUnit::None),
-                    BuiltinMeasurementKey::new("bar", MetricUnit::None),
-                    BuiltinMeasurementKey::new("baz", MetricUnit::None),
-                ],
-                max_custom_measurements: 5,
-            }),
-            options: Options {
-                unsampled_profiles_enabled: true,
-                ..Default::default()
-            },
-            quotas: vec![mock_quota("foo"), mock_quota("bar")],
-        };
+        let json = r#"{
+  "measurements": {
+    "builtinMeasurements": [
+      {
+        "name": "foo",
+        "unit": "none"
+      },
+      {
+        "name": "bar",
+        "unit": "none"
+      },
+      {
+        "name": "baz",
+        "unit": "none"
+      }
+    ],
+    "maxCustomMeasurements": 5
+  },
+  "quotas": [
+    {
+      "id": "foo",
+      "categories": [
+        "metric_bucket"
+      ],
+      "scope": "organization",
+      "limit": 0,
+      "namespace": null
+    },
+    {
+      "id": "bar",
+      "categories": [
+        "metric_bucket"
+      ],
+      "scope": "organization",
+      "limit": 0,
+      "namespace": null
+    }
+  ],
+  "options": {
+    "profiling.profile_metrics.unsampled_profiles.enabled": true
+  }
+}"#;
 
-        let serialized =
-            serde_json::to_string(&global_config).expect("failed to serialize GlobalConfig");
-
-        let deserialized = serde_json::from_str::<GlobalConfig>(serialized.as_str())
-            .expect("failed to deserialize GlobalConfig");
-
-        assert_eq!(deserialized, global_config);
+        let deserialized = serde_json::from_str::<GlobalConfig>(json).unwrap();
+        let serialized = serde_json::to_string_pretty(&deserialized).unwrap();
+        assert_eq!(json, serialized.as_str());
     }
 
     #[test]
