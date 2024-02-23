@@ -13,7 +13,8 @@ use relay_event_schema::protocol::Span;
 use url::Url;
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -70,6 +71,13 @@ pub(crate) fn scrub_span_description(
                     // The description will only contain the entity queried and
                     // the query type ("User find" for example).
                     Some(description.to_owned())
+                } else if span_origin == Some("auto.db.supabase")
+                    && description.starts_with("from(")
+                {
+                    // The description only contains the table name, e.g. `"from(users)`.
+                    // In the future, we might want to parse `data.query` as well.
+                    // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
+                    scrub_supabase(description)
                 } else {
                     let (scrubbed, mode) = sql::scrub_queries(db_system, description);
                     if let sql::Mode::Parsed(ast) = mode {
@@ -139,6 +147,10 @@ fn scrub_core_data(string: &str) -> Option<String> {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(_) => None,
     }
+}
+
+fn scrub_supabase(string: &str) -> Option<String> {
+    Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
 fn scrub_http(string: &str) -> Option<String> {

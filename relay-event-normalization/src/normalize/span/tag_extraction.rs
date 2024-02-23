@@ -365,6 +365,12 @@ pub fn extract_tags(
             } else {
                 None
             }
+        } else if span.origin.as_str() == Some("auto.db.supabase") {
+            scrubbed_description
+                .as_deref()
+                .and_then(|s| s.strip_prefix("from("))
+                .and_then(|s| s.strip_suffix(')'))
+                .map(String::from)
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -1427,5 +1433,71 @@ LIMIT 1
             tags.get(&SpanTagKey::BrowserName),
             Some(&"Chrome".to_string())
         );
+    }
+
+    fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
+        let json = r#"{
+            "description": "from(my_table)",
+            "op": "db.select",
+            "origin": "auto.db.supabase",
+            "data": {
+                "query": [
+                    "select(*,other(*))",
+                    "in(something, (value1,value2))"
+                ]
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        span.description.set_value(Some(description.into()));
+
+        extract_tags(
+            &span,
+            &Config {
+                max_tag_value_size: 200,
+            },
+            None,
+            None,
+            false,
+            None,
+        )
+    }
+
+    #[test]
+    fn supabase() {
+        let tags = extract_tags_supabase("from(mytable)");
+        assert_eq!(
+            tags.get(&SpanTagKey::Description).map(String::as_str),
+            Some("from(mytable)")
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            Some("mytable")
+        );
+    }
+
+    #[test]
+    fn supabase_with_identifiers() {
+        let tags = extract_tags_supabase("from(my_table00)");
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Description).map(String::as_str),
+            Some("from(my_table{%s})")
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            Some("my_table{%s}")
+        );
+    }
+
+    #[test]
+    fn supabase_unsupported() {
+        let tags = extract_tags_supabase("something else");
+
+        assert_eq!(tags.get(&SpanTagKey::Description), None);
+        assert_eq!(tags.get(&SpanTagKey::Domain), None);
     }
 }
