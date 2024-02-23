@@ -91,6 +91,12 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty")]
     pub _metrics_summary: Annotated<MetricsSummary>,
 
+    /// Platform identifier.
+    ///
+    /// See [`Event::platform`].
+    #[metastructure(skip_serialization = "empty")]
+    pub platform: Annotated<String>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -107,6 +113,7 @@ impl From<&Event> for Span {
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
             measurements: event.measurements.clone(),
+            platform: event.platform.clone(),
             ..Default::default()
         };
 

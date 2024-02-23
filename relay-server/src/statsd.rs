@@ -542,6 +542,7 @@ pub enum RelayCounters {
     ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
     ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
+    ///  - `platform` (only for event_type span): The platform from which the span was spent.
     ///
     /// The message types can be:
     ///
