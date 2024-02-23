@@ -1778,6 +1778,7 @@
 <a href="#1777" id="1777">1777</a>
 <a href="#1778" id="1778">1778</a>
 <a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2501,8 +2502,9 @@
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"metric"
-        </span>);
+            event_type = <span class="string">"metric"</span>,
+            namespace = namespace.as_str()
+        );
         <span class="prelude-val">Ok</span>(())
     }
 
