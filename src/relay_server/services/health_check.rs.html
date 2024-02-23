@@ -364,6 +364,20 @@
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -407,6 +421,17 @@
     </span>Healthy,
     <span class="doccomment">/// Relay is unhealthy.
     </span>Unhealthy,
+}
+
+<span class="kw">impl </span>Status {
+    <span class="doccomment">/// Internal helper to report/log failing health checks.
+    </span><span class="kw">fn </span>report(<span class="self">self</span>, probe: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Unhealthy) {
+            <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{probe}' failed"</span>);
+        }
+
+        <span class="self">self
+    </span>}
 }
 
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Status {
@@ -513,6 +538,7 @@
             .send(IsAuthenticated)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
+            .report(<span class="string">"relay authentication"</span>)
     }
 
     <span class="kw">async fn </span>aggregator_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
@@ -520,6 +546,7 @@
             .send(AcceptsMetrics)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
+            .report(<span class="string">"aggregator accept metrics"</span>)
     }
 
     <span class="kw">async fn </span>project_cache_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
@@ -527,6 +554,7 @@
             .send(SpoolHealth)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
+            .report(<span class="string">"project cache spool health"</span>)
     }
 
     <span class="kw">async fn </span>handle_is_healthy(<span class="kw-2">&amp;</span><span class="self">self</span>, message: IsHealthy) -&gt; Status {
