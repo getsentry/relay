@@ -331,8 +331,8 @@ class MetricsConsumer(ConsumerBase):
 
         return json.loads(message.value()), message.headers()
 
-    def get_metrics(self, timeout=None, max_attempts=100):
-        for _ in range(max_attempts):
+    def get_metrics(self, expected_amount, timeout=None):
+        for _ in range(expected_amount):
             message = self.poll(timeout=timeout)
 
             if message is None:
@@ -459,8 +459,8 @@ class SpansConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
-    def get_spans(self, timeout=None, max_attempts=100):
-        for _ in range(max_attempts):
+    def get_spans(self, expected_amount, timeout=None):
+        for _ in range(expected_amount):
             message = self.poll(timeout=timeout)
 
             if message is None:

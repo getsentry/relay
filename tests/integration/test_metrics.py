@@ -1344,7 +1344,7 @@ def test_transaction_name_too_long(
     transaction, _ = tx_consumer.get_event()
     assert transaction["transaction"] == expected_transaction_name
 
-    metrics = metrics_consumer.get_metrics()
+    metrics = list(metrics_consumer.get_metrics(4))
     for metric, _ in metrics:
         if "transaction" in metric["tags"]:
             assert metric["tags"]["transaction"] == expected_transaction_name
@@ -1534,7 +1534,7 @@ def test_span_metrics(
 
     expected_group = hashlib.md5(sent_description.encode("utf-8")).hexdigest()[:16]
 
-    metrics = metrics_consumer.get_metrics()
+    metrics = list(metrics_consumer.get_metrics(8))
     span_metrics = [
         (metric, headers)
         for metric, headers in metrics
@@ -1682,7 +1682,7 @@ def test_span_metrics_secondary_aggregator(
     )
     processing.send_transaction(project_id, transaction)
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = list(metrics_consumer.get_metrics(3))
 
     # Transaction metrics are still aggregated:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])

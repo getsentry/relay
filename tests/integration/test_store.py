@@ -614,7 +614,9 @@ def test_rate_limit_metric_bucket(
         send_buckets(
             [bucket],
         )
-    produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+    produced_buckets = [
+        m for m, _ in metrics_consumer.get_metrics(metric_bucket_limit + 1)
+    ]
 
     assert metric_bucket_limit < buckets_sent
     assert len(produced_buckets) == metric_bucket_limit
@@ -873,12 +875,12 @@ def test_processing_quota_transaction_indexing(
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
-    buckets = list(metrics_consumer.get_metrics())
+    buckets = list(metrics_consumer.get_metrics(1))
     assert len(buckets) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
     tx_consumer.assert_empty()
-    buckets = list(metrics_consumer.get_metrics())
+    buckets = list(metrics_consumer.get_metrics(1))
     assert len(buckets) > 0
 
     with pytest.raises(HTTPError) as exc_info:
@@ -1597,7 +1599,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(6, timeout=10.0))
 
     for span in spans:
         span.pop("received", None)
@@ -1705,7 +1707,7 @@ def test_span_ingestion(
         },
     ]
 
-    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics(8)]
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
@@ -2009,7 +2011,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(1, timeout=10.0))
 
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
@@ -2083,7 +2085,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(1, timeout=10.0))
 
     for span in spans:
         span.pop("received", None)

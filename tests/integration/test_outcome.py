@@ -1250,7 +1250,7 @@ def test_profile_outcomes(
 
     metrics = [
         m
-        for m, _ in metrics_consumer.get_metrics()
+        for m, _ in metrics_consumer.get_metrics(2)
         if m["name"] == "d:transactions/duration@millisecond"
     ]
     assert len(metrics) == 2
@@ -1681,8 +1681,9 @@ def test_global_rate_limit(
         time.sleep(5)
 
     def assert_metrics_outcomes(n_metrics, n_outcomes):
-        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
-        outcomes = outcomes_consumer.get_outcomes()
+        # Try to fetch one more to prove that the count is correct:
+        produced_buckets = [m for m, _ in metrics_consumer.get_metrics(n_metrics + 1)]
+        outcomes = outcomes_consumer.get_outcomes(n_outcomes + 1)
 
         assert len(produced_buckets) == n_metrics
         assert len(outcomes) == n_outcomes
