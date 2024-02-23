@@ -130,6 +130,9 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
         )
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        time.sleep(0.3)  # Wait for error
+        error = str(mini_sentry.test_failures.pop())
+        assert "Health check probe 'aggregator accept metrics'" in error
         assert response.status_code == 503
     finally:
         # Authentication failures would fail the test
