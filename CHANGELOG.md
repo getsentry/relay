@@ -7,6 +7,7 @@
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
+- Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
 
 **Bug Fixes**:
 
