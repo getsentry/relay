@@ -288,6 +288,13 @@
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -303,7 +310,7 @@
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-</span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+</span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = <span class="string">"camelCase"</span>)]
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>GlobalConfig {
@@ -493,50 +500,57 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
-    <span class="kw">use </span>relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
-    <span class="kw">use </span>relay_quotas::{DataCategory, QuotaScope};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>mock_quota(id: <span class="kw-2">&amp;</span>str) -&gt; Quota {
-        Quota {
-            id: <span class="prelude-val">Some</span>(id.into()),
-            categories: <span class="macro">smallvec::smallvec!</span>[DataCategory::MetricBucket],
-            scope: QuotaScope::Organization,
-            scope_id: <span class="prelude-val">None</span>,
-            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            window: <span class="prelude-val">None</span>,
-            reason_code: <span class="prelude-val">None</span>,
-            namespace: <span class="prelude-val">None</span>,
-        }
-    }
-
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_global_config_roundtrip() {
-        <span class="kw">let </span>global_config = GlobalConfig {
-            measurements: <span class="prelude-val">Some</span>(MeasurementsConfig {
-                builtin_measurements: <span class="macro">vec!</span>[
-                    BuiltinMeasurementKey::new(<span class="string">"foo"</span>, MetricUnit::None),
-                    BuiltinMeasurementKey::new(<span class="string">"bar"</span>, MetricUnit::None),
-                    BuiltinMeasurementKey::new(<span class="string">"baz"</span>, MetricUnit::None),
-                ],
-                max_custom_measurements: <span class="number">5</span>,
-            }),
-            options: Options {
-                unsampled_profiles_enabled: <span class="bool-val">true</span>,
-                ..Default::default()
-            },
-            quotas: <span class="macro">vec!</span>[mock_quota(<span class="string">"foo"</span>), mock_quota(<span class="string">"bar"</span>)],
-        };
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "measurements": {
+    "builtinMeasurements": [
+      {
+        "name": "foo",
+        "unit": "none"
+      },
+      {
+        "name": "bar",
+        "unit": "none"
+      },
+      {
+        "name": "baz",
+        "unit": "none"
+      }
+    ],
+    "maxCustomMeasurements": 5
+  },
+  "quotas": [
+    {
+      "id": "foo",
+      "categories": [
+        "metric_bucket"
+      ],
+      "scope": "organization",
+      "limit": 0,
+      "namespace": null
+    },
+    {
+      "id": "bar",
+      "categories": [
+        "metric_bucket"
+      ],
+      "scope": "organization",
+      "limit": 0,
+      "namespace": null
+    }
+  ],
+  "options": {
+    "profiling.profile_metrics.unsampled_profiles.enabled": true
+  }
+}"#</span>;
 
-        <span class="kw">let </span>serialized =
-            serde_json::to_string(<span class="kw-2">&amp;</span>global_config).expect(<span class="string">"failed to serialize GlobalConfig"</span>);
-
-        <span class="kw">let </span>deserialized = serde_json::from_str::&lt;GlobalConfig&gt;(serialized.as_str())
-            .expect(<span class="string">"failed to deserialize GlobalConfig"</span>);
-
-        <span class="macro">assert_eq!</span>(deserialized, global_config);
+        <span class="kw">let </span>deserialized = serde_json::from_str::&lt;GlobalConfig&gt;(json).unwrap();
+        <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>deserialized).unwrap();
+        <span class="macro">assert_eq!</span>(json, serialized.as_str());
     }
 
     <span class="attr">#[test]
