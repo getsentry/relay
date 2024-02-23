@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -83,6 +84,7 @@ pub fn process(
             &mut annotated_span,
             normalize_span_config.clone(),
             Annotated::new(contexts.clone()),
+            state.project_state.config(),
         ) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
@@ -294,6 +296,7 @@ fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
     contexts: Annotated<Contexts>,
+    project_config: &ProjectConfig,
 ) -> Result<(), ProcessingError> {
     use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
@@ -361,6 +364,15 @@ fn normalize(
 
     if is_segment {
         span.segment_id = span.span_id.clone();
+    }
+
+    if let Some(transaction) = span
+        .data
+        .value_mut()
+        .as_mut()
+        .map(|data| &mut data.transaction)
+    {
+        normalize_transaction_name(transaction, &project_config.tx_name_rules);
     }
 
     // Tag extraction:
