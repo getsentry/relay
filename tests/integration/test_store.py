@@ -2016,11 +2016,10 @@ def test_span_reject_invalid_timestamps(
 
 
 def test_span_ingestion_with_performance_scores(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
+    mini_sentry, relay_with_processing, spans_consumer, metrics_consumer
 ):
     spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
     relay = relay_with_processing()
 
     project_id = 42
@@ -2061,6 +2060,13 @@ def test_span_ingestion_with_performance_scores(
         "projects:span-metrics-extraction",
         "projects:span-metrics-extraction-all-modules",
     ]
+    project_config["txNameRules"] = [
+        {
+            "pattern": "/page/with/click/interaction/*/**",
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
 
     duration = timedelta(milliseconds=500)
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
@@ -2098,7 +2104,9 @@ def test_span_ingestion_with_performance_scores(
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
-                        "data": {"transaction": "/page/with/click/interaction/"},
+                        "data": {
+                            "transaction": "/page/with/click/interaction/jane/123"
+                        },
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -2167,7 +2175,7 @@ def test_span_ingestion_with_performance_scores(
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
-                "transaction": "/page/with/click/interaction/",
+                "transaction": "/page/with/click/interaction/*/*",
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -2180,3 +2188,13 @@ def test_span_ingestion_with_performance_scores(
             },
         },
     ]
+
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
+
+    assert metrics == []
