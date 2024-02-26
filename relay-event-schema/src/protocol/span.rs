@@ -272,6 +272,10 @@ pub struct SpanData {
     #[metastructure(field = "url.scheme")]
     pub url_scheme: Annotated<Value>,
 
+    /// exclusive time
+    #[metastructure(field = "exclusive_time")]
+    pub exclusive_time: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,

@@ -16,7 +16,7 @@ use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, Value};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -382,6 +382,17 @@ fn normalize(
     };
     normalize_performance_score(&mut event, performance_score);
     span.measurements = event.measurements;
+
+    if span.exclusive_time.value().is_empty() {
+        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
+        span.exclusive_time = match &data.exclusive_time.value() {
+            Some(Value::F64(f)) => Some(*f),
+            Some(Value::I64(i)) => Some(*i as f64),
+            Some(Value::U64(u)) => Some(*u as f64),
+            _ => None,
+        }
+        .into();
+    }
 
     tag_extraction::extract_measurements(span);
 
