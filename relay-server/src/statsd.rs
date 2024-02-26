@@ -683,6 +683,12 @@ pub enum RelayCounters {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     ProcessorRateLimitBucketsCost,
+
+    /// Counter for dynamic sampling decision.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
+    DynamicSamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -733,6 +739,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
+            RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
         }
     }
 }

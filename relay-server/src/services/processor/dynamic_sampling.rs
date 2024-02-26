@@ -11,6 +11,7 @@ use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
+use relay_statsd::metric;
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
@@ -109,7 +110,13 @@ pub fn sample_envelope_items(
         let Some(event) = state.event.value() else {
             return;
         };
-        if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
+        let should_drop =
+            event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop();
+        metric!(
+            counter(RelayCounters::DynamicSamplingDecision) += 1,
+            decision = if should_drop { "drop" } else { "keep" }
+        );
+        if should_drop {
             let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
