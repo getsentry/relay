@@ -1471,7 +1471,6 @@ mod tests {
             max_secs_in_future,
             ..Default::default()
         }));
-        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
         validate_event_timestamps(
             &mut event,
             &EventValidationConfig {
@@ -1481,6 +1480,7 @@ mod tests {
             },
         )
         .unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1821,7 +1821,7 @@ mod tests {
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
             let res =
-                validate_transaction(&modified_event, &TransactionValidationConfig::default());
+                validate_transaction(&mut modified_event, &TransactionValidationConfig::default());
 
             assert!(res.is_err(), "{span:?}");
         }
