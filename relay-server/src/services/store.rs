@@ -958,7 +958,14 @@ impl StoreService {
             Some(replay_video),
             start_time,
             retention,
-        )
+        )?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_video"
+        );
+
+        Ok(())
     }
 
     fn produce_check_in(
