@@ -258,6 +258,7 @@ pub struct SpanData {
     pub thread_name: Annotated<Value>,
 
     /// Origin Transaction name of the span.
+    ///
     /// For INP spans, this is the route name where the interaction occurred.
     pub transaction: Annotated<String>,
 
