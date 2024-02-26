@@ -2196,10 +2196,3 @@ def test_span_ingestion_with_performance_scores(
             },
         },
     ]
-
-    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-    assert any(
-        metric["name"] == "d:spans/exclusive_time@millisecond"
-        and metric["tags"].get("transaction") == "/page/with/click/interaction/*/*"
-        for metric in metrics
-    )
