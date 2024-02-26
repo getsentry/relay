@@ -4,7 +4,7 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
-use crate::{CombinedFiltersConfig, FilterStatKey, GenericFiltersConfig};
+use crate::{DynamicFiltersConfig, FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
@@ -27,7 +27,7 @@ pub(crate) fn should_filter(
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
     let generic_filters_config =
-        CombinedFiltersConfig::new(project_filters, global_filters, VERSION);
+        DynamicFiltersConfig::new(project_filters, global_filters, VERSION);
     let filters = generic_filters_config.into_iter();
 
     for filter_config in filters {
