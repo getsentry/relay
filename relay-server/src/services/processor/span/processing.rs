@@ -207,6 +207,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
                 new_span.is_segment = Annotated::new(false);
                 new_span.received = transaction_span.received.clone();
                 new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.platform = transaction_span.platform.clone();
 
                 // If a profile is associated with the transaction, also associate it with its
                 // child spans.
