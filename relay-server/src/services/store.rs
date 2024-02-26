@@ -947,7 +947,7 @@ impl StoreService {
             scoping.project_id,
             start_time,
             retention,
-            Bytes::from(replay_event.to_owned()),
+            Bytes::copy_from_slice(replay_event),
         )?;
 
         self.produce_replay_recording(
