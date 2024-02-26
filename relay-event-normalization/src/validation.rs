@@ -833,6 +833,6 @@ mod tests {
         let spans = &event.spans;
         let span = get_value!(spans[0]!);
 
-        assert_eq!(span.timestamp, event.timestamp);
+        assert_eq!(span.timestamp.value(), event.timestamp.value());
     }
 }
