@@ -545,12 +545,11 @@ impl<'a> IntoIterator for CombinedFiltersConfig<'a> {
 pub(crate) struct CombinedFiltersConfigIter<'a> {
     /// Configuration of project and global filters.
     config: CombinedFiltersConfig<'a>,
-    // usize is easier to deal with apis
-    /// index of project config filters to return
+    /// Index of the next filter in project config to evaluate.
     project_index: usize,
-    /// index of global config filters to return
+    /// Index of the next filter in global config to evaluate.
     global_index: usize,
-    /// filters that have already been yielded
+    /// Filters that have been evaluated, either yielded or ignored.
     evaluated: HashSet<&'a String>,
 }
 

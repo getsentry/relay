@@ -26,10 +26,7 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
     /// Configuration for global inbound filters.
-    #[serde(
-        // deserialize_with = "default_on_error",
-        skip_serializing_if = "skip_default_error_boundary"
-    )]
+    #[serde(skip_serializing_if = "skip_default_error_boundary")]
     pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
