@@ -551,9 +551,9 @@ mod tests {
             server_address: ~,
             http_response_status_code: ~,
             thread_name: ~,
+            transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
-            transaction: ~,
             other: {
                 "bar": String(
                     "3",
