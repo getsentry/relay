@@ -303,6 +303,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 thread_name: ~,
                 ui_component_name: ~,
                 url_scheme: ~,
+                exclusive_time: ~,
                 other: {},
             },
             sentry_tags: {
