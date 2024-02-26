@@ -237,6 +237,14 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     }
 }
 
+pub fn maybe_remove_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+    if state.event_type() == Some(EventType::Transaction)
+        && state.project_state.has_feature(Feature::DiscardTransaction)
+    {
+        state.remove_event();
+        state.managed_envelope.update();
+    }
+}
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
 struct NormalizeSpanConfig<'a> {

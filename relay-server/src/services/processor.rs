@@ -1300,6 +1300,7 @@ impl EnvelopeProcessorService {
             event::serialize(state)?;
             if_processing!(self.inner.config, {
                 span::extract_from_event(state);
+                span::maybe_remove_event(state);
             });
         }
 

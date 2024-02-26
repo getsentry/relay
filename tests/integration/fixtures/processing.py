@@ -63,9 +63,9 @@ def processing_config(get_topic_name):
         if not processing.get("redis"):
             processing["redis"] = "redis://127.0.0.1"
 
-        processing[
-            "projectconfig_cache_prefix"
-        ] = f"relay-test-relayconfig-{uuid.uuid4()}"
+        processing["projectconfig_cache_prefix"] = (
+            f"relay-test-relayconfig-{uuid.uuid4()}"
+        )
 
         return options
 
@@ -180,7 +180,9 @@ class ConsumerBase:
         self.test_producer.produce(self.topic_name, message)
         self.test_producer.flush(timeout=5)
 
+        print(timeout)
         rv = self.poll(timeout=timeout)
+        print(rv)
         assert rv.error() is None
         assert rv.value() == message, rv.value()
 
