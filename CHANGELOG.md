@@ -5,6 +5,8 @@
 **Features**:
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+- Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
+- Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
 
 **Bug Fixes**:
 
@@ -16,6 +18,7 @@
 - Rewrite test_it_tags_error test to rust and add basic rust testing framework. ([#3133](https://github.com/getsentry/relay/pull/3133))
 - Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
 - Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
+- Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
 
 ## 24.2.0
 

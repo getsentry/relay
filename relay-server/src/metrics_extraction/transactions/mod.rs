@@ -654,6 +654,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]

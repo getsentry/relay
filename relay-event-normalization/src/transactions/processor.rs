@@ -19,6 +19,59 @@ pub struct TransactionNameConfig<'r> {
     pub rules: &'r [TransactionNameRule],
 }
 
+/// Apply parametrization to transaction.
+pub fn normalize_transaction_name(
+    transaction: &mut Annotated<String>,
+    rules: &[TransactionNameRule],
+) {
+    // Normalize transaction names for URLs and Sanitized transaction sources.
+    // This in addition to renaming rules can catch some high cardinality parts.
+    scrub_identifiers(transaction);
+
+    // Apply rules discovered by the transaction clusterer in sentry.
+    if !rules.is_empty() {
+        apply_transaction_rename_rules(transaction, rules);
+    }
+}
+
+/// Applies the rule if any found to the transaction name.
+///
+/// It find the first rule matching the criteria:
+/// - source matchining the one provided in the rule sorce
+/// - rule hasn't epired yet
+/// - glob pattern matches the transaction name
+///
+/// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
+/// patterns like `/<something>/*/**` where we have `**` at the end are a match.
+pub fn apply_transaction_rename_rules(
+    transaction: &mut Annotated<String>,
+    rules: &[TransactionNameRule],
+) {
+    let _ = processor::apply(transaction, |transaction, meta| {
+        let result = rules.iter().find_map(|rule| {
+            rule.match_and_apply(Cow::Borrowed(transaction))
+                .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+        });
+
+        if let Some((rule, result)) = result {
+            if *transaction != result {
+                // If another rule was applied before, we don't want to
+                // rename the transaction name to keep the original one.
+                // We do want to continue adding remarks though, in
+                // order to keep track of all rules applied.
+                if meta.original_value().is_none() {
+                    meta.set_original_value(Some(transaction.clone()));
+                }
+                // add also the rule which was applied to the transaction name
+                meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                *transaction = result;
+            }
+        }
+
+        Ok(())
+    });
+}
+
 /// Rejects transactions based on required fields.
 #[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
@@ -29,41 +82,6 @@ impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
     pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
         Self { name_config }
-    }
-
-    /// Applies the rule if any found to the transaction name.
-    ///
-    /// It find the first rule matching the criteria:
-    /// - source matchining the one provided in the rule sorce
-    /// - rule hasn't epired yet
-    /// - glob pattern matches the transaction name
-    ///
-    /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
-    /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
-    pub fn apply_transaction_rename_rule(&self, transaction: &mut Annotated<String>) {
-        let _ = processor::apply(transaction, |transaction, meta| {
-            let result = self.name_config.rules.iter().find_map(|rule| {
-                rule.match_and_apply(Cow::Borrowed(transaction))
-                    .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
-            });
-
-            if let Some((rule, result)) = result {
-                if *transaction != result {
-                    // If another rule was applied before, we don't want to
-                    // rename the transaction name to keep the original one.
-                    // We do want to continue adding remarks though, in
-                    // order to keep track of all rules applied.
-                    if meta.original_value().is_none() {
-                        meta.set_original_value(Some(transaction.clone()));
-                    }
-                    // add also the rule which was applied to the transaction name
-                    meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                    *transaction = result;
-                }
-            }
-
-            Ok(())
-        });
     }
 
     /// Returns `true` if the given transaction name should be treated as a URL.
@@ -89,14 +107,7 @@ impl<'r> TransactionsProcessor<'r> {
 
     fn normalize_transaction_name(&self, event: &mut Event) {
         if self.treat_transaction_as_url(event) {
-            // Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction);
-
-            // Apply rules discovered by the transaction clusterer in sentry.
-            if !self.name_config.rules.is_empty() {
-                self.apply_transaction_rename_rule(&mut event.transaction);
-            }
+            normalize_transaction_name(&mut event.transaction, self.name_config.rules);
 
             // Always mark URL transactions as sanitized, even if no modification were made by
             // clusterer rules or regex matchers. This has the consequence that the transaction name

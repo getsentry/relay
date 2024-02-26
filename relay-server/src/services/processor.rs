@@ -1141,6 +1141,12 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        if let Some(sampling_state) = state.sampling_project_state.as_ref().map(Arc::clone) {
+            state
+                .envelope_mut()
+                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
+        }
+
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 

@@ -43,6 +43,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -83,6 +84,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -126,6 +128,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -166,6 +169,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -208,6 +212,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -250,6 +255,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
         Span {
@@ -315,6 +321,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: ~,
             _metrics_summary: ~,
+            platform: ~,
             other: {},
         },
     ],
