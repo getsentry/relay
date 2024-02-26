@@ -559,8 +559,8 @@ mod tests {
             http_response_status_code: ~,
             thread_name: ~,
             ui_component_name: ~,
-            exclusive_time: ~,
             url_scheme: ~,
+            exclusive_time: ~,
             other: {
                 "bar": String(
                     "3",
