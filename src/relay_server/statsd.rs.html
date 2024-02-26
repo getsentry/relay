@@ -795,6 +795,7 @@
 <a href="#794" id="794">794</a>
 <a href="#795" id="795">795</a>
 <a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1339,6 +1340,7 @@
     ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
     ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
+    ///  - `platform` (only for event_type span): The platform from which the span was spent.
     ///
     /// The message types can be:
     ///

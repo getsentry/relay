@@ -483,6 +483,7 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -692,6 +693,7 @@
                 new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
                 new_span.received = transaction_span.received.clone();
                 new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.platform = transaction_span.platform.clone();
 
                 <span class="comment">// If a profile is associated with the transaction, also associate it with its
                 // child spans.

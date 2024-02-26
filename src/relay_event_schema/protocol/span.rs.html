@@ -569,6 +569,14 @@
 <a href="#568" id="568">568</a>
 <a href="#569" id="569">569</a>
 <a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -662,6 +670,12 @@
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
+    <span class="doccomment">/// Platform identifier.
+    ///
+    /// See [`Event::platform`].
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="kw">pub </span>platform: Annotated&lt;String&gt;,
+
     <span class="comment">// TODO remove retain when the api stabilizes
     </span><span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">"true"</span>, pii = <span class="string">"maybe"</span>)]
@@ -678,6 +692,7 @@
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
             measurements: event.measurements.clone(),
+            platform: event.platform.clone(),
             ..Default::default()
         };
 
@@ -1053,6 +1068,7 @@
                     ],
                 },
             ),
+            platform: ~,
             other: {},
         }
         "###</span>);
