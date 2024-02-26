@@ -237,7 +237,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     }
 }
 
-pub fn maybe_remove_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+/// Removes the transaction in case the project has made the transition to spans-only.
+pub fn maybe_discard_transaction(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if state.event_type() == Some(EventType::Transaction)
         && state.project_state.has_feature(Feature::DiscardTransaction)
     {
