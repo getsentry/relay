@@ -18,6 +18,7 @@ use crate::services::outcome::Outcome;
 use crate::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
+use crate::statsd::RelayCounters;
 use crate::utils::{self, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
