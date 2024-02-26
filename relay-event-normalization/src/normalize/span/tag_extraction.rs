@@ -446,7 +446,7 @@ pub fn extract_tags(
             }
         }
         if let Some(measurements) = span.measurements.value() {
-            if span_op.starts_with("ui.interaction") && measurements.contains_key("inp") {
+            if span_op.starts_with("ui.interaction.") && measurements.contains_key("inp") {
                 if let Some(transaction) =
                     span.data.value().and_then(|data| data.transaction.as_str())
                 {
