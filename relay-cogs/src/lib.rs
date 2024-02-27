@@ -9,7 +9,7 @@ pub use recorder::*;
 
 /// Resource ID as tracked in COGS.
 ///
-/// Infrastructure costs are labeld with a resource id,
+/// Infrastructure costs are labeled with a resource id,
 /// these costs need to be broken down further by the application
 /// by [app features](AppFeature).
 #[derive(Copy, Clone, Debug)]
@@ -39,26 +39,42 @@ pub enum AppFeature {
     Unattributed,
 
     /// Metrics are attributed by their namespace, whenever this is not possible
-    /// or feasible this app feature can be emitted instead.
+    /// or feasible, this app feature is emitted instead.
     UnattributedMetrics,
-    /// When processing cannot be attributed or it is not feasible to attribute
-    /// processing in a more specific category this app feature can be used.
-    UnattributedProcessing,
+    /// When processing an envelope cannot be attributed or is not feasible to be attributed
+    /// to a more specific category, this app feature is emitted instead.
+    UnattributedEnvelope,
 
+    /// Transactions.
     Transactions,
+    /// Errors.
     Errors,
+    /// Spans.
     Spans,
+    /// Sessions.
     Sessions,
+    /// Client reports.
     ClientReports,
+    /// Crons check ins.
     CheckIns,
+    /// Replays.
     Replays,
 
+    /// Metric metadata.
     MetricMeta,
 
+    /// Metrics in the transactions namespace.
     MetricsTransactions,
+    /// Metrics in the spans namespace.
     MetricsSpans,
+    /// Metrics in the sessions namespace.
     MetricsSessions,
+    /// Metrics in the custom namespace.
     MetricsCustom,
+    /// Metrics in the unsupported namespace.
+    ///
+    /// This is usually not emitted, since metrics in the unsupported
+    /// namespace should be dropped before any processing occurs.
     MetricsUnsupported,
 }
 
@@ -67,7 +83,7 @@ impl AppFeature {
         match self {
             Self::Unattributed => "unattributed",
             Self::UnattributedMetrics => "unattributed_metrics",
-            Self::UnattributedProcessing => "unattributed_processing",
+            Self::UnattributedEnvelope => "unattributed_envelope",
             Self::Transactions => "transactions",
             Self::Errors => "errors",
             Self::Spans => "spans",
@@ -90,7 +106,7 @@ impl utils::Enum<16> for AppFeature {
         let r = match index {
             0 => Self::Unattributed,
             1 => Self::UnattributedMetrics,
-            2 => Self::UnattributedProcessing,
+            2 => Self::UnattributedEnvelope,
             3 => Self::Transactions,
             4 => Self::Errors,
             5 => Self::Spans,
@@ -114,7 +130,7 @@ impl utils::Enum<16> for AppFeature {
         match value {
             Self::Unattributed => 0,
             Self::UnattributedMetrics => 1,
-            Self::UnattributedProcessing => 2,
+            Self::UnattributedEnvelope => 2,
             Self::Transactions => 3,
             Self::Errors => 4,
             Self::Spans => 5,

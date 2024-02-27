@@ -348,14 +348,14 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Transaction => AppFeature::Transactions,
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
-            ProcessingGroup::Standalone => AppFeature::UnattributedProcessing,
+            ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
-            ProcessingGroup::ForwardUnknown => AppFeature::UnattributedProcessing,
-            ProcessingGroup::Ungrouped => AppFeature::UnattributedProcessing,
+            ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
         }
     }
 }
