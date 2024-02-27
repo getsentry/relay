@@ -3123,6 +3123,12 @@
 <a href="#3122" id="3122">3122</a>
 <a href="#3123" id="3123">3123</a>
 <a href="#3124" id="3124">3124</a>
+<a href="#3125" id="3125">3125</a>
+<a href="#3126" id="3126">3126</a>
+<a href="#3127" id="3127">3127</a>
+<a href="#3128" id="3128">3128</a>
+<a href="#3129" id="3129">3129</a>
+<a href="#3130" id="3130">3130</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4414,21 +4420,27 @@
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
         );
 
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-            <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-        });
+        <span class="macro">metric!</span>(
+            timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
+            {
+                <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                    event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
+                    profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+                });
 
-        <span class="kw">if </span>state.has_event() {
-            event::scrub(state)<span class="question-mark">?</span>;
-            event::serialize(state)<span class="question-mark">?</span>;
-            <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                span::extract_from_event(state);
-            });
-        }
+                <span class="kw">if </span>state.has_event() {
+                    event::scrub(state)<span class="question-mark">?</span>;
+                    event::serialize(state)<span class="question-mark">?</span>;
+                    <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                        span::extract_from_event(state);
+                    });
+                }
 
-        attachment::scrub(state);
+                attachment::scrub(state);
+            }
+        );
+
         <span class="prelude-val">Ok</span>(())
     }
 

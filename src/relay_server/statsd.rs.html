@@ -796,6 +796,20 @@
 <a href="#795" id="795">795</a>
 <a href="#796" id="796">796</a>
 <a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1031,6 +1045,10 @@
     </span>EventProcessingSerialization,
     <span class="doccomment">/// Time used to extract span metrics from an event.
     </span>EventProcessingSpanMetricsExtraction,
+    <span class="doccomment">/// Time spent on transaction processing after dynamic sampling.
+    ///
+    /// This includes PII scrubbing and for processing relays also consistent rate limiting.
+    </span>TransactionProcessingAfterDynamicSampling,
     <span class="doccomment">/// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -1189,6 +1207,9 @@
                 <span class="string">"event_processing.span_metrics_extraction"
             </span>}
             RelayTimers::EventProcessingSerialization =&gt; <span class="string">"event_processing.serialization"</span>,
+            RelayTimers::TransactionProcessingAfterDynamicSampling =&gt; {
+                <span class="string">"transaction.processing.post_ds"
+            </span>}
             RelayTimers::EnvelopeWaitTime =&gt; <span class="string">"event.wait_time"</span>,
             RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">"event.processing_time"</span>,
             RelayTimers::EnvelopeTotalTime =&gt; <span class="string">"event.total_time"</span>,
@@ -1474,6 +1495,12 @@
     /// - `namespace`: the metric namespace.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProcessorRateLimitBucketsCost,
+
+    <span class="doccomment">/// Counter for dynamic sampling decision.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
+    </span>DynamicSamplingDecision,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1524,6 +1551,7 @@
             </span>RelayCounters::ProcessorRateLimitBucketsCount =&gt; <span class="string">"processor.rate_limit_buckets.count"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayCounters::ProcessorRateLimitBucketsCost =&gt; <span class="string">"processor.rate_limit_buckets.cost"</span>,
+            RelayCounters::DynamicSamplingDecision =&gt; <span class="string">"dynamic_sampling_decision"</span>,
         }
     }
 }

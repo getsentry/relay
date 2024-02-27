@@ -746,6 +746,14 @@
 <a href="#745" id="745">745</a>
 <a href="#746" id="746">746</a>
 <a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -759,12 +767,14 @@
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
 <span class="kw">use </span>relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
+<span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ItemAction, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -857,7 +867,13 @@
         </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
-        <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) &amp;&amp; sampling_match.should_drop() {
+        <span class="kw">let </span>should_drop =
+            event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) &amp;&amp; sampling_match.should_drop();
+        <span class="macro">metric!</span>(
+            counter(RelayCounters::DynamicSamplingDecision) += <span class="number">1</span>,
+            decision = <span class="kw">if </span>should_drop { <span class="string">"drop" </span>} <span class="kw">else </span>{ <span class="string">"keep" </span>}
+        );
+        <span class="kw">if </span>should_drop {
             <span class="kw">let </span>unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             <span class="kw">let </span>matched_rules = sampling_match.into_matched_rules();
