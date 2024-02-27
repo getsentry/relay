@@ -69,13 +69,6 @@ impl GlobalConfig {
             ErrorBoundary::Ok(f) => Some(f),
         }
     }
-
-    /// Returns the version of generic inbound filters.
-    ///
-    /// If the filters failed to deserialize, [`u16::MAX`] is returned.
-    pub fn generic_filters_version(&self) -> u16 {
-        self.filters().map(|f| f.version).unwrap_or(u16::MAX)
-    }
 }
 
 /// All options passed down from Sentry to Relay.

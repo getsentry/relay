@@ -1283,7 +1283,7 @@ impl EnvelopeProcessorService {
         // need to drop the event, and there should not be metrics from dropped
         // events.
         let supported_generic_filters = relay_filter::are_generic_filters_supported(
-            global_config.generic_filters_version(),
+            global_config.filters().map(|f| f.version),
             state.project_state.config.filter_settings.generic.version,
         );
         // We avoid extracting metrics if we are not sampling the event while in non-processing
