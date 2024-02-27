@@ -900,9 +900,15 @@ impl StoreService {
             message,
         )?;
 
+        let event_type = if replay_video.is_some() {
+            "replay_recording_with_video"
+        } else {
+            "replay_recording_not_chunked"
+        };
+
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_recording_not_chunked"
+            event_type = event_type
         );
 
         Ok(())
@@ -958,14 +964,7 @@ impl StoreService {
             Some(replay_video),
             start_time,
             retention,
-        )?;
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_video"
-        );
-
-        Ok(())
+        )
     }
 
     fn produce_check_in(
