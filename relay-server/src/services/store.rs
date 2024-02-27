@@ -15,7 +15,7 @@ use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
 use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
 };
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
@@ -1045,6 +1045,7 @@ impl StoreService {
 
         let is_segment = span.is_segment;
         let has_parent = span.parent_span_id.is_some();
+        let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
 
         self.produce(
             KafkaTopic::Spans,
@@ -1065,6 +1066,7 @@ impl StoreService {
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "span",
+            platform = platform.unwrap_or(&""),
             is_segment = bool_to_str(is_segment),
             has_parent = bool_to_str(has_parent),
         );
@@ -1542,6 +1544,9 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
+
+    #[serde(borrow, default, skip_serializing)]
+    platform: Cow<'a, str>, // We only use this for logging for now
 }
 
 #[derive(Debug, Deserialize)]
