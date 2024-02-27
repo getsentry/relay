@@ -5,6 +5,7 @@
 **Features**:
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+- Implement COGS measurements into Relay. ([#3157](https://github.com/getsentry/relay/pull/3157))
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
 
 **Bug Fixes**:
