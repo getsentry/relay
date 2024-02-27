@@ -163,8 +163,107 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
-
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 
@@ -174,11 +273,13 @@
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::RawUserAgentInfo;
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingState};
-<span class="kw">use </span>relay_event_schema::protocol::Replay;
+<span class="kw">use </span>relay_event_schema::protocol::{EventId, Replay};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::Annotated;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>rmp_serde;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
@@ -219,82 +320,98 @@
     <span class="kw">let </span>combined_envelope_items =
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
-    state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
-        ItemType::ReplayEvent =&gt; {
-            <span class="kw">if </span>!replays_enabled {
-                <span class="kw">return </span>ItemAction::DropSilently;
-            }
-            <span class="kw">if </span>combined_envelope_items {
-                item.set_replay_combined_payload(<span class="bool-val">true</span>);
-            }
+    state.managed_envelope.retain_items(|item| {
+        <span class="comment">// If replays aren't enabled or an item was dropped - drop the remainder of the
+        // envelope.
+        </span><span class="kw">if </span>!replays_enabled {
+            <span class="kw">return </span>ItemAction::DropSilently;
+        }
 
-            <span class="kw">match </span>process_replay_event(<span class="kw-2">&amp;</span>item.payload(), project_config, client_addr, user_agent) {
-                <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
-                    <span class="prelude-val">Ok</span>(json) =&gt; {
-                        item.set_payload(ContentType::Json, json);
+        <span class="comment">// Set the combined payload header to the value of the combined feature.
+        </span>item.set_replay_combined_payload(combined_envelope_items);
+
+        <span class="kw">match </span>item.ty() {
+            ItemType::ReplayEvent =&gt; {
+                <span class="kw">match </span>handle_replay_event_item(
+                    item.payload(),
+                    project_config,
+                    client_addr,
+                    user_agent,
+                ) {
+                    <span class="prelude-val">Err</span>(outcome) =&gt; ItemAction::Drop(outcome),
+                    <span class="prelude-val">Ok</span>(replay_event) =&gt; {
+                        item.set_payload(ContentType::Json, replay_event);
                         ItemAction::Keep
                     }
-                    <span class="prelude-val">Err</span>(error) =&gt; {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">"failed to serialize replay"
-                        </span>);
-                        ItemAction::Keep
-                    }
-                },
-                <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"invalid replay event"</span>);
-                    ItemAction::Drop(Outcome::Invalid(<span class="kw">match </span>error {
-                        ReplayError::NoContent =&gt; DiscardReason::InvalidReplayEventNoPayload,
-                        ReplayError::CouldNotScrub(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEventPii,
-                        ReplayError::CouldNotParse(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
-                        ReplayError::InvalidPayload(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
-                    }))
                 }
             }
-        }
-        ItemType::ReplayRecording =&gt; {
-            <span class="kw">if </span>!replays_enabled {
-                <span class="kw">return </span>ItemAction::DropSilently;
+            ItemType::ReplayRecording =&gt; {
+                <span class="kw">match </span>handle_replay_recording_item(
+                    item.payload(),
+                    <span class="kw-2">&amp;</span>event_id,
+                    scrubbing_enabled,
+                    <span class="kw-2">&amp;mut </span>scrubber,
+                ) {
+                    <span class="prelude-val">Err</span>(outcome) =&gt; ItemAction::Drop(outcome),
+                    <span class="prelude-val">Ok</span>(replay_recording) =&gt; {
+                        item.set_payload(ContentType::OctetStream, replay_recording);
+                        ItemAction::Keep
+                    }
+                }
             }
-            <span class="kw">if </span>combined_envelope_items {
-                item.set_replay_combined_payload(<span class="bool-val">true</span>);
-            }
-
-            <span class="comment">// XXX: Processing is there just for data scrubbing. Skip the entire expensive
-            // processing step if we do not need to scrub.
-            </span><span class="kw">if </span>!scrubbing_enabled || scrubber.is_empty() {
-                <span class="kw">return </span>ItemAction::Keep;
-            }
-
-            <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
-            // decompressed temporarily and then immediately re-compressed. However, to
-            // limit memory pressure, we use the replay limit as a good overall limit for
-            // allocations.
-            </span><span class="kw">let </span>parsed_recording = <span class="macro">metric!</span>(timer(RelayTimers::ReplayRecordingProcessing), {
-                scrubber.process_recording(<span class="kw-2">&amp;</span>item.payload())
-            });
-
-            <span class="kw">match </span>parsed_recording {
-                <span class="prelude-val">Ok</span>(recording) =&gt; {
-                    item.set_payload(ContentType::OctetStream, recording);
+            ItemType::ReplayVideo =&gt; <span class="kw">match </span>handle_replay_video_item(
+                item.payload(),
+                <span class="kw-2">&amp;</span>event_id,
+                project_config,
+                client_addr,
+                user_agent,
+                scrubbing_enabled,
+                <span class="kw-2">&amp;mut </span>scrubber,
+            ) {
+                <span class="prelude-val">Err</span>(outcome) =&gt; ItemAction::Drop(outcome),
+                <span class="prelude-val">Ok</span>(payload) =&gt; {
+                    item.set_payload(ContentType::OctetStream, payload);
                     ItemAction::Keep
                 }
-                <span class="prelude-val">Err</span>(e) =&gt; {
-                    <span class="macro">relay_log::warn!</span>(<span class="string">"replay-recording-event: {e} {event_id:?}"</span>);
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
-                }
-            }
+            },
+            <span class="kw">_ </span>=&gt; ItemAction::Keep,
         }
-        <span class="kw">_ </span>=&gt; ItemAction::Keep,
     });
 
     <span class="prelude-val">Ok</span>(())
 }
 
+<span class="comment">// Replay Event Processing.
+
+</span><span class="kw">fn </span>handle_replay_event_item(
+    payload: Bytes,
+    config: <span class="kw-2">&amp;</span>ProjectConfig,
+    client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Outcome&gt; {
+    <span class="kw">match </span>process_replay_event(<span class="kw-2">&amp;</span>payload, config, client_ip, user_agent) {
+        <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
+            <span class="prelude-val">Ok</span>(json) =&gt; <span class="prelude-val">Ok</span>(json.into_bytes().into()),
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to serialize replay"</span>);
+                <span class="prelude-val">Ok</span>(payload)
+            }
+        },
+        <span class="prelude-val">Err</span>(error) =&gt; {
+            <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"invalid replay event"</span>);
+            <span class="prelude-val">Err</span>(Outcome::Invalid(<span class="kw">match </span>error {
+                ReplayError::NoContent =&gt; DiscardReason::InvalidReplayEventNoPayload,
+                ReplayError::CouldNotScrub(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEventPii,
+                ReplayError::CouldNotParse(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
+                ReplayError::InvalidPayload(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEvent,
+            }))
+        }
+    }
+}
+
 <span class="doccomment">/// Validates, normalizes, and scrubs PII from a replay event.
 </span><span class="kw">fn </span>process_replay_event(
-    payload: <span class="kw-2">&amp;</span>Bytes,
+    payload: <span class="kw-2">&amp;</span>[u8],
     config: <span class="kw-2">&amp;</span>ProjectConfig,
     client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
@@ -326,5 +443,88 @@
     }
 
     <span class="prelude-val">Ok</span>(replay)
+}
+
+<span class="comment">// Replay Recording Processing
+
+</span><span class="kw">fn </span>handle_replay_recording_item(
+    payload: Bytes,
+    event_id: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;EventId&gt;,
+    scrubbing_enabled: bool,
+    scrubber: <span class="kw-2">&amp;mut </span>RecordingScrubber,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Outcome&gt; {
+    <span class="comment">// XXX: Processing is there just for data scrubbing. Skip the entire expensive
+    // processing step if we do not need to scrub.
+    </span><span class="kw">if </span>!scrubbing_enabled || scrubber.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(payload);
+    }
+
+    <span class="comment">// Limit expansion of recordings to the max replay size. The payload is
+    // decompressed temporarily and then immediately re-compressed. However, to
+    // limit memory pressure, we use the replay limit as a good overall limit for
+    // allocations.
+    </span><span class="kw">let </span>parsed_recording = <span class="macro">metric!</span>(timer(RelayTimers::ReplayRecordingProcessing), {
+        scrubber.process_recording(<span class="kw-2">&amp;</span>payload)
+    });
+
+    <span class="kw">match </span>parsed_recording {
+        <span class="prelude-val">Ok</span>(recording) =&gt; <span class="prelude-val">Ok</span>(recording.into()),
+        <span class="prelude-val">Err</span>(e) =&gt; {
+            <span class="macro">relay_log::warn!</span>(<span class="string">"replay-recording-event: {e} {event_id:?}"</span>);
+            <span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
+        }
+    }
+}
+
+<span class="comment">// Replay Video Processing
+
+</span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">struct </span>ReplayVideoEvent {
+    replay_event: Bytes,
+    replay_recording: Bytes,
+    replay_video: Bytes,
+}
+
+<span class="kw">fn </span>handle_replay_video_item(
+    payload: Bytes,
+    event_id: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;EventId&gt;,
+    config: <span class="kw-2">&amp;</span>ProjectConfig,
+    client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
+    scrubbing_enabled: bool,
+    scrubber: <span class="kw-2">&amp;mut </span>RecordingScrubber,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Outcome&gt; {
+    <span class="kw">let </span>ReplayVideoEvent {
+        replay_event,
+        replay_recording,
+        replay_video,
+    } = <span class="kw">match </span>rmp_serde::from_slice(<span class="kw-2">&amp;</span>payload) {
+        <span class="prelude-val">Ok</span>(result) =&gt; result,
+        <span class="prelude-val">Err</span>(e) =&gt; {
+            <span class="macro">relay_log::warn!</span>(<span class="string">"replay-video-event: {e} {event_id:?}"</span>);
+            <span class="kw">return </span><span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+        }
+    };
+
+    <span class="comment">// Process as a replay-event envelope item.
+    </span><span class="kw">let </span>replay_event = handle_replay_event_item(replay_event, config, client_ip, user_agent)<span class="question-mark">?</span>;
+
+    <span class="comment">// Process as a replay-recording envelope item.
+    </span><span class="kw">let </span>replay_recording =
+        handle_replay_recording_item(replay_recording, event_id, scrubbing_enabled, scrubber)<span class="question-mark">?</span>;
+
+    <span class="comment">// Verify the replay-video payload is not empty.
+    </span><span class="kw">if </span>replay_video.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+    }
+
+    <span class="kw">match </span>rmp_serde::to_vec_named(<span class="kw-2">&amp;</span>ReplayVideoEvent {
+        replay_event,
+        replay_recording,
+        replay_video,
+    }) {
+        <span class="prelude-val">Ok</span>(payload) =&gt; <span class="prelude-val">Ok</span>(payload.into()),
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent)),
+    }
 }
 </code></pre></div></section></main></body></html>

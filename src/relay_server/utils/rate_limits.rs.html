@@ -1297,6 +1297,8 @@
 <a href="#1296" id="1296">1296</a>
 <a href="#1297" id="1297">1297</a>
 <a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1408,6 +1410,7 @@
         ItemType::Profile =&gt; <span class="prelude-val">None</span>,
         ItemType::ReplayEvent =&gt; <span class="prelude-val">None</span>,
         ItemType::ReplayRecording =&gt; <span class="prelude-val">None</span>,
+        ItemType::ReplayVideo =&gt; <span class="prelude-val">None</span>,
         ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
         ItemType::CheckIn =&gt; <span class="prelude-val">None</span>,
         ItemType::Span =&gt; <span class="prelude-val">None</span>,
@@ -1508,6 +1511,7 @@
             ItemType::Profile =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_quantity,
             ItemType::ReplayEvent =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
             ItemType::ReplayRecording =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
+            ItemType::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
             ItemType::CheckIn =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.checkin_quantity,
             <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
         };

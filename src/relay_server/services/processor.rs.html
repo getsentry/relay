@@ -3358,7 +3358,7 @@
         </span><span class="kw">let </span>replay_items = envelope.take_items_by(|item| {
             <span class="macro">matches!</span>(
                 item.ty(),
-                <span class="kw-2">&amp;</span>ItemType::ReplayEvent | <span class="kw-2">&amp;</span>ItemType::ReplayRecording
+                <span class="kw-2">&amp;</span>ItemType::ReplayEvent | <span class="kw-2">&amp;</span>ItemType::ReplayRecording | <span class="kw-2">&amp;</span>ItemType::ReplayVideo
             )
         });
         <span class="kw">if </span>!replay_items.is_empty() {

@@ -971,6 +971,8 @@
 <a href="#970" id="970">970</a>
 <a href="#971" id="971">971</a>
 <a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1339,6 +1341,7 @@
     InvalidReplayEventNoPayload,
     InvalidReplayEventPii,
     InvalidReplayRecordingEvent,
+    InvalidReplayVideoEvent,
 
     <span class="doccomment">/// (Relay) Profiling related discard reasons
     </span>Profiling(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str),
@@ -1386,6 +1389,7 @@
             DiscardReason::InvalidReplayEventNoPayload =&gt; <span class="string">"invalid_replay_no_payload"</span>,
             DiscardReason::InvalidReplayEventPii =&gt; <span class="string">"invalid_replay_pii_scrubber_failed"</span>,
             DiscardReason::InvalidReplayRecordingEvent =&gt; <span class="string">"invalid_replay_recording"</span>,
+            DiscardReason::InvalidReplayVideoEvent =&gt; <span class="string">"invalid_replay_video"</span>,
             DiscardReason::Profiling(reason) =&gt; reason,
             DiscardReason::InvalidSpan =&gt; <span class="string">"invalid_span"</span>,
         }
