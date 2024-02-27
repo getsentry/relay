@@ -1289,22 +1289,28 @@ impl EnvelopeProcessorService {
             &self.inner.global_config.current(),
         );
 
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config)?;
-            self.enforce_quotas(state)?;
-            profile::process(state, &self.inner.config);
-        });
+        metric!(
+            timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
+            {
+                if_processing!(self.inner.config, {
+                    event::store(state, &self.inner.config)?;
+                    self.enforce_quotas(state)?;
+                    profile::process(state, &self.inner.config);
+                });
 
-        if state.has_event() {
-            event::scrub(state)?;
-            if_processing!(self.inner.config, {
-                span::extract_from_event(state);
-                span::maybe_discard_transaction(state);
-            });
-            event::serialize(state)?;
-        }
+                if state.has_event() {
+                    event::scrub(state)?;
+                    if_processing!(self.inner.config, {
+                        span::extract_from_event(state);
+                        span::maybe_discard_transaction(state);
+                    });
+                    event::serialize(state)?;
+                }
 
-        attachment::scrub(state);
+                attachment::scrub(state);
+            }
+        );
+
         Ok(())
     }
 
