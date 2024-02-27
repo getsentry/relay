@@ -4,14 +4,22 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
-use crate::{DynamicFiltersConfig, FilterStatKey, GenericFiltersConfig};
+use crate::{DynamicGenericFiltersConfig, FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
 /// Maximum supported version of the generic filters schema.
 ///
 /// If the version in the project config is higher, no generic filters are applied.
-pub const VERSION: u16 = 1;
+const VERSION: u16 = 1;
+
+/// Returns whether the given generic config versions are supported.
+pub fn are_generic_filters_supported(
+    global_filters_version: u16,
+    project_filters_version: u16,
+) -> bool {
+    global_filters_version <= VERSION && project_filters_version <= VERSION
+}
 
 /// Checks events by patterns in their error messages.
 fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
@@ -27,7 +35,7 @@ pub(crate) fn should_filter(
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
     let generic_filters_config =
-        DynamicFiltersConfig::new(project_filters, global_filters, VERSION);
+        DynamicGenericFiltersConfig::new(project_filters, global_filters, VERSION);
     let filters = generic_filters_config.into_iter();
 
     for filter_config in filters {

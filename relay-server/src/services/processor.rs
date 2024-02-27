@@ -1282,9 +1282,10 @@ impl EnvelopeProcessorService {
         // An inbound filter applied in another up-to-date relay in chain may
         // need to drop the event, and there should not be metrics from dropped
         // events.
-        let supported_generic_filters = state.project_state.config.filter_settings.generic.version
-            <= relay_filter::GENERIC_FILTERS_VERSION
-            && global_config.generic_filters_version() <= relay_filter::GENERIC_FILTERS_VERSION;
+        let supported_generic_filters = relay_filter::are_generic_filters_supported(
+            global_config.generic_filters_version(),
+            state.project_state.config.filter_settings.generic.version,
+        );
         // We avoid extracting metrics if we are not sampling the event while in non-processing
         // relays, in order to synchronize rate limits on indexed and processed transactions.
         let extract_metrics_from_sampling =

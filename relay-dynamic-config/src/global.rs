@@ -26,7 +26,10 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
     /// Configuration for global inbound filters.
-    #[serde(skip_serializing_if = "skip_default_error_boundary")]
+    ///
+    /// These filters are merged with generic filters in project configs before
+    /// applying.
+    #[serde(skip_serializing_if = "skip_generic_filters")]
     pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
@@ -36,10 +39,10 @@ pub struct GlobalConfig {
     pub options: Options,
 }
 
-fn skip_default_error_boundary<T: Default + PartialEq>(t: &ErrorBoundary<T>) -> bool {
-    match t {
+fn skip_generic_filters(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
+    match filters_config {
         ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(value) => value == &T::default(),
+        ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
     }
 }
 

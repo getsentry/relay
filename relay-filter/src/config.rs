@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, HashSet};
 use std::convert::Infallible;
 use std::fmt;
+use std::iter::FusedIterator;
 use std::str::FromStr;
 
 use indexmap::IndexMap;
@@ -251,9 +252,12 @@ impl GenericFilterConfig {
     }
 }
 
+#[cfg(test)]
 impl PartialEq for GenericFilterConfig {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+            && self.is_enabled == other.is_enabled
+            && self.condition == other.condition
     }
 }
 
@@ -270,6 +274,26 @@ impl PartialEq for GenericFilterConfig {
 /// the filter's id and the value is the filter itself. The map is converted
 /// back to a list when serializing it, without the filters that were discarded
 /// as duplicates. See examples below.
+///
+/// # Iterator
+///
+/// Iterates in order through the generic filters in project configs and global
+/// configs yielding the filters according to the principles below:
+///
+/// - Filters from project configs are evaluated before filters from global
+/// configs.
+/// - No duplicates: once a filter is evaluated (yielded or skipped), no filter
+/// with the same id is evaluated again.
+/// - Filters in project configs override filters from global configs, but the
+/// opposite is never the case.
+/// - A filter in the project config can be a flag, where only `is_enabled` is
+/// defined and `condition` is not. In that case:
+///   - If `is_enabled` is true, the filter with a matching ID from global
+///   configs is yielded without evaluating its `is_enabled`. Unless the filter
+///   in the global config also has an empty condition, in which case the filter
+///   is not yielded.
+///   - If `is_enabled` is false, no filters with the same IDs are returned,
+///   including matching filters from global configs.
 ///
 /// # Examples
 ///
@@ -348,7 +372,25 @@ impl PartialEq for GenericFilterConfig {
 ///   ]
 /// }"#);
 /// ```
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+///
+/// Serialization of filters is skipped if there aren't any:
+///
+/// ```
+/// # use relay_filter::{GenericFiltersConfig, GenericFilterConfig};
+/// # use relay_protocol::condition::RuleCondition;
+/// # use insta::assert_display_snapshot;
+/// # use indexmap::IndexMap;
+///
+/// let filter = GenericFiltersConfig {
+///     version: 1,
+///     filters: IndexMap::new(),
+/// };
+/// let serialized = serde_json::to_string_pretty(&filter).unwrap();
+/// assert_display_snapshot!(serialized, @r#"{
+///   "version": 1
+/// }"#);
+/// ```
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenericFiltersConfig {
     /// Version of the filters configuration.
@@ -358,8 +400,8 @@ pub struct GenericFiltersConfig {
     /// The map contains unique filters, meaning there are no two filters with
     /// the same id. See struct docs for more details.
     #[serde(
-        deserialize_with = "deserialize_generic_filters",
-        serialize_with = "serialize_generic_filters"
+        skip_serializing_if = "IndexMap::is_empty",
+        with = "generic_filters_custom_serialization"
     )]
     pub filters: IndexMap<String, GenericFilterConfig>,
 }
@@ -371,51 +413,54 @@ impl GenericFiltersConfig {
     }
 }
 
-fn deserialize_generic_filters<'de, D>(
-    deserializer: D,
-) -> Result<IndexMap<String, GenericFilterConfig>, D::Error>
-where
-    D: de::Deserializer<'de>,
-{
-    struct GenericFiltersVisitor;
+mod generic_filters_custom_serialization {
+    use super::*;
 
-    impl<'de> serde::de::Visitor<'de> for GenericFiltersVisitor {
-        type Value = IndexMap<String, GenericFilterConfig>;
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<IndexMap<String, GenericFilterConfig>, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct GenericFiltersVisitor;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a vector of filters: Vec<GenericFilterConfig>")
-        }
+        impl<'de> serde::de::Visitor<'de> for GenericFiltersVisitor {
+            type Value = IndexMap<String, GenericFilterConfig>;
 
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: de::SeqAccess<'de>,
-        {
-            let mut filters = IndexMap::new();
-            while let Some(filter) = seq.next_element::<GenericFilterConfig>()? {
-                if filters.contains_key(&filter.id) {
-                    continue;
-                }
-                filters.insert(filter.id.clone(), filter);
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a vector of filters: Vec<GenericFilterConfig>")
             }
-            Ok(filters)
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::SeqAccess<'de>,
+            {
+                let mut filters = IndexMap::with_capacity(seq.size_hint().unwrap_or(0));
+                while let Some(filter) = seq.next_element::<GenericFilterConfig>()? {
+                    if !filters.contains_key(&filter.id) {
+                        filters.insert(filter.id.clone(), filter);
+                    }
+                }
+                Ok(filters)
+            }
         }
+
+        deserializer.deserialize_seq(GenericFiltersVisitor)
     }
 
-    deserializer.deserialize_seq(GenericFiltersVisitor)
-}
-
-fn serialize_generic_filters<S>(
-    index_map: &IndexMap<String, GenericFilterConfig>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut seq = serializer.serialize_seq(Some(index_map.len()))?;
-    for (_, filter) in index_map.iter() {
-        seq.serialize_element(filter)?;
+    pub fn serialize<S>(
+        index_map: &IndexMap<String, GenericFilterConfig>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(index_map.len()))?;
+        for filter in index_map.values() {
+            seq.serialize_element(filter)?;
+        }
+        seq.end()
     }
-    seq.end()
 }
 
 /// Configuration for all event filters from project configs.
@@ -487,7 +532,7 @@ impl ProjectFiltersConfig {
 /// See [`DynamicFiltersConfigIter`] for details on how to iterate easily
 /// through the applicable filters.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct DynamicFiltersConfig<'a> {
+pub(crate) struct DynamicGenericFiltersConfig<'a> {
     /// Configuration of generic filters from project configs.
     project_filters: &'a GenericFiltersConfig,
     /// Configuration of generic filters from global config.
@@ -495,30 +540,30 @@ pub(crate) struct DynamicFiltersConfig<'a> {
     /// Maximum supported version for generic filters.
     ///
     /// It applies to all filters, from both project and global configs.
-    max_version: u16,
+    supported_version: u16,
 }
 
-impl<'a> DynamicFiltersConfig<'a> {
+impl<'a> DynamicGenericFiltersConfig<'a> {
     /// Creates a [`DynamicFiltersConfig`] from the project and global configs.
     pub fn new(
         project_filters: &'a GenericFiltersConfig,
         global_filters: Option<&'a GenericFiltersConfig>,
-        max_version: u16,
+        supported_version: u16,
     ) -> Self {
-        DynamicFiltersConfig {
+        DynamicGenericFiltersConfig {
             project_filters,
             global_filters,
-            max_version,
+            supported_version,
         }
     }
 }
 
-impl<'a> IntoIterator for DynamicFiltersConfig<'a> {
+impl<'a> IntoIterator for DynamicGenericFiltersConfig<'a> {
     type Item = &'a GenericFilterConfig;
-    type IntoIter = DynamicFiltersConfigIter<'a>;
+    type IntoIter = DynamicGenericFiltersConfigIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        DynamicFiltersConfigIter::new(self)
+        DynamicGenericFiltersConfigIter::new(self)
     }
 }
 
@@ -542,21 +587,21 @@ impl<'a> IntoIterator for DynamicFiltersConfig<'a> {
 ///   - If `is_enabled` is false, no filters with the same IDs are returned,
 ///   including matching filters from global configs.
 #[derive(Debug)]
-pub(crate) struct DynamicFiltersConfigIter<'a> {
+pub(crate) struct DynamicGenericFiltersConfigIter<'a> {
     /// Configuration of project and global filters.
-    config: DynamicFiltersConfig<'a>,
+    config: DynamicGenericFiltersConfig<'a>,
     /// Index of the next filter in project config to evaluate.
     project_index: usize,
     /// Index of the next filter in global config to evaluate.
     global_index: usize,
     /// Filters that have been evaluated, either yielded or ignored.
-    evaluated: HashSet<&'a String>,
+    evaluated: HashSet<&'a str>,
 }
 
-impl<'a> DynamicFiltersConfigIter<'a> {
+impl<'a> DynamicGenericFiltersConfigIter<'a> {
     /// Creates an iterator over the filters in [`DynamicFiltersConfig`].
-    pub fn new(config: DynamicFiltersConfig<'a>) -> Self {
-        DynamicFiltersConfigIter {
+    pub fn new(config: DynamicGenericFiltersConfig<'a>) -> Self {
+        DynamicGenericFiltersConfigIter {
             config,
             project_index: 0,
             global_index: 0,
@@ -565,7 +610,7 @@ impl<'a> DynamicFiltersConfigIter<'a> {
     }
 }
 
-impl<'a> DynamicFiltersConfigIter<'a> {
+impl<'a> DynamicGenericFiltersConfigIter<'a> {
     /// Returns whether the inbound filters support the maximum version.
     ///
     /// Filters are supported if the versions of filters of both project and
@@ -576,15 +621,11 @@ impl<'a> DynamicFiltersConfigIter<'a> {
     /// filtering. Additionally, new versions may include features not supported
     /// in the current Relay.
     fn is_version_supported(&self) -> bool {
-        if self.config.max_version < self.config.project_filters.version {
-            return false;
-        }
-        if let Some(gc) = self.config.global_filters {
-            if self.config.max_version < gc.version {
-                return false;
-            }
-        }
-        true
+        self.config.project_filters.version <= self.config.supported_version
+            && self
+                .config
+                .global_filters
+                .map_or(true, |gf| gf.version <= self.config.supported_version)
     }
 
     fn next_project_filter(&mut self) -> Option<&'a GenericFilterConfig> {
@@ -597,26 +638,20 @@ impl<'a> DynamicFiltersConfigIter<'a> {
             return None;
         };
         self.project_index += 1;
+        self.evaluated.insert(id);
 
-        // Mark the filter as evaluated first. If the filter is disabled, it
-        // should not be applied from global configs.
-        let newly_evaluated = self.evaluated.insert(id);
-
-        if !filter.is_enabled || !newly_evaluated {
+        if !filter.is_enabled {
             return None;
         }
 
-        if filter.condition.is_none() {
-            let Some(global_filters) = self.config.global_filters else {
-                return None;
-            };
-            let Some(filter) = global_filters.filters.get(id) else {
-                return None;
-            };
-            return Some(filter);
+        if filter.condition.is_some() {
+            Some(filter)
+        } else {
+            self.config
+                .global_filters
+                .and_then(|config| config.filters.get(id))
+                .filter(|filter| filter.condition.is_some())
         }
-
-        Some(filter)
     }
 
     fn next_global_filter(&mut self) -> Option<&'a GenericFilterConfig> {
@@ -632,16 +667,11 @@ impl<'a> DynamicFiltersConfigIter<'a> {
             return None;
         }
 
-        let newly_added = self.evaluated.insert(id);
-        if !newly_added {
-            return None;
-        }
-
-        Some(filter)
+        self.evaluated.insert(id).then_some(filter)
     }
 }
 
-impl<'a> Iterator for DynamicFiltersConfigIter<'a> {
+impl<'a> Iterator for DynamicGenericFiltersConfigIter<'a> {
     type Item = &'a GenericFilterConfig;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -679,6 +709,8 @@ impl<'a> Iterator for DynamicFiltersConfigIter<'a> {
         }
     }
 }
+
+impl<'a> FusedIterator for DynamicGenericFiltersConfigIter<'a> {}
 
 #[cfg(test)]
 mod tests {
@@ -981,7 +1013,7 @@ mod tests {
         project.version = 2;
         let global = enabled_filter("supported-global");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -991,7 +1023,7 @@ mod tests {
         let mut project = enabled_filter("unsupported-project");
         project.version = 2;
         assert_filters!(
-            DynamicFiltersConfig::new(&project, None, 1),
+            DynamicGenericFiltersConfig::new(&project, None, 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1002,7 +1034,7 @@ mod tests {
         let mut global = enabled_filter("unsupported-global");
         global.version = 2;
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1014,7 +1046,7 @@ mod tests {
         let mut global = enabled_filter("unsupported-global");
         global.version = 2;
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1024,7 +1056,7 @@ mod tests {
         let project = enabled_filter("supported-project");
         let global = enabled_filter("supported-global");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [
                 project.filters.first().unwrap().1,
                 global.filters.first().unwrap().1
@@ -1034,11 +1066,21 @@ mod tests {
     }
 
     #[test]
+    fn test_no_combined_duplicates_when_both_enabled() {
+        let project = enabled_filter("filter");
+        let global = enabled_filter("filter");
+        assert_filters!(
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
+            [project.filters.first().unwrap().1,].into_iter()
+        );
+    }
+
+    #[test]
     fn test_no_combined_filters_when_no_filters() {
         let project = empty_filter();
         let global = empty_filter();
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1048,7 +1090,7 @@ mod tests {
         let project = empty_filter();
         let global = disabled_filter("disabled-global");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1058,7 +1100,7 @@ mod tests {
         let project = empty_filter();
         let global = enabled_filter("enabled-global");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [global.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1068,7 +1110,7 @@ mod tests {
         let project = empty_filter();
         let global = enabled_flag_filter("skip");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1078,7 +1120,7 @@ mod tests {
         let project = disabled_filter("disabled-project");
         let global = empty_filter();
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1086,7 +1128,7 @@ mod tests {
     fn test_no_combined_when_disabled_project_filters_missing_global() {
         let project = disabled_filter("disabled-project");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, None, 1),
+            DynamicGenericFiltersConfig::new(&project, None, 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1096,7 +1138,17 @@ mod tests {
         let project = disabled_filter("disabled-project");
         let global = disabled_filter("disabled-global");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
+            iter::empty::<&GenericFilterConfig>()
+        );
+    }
+
+    #[test]
+    fn test_no_combined_duplicates_when_both_disabled() {
+        let project = disabled_filter("filter");
+        let global = disabled_filter("filter");
+        assert_filters!(
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1106,7 +1158,7 @@ mod tests {
         let project = disabled_filter("filter");
         let global = enabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1116,7 +1168,7 @@ mod tests {
         let project = enabled_flag_filter("filter");
         let global = empty_filter();
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1125,7 +1177,7 @@ mod tests {
     fn test_no_combined_when_enabled_flag_project_missing_global() {
         let project = enabled_flag_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, None, 1),
+            DynamicGenericFiltersConfig::new(&project, None, 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1135,7 +1187,7 @@ mod tests {
         let project = disabled_flag_filter("filter");
         let global = empty_filter();
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1144,7 +1196,7 @@ mod tests {
     fn test_no_combined_when_disabled_flag_project_missing_global() {
         let project = disabled_flag_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, None, 1),
+            DynamicGenericFiltersConfig::new(&project, None, 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1154,7 +1206,7 @@ mod tests {
         let project = enabled_filter("enabled-project");
         let global = empty_filter();
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [project.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1163,7 +1215,7 @@ mod tests {
     fn test_project_combined_when_only_project_enabled_missing_global() {
         let project = enabled_filter("enabled-project");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, None, 1),
+            DynamicGenericFiltersConfig::new(&project, None, 1),
             [project.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1173,7 +1225,7 @@ mod tests {
         let project = enabled_filter("filter");
         let global = disabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [project.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1183,7 +1235,7 @@ mod tests {
         let project = disabled_flag_filter("filter");
         let global = disabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1193,7 +1245,7 @@ mod tests {
         let project = enabled_filter("filter");
         let global = disabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [project.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1203,7 +1255,7 @@ mod tests {
         let project = enabled_flag_filter("filter");
         let global = enabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [global.filters.first().unwrap().1].into_iter()
         );
     }
@@ -1213,7 +1265,7 @@ mod tests {
         let project = disabled_flag_filter("filter");
         let global = enabled_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             iter::empty::<&GenericFilterConfig>()
         );
     }
@@ -1223,8 +1275,18 @@ mod tests {
         let project = enabled_filter("filter");
         let global = enabled_flag_filter("filter");
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [project.filters.first().unwrap().1].into_iter()
+        );
+    }
+
+    #[test]
+    fn test_no_combined_when_enabled_flags_project_and_global() {
+        let project = enabled_flag_filter("filter");
+        let global = enabled_flag_filter("filter");
+        assert_filters!(
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
+            iter::empty::<&GenericFilterConfig>()
         );
     }
 
@@ -1289,7 +1351,7 @@ mod tests {
             ]),
         };
         assert_filters!(
-            DynamicFiltersConfig::new(&project, Some(&global), 1),
+            DynamicGenericFiltersConfig::new(&project, Some(&global), 1),
             [
                 &project.filters[0], // id=0, picked from project
                 &global.filters[0],  // id=1, picked from global through the project's flag
