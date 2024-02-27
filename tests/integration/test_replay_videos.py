@@ -1,4 +1,4 @@
-from .test_replay_events import generate_replay_sdk_event
+from .test_replay_events import generate_replay_sdk_event, assert_replay_payload_matches
 from .test_replay_recordings import recording_payload
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -11,6 +11,7 @@ def test_replay_recording_with_video(
     relay_with_processing,
     replay_recordings_consumer,
     outcomes_consumer,
+    replay_events_consumer,
 ):
     project_id = 42
     org_id = 0
@@ -19,13 +20,15 @@ def test_replay_recording_with_video(
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
+    replay = generate_replay_sdk_event(replay_id)
+    replay_events_consumer = replay_events_consumer(timeout=10)
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
     _recording_payload = recording_payload(b"[]")
     payload = msgpack.packb(
         {
-            "replay_event": json.dumps(generate_replay_sdk_event(replay_id)).encode(),
+            "replay_event": json.dumps(replay).encode(),
             "replay_recording": _recording_payload,
             "replay_video": b"hello, world!",
         }
@@ -66,4 +69,10 @@ def test_replay_recording_with_video(
     assert replay_event["type"] == "replay_event"
     assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
 
+    replay_event, _ = replay_events_consumer.get_replay_event()
+    assert_replay_payload_matches(replay, replay_event)
+
+    # Assert all conumers are empty.
+    replay_recordings_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+    replay_events_consumer.assert_empty()
