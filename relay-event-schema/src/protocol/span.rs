@@ -264,6 +264,11 @@ pub struct SpanData {
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
+    /// Origin Transaction name of the span.
+    ///
+    /// For INP spans, this is the route name where the interaction occurred.
+    pub transaction: Annotated<String>,
+
     /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
     pub ui_component_name: Annotated<Value>,
@@ -307,7 +312,7 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.value()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
-
+            "transaction" => self.transaction.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -554,6 +559,7 @@ mod tests {
             server_address: ~,
             http_response_status_code: ~,
             thread_name: ~,
+            transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
             other: {

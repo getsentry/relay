@@ -1610,7 +1610,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
 
     for span in spans:
         span.pop("received", None)
@@ -2022,19 +2022,27 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=1))
 
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
 
 
 def test_span_ingestion_with_performance_scores(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
+    mini_sentry, relay_with_processing, spans_consumer, metrics_consumer
 ):
     spans_consumer = spans_consumer()
-    relay = relay_with_processing()
+    metrics_consumer = metrics_consumer()
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            }
+        }
+    )
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -2055,13 +2063,30 @@ def test_span_ingestion_with_performance_scores(
                     "value": "Python Requests",
                 },
             },
+            {
+                "name": "Desktop INP",
+                "scoreComponents": [
+                    {"measurement": "inp", "weight": 1.0, "p10": 200, "p50": 400},
+                ],
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Python Requests",
+                },
+            },
         ],
     }
     project_config["config"]["features"] = [
         "organizations:performance-calculate-score-relay",
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
+    ]
+    project_config["config"]["txNameRules"] = [
+        {
+            "pattern": "**/interaction/*/**",
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
     ]
 
     duration = timedelta(milliseconds=500)
@@ -2094,9 +2119,33 @@ def test_span_ingestion_with_performance_scores(
             ),
         )
     )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "data": {
+                            "transaction": "/page/with/click/interaction/jane/123"
+                        },
+                        "op": "ui.interaction.click",
+                        "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "inp": {"value": 100},
+                        },
+                    },
+                ).encode()
+            ),
+        )
+    )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0))
+    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=2))
 
     for span in spans:
         span.pop("received", None)
@@ -2135,6 +2184,28 @@ def test_span_ingestion_with_performance_scores(
                 "lcp": {"value": 400.0},
                 "ttfb": {"value": 500.0},
                 "score.cls": {"value": 0.0},
+            },
+        },
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "bd429c44b67a3eb1",
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "ui.interaction.click",
+                "transaction": "/page/with/click/interaction/*/*",
+            },
+            "span_id": "bd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "inp": {"value": 100.0},
+                "score.inp": {"value": 0.9948129113413748},
+                "score.total": {"value": 0.9948129113413748},
+                "score.weight.inp": {"value": 1.0},
             },
         },
     ]
