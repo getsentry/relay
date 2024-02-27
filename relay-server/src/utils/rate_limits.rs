@@ -109,6 +109,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Profile => None,
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
+        ItemType::ReplayVideo => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
         ItemType::Span => None,
@@ -209,6 +210,7 @@ impl EnvelopeSummary {
             ItemType::Profile => &mut self.profile_quantity,
             ItemType::ReplayEvent => &mut self.replay_quantity,
             ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::ReplayVideo => &mut self.replay_quantity,
             ItemType::CheckIn => &mut self.checkin_quantity,
             _ => return,
         };
