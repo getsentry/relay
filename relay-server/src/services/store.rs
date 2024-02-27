@@ -276,7 +276,7 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         retention,
-                        item.payload(),
+                        &item.payload(),
                     )?;
                 }
                 ItemType::CheckIn => self.produce_check_in(
@@ -824,7 +824,7 @@ impl StoreService {
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
-        payload: Bytes,
+        payload: &[u8],
     ) -> Result<(), StoreError> {
         let message = ReplayEventKafkaMessage {
             replay_id,
@@ -953,7 +953,7 @@ impl StoreService {
             scoping.project_id,
             start_time,
             retention,
-            Bytes::copy_from_slice(replay_event),
+            replay_event,
         )?;
 
         self.produce_replay_recording(
@@ -1254,9 +1254,9 @@ struct EventKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct ReplayEventKafkaMessage {
+struct ReplayEventKafkaMessage<'a> {
     /// Raw event payload.
-    payload: Bytes,
+    payload: &'a [u8],
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
@@ -1612,7 +1612,7 @@ enum KafkaMessage<'a> {
         message: MetricKafkaMessage<'a>,
     },
     Profile(ProfileKafkaMessage),
-    ReplayEvent(ReplayEventKafkaMessage),
+    ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
