@@ -12,7 +12,7 @@ use crate::{CogsMeasurement, CogsRecorder, Value};
 /// The collector is cheap to clone.
 #[derive(Clone)]
 pub struct Cogs {
-    consumer: Arc<dyn CogsRecorder>,
+    recorder: Arc<dyn CogsRecorder>,
 }
 
 impl Cogs {
@@ -22,7 +22,7 @@ impl Cogs {
         T: CogsRecorder + 'static,
     {
         Self {
-            consumer: Arc::new(recorder),
+            recorder: Arc::new(recorder),
         }
     }
 
@@ -48,7 +48,7 @@ impl Cogs {
             resource,
             features: features.into(),
             start: Instant::now(),
-            consumer: Arc::clone(&self.consumer),
+            recorder: Arc::clone(&self.recorder),
         }
     }
 }
@@ -61,7 +61,7 @@ pub struct CogsToken {
     resource: ResourceId,
     features: AppFeatures,
     start: Instant,
-    consumer: Arc<dyn CogsRecorder>,
+    recorder: Arc<dyn CogsRecorder>,
 }
 
 impl CogsToken {
@@ -83,7 +83,7 @@ impl Drop for CogsToken {
 
         for (feature, ratio) in self.features.weights() {
             let time = elapsed.div_f32(ratio);
-            self.consumer.record(CogsMeasurement {
+            self.recorder.record(CogsMeasurement {
                 resource: self.resource,
                 feature,
                 value: Value::Time(time),
