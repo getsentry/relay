@@ -342,6 +342,24 @@ impl ProcessingGroup {
     }
 }
 
+impl From<ProcessingGroup> for AppFeature {
+    fn from(value: ProcessingGroup) -> Self {
+        match value {
+            ProcessingGroup::Transaction => AppFeature::Transactions,
+            ProcessingGroup::Error => AppFeature::Errors,
+            ProcessingGroup::Session => AppFeature::Sessions,
+            ProcessingGroup::Standalone => AppFeature::UnattributedProcessing,
+            ProcessingGroup::ClientReport => AppFeature::ClientReports,
+            ProcessingGroup::Replay => AppFeature::Replays,
+            ProcessingGroup::CheckIn => AppFeature::CheckIns,
+            ProcessingGroup::Span => AppFeature::Spans,
+            ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
+            ProcessingGroup::ForwardUnknown => AppFeature::UnattributedProcessing,
+            ProcessingGroup::Ungrouped => AppFeature::UnattributedProcessing,
+        }
+    }
+}
+
 /// An error returned when handling [`ProcessEnvelope`].
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessingError {
@@ -2365,20 +2383,7 @@ impl EnvelopeProcessorService {
 
     fn app_features(&self, message: &EnvelopeProcessor) -> AppFeatures {
         match message {
-            EnvelopeProcessor::ProcessEnvelope(v) => match v.envelope.group() {
-                ProcessingGroup::Transaction => AppFeature::Transactions,
-                ProcessingGroup::Error => AppFeature::Errors,
-                ProcessingGroup::Session => AppFeature::Sessions,
-                ProcessingGroup::Standalone => AppFeature::UnattributedProcessing,
-                ProcessingGroup::ClientReport => AppFeature::ClientReports,
-                ProcessingGroup::Replay => AppFeature::Replays,
-                ProcessingGroup::CheckIn => AppFeature::CheckIns,
-                ProcessingGroup::Span => AppFeature::Spans,
-                ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
-                ProcessingGroup::ForwardUnknown => AppFeature::UnattributedProcessing,
-                ProcessingGroup::Ungrouped => AppFeature::UnattributedProcessing,
-            }
-            .into(),
+            EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::ProcessMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessMetricMeta(_) => AppFeature::MetricMeta.into(),
@@ -2396,7 +2401,7 @@ impl EnvelopeProcessorService {
                 })
                 .fold(AppFeatures::none(), AppFeatures::merge),
             EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
-            EnvelopeProcessor::SubmitEnvelope(_) => todo!(),
+            EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
             EnvelopeProcessor::RateLimitBuckets(v) => {
                 relay_metrics::cogs::ByCount(v.bucket_limiter.metrics()).into()

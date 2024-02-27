@@ -14,7 +14,7 @@ bytecount = "0.6.0"
 chrono = { workspace = true, features = ["clock"] }
 cookie = { version = "0.17.0", features = ["percent-encode"] }
 debugid = { version = "0.8.0", features = ["serde"] }
-enumset = { workspace = true } 
+enumset = "1.0.4"
 relay-common = { path = "../relay-common" }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-event-derive = { path = "../relay-event-derive" }
