@@ -54,6 +54,7 @@ impl CogsService {
         #[cfg(feature = "processing")]
         let producer = store
             .map(RelayProducer::Store)
+            .filter(|_| config.cogs_enabled())
             .unwrap_or(RelayProducer::Noop);
 
         #[cfg(not(feature = "processing"))]
