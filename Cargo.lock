@@ -4698,10 +4698,9 @@ dependencies = [
 [[package]]
 name = "sentry_usage_accountant"
 version = "0.0.4"
-source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=477434e#477434e7c60b7a925fd3220ffce6c6caa6cd1ae8"
+source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=1035797#1035797c2b3eea6934f786217ef34cf39bd6a03f"
 dependencies = [
  "chrono",
- "rdkafka",
  "serde",
  "serde_json",
  "thiserror",

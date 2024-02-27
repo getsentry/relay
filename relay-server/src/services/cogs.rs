@@ -32,10 +32,10 @@ enum RelayProducer {
 impl Producer for RelayProducer {
     type Error = std::convert::Infallible;
 
-    fn send(&mut self, message: sentry_usage_accountant::Message) -> Result<(), Self::Error> {
+    fn send(&mut self, payload: Vec<u8>) -> Result<(), Self::Error> {
         match self {
             #[cfg(feature = "processing")]
-            Self::Store(addr) => addr.send(StoreCogs(message)),
+            Self::Store(addr) => addr.send(StoreCogs(payload)),
             Self::Noop => {}
         }
 

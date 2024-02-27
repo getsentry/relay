@@ -98,7 +98,7 @@ pub struct StoreMetrics {
 }
 
 #[derive(Debug)]
-pub struct StoreCogs(pub sentry_usage_accountant::Message);
+pub struct StoreCogs(pub Vec<u8>);
 
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
@@ -397,8 +397,8 @@ impl StoreService {
         }
     }
 
-    fn handle_store_cogs(&self, StoreCogs(message): StoreCogs) {
-        let message = KafkaMessage::Cogs(CogsKafkaMessage(message));
+    fn handle_store_cogs(&self, StoreCogs(payload): StoreCogs) {
+        let message = KafkaMessage::Cogs(CogsKafkaMessage(payload));
         if let Err(error) = self.produce(KafkaTopic::Cogs, 0, message) {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
@@ -1534,7 +1534,7 @@ struct MetricsSummaryKafkaMessage<'a> {
 
 #[derive(Debug, Serialize)]
 #[serde(transparent)]
-struct CogsKafkaMessage(sentry_usage_accountant::Message);
+struct CogsKafkaMessage(Vec<u8>);
 
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
@@ -1633,28 +1633,29 @@ impl Message for KafkaMessage<'_> {
     }
 
     /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Vec<u8>, ClientError> {
+    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError> {
         match self {
-            KafkaMessage::Session(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::Metric { message, .. } => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::ReplayEvent(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::Span(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::MetricsSummary(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::Cogs(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
+            KafkaMessage::Session(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Span(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
 
-            _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
+            KafkaMessage::Cogs(CogsKafkaMessage(payload)) => Ok(payload.into()),
+
+            _ => rmp_serde::to_vec_named(&self)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidMsgPack),
         }
     }
 }

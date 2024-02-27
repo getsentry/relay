@@ -24,7 +24,6 @@ processing = [
     "dep:symbolic-unreal",
     "dep:zstd",
     "bytes/serde",
-    "sentry_usage_accountant/kafka",
     "relay-cardinality/redis",
     "relay-config/processing",
     "relay-kafka/producer",
@@ -98,7 +97,7 @@ reqwest = { version = "0.11.1", features = [
 ] }
 rmp-serde = "1.1.1"
 rust-embed = { version = "8.0.0", optional = true }
-sentry_usage_accountant = { git = "https://github.com/getsentry/rust-usage-accountant.git", rev = "477434e" } 
+sentry_usage_accountant = { git = "https://github.com/getsentry/rust-usage-accountant.git", rev = "1035797" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
