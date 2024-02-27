@@ -1240,7 +1240,7 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
-        event::filter(state, self.inner.global_config.current().filters())?;
+        event::filter(state, self.inner.global_config.current())?;
         dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
@@ -1274,8 +1274,7 @@ impl EnvelopeProcessorService {
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
         dynamic_sampling::normalize(state);
-        let global_config = self.inner.global_config.current();
-        event::filter(state, global_config.filters())?;
+        event::filter(state, self.inner.global_config.current())?;
         dynamic_sampling::run(state, &self.inner.config);
 
         // Don't extract metrics if relay can't apply generic inbound filters.
@@ -1283,7 +1282,11 @@ impl EnvelopeProcessorService {
         // need to drop the event, and there should not be metrics from dropped
         // events.
         let supported_generic_filters = relay_filter::are_generic_filters_supported(
-            global_config.filters().map(|f| f.version),
+            self.inner
+                .global_config
+                .current()
+                .filters()
+                .map(|f| f.version),
             state.project_state.config.filter_settings.generic.version,
         );
         // We avoid extracting metrics if we are not sampling the event while in non-processing

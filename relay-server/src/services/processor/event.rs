@@ -1,13 +1,14 @@
 //! Event processor related code.
 
 use std::error::Error;
+use std::sync::Arc;
 
 use chrono::Duration as SignedDuration;
 use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -29,6 +30,7 @@ use {
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
@@ -274,7 +276,7 @@ pub fn finalize<G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
-    global_filters: Option<&GenericFiltersConfig>,
+    global_config: Arc<GlobalConfig>,
 ) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -287,14 +289,13 @@ pub fn filter<G: EventProcessing>(
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings, global_filters).map_err(
-            |err| {
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
                 state
                     .managed_envelope
                     .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
-            },
-        )
+            })
     })
 }
 

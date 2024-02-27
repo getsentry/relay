@@ -336,6 +336,24 @@ impl PartialEq for GenericFilterConfig {
 /// "#);
 /// ```
 ///
+/// Deserialization of no filters defaults to an empty map:
+///
+/// ```
+/// # use relay_filter::GenericFiltersConfig;
+/// # use insta::assert_debug_snapshot;
+///
+/// let json = r#"{
+///     "version": 1
+/// }"#;
+/// let deserialized = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
+/// assert_debug_snapshot!(deserialized, @r#"
+///     GenericFiltersConfig {
+///         version: 1,
+///         filters: {},
+///     }
+/// "#);
+/// ```
+///
 /// Serialization:
 ///
 /// ```
@@ -399,6 +417,7 @@ pub struct GenericFiltersConfig {
     /// The map contains unique filters, meaning there are no two filters with
     /// the same id. See struct docs for more details.
     #[serde(
+        default,
         skip_serializing_if = "IndexMap::is_empty",
         with = "generic_filters_custom_serialization"
     )]
