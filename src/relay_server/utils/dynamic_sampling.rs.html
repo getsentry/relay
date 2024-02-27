@@ -536,7 +536,7 @@
     </span><span class="doccomment">/// Tests that an event is kept when there is a match and we have 100% sample rate.
     </span><span class="kw">fn </span>test_match_rules_return_keep_with_match_and_100_sample_rate() {
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">"bar"</span>, <span class="string">"2.0"</span>);
-        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">1.0</span>)];
+        <span class="kw">let </span>rules = [mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">1.0</span>)];
         <span class="kw">let </span>seed = Uuid::default();
 
         <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
@@ -550,7 +550,7 @@
     </span><span class="doccomment">/// Tests that an event is dropped when there is a match and we have 0% sample rate.
     </span><span class="kw">fn </span>test_match_rules_return_drop_with_match_and_0_sample_rate() {
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">"bar"</span>, <span class="string">"2.0"</span>);
-        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.0</span>)];
+        <span class="kw">let </span>rules = [mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.0</span>)];
         <span class="kw">let </span>seed = Uuid::default();
 
         <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
@@ -564,7 +564,7 @@
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is kept when there is no match.
     </span><span class="kw">fn </span>test_match_rules_return_keep_with_no_match() {
-        <span class="kw">let </span>rules = <span class="macro">vec!</span>[SamplingRule {
+        <span class="kw">let </span>rules = [SamplingRule {
             condition: RuleCondition::eq_ignore_case(<span class="string">"event.transaction"</span>, <span class="string">"foo"</span>),
             sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
             ty: RuleType::Transaction,
@@ -587,7 +587,7 @@
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is kept when there is a trace match and we have 100% sample rate.
     </span><span class="kw">fn </span>test_match_rules_with_traces_rules_return_keep_when_match() {
-        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)];
+        <span class="kw">let </span>rules = [mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)];
         <span class="kw">let </span>dsc = mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">"3.0"</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())

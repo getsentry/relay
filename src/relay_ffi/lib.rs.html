@@ -403,7 +403,7 @@
 <span class="kw">pub use </span>relay_ffi_macros::catch_unwind;
 
 <span class="macro">thread_local! </span>{
-    <span class="kw">static </span>LAST_ERROR: RefCell&lt;<span class="prelude-ty">Option</span>&lt;anyhow::Error&gt;&gt; = RefCell::new(<span class="prelude-val">None</span>);
+    <span class="kw">static </span>LAST_ERROR: RefCell&lt;<span class="prelude-ty">Option</span>&lt;anyhow::Error&gt;&gt; = <span class="kw">const </span>{ RefCell::new(<span class="prelude-val">None</span>) };
 }
 
 <span class="kw">fn </span>set_last_error(err: anyhow::Error) {
