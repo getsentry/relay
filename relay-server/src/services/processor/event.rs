@@ -15,7 +15,6 @@ use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
-use relay_filter::GenericFiltersConfig;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, FromValue, Object, Value};
 use relay_quotas::DataCategory;
@@ -30,7 +29,6 @@ use {
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
