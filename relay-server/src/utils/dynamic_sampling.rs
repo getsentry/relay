@@ -200,7 +200,7 @@ mod tests {
     /// Tests that an event is kept when there is a match and we have 100% sample rate.
     fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
-        let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
+        let rules = [mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
         let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
@@ -214,7 +214,7 @@ mod tests {
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
     fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
-        let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
+        let rules = [mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
         let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     /// Tests that an event is kept when there is no match.
     fn test_match_rules_return_keep_with_no_match() {
-        let rules = vec![SamplingRule {
+        let rules = [SamplingRule {
             condition: RuleCondition::eq_ignore_case("event.transaction", "foo"),
             sampling_value: SamplingValue::SampleRate { value: 0.5 },
             ty: RuleType::Transaction,
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     /// Tests that an event is kept when there is a trace match and we have 100% sample rate.
     fn test_match_rules_with_traces_rules_return_keep_when_match() {
-        let rules = vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)];
+        let rules = [mocked_sampling_rule(1, RuleType::Trace, 1.0)];
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())

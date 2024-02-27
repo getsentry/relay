@@ -1141,7 +1141,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        if let Some(sampling_state) = state.sampling_project_state.as_ref().map(Arc::clone) {
+        if let Some(sampling_state) = state.sampling_project_state.clone() {
             state
                 .envelope_mut()
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
