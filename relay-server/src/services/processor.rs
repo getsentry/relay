@@ -1344,10 +1344,11 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
-                    event::serialize(state)?;
                     if_processing!(self.inner.config, {
                         span::extract_from_event(state);
+                        span::maybe_discard_transaction(state);
                     });
+                    event::serialize(state)?;
                 }
 
                 attachment::scrub(state);

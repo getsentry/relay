@@ -47,6 +47,10 @@ pub enum Feature {
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
 
+    /// Discard transactions in a spans-only world.
+    #[serde(rename = "projects:discard-transaction")]
+    DiscardTransaction,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
     Deprecated1,
