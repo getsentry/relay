@@ -484,6 +484,15 @@
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -723,6 +732,15 @@
     }
 }
 
+<span class="doccomment">/// Removes the transaction in case the project has made the transition to spans-only.
+</span><span class="kw">pub fn </span>maybe_discard_transaction(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
+    <span class="kw">if </span>state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction)
+        &amp;&amp; state.project_state.has_feature(Feature::DiscardTransaction)
+    {
+        state.remove_event();
+        state.managed_envelope.update();
+    }
+}
 <span class="doccomment">/// Config needed to normalize a standalone span.
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">struct </span>NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
