@@ -72,7 +72,7 @@ macro_rules! event_snapshot {
             fn test_processing() {
                 let mut event = load_fixture();
 
-                validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+                validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
                 validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
                 normalize_event(&mut event, &NormalizationConfig::default());
 

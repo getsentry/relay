@@ -149,7 +149,6 @@ impl Processor for TransactionsProcessor<'_> {
 
         set_default_transaction_source(event);
         self.normalize_transaction_name(event);
-        end_all_spans(event);
         if let Some(trace_context) = event.context_mut::<TraceContext>() {
             trace_context.op.get_or_insert_with(|| "default".to_owned());
         }
@@ -335,20 +334,6 @@ fn scrub_identifiers_with_regex(
     });
 }
 
-/// Copies the event's end timestamp into the spans that don't have one.
-fn end_all_spans(event: &mut Event) {
-    let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
-    for span in spans {
-        if let Some(span) = span.value_mut() {
-            if span.timestamp.value().is_none() {
-                // event timestamp guaranteed to be `Some` due to validate_transaction call
-                span.timestamp.set_value(event.timestamp.value().cloned());
-                span.status = Annotated::new(SpanStatus::DeadlineExceeded);
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -360,7 +345,7 @@ mod tests {
     use relay_event_schema::protocol::{ClientSdkInfo, Contexts, Span, SpanId, TraceId};
     use relay_protocol::{assert_annotated_snapshot, get_value};
 
-    use crate::RedactionRule;
+    use crate::{validate_transaction, RedactionRule, TransactionValidationConfig};
 
     use super::*;
 
@@ -451,35 +436,6 @@ mod tests {
             })]),
             ..Default::default()
         })
-    }
-
-    #[test]
-    fn test_replace_missing_timestamp() {
-        let span = Span {
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap().into(),
-            ),
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-            ..Default::default()
-        };
-
-        let mut event = new_test_event().0.unwrap();
-        event.spans = Annotated::new(vec![Annotated::new(span)]);
-
-        TransactionsProcessor::default()
-            .process_event(
-                &mut event,
-                &mut Meta::default(),
-                &ProcessingState::default(),
-            )
-            .unwrap();
-
-        let spans = event.spans;
-        let span = get_value!(spans[0]!);
-
-        assert_eq!(span.timestamp, event.timestamp);
-        assert_eq!(span.status.value().unwrap(), &SpanStatus::DeadlineExceeded);
     }
 
     #[test]
@@ -590,6 +546,7 @@ mod tests {
         })
         .unwrap();
 
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         process_value(
             &mut event,
             &mut TransactionsProcessor::default(),

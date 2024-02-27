@@ -84,9 +84,9 @@ impl Cli {
         }
 
         if self.store {
-            validate_transaction(&event, &TransactionValidationConfig::default())
-                .map_err(|e| format_err!("{e}"))?;
             validate_event_timestamps(&mut event, &EventValidationConfig::default())
+                .map_err(|e| format_err!("{e}"))?;
+            validate_transaction(&mut event, &TransactionValidationConfig::default())
                 .map_err(|e| format_err!("{e}"))?;
             normalize_event(&mut event, &NormalizationConfig::default());
             let mut processor = StoreProcessor::new(StoreConfig::default());

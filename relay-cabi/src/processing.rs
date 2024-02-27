@@ -113,17 +113,17 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let config = (*processor).config();
 
-    let tx_validation_config = TransactionValidationConfig {
-        timestamp_range: None, // only supported in relay
-    };
-    validate_transaction(&event, &tx_validation_config)?;
-
     let event_validation_config = EventValidationConfig {
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
     };
     validate_event_timestamps(&mut event, &event_validation_config)?;
+
+    let tx_validation_config = TransactionValidationConfig {
+        timestamp_range: None, // only supported in relay
+    };
+    validate_transaction(&mut event, &tx_validation_config)?;
 
     let normalization_config = NormalizationConfig {
         client_ip: config.client_ip.as_ref(),
