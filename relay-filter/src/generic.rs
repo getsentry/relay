@@ -52,7 +52,7 @@ pub(crate) fn should_filter(
 
 /// Configuration of generic filters combined from project and global config.
 ///
-/// See [`DynamicFiltersConfigIter`] for details on how to iterate easily
+/// See [`DynamicGenericFiltersConfigIter`] for details on how to iterate easily
 /// through the applicable filters.
 #[derive(Copy, Clone, Debug)]
 struct DynamicGenericFiltersConfig<'a> {
@@ -67,7 +67,7 @@ struct DynamicGenericFiltersConfig<'a> {
 }
 
 impl<'a> DynamicGenericFiltersConfig<'a> {
-    /// Creates a [`DynamicFiltersConfig`] from the project and global configs.
+    /// Creates a [`DynamicGenericFiltersConfig`] from the project and global configs.
     pub fn new(
         project_filters: &'a GenericFiltersConfig,
         global_filters: Option<&'a GenericFiltersConfig>,
@@ -122,7 +122,7 @@ struct DynamicGenericFiltersConfigIter<'a> {
 }
 
 impl<'a> DynamicGenericFiltersConfigIter<'a> {
-    /// Creates an iterator over the filters in [`DynamicFiltersConfig`].
+    /// Creates an iterator over the filters in [`DynamicGenericFiltersConfig`].
     pub fn new(config: DynamicGenericFiltersConfig<'a>) -> Self {
         DynamicGenericFiltersConfigIter {
             config,
