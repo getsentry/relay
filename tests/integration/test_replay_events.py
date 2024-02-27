@@ -1,4 +1,3 @@
-import json
 import uuid
 
 
@@ -116,6 +115,7 @@ def test_replay_event_with_processing(
     relay.send_replay_event(42, replay)
 
     replay_event, replay_event_message = replay_events_consumer.get_replay_event()
+    assert replay_event_message["retention_days"] == 90
     assert_replay_payload_matches(replay, replay_event)
 
 
