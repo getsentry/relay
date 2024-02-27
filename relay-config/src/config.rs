@@ -823,12 +823,12 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
 
 /// Default for min connections to keep open in the pool.
 fn spool_envelopes_min_connections() -> u32 {
-    10
+    1
 }
 
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
-    20
+    1
 }
 
 /// Default interval to unspool buffered envelopes, 100ms.
