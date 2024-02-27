@@ -180,9 +180,7 @@ class ConsumerBase:
         self.test_producer.produce(self.topic_name, message)
         self.test_producer.flush(timeout=5)
 
-        print(timeout)
         rv = self.poll(timeout=timeout)
-        print(rv)
         assert rv.error() is None
         assert rv.value() == message, rv.value()
 
