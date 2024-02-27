@@ -2537,8 +2537,8 @@
         .unwrap();
 
         <span class="comment">// Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        </span>validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
-        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        </span>validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
 
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,

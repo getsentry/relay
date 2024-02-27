@@ -536,17 +536,17 @@
     <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
     <span class="kw">let </span>config = (<span class="kw-2">*</span>processor).config();
 
-    <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
-        timestamp_range: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
-    </span>};
-    validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>tx_validation_config)<span class="question-mark">?</span>;
-
     <span class="kw">let </span>event_validation_config = EventValidationConfig {
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
     };
     validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>event_validation_config)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
+        timestamp_range: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
+    </span>};
+    validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>tx_validation_config)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>normalization_config = NormalizationConfig {
         client_ip: config.client_ip.as_ref(),

@@ -215,9 +215,9 @@
         }
 
         <span class="kw">if </span><span class="self">self</span>.store {
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default())
-                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">"{e}"</span>))<span class="question-mark">?</span>;
             validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default())
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">"{e}"</span>))<span class="question-mark">?</span>;
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default())
                 .map_err(|e| <span class="macro">format_err!</span>(<span class="string">"{e}"</span>))<span class="question-mark">?</span>;
             normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
             <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreProcessor::new(StoreConfig::default());

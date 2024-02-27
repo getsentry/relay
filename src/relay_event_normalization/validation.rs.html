@@ -739,6 +739,104 @@
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
@@ -773,10 +871,10 @@
 /// Note: this function does not validate a transaction's timestamp values are
 /// up-to-date, [`validate_event_timestamps`] should be used for that.
 </span><span class="kw">pub fn </span>validate_transaction(
-    event: <span class="kw-2">&amp;</span>Annotated&lt;Event&gt;,
+    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     config: <span class="kw-2">&amp;</span>TransactionValidationConfig,
 ) -&gt; ProcessingResult {
-    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref </span>event), <span class="kw-2">ref </span>_meta) = event <span class="kw">else </span>{
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref </span>_meta) = event <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     };
     <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
@@ -787,7 +885,8 @@
     validate_trace_context(event)<span class="question-mark">?</span>;
     <span class="comment">// There are no timestamp range requirements for span timestamps.
     // Transaction will be rejected only if either end or start timestamp is missing.
-    </span>validate_spans(event, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+    </span>end_all_spans(event);
+    validate_spans(event, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }
@@ -872,6 +971,21 @@
     }
 
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Copies the event's end timestamp into the spans that don't have one.
+</span><span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(Vec::new);
+    <span class="kw">for </span>span <span class="kw">in </span>spans {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {
+            <span class="kw">if </span>span.timestamp.value().is_none() {
+                <span class="comment">// event timestamp guaranteed to be `Some` due to validate_transaction call
+                </span>span.timestamp.set_value(event.timestamp.value().cloned());
+                span.status =
+                    Annotated::new(relay_base_schema::spans::SpanStatus::DeadlineExceeded);
+            }
+        }
+    }
 }
 
 <span class="doccomment">/// Validates the spans in the transaction.
@@ -970,8 +1084,9 @@
 /// checking for validity, like clock drift correction. This normalization
 /// depends on the given configuration.
 ///
-/// Validation is checked individually on timestamps. Use
-/// [`validate_transaction`] to perform additional transaction-specific checks.
+/// Validation is checked individually on timestamps. For transaction events,
+/// [`validate_transaction`] should run after this method to perform additional
+/// transaction-specific checks.
 ///
 /// The returned [`ProcessingResult`] indicates whether the event is invalid and
 /// thus should be dropped.
@@ -1061,8 +1176,9 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>chrono::TimeZone;
+    <span class="kw">use </span>relay_base_schema::spans::SpanStatus;
     <span class="kw">use </span>relay_event_schema::protocol::{Contexts, SpanId, TraceId};
-    <span class="kw">use </span>relay_protocol::Object;
+    <span class="kw">use </span>relay_protocol::{get_value, Object};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1098,13 +1214,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_when_missing_timestamp() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"timestamp hard-required for transaction events"
             </span>))
@@ -1113,11 +1229,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_when_timestamp_out_of_range() {
-        <span class="kw">let </span>event = new_test_event();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             validate_transaction(
-                <span class="kw-2">&amp;</span>event,
+                <span class="kw-2">&amp;mut </span>event,
                 <span class="kw-2">&amp;</span>TransactionValidationConfig {
                     timestamp_range: <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
                 }
@@ -1130,14 +1246,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_when_missing_start_timestamp() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"start_timestamp hard-required for transaction events"
             </span>))
@@ -1146,7 +1262,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_on_missing_contexts_map() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1157,7 +1273,7 @@
 
         <span class="macro">assert_eq!</span>(
             validate_transaction(
-                <span class="kw-2">&amp;</span>event,
+                <span class="kw-2">&amp;mut </span>event,
                 <span class="kw-2">&amp;</span>TransactionValidationConfig {
                     timestamp_range: <span class="prelude-val">None
                 </span>}
@@ -1170,7 +1286,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_on_missing_context() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1182,7 +1298,7 @@
 
         <span class="macro">assert_eq!</span>(
             validate_transaction(
-                <span class="kw-2">&amp;</span>event,
+                <span class="kw-2">&amp;mut </span>event,
                 <span class="kw-2">&amp;</span>TransactionValidationConfig {
                     timestamp_range: <span class="prelude-val">None
                 </span>}
@@ -1195,7 +1311,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_on_null_context() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1210,7 +1326,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"missing valid trace context"
             </span>))
@@ -1219,7 +1335,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_on_missing_trace_id_in_context() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1234,7 +1350,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"trace context is missing trace_id"
             </span>))
@@ -1243,7 +1359,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_on_missing_span_id_in_context() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1261,7 +1377,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"trace context is missing span_id"
             </span>))
@@ -1270,7 +1386,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_transaction_event_with_nulled_out_span() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1291,7 +1407,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"spans must be valid in transaction event"
             </span>))
@@ -1300,7 +1416,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_start_timestamp() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1326,7 +1442,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing start_timestamp"
             </span>))
@@ -1335,7 +1451,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_trace_id() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1364,7 +1480,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing trace_id"
             </span>))
@@ -1373,7 +1489,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_span_id() {
-        <span class="kw">let </span>event = Annotated::new(Event {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -1403,7 +1519,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing span_id"
             </span>))
@@ -1477,6 +1593,86 @@
                 .to_string(),
             <span class="string">"invalid transaction event: timestamp is too stale"
         </span>);
+    }
+
+    <span class="doccomment">/// Validates an unfinished span in a transaction, and the transaction is accepted.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_accept_transactions_with_unfinished_spans() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+
+        <span class="macro">assert!</span>(validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).is_ok());
+
+        <span class="kw">let </span>event = <span class="macro">get_value!</span>(<span class="macro">event!</span>);
+        <span class="kw">let </span>spans = <span class="kw-2">&amp;</span>event.spans;
+        <span class="kw">let </span>span = <span class="macro">get_value!</span>(spans[<span class="number">0</span>]!);
+
+        <span class="macro">assert_eq!</span>(span.timestamp, event.timestamp);
+        <span class="macro">assert_eq!</span>(span.status.value().unwrap(), <span class="kw-2">&amp;</span>SpanStatus::DeadlineExceeded);
+    }
+
+    <span class="doccomment">/// Validates an unfinished span is finished with the normalized transaction's timestamp.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_finish_spans_with_normalized_transaction_end_timestamp() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 946731000,
+  "timestamp": 946731555,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 946731000,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+
+        validate_event_timestamps(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;</span>EventValidationConfig {
+                received_at: <span class="prelude-val">Some</span>(Utc::now()),
+                max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+                max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            },
+        )
+        .unwrap();
+        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
+
+        <span class="kw">let </span>event = <span class="macro">get_value!</span>(<span class="macro">event!</span>);
+        <span class="kw">let </span>spans = <span class="kw-2">&amp;</span>event.spans;
+        <span class="kw">let </span>span = <span class="macro">get_value!</span>(spans[<span class="number">0</span>]!);
+
+        <span class="macro">assert_eq!</span>(span.timestamp.value(), event.timestamp.value());
     }
 }
 </code></pre></div></section></main></body></html>

@@ -4339,9 +4339,9 @@
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
-                validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
-                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 validate_event_timestamps(event, <span class="kw-2">&amp;</span>event_validation_config)
+                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
+                validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
                     .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 normalize_event(event, <span class="kw-2">&amp;</span>normalization_config);
                 <span class="prelude-ty">Result</span>::&lt;(), ProcessingError&gt;::Ok(())
