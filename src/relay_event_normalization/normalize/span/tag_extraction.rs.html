@@ -1502,6 +1502,15 @@
 <a href="#1501" id="1501">1501</a>
 <a href="#1502" id="1502">1502</a>
 <a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1952,6 +1961,15 @@
                 </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
                     span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                }
+            }
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = span.measurements.value() {
+            <span class="kw">if </span>span_op.starts_with(<span class="string">"ui.interaction."</span>) &amp;&amp; measurements.contains_key(<span class="string">"inp"</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) =
+                    span.data.value().and_then(|data| data.transaction.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Transaction, transaction.into());
                 }
             }
         }

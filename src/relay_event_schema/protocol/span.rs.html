@@ -577,6 +577,12 @@
 <a href="#576" id="576">576</a>
 <a href="#577" id="577">577</a>
 <a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -843,6 +849,11 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
     </span><span class="kw">pub </span>thread_name: Annotated&lt;Value&gt;,
 
+    <span class="doccomment">/// Origin Transaction name of the span.
+    ///
+    /// For INP spans, this is the route name where the interaction occurred.
+    </span><span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Name of the UI component (e.g. React).
     </span><span class="attr">#[metastructure(field = <span class="string">"ui.component_name"</span>)]
     </span><span class="kw">pub </span>ui_component_name: Annotated&lt;Value&gt;,
@@ -886,7 +897,7 @@
             <span class="string">"thread\\.name" </span>=&gt; <span class="self">self</span>.thread_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"ui\\.component_name" </span>=&gt; <span class="self">self</span>.ui_component_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"url\\.scheme" </span>=&gt; <span class="self">self</span>.url_scheme.value()<span class="question-mark">?</span>.into(),
-
+            <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.transaction.as_str()<span class="question-mark">?</span>.into(),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>escaped = path.replace(<span class="string">"\\."</span>, <span class="string">"\0"</span>);
                 <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">'.'</span>).map(|s| s.replace(<span class="string">'\0'</span>, <span class="string">"."</span>));
@@ -1133,6 +1144,7 @@
             server_address: ~,
             http_response_status_code: ~,
             thread_name: ~,
+            transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
             other: {
