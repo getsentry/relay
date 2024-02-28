@@ -14,10 +14,10 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, EventId, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -403,14 +403,6 @@ fn normalize(
     };
     normalize_performance_score(&mut event, performance_score);
     span.measurements = event.measurements;
-
-    if span.profile_id.value().is_empty() {
-        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        span.profile_id = match &data.profile_id.value() {
-            Some(Value::String(s)) => Annotated::new(EventId(s.parse().unwrap())),
-            _ => Annotated::empty(),
-        };
-    }
 
     tag_extraction::extract_measurements(span);
 
