@@ -14,7 +14,7 @@ for i in "${!project_ids[@]}"; do
   /devinfra/scripts/checks/sentry/release_new_issues.py \
     --project-id="${project_ids[i]}" \
     --project-slug="${project_slugs[i]}" \
-    --release="relay@${GO_REVISION_GETSENTRY_REPO}" \
+    --release="relay@${GO_REVISION_RELAY_REPO}" \
     --new-issues-limit=0 \
     --dry-run="${DRY_RUN}" \
     --single-tenant="${SENTRY_SINGLE_TENANT}" \
