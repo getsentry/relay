@@ -3,7 +3,7 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 
 local canary_region_pops = {
   de: [],
-  us: ['us-pop-1', 'us-pop-regional-1'],
+  us: ['us-pop-1', 'us-pop-2'],
 };
 
 local region_pops = {
