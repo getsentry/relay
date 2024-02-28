@@ -20,6 +20,7 @@
 - Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
 - Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
 - Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
+- Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
 
 ## 24.2.0
 
