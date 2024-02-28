@@ -92,7 +92,7 @@ local deploy_canary(region) =
                 DRY_RUN: 'true',
               },
               tasks: [
-                gocdtasks.script(importstr '../bash/deploy-relay-canary.sh'),
+                gocdtasks.script(importstr '../bash/deploy-processing-canary.sh'),
                 gocdtasks.script(importstr '../bash/wait-canary.sh'),
                 gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
                 gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
@@ -132,7 +132,7 @@ local deploy_primary(region) = [
           timeout: 1200,
           elastic_profile_id: 'relay',
           tasks: [
-            gocdtasks.script(importstr '../bash/deploy-relay.sh'),
+            gocdtasks.script(importstr '../bash/deploy-processing.sh'),
           ],
         },
       },
