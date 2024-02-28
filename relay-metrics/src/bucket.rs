@@ -593,7 +593,7 @@ pub struct Bucket {
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
     /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d_:/@.{}\[\]$-]+/`.
+    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
     ///
     /// # Example
     ///
