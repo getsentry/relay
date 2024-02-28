@@ -20,7 +20,7 @@ metric type:</p>
 reported values.</li>
 <li><a href="enum.BucketValue.html#variant.Gauge" title="variant relay_metrics::BucketValue::Gauge">Gauges</a> store a snapshot of reported values, see <a href="struct.GaugeValue.html" title="struct relay_metrics::GaugeValue"><code>GaugeValue</code></a>.</li>
 </ul>
-<h2 id="submission-protocol"><a href="#submission-protocol">Submission Protocol</a></h2><div class="example-wrap"><pre class="language-text"><code>&lt;name&gt;[@unit]:&lt;value&gt;[:&lt;value&gt;...]|&lt;type&gt;|#&lt;tag_key&gt;:&lt;tag_value&gt;,&lt;tag&gt;|T&lt;timestamp&gt;
+<h2 id="submission-protocol"><a href="#submission-protocol">Submission Protocol</a></h2><div class="example-wrap"><pre class="language-text"><code>&lt;name&gt;[@unit]:&lt;value&gt;[:&lt;value&gt;...]|&lt;type&gt;[|#&lt;tag_key&gt;:&lt;tag_value&gt;,&lt;tag&gt;][|T&lt;timestamp&gt;]
 </code></pre></div>
 <p>See the <a href="struct.Bucket.html#fields" title="struct relay_metrics::Bucket">field documentation</a> for more information on the components. An example
 submission looks like this:</p>
