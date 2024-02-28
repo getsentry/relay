@@ -574,6 +574,9 @@ mod tests {
             transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
+            profile_id: ~,
+            user: ~,
+            replay_id: ~,
             other: {
                 "bar": String(
                     "3",
