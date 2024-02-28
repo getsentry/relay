@@ -32,6 +32,8 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     BrowserName,
+    SdkName,
+    SdkVersion,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -79,6 +81,8 @@ impl SpanTagKey {
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
             SpanTagKey::BrowserName => "browser.name",
+            SpanTagKey::SdkName => "sdk.name",
+            SpanTagKey::SdkVersion => "sdk.version",
 
             SpanTagKey::Action => "action",
             SpanTagKey::Category => "category",
@@ -239,6 +243,9 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
     }
+
+    tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
+    tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
 
     tags
 }
