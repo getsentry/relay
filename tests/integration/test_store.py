@@ -2127,10 +2127,10 @@ def test_span_ingestion_with_performance_scores(
                     {
                         "data": {
                             "transaction": "/page/with/click/interaction/jane/123",
-                            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
                             "replay_id": "8477286c8e5148b386b71ade38374d58",
                             "user": "admin@sentry.io",
                         },
+                        "profile_id": "3d9428087fda4ba0936788b70a7587d0",
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
