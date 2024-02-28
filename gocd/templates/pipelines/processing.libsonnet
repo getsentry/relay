@@ -1,4 +1,4 @@
-local utils = import './utils.libsonnet';
+local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 // The purpose of this stage is to let the deployment soak for a while and
@@ -19,9 +19,10 @@ local soak_time(region) =
                 // Datadog monitor IDs for the soak time
                 // TODO: Add the monitor IDs
                 DATADOG_MONITOR_IDS: '137566884 14146876 137619914 14030245',
-                SENTRY_PROJECT: 'relay',
-                SENTRY_PROJECT_ID: '4',
-                SENTRY_SINGLE_TENANT: 'false',
+                SENTRY_PROJECTS: if region == 's4s' then 'sentry-for-sentry' else 'relay pop-relay',
+                SENTRY_PROJECT_IDS: if region == 's4s' then '1513938' else '4 9',
+                SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
+                SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
@@ -80,9 +81,10 @@ local deploy_canary(region) =
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
                 DATADOG_MONITOR_IDS: '137566884 14146876 137619914 14030245',
-                SENTRY_PROJECT: 'relay',
-                SENTRY_PROJECT_ID: '4',
+                SENTRY_PROJECTS: 'relay pop-relay',
+                SENTRY_PROJECT_IDS: '4 9',
                 SENTRY_SINGLE_TENANT: 'false',
+                SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
@@ -92,6 +94,8 @@ local deploy_canary(region) =
               tasks: [
                 gocdtasks.script(importstr '../bash/deploy-relay-canary.sh'),
                 gocdtasks.script(importstr '../bash/wait-canary.sh'),
+                gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+                gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
                 gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
                 utils.pause_on_failure(),
               ],

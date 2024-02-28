@@ -1,4 +1,4 @@
-local utils = import './utils.libsonnet';
+local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 local canary_region_pops = {
@@ -41,9 +41,10 @@ local soak_time(region) =
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
                 DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
-                SENTRY_PROJECT: 'pop-relay',
-                SENTRY_PROJECT_ID: '9',
-                SENTRY_SINGLE_TENANT: 'false',
+                SENTRY_PROJECTS: if region == 's4s' then 'sentry-for-sentry' else 'pop-relay relay',
+                SENTRY_PROJECT_IDS: if region == 's4s' then '1513938' else '9 4',
+                SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
+                SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
@@ -80,9 +81,10 @@ local deploy_pop_canary_job(region) =
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
       DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
-      SENTRY_PROJECT: 'pop-relay',
-      SENTRY_PROJECT_ID: '9',
+      SENTRY_PROJECTS: 'pop-relay relay',
+      SENTRY_PROJECT_IDS: '9 4',
       SENTRY_SINGLE_TENANT: 'false',
+      SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
       // TODO: Set a proper error limit
       ERROR_LIMIT: 500,
       PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',

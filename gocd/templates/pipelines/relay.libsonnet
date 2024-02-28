@@ -1,4 +1,4 @@
-local pops = import './relay-pops-old.libsonnet';
+local pops = import '../libs/relay-pops-old.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 function(region) {
