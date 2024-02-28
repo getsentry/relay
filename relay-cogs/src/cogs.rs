@@ -43,7 +43,7 @@ impl Cogs {
     /// The recorded measurement can be attributed to multiple features by supplying a
     /// weighted [`AppFeatures`]. A single [`AppFeature`] attributes the entire measurement
     /// to the feature.
-    pub fn record<F: Into<AppFeatures>>(&self, resource: ResourceId, features: F) -> CogsToken {
+    pub fn timed<F: Into<AppFeatures>>(&self, resource: ResourceId, features: F) -> CogsToken {
         CogsToken {
             resource,
             features: features.into(),

@@ -2362,7 +2362,7 @@ impl EnvelopeProcessorService {
         let app_features = self.app_features(&message);
 
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-            let mut cogs = self.inner.cogs.record(ResourceId::Relay, app_features);
+            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, app_features);
 
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
@@ -2403,6 +2403,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
+            #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
                 relay_metrics::cogs::ByCount(v.bucket_limiter.metrics()).into()
             }
