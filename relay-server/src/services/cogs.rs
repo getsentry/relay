@@ -60,9 +60,13 @@ impl CogsService {
         #[cfg(not(feature = "processing"))]
         let producer = RelayProducer::Noop;
 
+        let granularity = config
+            .cogs_granularity()
+            .and_then(|d| chrono::Duration::from_std(d).ok());
+
         Self {
             relay_resource_id: config.cogs_relay_resource_id().to_owned(),
-            usage_accountant: UsageAccountant::new(producer, None),
+            usage_accountant: UsageAccountant::new(producer, granularity),
         }
     }
 
@@ -80,26 +84,15 @@ impl CogsService {
             ),
         };
 
-        let result =
-            self.usage_accountant
-                .record(resource_id, measurement.feature.as_str(), amount, unit);
-
-        // Usage accountant flushes debounced -> we won't be spammed with Sentry errors and error logs.
-        if let Err(error) = result {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                "failed to record COGS data"
-            );
-        }
+        self.usage_accountant
+            .record(resource_id, measurement.feature.as_str(), amount, unit)
+            .unwrap_or_else(|err| match err {});
     }
 
     fn handle_shutdown(&mut self) {
-        if let Err(error) = self.usage_accountant.flush() {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                "failed to flush COGS usage accountant"
-            );
-        }
+        self.usage_accountant
+            .flush()
+            .unwrap_or_else(|err| match err {});
     }
 }
 
@@ -148,7 +141,7 @@ impl CogsRecorder for CogsServiceRecorder {
     fn record(&self, measurement: CogsMeasurement) {
         // Make sure we don't have an ever growing backlog of COGS measurements,
         // an error in the service should not have a visible impact in production.
-        if self.addr.len() > self.max_size {
+        if self.addr.len() >= self.max_size {
             if !self.has_errored.swap(true, Ordering::Relaxed) {
                 relay_log::error!("COGS measurements backlogged");
             }
@@ -157,5 +150,35 @@ impl CogsRecorder for CogsServiceRecorder {
         }
 
         self.addr.send(measurement);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn test_cogs_service_recorder_limit() {
+        let addr = Addr::dummy();
+        let config = Config::from_json_value(serde_json::json!({
+            "cogs": {
+                "max_queue_size": 2
+            }
+        }))
+        .unwrap();
+        let recorder = CogsServiceRecorder::new(addr.clone(), &config);
+
+        for _ in 0..5 {
+            recorder.record(CogsMeasurement {
+                resource: ResourceId::Relay,
+                feature: relay_cogs::AppFeature::Spans,
+                value: relay_cogs::Value::Time(Duration::from_secs(1)),
+            });
+        }
+
+        assert_eq!(addr.len(), 2);
+        assert!(recorder.has_errored.load(Ordering::Relaxed));
     }
 }
