@@ -1008,6 +1008,7 @@ mod tests {
             "release": "1.2.3",
             "transaction": "gEt /api/:version/users/",
             "transaction_info": {"source": "custom"},
+            "platform": "cocoa",
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",

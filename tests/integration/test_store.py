@@ -1397,6 +1397,7 @@ def test_span_extraction(
             "description": "GET *",
             "group": "37e3d9fab1ae9162",
             "op": "http",
+            "platform": "other",
             "sdk.name": "unknown",
             "sdk.version": "unknown",
             "transaction": "hi",
@@ -1425,6 +1426,7 @@ def test_span_extraction(
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
             "op": "hi",
+            "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
             "transaction": "hi",
@@ -1895,6 +1897,7 @@ def test_span_extraction_with_metrics_summary(
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
             "op": "hi",
+            "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
             "transaction": "hi",
@@ -1972,6 +1975,7 @@ def test_span_extraction_with_ddm_missing_values(
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
             "op": "hi",
+            "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
             "transaction": "hi",
