@@ -277,6 +277,18 @@ pub struct SpanData {
     #[metastructure(field = "url.scheme")]
     pub url_scheme: Annotated<Value>,
 
+    /// Profile ID
+    #[metastructure(field = "profile_id")]
+    pub profile_id: Annotated<Value>,
+
+    /// User Display
+    #[metastructure(field = "user")]
+    pub user: Annotated<Value>,
+
+    /// Replay ID
+    #[metastructure(field = "replay_id")]
+    pub replay_id: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,

@@ -62,6 +62,7 @@ pub enum SpanTagKey {
     MainTread,
     /// The start type of the application when the span occurred.
     AppStartType,
+    ReplayId,
 }
 
 impl SpanTagKey {
@@ -99,6 +100,7 @@ impl SpanTagKey {
             SpanTagKey::MainTread => "main_thread",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
+            SpanTagKey::ReplayId => "replay_id",
         }
     }
 }
@@ -457,6 +459,13 @@ pub fn extract_tags(
                     span.data.value().and_then(|data| data.transaction.as_str())
                 {
                     span_tags.insert(SpanTagKey::Transaction, transaction.into());
+                }
+                if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
+                    span_tags.insert(SpanTagKey::User, user.into());
+                }
+                if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
+                {
+                    span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
                 }
             }
         }
