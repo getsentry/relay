@@ -847,11 +847,9 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
     public_key = config["publicKeys"][0]["publicKey"]
 
     # Reject all transactions with dynamic sampling
-    _add_sampling_config(config, sample_rate=0.000001, rule_type="transaction")
+    _add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
-    envelope, _, _ = _create_transaction_envelope(
-        public_key, client_sample_rate=0.000001
-    )
+    envelope, _, _ = _create_transaction_envelope(public_key, client_sample_rate=0)
 
     relay.send_envelope(project_id, envelope)
     assert mini_sentry.captured_events.get(timeout=1)
