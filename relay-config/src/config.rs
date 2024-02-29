@@ -1336,7 +1336,7 @@ impl Default for Health {
     }
 }
 
-///
+/// COGS configuration.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Cogs {
