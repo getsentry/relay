@@ -1290,12 +1290,16 @@ impl EnvelopeProcessorService {
                 state.project_state.config.filter_settings.generic.version,
             );
 
+        let mut sampling_should_drop = false;
+
         if self.inner.config.processing_enabled() || supported_generic_filters {
             dynamic_sampling::run(state, &self.inner.config);
+            // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
+            sampling_should_drop = state.sampling_result.should_drop();
 
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
-            if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+            if self.inner.config.processing_enabled() || sampling_should_drop {
                 self.extract_metrics(state)?;
             }
 
@@ -1308,11 +1312,7 @@ impl EnvelopeProcessorService {
 
         metric!(
             timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
-            sampling_decision = if state.sampling_result.should_keep() {
-                "keep"
-            } else {
-                "drop"
-            },
+            sampling_decision = if sampling_should_drop { "drop" } else { "keep" },
             {
                 if_processing!(self.inner.config, {
                     event::store(state, &self.inner.config)?;
