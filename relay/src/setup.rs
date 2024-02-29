@@ -68,8 +68,6 @@ pub fn init_metrics(config: &Config) -> Result<()> {
         config.metrics_prefix(),
         &addrs[..],
         default_tags,
-        config.metrics_buffering(),
-        config.metrics_aggregation(),
         config.metrics_sample_rate(),
     );
 
