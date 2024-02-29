@@ -321,9 +321,7 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
 /// Manages the on-disk spool file.
 pub fn manage_spool(config: &Config, matches: &ArgMatches) -> Result<()> {
     let Some(matches) = matches.subcommand_matches("clear") else {
-        // This will have to be changed when the new command is added.
-        // At this point this is unreachable.
-        bail!("Expecting only 'clear' command.")
+        unreachable!()
     };
 
     let path = match matches.get_one::<PathBuf>("path") {
