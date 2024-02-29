@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["execute","extract_config_args","extract_config_env_vars","generate_completions","init_config","load_config","manage_config","manage_credentials","run"]};
+window.SIDEBAR_ITEMS = {"fn":["execute","extract_config_args","extract_config_env_vars","generate_completions","init_config","load_config","manage_config","manage_credentials","manage_spool","run"]};

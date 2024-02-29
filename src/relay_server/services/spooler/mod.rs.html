@@ -1881,6 +1881,7 @@
 <a href="#1880" id="1880">1880</a>
 <a href="#1881" id="1881">1881</a>
 <a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1942,6 +1943,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
+<span class="kw">pub mod </span>spool_utils;
 <span class="kw">mod </span>sql;
 
 <span class="doccomment">/// The number of keys to take from the [`ProjectCache`] index in one unspool operation.
