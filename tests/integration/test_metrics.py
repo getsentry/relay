@@ -1878,3 +1878,159 @@ def test_metric_bucket_encoding_dynamic_global_config_option(
     else:
         assert metrics[dname]["value"] == [1337.0]
         assert metrics[sname]["value"] == [42.0]
+
+
+@pytest.mark.parametrize("is_processing_relay", (False, True))
+def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filters(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+    is_processing_relay,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    mini_sentry.global_config["filters"] = {
+        "version": "Halp! I'm broken!",
+        "filters": [],
+    }
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    if is_processing_relay:
+        relay = relay_with_processing(
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            }
+        )
+    else:
+        relay = relay(
+            mini_sentry,
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            },
+        )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    if is_processing_relay:
+        tx, _ = tx_consumer.get_event()
+        assert tx is not None
+    else:
+        assert mini_sentry.captured_events.get() is not None
+    metrics_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("is_processing_relay", (False, True))
+def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project_filters(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+    is_processing_relay,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["filterSettings"] = {
+        "generic": {
+            "version": 65535,  # u16::MAX
+            "filters": [],
+        }
+    }
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    if is_processing_relay:
+        relay = relay_with_processing(
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            }
+        )
+    else:
+        relay = relay(
+            mini_sentry,
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            },
+        )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    if is_processing_relay:
+        tx, _ = tx_consumer.get_event()
+        assert tx is not None
+    else:
+        assert mini_sentry.captured_events.get() is not None
+    metrics_consumer.assert_empty()
+
+
+def test_missing_global_filters_enables_metric_extraction(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    mini_sentry.global_config.pop("filters")
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            }
+        }
+    )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    tx, _ = tx_consumer.get_event()
+    assert tx is not None
+    assert metrics_consumer.get_metrics()

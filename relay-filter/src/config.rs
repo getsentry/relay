@@ -416,7 +416,7 @@ pub struct GenericFiltersConfig {
 impl GenericFiltersConfig {
     /// Returns true if the filters are not declared.
     pub fn is_empty(&self) -> bool {
-        self.filters.0.is_empty()
+        self.filters.is_empty()
     }
 }
 

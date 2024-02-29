@@ -1,7 +1,6 @@
 //! Event processor related code.
 
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::Duration as SignedDuration;
 use once_cell::sync::OnceCell;
@@ -274,7 +273,7 @@ pub fn finalize<G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
-    global_config: Arc<GlobalConfig>,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,

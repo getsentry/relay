@@ -15,6 +15,14 @@ use relay_protocol::RuleCondition;
 /// If the version in the project config is higher, no generic filters are applied.
 const VERSION: u16 = 1;
 
+/// Returns whether the given generic config versions are supported.
+pub fn are_generic_filters_supported(
+    global_filters_version: Option<u16>,
+    project_filters_version: u16,
+) -> bool {
+    global_filters_version.map_or(true, |v| v <= VERSION) && project_filters_version <= VERSION
+}
+
 /// Checks events by patterns in their error messages.
 fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
     // TODO: the condition DSL needs to be extended to support more complex semantics, such as
@@ -112,9 +120,7 @@ impl<'a> Iterator for DynamicGenericFiltersConfigIter<'a> {
         }
 
         loop {
-            let Some((id, filter)) = self.global?.get_index(self.global_index) else {
-                return None;
-            };
+            let (id, filter) = self.global?.get_index(self.global_index)?;
             self.global_index += 1;
             if !self.project.contains_key(id) {
                 return Some(filter.into());
