@@ -277,6 +277,14 @@ pub struct SpanData {
     #[metastructure(field = "url.scheme")]
     pub url_scheme: Annotated<Value>,
 
+    /// User Display
+    #[metastructure(field = "user")]
+    pub user: Annotated<Value>,
+
+    /// Replay ID
+    #[metastructure(field = "replay_id")]
+    pub replay_id: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -562,6 +570,8 @@ mod tests {
             transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
+            user: ~,
+            replay_id: ~,
             other: {
                 "bar": String(
                     "3",

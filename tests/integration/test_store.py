@@ -2160,8 +2160,11 @@ def test_span_ingestion_with_performance_scores(
                 bytes=json.dumps(
                     {
                         "data": {
-                            "transaction": "/page/with/click/interaction/jane/123"
+                            "transaction": "/page/with/click/interaction/jane/123",
+                            "replay_id": "8477286c8e5148b386b71ade38374d58",
+                            "user": "admin@sentry.io",
                         },
+                        "profile_id": "3d9428087fda4ba0936788b70a7587d0",
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -2225,6 +2228,7 @@ def test_span_ingestion_with_performance_scores(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -2233,6 +2237,8 @@ def test_span_ingestion_with_performance_scores(
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
                 "transaction": "/page/with/click/interaction/*/*",
+                "replay_id": "8477286c8e5148b386b71ade38374d58",
+                "user": "admin@sentry.io",
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
