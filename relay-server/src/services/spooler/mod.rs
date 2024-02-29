@@ -59,6 +59,7 @@ use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
+pub mod spool_utils;
 mod sql;
 
 /// The number of keys to take from the [`ProjectCache`] index in one unspool operation.

@@ -155,3 +155,8 @@ pub async fn do_insert(
 
     Ok(count)
 }
+
+/// Creates DELETE statement which truncates the entire `envelopes` table.
+pub fn truncate<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("DELETE FROM envelopes;")
+}
