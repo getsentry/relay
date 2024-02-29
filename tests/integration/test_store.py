@@ -1382,20 +1382,24 @@ def test_span_extraction(
     child_span = spans_consumer.get_span()
     del child_span["received"]
     assert child_span == {
+        "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "project_id": 42,
-        "retention_days": 90,
-        "description": "GET /api/0/organizations/?member=1",
         "exclusive_time_ms": 500.0,
         "is_segment": False,
+        "organization_id": 1,
         "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "project_id": 42,
+        "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
             "category": "http",
             "description": "GET *",
             "group": "37e3d9fab1ae9162",
             "op": "http",
+            "platform": "other",
+            "sdk.name": "unknown",
+            "sdk.version": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
@@ -1406,20 +1410,28 @@ def test_span_extraction(
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"])
     end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = (end_timestamp - start_timestamp).total_seconds() * 1e3
+    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "organization_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "description": "hi",
-        "exclusive_time_ms": 2000,
-        "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {
+            "op": "hi",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "transaction": "hi",
+            "transaction.op": "hi",
+        },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
@@ -1623,6 +1635,7 @@ def test_span_ingestion(
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
+            "organization_id": 1,
             "parent_span_id": "",
             "project_id": 42,
             "retention_days": 90,
@@ -1641,6 +1654,7 @@ def test_span_ingestion(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
@@ -1662,6 +1676,7 @@ def test_span_ingestion(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "cd429c44b67a3eb1",
@@ -1675,6 +1690,7 @@ def test_span_ingestion(
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
+            "organization_id": 1,
             "parent_span_id": "",
             "project_id": 42,
             "retention_days": 90,
@@ -1691,6 +1707,7 @@ def test_span_ingestion(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "ed429c44b67a3eb1",
@@ -1707,6 +1724,7 @@ def test_span_ingestion(
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
+            "organization_id": 1,
             "parent_span_id": "",
             "project_id": 42,
             "retention_days": 90,
@@ -1863,20 +1881,28 @@ def test_span_extraction_with_metrics_summary(
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"])
     end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = (end_timestamp - start_timestamp).total_seconds() * 1e3
+    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "organization_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "description": "hi",
-        "exclusive_time_ms": 2000,
-        "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {
+            "op": "hi",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "transaction": "hi",
+            "transaction.op": "hi",
+        },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
@@ -1937,21 +1963,29 @@ def test_span_extraction_with_ddm_missing_values(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "measurements": {},
+        "organization_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "description": "hi",
-        "exclusive_time_ms": 2000,
-        "is_segment": True,
         "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"op": "hi", "transaction": "hi", "transaction.op": "hi"},
+        "sentry_tags": {
+            "op": "hi",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "transaction": "hi",
+            "transaction.op": "hi",
+        },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "measurements": {},
     }
 
     spans_consumer.assert_empty()
@@ -2157,6 +2191,7 @@ def test_span_ingestion_with_performance_scores(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
@@ -2190,6 +2225,7 @@ def test_span_ingestion_with_performance_scores(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",

@@ -1028,6 +1028,7 @@ impl StoreService {
 
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
         span.event_id = event_id;
+        span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
@@ -1521,6 +1522,8 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
+    #[serde(default)]
+    organization_id: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
