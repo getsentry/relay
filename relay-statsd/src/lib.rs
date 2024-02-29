@@ -23,7 +23,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), true, true, 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -57,13 +57,11 @@
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
 use std::collections::BTreeMap;
-use std::net::{ToSocketAddrs, UdpSocket};
+use std::net::ToSocketAddrs;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
-};
+use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
@@ -227,8 +225,6 @@ pub fn init<A: ToSocketAddrs>(
     prefix: &str,
     host: A,
     default_tags: BTreeMap<String, String>,
-    buffering: bool,
-    aggregating: bool,
     sample_rate: f32,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
@@ -247,14 +243,11 @@ pub fn init<A: ToSocketAddrs>(
         }
     );
 
-    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.set_nonblocking(true).unwrap();
-
-    let statsd_client = if aggregating {
-        let host = host.to_socket_addrs().unwrap().next().unwrap();
+    let statsd_client = {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            let next_step = statsdproxy::middleware::upstream::Upstream::new(host)
+            let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sink");
+
             statsdproxy::middleware::aggregate::AggregateMetrics::new(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
@@ -263,22 +256,12 @@ pub fn init<A: ToSocketAddrs>(
                     flush_offset: 0,
                     max_map_size: None,
                 },
-                next_step,
+                upstream,
             )
         });
+
         StatsdClient::from_sink(prefix, statsdproxy_sink)
-    } else if buffering {
-        let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
-        let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
-        StatsdClient::from_sink(prefix, queuing_sink)
-    } else {
-        let simple_sink = UdpMetricSink::from(host, socket).unwrap();
-        StatsdClient::from_sink(prefix, simple_sink)
     };
-    relay_log::debug!(
-        "metrics buffering is {}",
-        if buffering { "enabled" } else { "disabled" }
-    );
 
     set_client(MetricsClient {
         statsd_client,
