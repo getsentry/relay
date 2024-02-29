@@ -154,7 +154,7 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             store.clone(),
         );
-        let cogs = Cogs::new(CogsServiceRecorder::new(cogs.start(), &config));
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
             config.clone(),

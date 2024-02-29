@@ -4698,7 +4698,7 @@ dependencies = [
 [[package]]
 name = "sentry_usage_accountant"
 version = "0.0.4"
-source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=1035797#1035797c2b3eea6934f786217ef34cf39bd6a03f"
+source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=9e27bd7#9e27bd7c4103c96d48b371cedfa5945485652f16"
 dependencies = [
  "chrono",
  "serde",

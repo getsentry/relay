@@ -61,9 +61,7 @@ impl CogsService {
         #[cfg(not(feature = "processing"))]
         let producer = RelayProducer::Noop;
 
-        let granularity = config
-            .cogs_granularity()
-            .and_then(|d| chrono::Duration::from_std(d).ok());
+        let granularity = chrono::Duration::from_std(config.cogs_granularity()).ok();
 
         Self {
             relay_resource_id: config.cogs_relay_resource_id().to_owned(),
@@ -129,7 +127,7 @@ pub struct CogsServiceRecorder {
 
 impl CogsServiceRecorder {
     /// Creates a new recorder forwarding messages to [`CogsService`].
-    pub fn new(addr: Addr<CogsReport>, config: &Config) -> Self {
+    pub fn new(config: &Config, addr: Addr<CogsReport>) -> Self {
         Self {
             addr,
             max_size: config.cogs_max_queue_size(),
@@ -169,7 +167,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let recorder = CogsServiceRecorder::new(addr.clone(), &config);
+        let recorder = CogsServiceRecorder::new(&config, addr.clone());
 
         for _ in 0..5 {
             recorder.record(CogsMeasurement {

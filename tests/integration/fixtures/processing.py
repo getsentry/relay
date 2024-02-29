@@ -58,6 +58,7 @@ def processing_config(get_topic_name):
                 "spans": get_topic_name("spans"),
                 "profiles": get_topic_name("profiles"),
                 "metrics_summaries": get_topic_name("metrics_summaries"),
+                "cogs": get_topic_name("cogs"),
             }
 
         if not processing.get("redis"):
@@ -323,6 +324,11 @@ def metrics_summaries_consumer(kafka_consumer):
     )
 
 
+@pytest.fixture
+def cogs_consumer(kafka_consumer):
+    return lambda timeout=None: CogsConsumer(timeout=timeout, *kafka_consumer("cogs"))
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -496,3 +502,12 @@ class MetricsSummariesConsumer(ConsumerBase):
             else:
                 assert message.error() is None
                 yield json.loads(message.value())
+
+
+class CogsConsumer(ConsumerBase):
+    def get_measurement(self, timeout=None):
+        message = self.poll(timeout=timeout)
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())

@@ -1,7 +1,7 @@
 [package]
 name = "relay-cogs"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Relay cost of goods module"
+description = "Relay cost of goods sold module"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "24.2.0"
