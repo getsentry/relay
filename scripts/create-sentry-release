@@ -8,11 +8,13 @@
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
 #   SENTRY_ORG: Organization slug
 #   SENTRY_PROJECT: Project slug
+# Optional environment variables:
+#   SENTRY_ENVIRONMENT: Environment name (default: production)
 set -eu
 
 REVISION="${1:-}"
 NAME="${2:-relay}"
-GITHUB_PROJECT="getsentry/relay"
+ENVIRONMENT="${SENTRY_ENVIRONMENT:-production}"
 
 if [ -z "${REVISION}" ]; then
   echo 'No revision specified' && exit 1
@@ -46,6 +48,6 @@ echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
 sentry-cli releases new "${RELEASE}"
 # NOTE: Disabled until the repository is properly configured in Sentry
 # sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
-sentry-cli releases deploys "${RELEASE}" new -e production
+sentry-cli releases deploys "${RELEASE}" new -e "${ENVIRONMENT}"
 sentry-cli releases finalize "${RELEASE}"
 echo 'Deploy created.'
