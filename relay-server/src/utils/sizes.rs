@@ -48,6 +48,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
                 config.max_attachment_size()
             }
             ItemType::ReplayRecording => config.max_replay_compressed_size(),
+            ItemType::ReplayVideo => config.max_replay_compressed_size(),
             ItemType::Session | ItemType::Sessions => {
                 session_count += 1;
                 NO_LIMIT

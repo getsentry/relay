@@ -226,7 +226,7 @@ impl ProcessingGroup {
         let replay_items = envelope.take_items_by(|item| {
             matches!(
                 item.ty(),
-                &ItemType::ReplayEvent | &ItemType::ReplayRecording
+                &ItemType::ReplayEvent | &ItemType::ReplayRecording | &ItemType::ReplayVideo
             )
         });
         if !replay_items.is_empty() {
@@ -1141,7 +1141,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        if let Some(sampling_state) = state.sampling_project_state.as_ref().map(Arc::clone) {
+        if let Some(sampling_state) = state.sampling_project_state.clone() {
             state
                 .envelope_mut()
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
@@ -1207,9 +1207,9 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                validate_transaction(event, &tx_validation_config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)?;
                 validate_event_timestamps(event, &event_validation_config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)?;
+                validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
                 Result::<(), ProcessingError>::Ok(())
@@ -1289,21 +1289,33 @@ impl EnvelopeProcessorService {
             &self.inner.global_config.current(),
         );
 
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config)?;
-            self.enforce_quotas(state)?;
-            profile::process(state, &self.inner.config);
-        });
+        metric!(
+            timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
+            sampling_decision = if state.sampling_result.should_keep() {
+                "keep"
+            } else {
+                "drop"
+            },
+            {
+                if_processing!(self.inner.config, {
+                    event::store(state, &self.inner.config)?;
+                    self.enforce_quotas(state)?;
+                    profile::process(state, &self.inner.config);
+                });
 
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-            if_processing!(self.inner.config, {
-                span::extract_from_event(state);
-            });
-        }
+                if state.has_event() {
+                    event::scrub(state)?;
+                    if_processing!(self.inner.config, {
+                        span::extract_from_event(state);
+                        span::maybe_discard_transaction(state);
+                    });
+                    event::serialize(state)?;
+                }
 
-        attachment::scrub(state);
+                attachment::scrub(state);
+            }
+        );
+
         Ok(())
     }
 

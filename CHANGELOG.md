@@ -6,6 +6,7 @@
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
+- Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
 - Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
 
@@ -13,6 +14,7 @@
 
 - Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
+- Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
 
 **Internal**:
 

@@ -15,7 +15,7 @@ use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
 use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
 };
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
@@ -253,6 +253,15 @@ impl StoreService {
                     start_time,
                     item,
                 )?,
+                ItemType::ReplayVideo => {
+                    self.produce_replay_video(
+                        event_id,
+                        scoping,
+                        item.payload(),
+                        start_time,
+                        retention,
+                    )?;
+                }
                 ItemType::ReplayRecording => {
                     replay_recording = Some(item);
                 }
@@ -267,7 +276,7 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         retention,
-                        item,
+                        &item.payload(),
                     )?;
                 }
                 ItemType::CheckIn => self.produce_check_in(
@@ -286,11 +295,18 @@ impl StoreService {
         }
 
         if let Some(recording) = replay_recording {
+            // If a recording item type was seen we produce it to Kafka with the replay-event
+            // payload (should it have been provided).
+            //
+            // The replay_video value is always specified as `None`. We do not allow separate
+            // item types for `ReplayVideo` events.
+            let replay_event = replay_event.map(|rv| rv.payload());
             self.produce_replay_recording(
                 event_id,
                 scoping,
-                recording,
-                replay_event,
+                &recording.payload(),
+                replay_event.as_deref(),
+                None,
                 start_time,
                 retention,
             )?;
@@ -808,14 +824,14 @@ impl StoreService {
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
-        item: &Item,
+        payload: &[u8],
     ) -> Result<(), StoreError> {
         let message = ReplayEventKafkaMessage {
             replay_id,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: item.payload(),
+            payload,
         };
         self.produce(
             KafkaTopic::ReplayEvents,
@@ -829,26 +845,26 @@ impl StoreService {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn produce_replay_recording(
         &self,
         event_id: Option<EventId>,
         scoping: Scoping,
-        item: &Item,
-        replay_event: Option<&Item>,
+        payload: &[u8],
+        replay_event: Option<&[u8]>,
+        replay_video: Option<&[u8]>,
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // Map the event item to it's byte payload value.
-        let replay_event_payload = replay_event.map(|rv| rv.payload());
-
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
 
         // Size of the consumer message. We can be reasonably sure this won't overflow because
         // of the request size validation provided by Nginx and Relay.
         let mut payload_size = 2000; // Reserve 2KB for the message metadata.
-        payload_size += replay_event_payload.as_ref().map_or(0, |b| b.len());
-        payload_size += item.payload().len();
+        payload_size += replay_event.as_ref().map_or(0, |b| b.len());
+        payload_size += replay_video.as_ref().map_or(0, |b| b.len());
+        payload_size += payload.len();
 
         // If the recording payload can not fit in to the message do not produce and quit early.
         if payload_size >= max_payload_size {
@@ -873,8 +889,9 @@ impl StoreService {
                 org_id: scoping.organization_id,
                 received: UnixTimestamp::from_instant(start_time).as_secs(),
                 retention_days: retention,
-                payload: item.payload(),
-                replay_event: replay_event_payload,
+                payload,
+                replay_event,
+                replay_video,
             });
 
         self.produce(
@@ -883,12 +900,71 @@ impl StoreService {
             message,
         )?;
 
+        let event_type = if replay_video.is_some() {
+            "replay_recording_with_video"
+        } else {
+            "replay_recording_not_chunked"
+        };
+
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_recording_not_chunked"
+            event_type = event_type
         );
 
         Ok(())
+    }
+
+    fn produce_replay_video(
+        &self,
+        event_id: Option<EventId>,
+        scoping: Scoping,
+        payload: Bytes,
+        start_time: Instant,
+        retention: u16,
+    ) -> Result<(), StoreError> {
+        #[derive(Deserialize)]
+        struct VideoEvent<'a> {
+            replay_event: &'a [u8],
+            replay_recording: &'a [u8],
+            replay_video: &'a [u8],
+        }
+
+        let Ok(VideoEvent {
+            replay_video,
+            replay_event,
+            replay_recording,
+        }) = rmp_serde::from_slice::<VideoEvent>(&payload)
+        else {
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::Replay,
+                event_id,
+                outcome: Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+            return Ok(());
+        };
+
+        self.produce_replay_event(
+            event_id.ok_or(StoreError::NoEventId)?,
+            scoping.organization_id,
+            scoping.project_id,
+            start_time,
+            retention,
+            replay_event,
+        )?;
+
+        self.produce_replay_recording(
+            event_id,
+            scoping,
+            replay_recording,
+            Some(replay_event),
+            Some(replay_video),
+            start_time,
+            retention,
+        )
     }
 
     fn produce_check_in(
@@ -968,6 +1044,7 @@ impl StoreService {
 
         let is_segment = span.is_segment;
         let has_parent = span.parent_span_id.is_some();
+        let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
 
         self.produce(
             KafkaTopic::Spans,
@@ -988,6 +1065,7 @@ impl StoreService {
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "span",
+            platform = platform.unwrap_or(&""),
             is_segment = bool_to_str(is_segment),
             has_parent = bool_to_str(has_parent),
         );
@@ -1176,9 +1254,9 @@ struct EventKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct ReplayEventKafkaMessage {
+struct ReplayEventKafkaMessage<'a> {
     /// Raw event payload.
-    payload: Bytes,
+    payload: &'a [u8],
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
@@ -1268,15 +1346,19 @@ struct ReplayRecordingKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct ReplayRecordingNotChunkedKafkaMessage {
+struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_id: EventId,
     key_id: Option<u64>,
     org_id: u64,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
-    payload: Bytes,
-    replay_event: Option<Bytes>,
+    #[serde(with = "serde_bytes")]
+    payload: &'a [u8],
+    #[serde(with = "serde_bytes")]
+    replay_event: Option<&'a [u8]>,
+    #[serde(with = "serde_bytes")]
+    replay_video: Option<&'a [u8]>,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -1461,6 +1543,9 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
+
+    #[serde(borrow, default, skip_serializing)]
+    platform: Cow<'a, str>, // We only use this for logging for now
 }
 
 #[derive(Debug, Deserialize)]
@@ -1527,8 +1612,8 @@ enum KafkaMessage<'a> {
         message: MetricKafkaMessage<'a>,
     },
     Profile(ProfileKafkaMessage),
-    ReplayEvent(ReplayEventKafkaMessage),
-    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
+    ReplayEvent(ReplayEventKafkaMessage<'a>),
+    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),

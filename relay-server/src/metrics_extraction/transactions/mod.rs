@@ -580,8 +580,8 @@ mod tests {
         .unwrap();
 
         // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
         validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
 
         normalize_event(
             &mut event,
@@ -654,6 +654,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]

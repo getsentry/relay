@@ -1,4 +1,3 @@
-import json
 import uuid
 
 
@@ -46,6 +45,62 @@ def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
     }
 
 
+def assert_replay_payload_matches(produced, consumed):
+    assert consumed["type"] == "replay_event"
+    assert consumed["replay_id"] == produced["replay_id"]
+    assert consumed["replay_type"] == produced["replay_type"]
+    assert consumed["event_id"] == produced["event_id"]
+    assert consumed["type"] == produced["type"]
+    assert consumed["segment_id"] == produced["segment_id"]
+    assert consumed["urls"] == produced["urls"]
+    assert consumed["error_ids"] == produced["error_ids"]
+    assert consumed["trace_ids"] == produced["trace_ids"]
+    assert consumed["dist"] == produced["dist"]
+    assert consumed["platform"] == produced["platform"]
+    assert consumed["environment"] == produced["environment"]
+    assert consumed["release"] == str(produced["release"])
+    assert consumed["sdk"]["name"] == produced["sdk"]["name"]
+    assert consumed["sdk"]["version"] == produced["sdk"]["version"]
+    assert consumed["user"]["id"] == produced["user"]["id"]
+    assert consumed["user"]["username"] == produced["user"]["username"]
+    assert consumed["user"]["ip_address"] == produced["user"]["ip_address"]
+
+    # Assert PII scrubbing.
+    assert consumed["user"]["email"] == "[email]"
+
+    # Round to account for float imprecision. Not a big deal. Decimals
+    # are dropped in Clickhouse.
+    assert int(consumed["replay_start_timestamp"]) == int(
+        produced["replay_start_timestamp"]
+    )
+    assert int(consumed["timestamp"]) == int(produced["timestamp"])
+
+    # Assert the tags and requests objects were normalized to lists of doubles.
+    assert consumed["tags"] == [["transaction", produced["tags"]["transaction"]]]
+    assert consumed["request"] == {
+        "headers": [["User-Agent", produced["request"]["headers"]["user-Agent"]]]
+    }
+
+    # Assert contexts object was pulled out.
+    assert consumed["contexts"] == {
+        "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
+        "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
+        "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
+        "replay": {
+            "type": "replay",
+            "error_sample_rate": produced["contexts"]["replay"]["error_sample_rate"],
+            "session_sample_rate": produced["contexts"]["replay"][
+                "session_sample_rate"
+            ],
+        },
+        "trace": {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "fa90fdead5f74052",
+            "type": "trace",
+        },
+    }
+
+
 def test_replay_event_with_processing(
     mini_sentry, relay_with_processing, replay_events_consumer
 ):
@@ -60,62 +115,8 @@ def test_replay_event_with_processing(
     relay.send_replay_event(42, replay)
 
     replay_event, replay_event_message = replay_events_consumer.get_replay_event()
-    assert replay_event["type"] == "replay_event"
-    assert replay_event["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
     assert replay_event_message["retention_days"] == 90
-
-    parsed_replay = json.loads(bytes(replay_event_message["payload"]))
-    # Assert required fields were returned.
-    assert parsed_replay["replay_id"] == replay["replay_id"]
-    assert parsed_replay["replay_type"] == replay["replay_type"]
-    assert parsed_replay["event_id"] == replay["event_id"]
-    assert parsed_replay["type"] == replay["type"]
-    assert parsed_replay["segment_id"] == replay["segment_id"]
-    assert parsed_replay["urls"] == replay["urls"]
-    assert parsed_replay["error_ids"] == replay["error_ids"]
-    assert parsed_replay["trace_ids"] == replay["trace_ids"]
-    assert parsed_replay["dist"] == replay["dist"]
-    assert parsed_replay["platform"] == replay["platform"]
-    assert parsed_replay["environment"] == replay["environment"]
-    assert parsed_replay["release"] == str(replay["release"])
-    assert parsed_replay["sdk"]["name"] == replay["sdk"]["name"]
-    assert parsed_replay["sdk"]["version"] == replay["sdk"]["version"]
-    assert parsed_replay["user"]["id"] == replay["user"]["id"]
-    assert parsed_replay["user"]["username"] == replay["user"]["username"]
-    assert parsed_replay["user"]["ip_address"] == replay["user"]["ip_address"]
-
-    # Assert PII scrubbing.
-    assert parsed_replay["user"]["email"] == "[email]"
-
-    # Round to account for float imprecision. Not a big deal. Decimals
-    # are dropped in Clickhouse.
-    assert int(parsed_replay["replay_start_timestamp"]) == int(
-        replay["replay_start_timestamp"]
-    )
-    assert int(parsed_replay["timestamp"]) == int(replay["timestamp"])
-
-    # Assert the tags and requests objects were normalized to lists of doubles.
-    assert parsed_replay["tags"] == [["transaction", replay["tags"]["transaction"]]]
-    assert parsed_replay["request"] == {
-        "headers": [["User-Agent", replay["request"]["headers"]["user-Agent"]]]
-    }
-
-    # Assert contexts object was pulled out.
-    assert parsed_replay["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
-        "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
-        "replay": {
-            "type": "replay",
-            "error_sample_rate": replay["contexts"]["replay"]["error_sample_rate"],
-            "session_sample_rate": replay["contexts"]["replay"]["session_sample_rate"],
-        },
-        "trace": {
-            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-            "span_id": "fa90fdead5f74052",
-            "type": "trace",
-        },
-    }
+    assert_replay_payload_matches(replay, replay_event)
 
 
 def test_replay_events_without_processing(mini_sentry, relay_chain):

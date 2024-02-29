@@ -493,14 +493,6 @@ struct Metrics {
     default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
-    /// Emitted metrics will be buffered to optimize performance.
-    ///
-    /// Defaults to `true`.
-    buffering: bool,
-    /// Emitted metrics will be aggregated to optimize bandwidth.
-    ///
-    /// Defaults to `true`.
-    aggregation: bool,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
@@ -515,8 +507,6 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            buffering: true,
-            aggregation: true,
             sample_rate: 1.0,
         }
     }
@@ -823,12 +813,12 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
 
 /// Default for min connections to keep open in the pool.
 fn spool_envelopes_min_connections() -> u32 {
-    10
+    1
 }
 
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
-    20
+    1
 }
 
 /// Default interval to unspool buffered envelopes, 100ms.
@@ -1855,16 +1845,6 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
-    }
-
-    /// Returns true if metrics buffering is enabled, false otherwise.
-    pub fn metrics_buffering(&self) -> bool {
-        self.values.metrics.buffering
-    }
-
-    /// Returns true if metrics aggregation is enabled, false otherwise.
-    pub fn metrics_aggregation(&self) -> bool {
-        self.values.metrics.aggregation
     }
 
     /// Returns the global sample rate for all metrics.

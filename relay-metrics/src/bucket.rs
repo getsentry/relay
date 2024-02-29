@@ -448,7 +448,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # Submission Protocol
 ///
 /// ```text
-/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>|T<timestamp>
+/// <name>[@unit]:<value>[:<value>...]|<type>[|#<tag_key>:<tag_value>,<tag>][|T<timestamp>]
 /// ```
 ///
 /// See the [field documentation](Bucket#fields) for more information on the components. An example
@@ -593,7 +593,7 @@ pub struct Bucket {
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
     /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d_:/@.{}\[\]$-]+/`.
+    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
     ///
     /// # Example
     ///

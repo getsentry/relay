@@ -10,6 +10,7 @@ license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
+bytes = { version = "1.4.0" }
 flate2 = "1.0.19"
 once_cell = { workspace = true }
 relay-common = { path = "../relay-common" }

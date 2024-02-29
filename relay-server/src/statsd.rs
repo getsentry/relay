@@ -233,6 +233,10 @@ pub enum RelayTimers {
     EventProcessingSerialization,
     /// Time used to extract span metrics from an event.
     EventProcessingSpanMetricsExtraction,
+    /// Time spent on transaction processing after dynamic sampling.
+    ///
+    /// This includes PII scrubbing and for processing relays also consistent rate limiting.
+    TransactionProcessingAfterDynamicSampling,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -391,6 +395,9 @@ impl TimerMetric for RelayTimers {
                 "event_processing.span_metrics_extraction"
             }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
+            RelayTimers::TransactionProcessingAfterDynamicSampling => {
+                "transaction.processing.post_ds"
+            }
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
@@ -542,6 +549,7 @@ pub enum RelayCounters {
     ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
     ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
+    ///  - `platform` (only for event_type span): The platform from which the span was spent.
     ///
     /// The message types can be:
     ///
@@ -675,6 +683,12 @@ pub enum RelayCounters {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     ProcessorRateLimitBucketsCost,
+
+    /// Counter for dynamic sampling decision.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
+    DynamicSamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -725,6 +739,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
+            RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
         }
     }
 }
