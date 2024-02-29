@@ -3134,7 +3134,6 @@
 <a href="#3133" id="3133">3133</a>
 <a href="#3134" id="3134">3134</a>
 <a href="#3135" id="3135">3135</a>
-<a href="#3136" id="3136">3136</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4414,9 +4413,12 @@
         event::filter(state)<span class="question-mark">?</span>;
         dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
 
+        <span class="comment">// Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
+        </span><span class="kw">let </span>sampling_should_drop = state.sampling_result.should_drop();
+
         <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
         // relays, in order to synchronize rate limits on indexed and processed transactions.
-        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_should_drop {
             <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
         }
 
@@ -4428,11 +4430,7 @@
 
         <span class="macro">metric!</span>(
             timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
-            sampling_decision = <span class="kw">if </span>state.sampling_result.should_keep() {
-                <span class="string">"keep"
-            </span>} <span class="kw">else </span>{
-                <span class="string">"drop"
-            </span>},
+            sampling_decision = <span class="kw">if </span>sampling_should_drop { <span class="string">"drop" </span>} <span class="kw">else </span>{ <span class="string">"keep" </span>},
             {
                 <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                     event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
