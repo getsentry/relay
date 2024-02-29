@@ -43,6 +43,23 @@ impl Cogs {
     /// The recorded measurement can be attributed to multiple features by supplying a
     /// weighted [`AppFeatures`]. A single [`AppFeature`] attributes the entire measurement
     /// to the feature.
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use relay_cogs::{AppFeature, Cogs, ResourceId};
+    /// # struct Span;
+    /// # fn scrub_sql(_: &mut Span) {}
+    /// # fn extract_tags(_: &mut Span) {};
+    ///
+    /// fn process_span(cogs: &Cogs, span: &mut Span) {
+    ///     let _token = cogs.timed(ResourceId::Relay, AppFeature::Spans);
+    ///
+    ///     scrub_sql(span);
+    ///     extract_tags(span);
+    /// }
+    ///
+    /// ```
     pub fn timed<F: Into<AppFeatures>>(&self, resource: ResourceId, features: F) -> CogsToken {
         CogsToken {
             resource,
@@ -72,6 +89,25 @@ impl CogsToken {
     }
 
     /// Updates the app features to whicht the active measurement is attributed to.
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use relay_cogs::{AppFeature, Cogs, ResourceId};
+    /// # struct Item;
+    /// # fn do_something(_: &Item) -> bool { true };
+    ///
+    /// fn process(cogs: &Cogs, item: &Item) {
+    ///     let mut token = cogs.timed(ResourceId::Relay, AppFeature::Unattributed);
+    ///
+    ///     // App feature is only known after some computations.
+    ///     if do_something(item) {
+    ///         token.update(AppFeature::Spans);
+    ///     } else {
+    ///         token.update(AppFeature::Transactions);
+    ///     }
+    /// }
+    /// ```
     pub fn update<T: Into<AppFeatures>>(&mut self, features: T) {
         self.features = features.into();
     }
@@ -208,5 +244,93 @@ impl AppFeaturesBuilder {
     /// Builds and returns the [`AppFeatures`].
     pub fn build(self) -> AppFeatures {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, time::Duration};
+
+    use super::*;
+    use crate::TestRecorder;
+
+    #[test]
+    fn test_cogs_simple() {
+        let recorder = TestRecorder::default();
+        let cogs = Cogs::new(recorder.clone());
+
+        drop(cogs.timed(ResourceId::Relay, AppFeature::Spans));
+
+        let measurements = recorder.measurements();
+        assert_eq!(measurements.len(), 1);
+        assert_eq!(measurements[0].resource, ResourceId::Relay);
+        assert_eq!(measurements[0].feature, AppFeature::Spans);
+    }
+
+    #[test]
+    fn test_cogs_multiple_weights() {
+        let recorder = TestRecorder::default();
+        let cogs = Cogs::new(recorder.clone());
+
+        let f = AppFeatures::builder()
+            .weight(AppFeature::Spans, 1)
+            .weight(AppFeature::Transactions, 1)
+            .weight(AppFeature::MetricsSpans, 0) // Noop
+            .add_weight(AppFeature::MetricsSpans, 1)
+            .weight(AppFeature::Transactions, 0) // Reset
+            .build();
+        {
+            let _token = cogs.timed(ResourceId::Relay, f);
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        let measurements = recorder.measurements();
+        assert_eq!(measurements.len(), 2);
+        dbg!(&measurements);
+        assert_eq!(measurements[0].resource, ResourceId::Relay);
+        assert_eq!(measurements[0].feature, AppFeature::Spans);
+        assert_eq!(measurements[1].resource, ResourceId::Relay);
+        assert_eq!(measurements[1].feature, AppFeature::MetricsSpans);
+        assert_eq!(measurements[0].value, measurements[1].value);
+    }
+
+    #[test]
+    fn test_app_features_none() {
+        let a = AppFeatures::none();
+        assert_eq!(a.weights().count(), 0);
+    }
+
+    #[test]
+    fn test_app_features_new() {
+        let a = AppFeatures::new(AppFeature::Spans);
+        assert_eq!(
+            a.weights().collect::<Vec<_>>(),
+            vec![(AppFeature::Spans, 1.0)]
+        );
+    }
+
+    #[test]
+    fn test_app_features_merge() {
+        let a = AppFeatures::builder()
+            .weight(AppFeature::Spans, 1)
+            .weight(AppFeature::Transactions, 2)
+            .build();
+
+        let b = AppFeatures::builder()
+            .weight(AppFeature::Spans, 2)
+            .weight(AppFeature::Unattributed, 5)
+            .build();
+
+        let c = AppFeatures::merge(AppFeatures::none(), AppFeatures::merge(a, b));
+
+        let weights: HashMap<_, _> = c.weights().collect();
+        assert_eq!(
+            weights,
+            HashMap::from([
+                (AppFeature::Spans, 0.3),
+                (AppFeature::Transactions, 0.2),
+                (AppFeature::Unattributed, 0.5),
+            ])
+        )
     }
 }

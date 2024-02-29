@@ -1,8 +1,8 @@
+use std::time::Duration;
+
 mod cogs;
 mod recorder;
 mod utils;
-
-use std::time::Duration;
 
 pub use cogs::*;
 pub use recorder::*;
@@ -12,7 +12,7 @@ pub use recorder::*;
 /// Infrastructure costs are labeled with a resource id,
 /// these costs need to be broken down further by the application
 /// by [app features](AppFeature).
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ResourceId {
     /// The Relay resource.
     ///
@@ -26,7 +26,7 @@ pub enum ResourceId {
 /// app features do no need to directly match a Sentry product.
 /// Multiple app features are later grouped and aggregated to determine
 /// the cost of a product.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AppFeature {
     /// A placeholder which should not be emitted but can be emitted in rare cases,
     /// for example error scenarios.
@@ -149,7 +149,7 @@ impl utils::Enum<16> for AppFeature {
 }
 
 // A COGS measurement.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct CogsMeasurement {
     /// The measured resource.
     pub resource: ResourceId,
@@ -160,7 +160,7 @@ pub struct CogsMeasurement {
 }
 
 /// A COGS measurement value.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     /// A time measurement.
     Time(Duration),
