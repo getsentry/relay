@@ -119,10 +119,6 @@
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
 <a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -171,10 +167,6 @@
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:profiling-ingest-unsampled-profiles"</span>)]
     </span>IngestUnsampledProfiles,
-
-    <span class="doccomment">/// Discard transactions in a spans-only world.
-    </span><span class="attr">#[serde(rename = <span class="string">"projects:discard-transaction"</span>)]
-    </span>DiscardTransaction,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:transaction-name-mark-scrubbed-as-sanitized"</span>)]
