@@ -8,11 +8,10 @@ use crate::service::create_runtime;
 use crate::services::spooler::{sql, BufferError};
 
 /// Truncates the spool file deleting all the persisted on-disk data.
-pub fn truncate(path: PathBuf) -> Result<(), BufferError> {
+pub fn truncate(path: &PathBuf) -> Result<(), BufferError> {
     let options = SqliteConnectOptions::new()
         .filename(path)
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
+        .journal_mode(SqliteJournalMode::Wal);
 
     let rt = create_runtime("truncator", 1);
 

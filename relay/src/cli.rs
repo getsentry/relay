@@ -1,9 +1,8 @@
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::{env, io};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
@@ -321,51 +320,45 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
 
 /// Manages the on-disk spool file.
 pub fn manage_spool(config: &Config, matches: &ArgMatches) -> Result<()> {
-    if let Some(matches) = matches.subcommand_matches("clear") {
-        let path = match matches.get_one::<String>("path") {
-            Some(path) => {
-                let Ok(path) = PathBuf::from_str(path) else {
-                    bail!("Can't find the provided file path.")
-                };
-                path
-            }
-            None => {
-                let Some(path) = config.spool_envelopes_path() else {
-                    bail!("Config file does not contain the path to the spool file.")
-                };
-                path
-            }
-        };
+    let Some(matches) = matches.subcommand_matches("clear") else {
+        // This will have to be changed when the new command is added.
+        // At this point this is unreachable.
+        bail!("Expecting only 'clear' command.")
+    };
 
-        if !path.is_file() {
-            bail!("Could not find provided file: {}", path.to_string_lossy());
-        }
+    let path = match matches.get_one::<PathBuf>("path") {
+        Some(path) => path.to_owned(),
+        None => config
+            .spool_envelopes_path()
+            .context("Config file does not contain the path to the spool file.")?,
+    };
 
-        let force = matches.get_flag("force");
-
-        if !force {
-            let stdin = std::io::stdin();
-            eprintln!(
-                "Are you sure you want to clear up on-disk spooled data in {} (yes/no): ",
-                path.to_string_lossy()
-            );
-            for line in stdin.lock().lines().map_while(Result::ok) {
-                match line.trim().to_lowercase().as_str() {
-                    "yes" => break,
-                    "no" => bail!("Canceling the cleaning of the spooled data."),
-                    _ => eprintln!("Accepting only YES or NO: "),
-                }
-            }
-        }
-
-        relay_log::info!("Clearing the spool file: {}", path.to_string_lossy());
-
-        spool_utils::truncate(path)?;
-
-        relay_log::info!("On-disk spool emptied.")
-    } else {
-        unreachable!();
+    if !path.is_file() {
+        bail!("Could not find provided file: {}", path.display());
     }
+
+    let force = matches.get_flag("force");
+
+    if !force {
+        let stdin = std::io::stdin();
+        eprintln!(
+            "Are you sure you want to clear up on-disk spooled data in {} (yes/no): ",
+            path.display()
+        );
+        for line in stdin.lock().lines().map_while(Result::ok) {
+            match line.trim().to_lowercase().as_str() {
+                "yes" => break,
+                "no" => bail!("Canceling the cleaning of the spooled data."),
+                _ => eprintln!("Accepting only YES or NO: "),
+            }
+        }
+    }
+
+    relay_log::info!("Clearing the spool file: {}", path.to_string_lossy());
+
+    spool_utils::truncate(&path)?;
+
+    relay_log::info!("On-disk spool emptied.");
 
     Ok(())
 }
