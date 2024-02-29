@@ -440,7 +440,9 @@ impl From<Vec<GenericFilterConfig>> for GenericFiltersMap {
     fn from(filters: Vec<GenericFilterConfig>) -> Self {
         let mut map = IndexMap::with_capacity(filters.len());
         for filter in filters {
-            map.insert(filter.id.clone(), filter.clone());
+            if !map.contains_key(&filter.id) {
+                map.insert(filter.id.clone(), filter);
+            }
         }
         GenericFiltersMap(map)
     }
