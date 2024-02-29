@@ -1277,23 +1277,9 @@ impl EnvelopeProcessorService {
         event::filter(state, self.inner.global_config.current())?;
         dynamic_sampling::run(state, &self.inner.config);
 
-        // Don't extract metrics if relay can't apply generic inbound filters.
-        // An inbound filter applied in another up-to-date relay in chain may
-        // need to drop the event, and there should not be metrics from dropped
-        // events.
-        let supported_generic_filters = relay_filter::are_generic_filters_supported(
-            self.inner
-                .global_config
-                .current()
-                .filters()
-                .map(|f| f.version),
-            state.project_state.config.filter_settings.generic.version,
-        );
         // We avoid extracting metrics if we are not sampling the event while in non-processing
         // relays, in order to synchronize rate limits on indexed and processed transactions.
-        let extract_metrics_from_sampling =
-            self.inner.config.processing_enabled() || state.sampling_result.should_drop();
-        if supported_generic_filters && extract_metrics_from_sampling {
+        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
             self.extract_metrics(state)?;
         }
 

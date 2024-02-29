@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-use crate::ErrorBoundary;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
 use relay_filter::GenericFiltersConfig;
@@ -29,21 +28,17 @@ pub struct GlobalConfig {
     ///
     /// These filters are merged with generic filters in project configs before
     /// applying.
-    #[serde(skip_serializing_if = "skip_generic_filters")]
-    pub filters: ErrorBoundary<GenericFiltersConfig>,
+    #[serde(
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub filters: Option<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub options: Options,
-}
-
-fn skip_generic_filters(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
-    match filters_config {
-        ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
-    }
 }
 
 impl GlobalConfig {
@@ -59,14 +54,6 @@ impl GlobalConfig {
             Ok(Some(serde_json::from_reader(file)?))
         } else {
             Ok(None)
-        }
-    }
-
-    /// Returns the generic inbound filters.
-    pub fn filters(&self) -> Option<&GenericFiltersConfig> {
-        match &self.filters {
-            ErrorBoundary::Err(_) => None,
-            ErrorBoundary::Ok(f) => Some(f),
         }
     }
 }
