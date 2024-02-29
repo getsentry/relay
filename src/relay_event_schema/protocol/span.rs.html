@@ -583,6 +583,16 @@
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -861,6 +871,14 @@
     <span class="doccomment">/// The URL scheme, e.g. `"https"`.
     </span><span class="attr">#[metastructure(field = <span class="string">"url.scheme"</span>)]
     </span><span class="kw">pub </span>url_scheme: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// User Display
+    </span><span class="attr">#[metastructure(field = <span class="string">"user"</span>)]
+    </span><span class="kw">pub </span>user: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// Replay ID
+    </span><span class="attr">#[metastructure(field = <span class="string">"replay_id"</span>)]
+    </span><span class="kw">pub </span>replay_id: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Other fields in `span.data`.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>, retain = <span class="string">"true"</span>)]
@@ -1147,6 +1165,8 @@
             transaction: ~,
             ui_component_name: ~,
             url_scheme: ~,
+            user: ~,
+            replay_id: ~,
             other: {
                 "bar": String(
                     "3",
