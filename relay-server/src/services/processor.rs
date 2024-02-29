@@ -1291,6 +1291,11 @@ impl EnvelopeProcessorService {
 
         metric!(
             timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
+            sampling_decision = if state.sampling_result.should_keep() {
+                "keep"
+            } else {
+                "drop"
+            },
             {
                 if_processing!(self.inner.config, {
                     event::store(state, &self.inner.config)?;
