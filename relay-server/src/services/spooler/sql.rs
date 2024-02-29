@@ -155,3 +155,11 @@ pub async fn do_insert(
 
     Ok(count)
 }
+
+/// Creates DELETE statement which truncates the entire `envelopes` table.
+///
+/// When the DELETE statement runs without WHERE clause SQLite uses an optimization (so called "truncate" optimization)
+/// to erase the entire table content without having to visit each row.
+pub fn truncate<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("DELETE FROM envelopes;")
+}

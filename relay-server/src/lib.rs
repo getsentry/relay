@@ -265,6 +265,8 @@ mod services;
 mod statsd;
 mod utils;
 
+pub use self::services::spooler::spool_utils;
+
 #[cfg(test)]
 mod testutils;
 
