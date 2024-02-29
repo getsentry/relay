@@ -323,6 +323,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 
     /// Returns a reference to the contained metrics.
+    #[cfg(feature = "processing")]
     pub fn metrics(&self) -> &[Bucket] {
         &self.metrics
     }

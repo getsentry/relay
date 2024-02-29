@@ -2,10 +2,14 @@ use std::time::Duration;
 
 mod cogs;
 mod recorder;
+#[cfg(test)]
+mod test;
 mod utils;
 
 pub use cogs::*;
 pub use recorder::*;
+#[cfg(test)]
+pub use test::*;
 
 /// Resource ID as tracked in COGS.
 ///
