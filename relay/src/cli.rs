@@ -354,9 +354,9 @@ pub fn manage_spool(config: &Config, matches: &ArgMatches) -> Result<()> {
 
     relay_log::info!("Clearing the spool file: {}", path.to_string_lossy());
 
-    spool_utils::truncate(&path)?;
+    let truncated = spool_utils::truncate(&path)?;
 
-    relay_log::info!("On-disk spool emptied.");
+    relay_log::info!("On-disk spool emptied. Deleted {truncated} envelopes.");
 
     Ok(())
 }

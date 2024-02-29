@@ -8,26 +8,28 @@ use crate::service::create_runtime;
 use crate::services::spooler::{sql, BufferError};
 
 /// Truncates the spool file deleting all the persisted on-disk data.
-pub fn truncate(path: &PathBuf) -> Result<(), BufferError> {
+///
+/// Returns the number of deleted envelopes when run successfully.
+pub fn truncate(path: &PathBuf) -> Result<u64, BufferError> {
     let options = SqliteConnectOptions::new()
         .filename(path)
         .journal_mode(SqliteJournalMode::Wal);
 
     let rt = create_runtime("truncator", 1);
 
-    rt.block_on(async move {
+    let result = rt.block_on(async move {
         let db = SqlitePoolOptions::new()
             .connect_with(options)
             .await
             .map_err(BufferError::SqlxSetupFailed)?;
 
-        sql::truncate()
+        let result = sql::truncate()
             .execute(&db)
             .await
             .map_err(BufferError::DeleteFailed)?;
 
-        Ok::<(), BufferError>(())
+        Ok::<u64, BufferError>(result.rows_affected())
     })?;
 
-    Ok(())
+    Ok(result)
 }
