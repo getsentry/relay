@@ -1864,6 +1864,9 @@
 <a href="#1863" id="1863">1863</a>
 <a href="#1864" id="1864">1864</a>
 <a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2894,6 +2897,7 @@
 
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
         span.event_id = event_id;
+        span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * <span class="number">1e3</span>) <span class="kw">as </span>u64;
@@ -3387,6 +3391,8 @@
 
     <span class="attr">#[serde(borrow, default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMeasurement&gt;&gt;&gt;,
+    <span class="attr">#[serde(default)]
+    </span>organization_id: u64,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>parent_span_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]

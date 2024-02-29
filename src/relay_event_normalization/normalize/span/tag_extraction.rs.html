@@ -1511,6 +1511,19 @@
 <a href="#1510" id="1510">1510</a>
 <a href="#1511" id="1511">1511</a>
 <a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1545,6 +1558,9 @@
     TransactionMethod,
     TransactionOp,
     BrowserName,
+    SdkName,
+    SdkVersion,
+    Platform,
     <span class="comment">// `"true"` if the transaction was sent by a mobile SDK.
     </span>Mobile,
     DeviceClass,
@@ -1592,6 +1608,9 @@
             SpanTagKey::Mobile =&gt; <span class="string">"mobile"</span>,
             SpanTagKey::DeviceClass =&gt; <span class="string">"device.class"</span>,
             SpanTagKey::BrowserName =&gt; <span class="string">"browser.name"</span>,
+            SpanTagKey::SdkName =&gt; <span class="string">"sdk.name"</span>,
+            SpanTagKey::SdkVersion =&gt; <span class="string">"sdk.version"</span>,
+            SpanTagKey::Platform =&gt; <span class="string">"platform"</span>,
 
             SpanTagKey::Action =&gt; <span class="string">"action"</span>,
             SpanTagKey::Category =&gt; <span class="string">"category"</span>,
@@ -1752,6 +1771,13 @@
     {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
     }
+
+    tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
+    tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
+    tags.insert(
+        SpanTagKey::Platform,
+        event.platform.as_str().unwrap_or(<span class="string">"other"</span>).into(),
+    );
 
     tags
 }
