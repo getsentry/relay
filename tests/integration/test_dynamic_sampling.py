@@ -831,3 +831,26 @@ def get_profile_payload(transaction):
         },
         "version": "1",
     }
+
+
+def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay):
+    project_id = 42
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    mini_sentry.global_config["filters"] = {
+        "generic": {
+            "version": 65535,  # u16::MAX
+            "filters": [],
+        }
+    }
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # Reject all transactions with dynamic sampling
+    _add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
+
+    envelope, _, _ = _create_transaction_envelope(public_key)
+
+    relay.send_envelope(project_id, envelope)
+    assert mini_sentry.captured_events.get(timeout=1)

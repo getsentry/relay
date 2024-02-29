@@ -1881,6 +1881,21 @@ def test_metric_bucket_encoding_dynamic_global_config_option(
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))
+@pytest.mark.parametrize(
+    "global_generic_filters",
+    [
+        # Config is broken
+        {
+            "version": "Halp! I'm broken!",
+            "filters": [],
+        },
+        # Config is valid, but filters aren't supported
+        {
+            "version": "65535",
+            "filters": [],
+        },
+    ],
+)
 def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filters(
     mini_sentry,
     relay,
@@ -1888,14 +1903,12 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
     transactions_consumer,
     metrics_consumer,
     is_processing_relay,
+    global_generic_filters,
 ):
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
 
-    mini_sentry.global_config["filters"] = {
-        "version": "Halp! I'm broken!",
-        "filters": [],
-    }
+    mini_sentry.global_config["filters"] = global_generic_filters
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
