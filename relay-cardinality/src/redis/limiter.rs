@@ -817,23 +817,23 @@ mod tests {
         assert!(test!(0..100).is_empty());
 
         // Refresh 0..50 - Full.
-        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds);
+        limiter.time_offset = Duration::from_secs(window.granularity_seconds);
         assert!(test!(0..50).is_empty());
         assert_eq!(test!(100..125).len(), 25);
 
         // Refresh 0..50 - Full.
-        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 2);
+        limiter.time_offset = Duration::from_secs(window.granularity_seconds * 2);
         assert!(test!(0..50).is_empty());
         assert_eq!(test!(125..150).len(), 25);
 
         // Refresh 0..50 - 50..100 fell out of the window, add 25 (size 50 -> 75).
         // --> Set 4 has size 75.
-        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 3);
+        limiter.time_offset = Duration::from_secs(window.granularity_seconds * 3);
         assert!(test!(0..50).is_empty());
         assert!(test!(150..175).is_empty());
 
         // Refresh 0..50 - Still 25 available (size 75 -> 100).
-        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 4);
+        limiter.time_offset = Duration::from_secs(window.granularity_seconds * 4);
         assert!(test!(0..50).is_empty());
         assert!(test!(175..200).is_empty());
 
@@ -845,8 +845,7 @@ mod tests {
             let start = 200 + i * 25;
             let end = start + 25;
 
-            limiter.time_offset =
-                Duration::from_secs(1 + window.granularity_seconds * (i as u64 + 5));
+            limiter.time_offset = Duration::from_secs(window.granularity_seconds * (i as u64 + 5));
             assert!(test!(0..50).is_empty());
 
             if i % 3 == 0 {
@@ -912,11 +911,11 @@ mod tests {
         assert!(test!(0..100).is_empty());
 
         // Fast forward one granule with the same values.
-        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds);
+        limiter.time_offset = Duration::from_secs(window.granularity_seconds);
         assert!(test!(0..100).is_empty());
 
         // Fast forward to the first granule after a full reset.
-        limiter.time_offset = Duration::from_secs(1 + window.window_seconds);
+        limiter.time_offset = Duration::from_secs(window.window_seconds);
         // Make sure the window is full and does not accept new values.
         assert_eq!(test!(200..300).len(), 100);
         // Assert original values.
