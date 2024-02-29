@@ -6,8 +6,7 @@
 
 use std::iter::FusedIterator;
 
-use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
-use indexmap::IndexMap;
+use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
@@ -64,7 +63,7 @@ fn merge_generic_filters<'a>(
     project: &'a GenericFiltersConfig,
     global: Option<&'a GenericFiltersConfig>,
     #[cfg(test)] version: u16,
-) -> impl Iterator<Item = MergedFilter<'a>> {
+) -> impl Iterator<Item = GenericFilterConfigRef<'a>> {
     #[cfg(not(test))]
     let version = VERSION;
 
@@ -82,20 +81,17 @@ fn merge_generic_filters<'a>(
 /// Iterator over the generic filters of the project and global configs.
 struct DynamicGenericFiltersConfigIter<'a> {
     /// Generic project filters.
-    project: &'a IndexMap<String, GenericFilterConfig>,
+    project: &'a GenericFiltersMap,
     /// Index of the next filter in project configs to evaluate.
     project_index: usize,
     /// Generic global filters.
-    global: Option<&'a IndexMap<String, GenericFilterConfig>>,
+    global: Option<&'a GenericFiltersMap>,
     /// Index of the next filter in global configs to evaluate.
     global_index: usize,
 }
 
 impl<'a> DynamicGenericFiltersConfigIter<'a> {
-    pub fn new(
-        project: &'a IndexMap<String, GenericFilterConfig>,
-        global: Option<&'a IndexMap<String, GenericFilterConfig>>,
-    ) -> Self {
+    pub fn new(project: &'a GenericFiltersMap, global: Option<&'a GenericFiltersMap>) -> Self {
         DynamicGenericFiltersConfigIter {
             project,
             project_index: 0,
@@ -106,7 +102,7 @@ impl<'a> DynamicGenericFiltersConfigIter<'a> {
 }
 
 impl<'a> Iterator for DynamicGenericFiltersConfigIter<'a> {
-    type Item = MergedFilter<'a>;
+    type Item = GenericFilterConfigRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some((id, filter)) = self.project.get_index(self.project_index) {
@@ -116,10 +112,7 @@ impl<'a> Iterator for DynamicGenericFiltersConfigIter<'a> {
         }
 
         loop {
-            let Some((id, filter)) = self
-                .global
-                .and_then(|filters| filters.get_index(self.global_index))
-            else {
+            let Some((id, filter)) = self.global?.get_index(self.global_index) else {
                 return None;
             };
             self.global_index += 1;
@@ -139,8 +132,8 @@ impl<'a> FusedIterator for DynamicGenericFiltersConfigIter<'a> {}
 fn merge_filters<'a>(
     primary: &'a GenericFilterConfig,
     secondary: Option<&'a GenericFilterConfig>,
-) -> MergedFilter<'a> {
-    MergedFilter {
+) -> GenericFilterConfigRef<'a> {
+    GenericFilterConfigRef {
         id: primary.id.as_str(),
         is_enabled: primary.is_enabled,
         condition: primary
@@ -151,15 +144,15 @@ fn merge_filters<'a>(
 }
 
 #[derive(Debug, Default, PartialEq)]
-struct MergedFilter<'a> {
+struct GenericFilterConfigRef<'a> {
     id: &'a str,
     is_enabled: bool,
     condition: Option<&'a RuleCondition>,
 }
 
-impl<'a> From<&'a GenericFilterConfig> for MergedFilter<'a> {
+impl<'a> From<&'a GenericFilterConfig> for GenericFilterConfigRef<'a> {
     fn from(value: &'a GenericFilterConfig) -> Self {
-        MergedFilter {
+        GenericFilterConfigRef {
             id: value.id.as_str(),
             is_enabled: value.is_enabled,
             condition: value.condition.as_ref(),
@@ -174,30 +167,24 @@ mod tests {
 
     use crate::generic::{should_filter, VERSION};
     use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
-    use indexmap::IndexMap;
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
 
-    fn mock_filters() -> IndexMap<String, GenericFilterConfig> {
-        IndexMap::from([
-            (
-                "firstReleases".to_owned(),
-                GenericFilterConfig {
-                    id: "firstReleases".to_string(),
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.release", "1.0")),
-                },
-            ),
-            (
-                "helloTransactions".to_owned(),
-                GenericFilterConfig {
-                    id: "helloTransactions".to_string(),
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
-                },
-            ),
-        ])
+    fn mock_filters() -> GenericFiltersMap {
+        vec![
+            GenericFilterConfig {
+                id: "firstReleases".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.release", "1.0")),
+            },
+            GenericFilterConfig {
+                id: "helloTransactions".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.transaction", "/hello")),
+            },
+        ]
+        .into()
     }
 
     #[test]
@@ -284,26 +271,22 @@ mod tests {
     fn test_should_filter_from_global_filters() {
         let project = GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                "firstReleases".to_owned(),
-                GenericFilterConfig {
-                    id: "firstReleases".to_string(),
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.release", "1.0")),
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: "firstReleases".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.release", "1.0")),
+            }]
+            .into(),
         };
 
         let global = GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                "helloTransactions".to_owned(),
-                GenericFilterConfig {
-                    id: "helloTransactions".to_string(),
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: "helloTransactions".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.transaction", "/hello")),
+            }]
+            .into(),
         };
 
         let event = Event {
@@ -322,7 +305,7 @@ mod tests {
     fn empty_filter() -> GenericFiltersConfig {
         GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::new(),
+            filters: GenericFiltersMap::new(),
         }
     }
 
@@ -330,14 +313,12 @@ mod tests {
     fn enabled_filter(id: &str) -> GenericFiltersConfig {
         GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                id.to_owned(),
-                GenericFilterConfig {
-                    id: id.to_owned(),
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.exceptions", "myError")),
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: id.to_owned(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.exceptions", "myError")),
+            }]
+            .into(),
         }
     }
 
@@ -345,14 +326,12 @@ mod tests {
     fn enabled_flag_filter(id: &str) -> GenericFiltersConfig {
         GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                id.to_owned(),
-                GenericFilterConfig {
-                    id: id.to_owned(),
-                    is_enabled: true,
-                    condition: None,
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: id.to_owned(),
+                is_enabled: true,
+                condition: None,
+            }]
+            .into(),
         }
     }
 
@@ -360,14 +339,12 @@ mod tests {
     fn disabled_filter(id: &str) -> GenericFiltersConfig {
         GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                id.to_owned(),
-                GenericFilterConfig {
-                    id: id.to_owned(),
-                    is_enabled: false,
-                    condition: Some(RuleCondition::eq("event.exceptions", "myError")),
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: id.to_owned(),
+                is_enabled: false,
+                condition: Some(RuleCondition::eq("event.exceptions", "myError")),
+            }]
+            .into(),
         }
     }
 
@@ -375,14 +352,12 @@ mod tests {
     fn disabled_flag_filter(id: &str) -> GenericFiltersConfig {
         GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([(
-                id.to_owned(),
-                GenericFilterConfig {
-                    id: id.to_owned(),
-                    is_enabled: false,
-                    condition: None,
-                },
-            )]),
+            filters: vec![GenericFilterConfig {
+                id: id.to_owned(),
+                is_enabled: false,
+                condition: None,
+            }]
+            .into(),
         }
     }
 
@@ -729,53 +704,40 @@ mod tests {
     fn test_multiple_combined_filters() {
         let project = GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([
-                (
-                    "0".to_owned(),
-                    GenericFilterConfig {
-                        id: "0".to_owned(),
-                        is_enabled: true,
-                        condition: Some(RuleCondition::eq("event.exceptions", "myError")),
-                    },
-                ),
-                (
-                    "1".to_owned(),
-                    GenericFilterConfig {
-                        id: "1".to_owned(),
-                        is_enabled: true,
-                        condition: None,
-                    },
-                ),
-                (
-                    "2".to_owned(),
-                    GenericFilterConfig {
-                        id: "2".to_owned(),
-                        is_enabled: true,
-                        condition: Some(RuleCondition::eq("event.exceptions", "myError")),
-                    },
-                ),
-            ]),
+            filters: vec![
+                GenericFilterConfig {
+                    id: "0".to_owned(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.exceptions", "myError")),
+                },
+                GenericFilterConfig {
+                    id: "1".to_owned(),
+                    is_enabled: true,
+                    condition: None,
+                },
+                GenericFilterConfig {
+                    id: "2".to_owned(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.exceptions", "myError")),
+                },
+            ]
+            .into(),
         };
         let global = GenericFiltersConfig {
             version: 1,
-            filters: IndexMap::from([
-                (
-                    "1".to_owned(),
-                    GenericFilterConfig {
-                        id: "1".to_owned(),
-                        is_enabled: false,
-                        condition: Some(RuleCondition::eq("event.exceptions", "myOtherError")),
-                    },
-                ),
-                (
-                    "3".to_owned(),
-                    GenericFilterConfig {
-                        id: "3".to_owned(),
-                        is_enabled: false,
-                        condition: Some(RuleCondition::eq("event.exceptions", "myLastError")),
-                    },
-                ),
-            ]),
+            filters: vec![
+                GenericFilterConfig {
+                    id: "1".to_owned(),
+                    is_enabled: false,
+                    condition: Some(RuleCondition::eq("event.exceptions", "myOtherError")),
+                },
+                GenericFilterConfig {
+                    id: "3".to_owned(),
+                    is_enabled: false,
+                    condition: Some(RuleCondition::eq("event.exceptions", "myLastError")),
+                },
+            ]
+            .into(),
         };
 
         let expected0 = &project.filters[0];

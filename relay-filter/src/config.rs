@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use indexmap::IndexMap;
@@ -233,7 +234,7 @@ impl LegacyBrowsersFilterConfig {
 }
 
 /// Configuration for a generic filter.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GenericFilterConfig {
     /// Unique identifier of the generic filter.
@@ -251,15 +252,6 @@ impl GenericFilterConfig {
     }
 }
 
-#[cfg(test)]
-impl PartialEq for GenericFilterConfig {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.is_enabled == other.is_enabled
-            && self.condition == other.condition
-    }
-}
-
 /// Configuration for generic filters.
 ///
 /// # Deserialization
@@ -269,10 +261,10 @@ impl PartialEq for GenericFilterConfig {
 /// Two filters are considered duplicates if they have the same ID,
 /// independently of the condition.
 ///
-/// The list of filters is deserialized into an [`IndexMap`], where the key is
-/// the filter's id and the value is the filter itself. The map is converted
-/// back to a list when serializing it, without the filters that were discarded
-/// as duplicates. See examples below.
+/// The list of filters is deserialized into an [`GenericFiltersMap`], where the
+/// key is the filter's id and the value is the filter itself. The map is
+/// converted back to a list when serializing it, without the filters that were
+/// discarded as duplicates. See examples below.
 ///
 /// # Iterator
 ///
@@ -325,13 +317,15 @@ impl PartialEq for GenericFilterConfig {
 /// assert_debug_snapshot!(deserialized, @r#"
 ///     GenericFiltersConfig {
 ///         version: 1,
-///         filters: {
-///             "filter1": GenericFilterConfig {
-///                 id: "filter1",
-///                 is_enabled: false,
-///                 condition: None,
+///         filters: GenericFiltersMap(
+///             {
+///                 "filter1": GenericFilterConfig {
+///                     id: "filter1",
+///                     is_enabled: false,
+///                     condition: None,
+///                 },
 ///             },
-///         },
+///         ),
 ///     }
 /// "#);
 /// ```
@@ -349,7 +343,9 @@ impl PartialEq for GenericFilterConfig {
 /// assert_debug_snapshot!(deserialized, @r#"
 ///     GenericFiltersConfig {
 ///         version: 1,
-///         filters: {},
+///         filters: GenericFiltersMap(
+///             {},
+///         ),
 ///     }
 /// "#);
 /// ```
@@ -360,18 +356,16 @@ impl PartialEq for GenericFilterConfig {
 /// # use relay_filter::{GenericFiltersConfig, GenericFilterConfig};
 /// # use relay_protocol::condition::RuleCondition;
 /// # use insta::assert_display_snapshot;
-/// # use indexmap::IndexMap;
 ///
 /// let filter = GenericFiltersConfig {
 ///     version: 1,
-///     filters: IndexMap::from([(
-///         "filter1".to_owned(),
+///     filters: vec![
 ///         GenericFilterConfig {
 ///             id: "filter1".to_owned(),
 ///             is_enabled: true,
 ///             condition: Some(RuleCondition::eq("event.exceptions", "drop-error")),
 ///         },
-///     )]),
+///     ].into(),
 /// };
 /// let serialized = serde_json::to_string_pretty(&filter).unwrap();
 /// assert_display_snapshot!(serialized, @r#"{
@@ -393,14 +387,13 @@ impl PartialEq for GenericFilterConfig {
 /// Serialization of filters is skipped if there aren't any:
 ///
 /// ```
-/// # use relay_filter::{GenericFiltersConfig, GenericFilterConfig};
+/// # use relay_filter::{GenericFiltersConfig, GenericFilterConfig, GenericFiltersMap};
 /// # use relay_protocol::condition::RuleCondition;
 /// # use insta::assert_display_snapshot;
-/// # use indexmap::IndexMap;
 ///
 /// let filter = GenericFiltersConfig {
 ///     version: 1,
-///     filters: IndexMap::new(),
+///     filters: GenericFiltersMap::new(),
 /// };
 /// let serialized = serde_json::to_string_pretty(&filter).unwrap();
 /// assert_display_snapshot!(serialized, @r#"{
@@ -416,34 +409,60 @@ pub struct GenericFiltersConfig {
     ///
     /// The map contains unique filters, meaning there are no two filters with
     /// the same id. See struct docs for more details.
-    #[serde(
-        default,
-        skip_serializing_if = "IndexMap::is_empty",
-        with = "generic_filters_custom_serialization"
-    )]
-    pub filters: IndexMap<String, GenericFilterConfig>,
+    #[serde(default, skip_serializing_if = "GenericFiltersMap::is_empty")]
+    pub filters: GenericFiltersMap,
 }
 
 impl GenericFiltersConfig {
     /// Returns true if the filters are not declared.
     pub fn is_empty(&self) -> bool {
-        self.filters.is_empty()
+        self.filters.0.is_empty()
     }
 }
 
-mod generic_filters_custom_serialization {
-    use super::*;
+/// Map of generic filters, mapping from the id to the filter itself.
+#[derive(Clone, Debug, Default)]
+pub struct GenericFiltersMap(IndexMap<String, GenericFilterConfig>);
 
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<IndexMap<String, GenericFilterConfig>, D::Error>
+impl GenericFiltersMap {
+    /// Returns an empty map.
+    pub fn new() -> Self {
+        GenericFiltersMap(IndexMap::new())
+    }
+
+    /// Returns whether the map is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<Vec<GenericFilterConfig>> for GenericFiltersMap {
+    fn from(filters: Vec<GenericFilterConfig>) -> Self {
+        let mut map = IndexMap::with_capacity(filters.len());
+        for filter in filters {
+            map.insert(filter.id.clone(), filter.clone());
+        }
+        GenericFiltersMap(map)
+    }
+}
+
+impl Deref for GenericFiltersMap {
+    type Target = IndexMap<String, GenericFilterConfig>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for GenericFiltersMap {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
     {
         struct GenericFiltersVisitor;
 
         impl<'de> serde::de::Visitor<'de> for GenericFiltersVisitor {
-            type Value = IndexMap<String, GenericFilterConfig>;
+            type Value = GenericFiltersMap;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a vector of filters: Vec<GenericFilterConfig>")
@@ -459,22 +478,21 @@ mod generic_filters_custom_serialization {
                         filters.insert(filter.id.clone(), filter);
                     }
                 }
-                Ok(filters)
+                Ok(GenericFiltersMap(filters))
             }
         }
 
         deserializer.deserialize_seq(GenericFiltersVisitor)
     }
+}
 
-    pub fn serialize<S>(
-        index_map: &IndexMap<String, GenericFilterConfig>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl Serialize for GenericFiltersMap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(Some(index_map.len()))?;
-        for filter in index_map.values() {
+        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
+        for filter in self.0.values() {
             seq.serialize_element(filter)?;
         }
         seq.end()
@@ -585,7 +603,9 @@ mod tests {
             },
             generic: GenericFiltersConfig {
                 version: 0,
-                filters: {},
+                filters: GenericFiltersMap(
+                    {},
+                ),
             },
         }
         "###);
@@ -629,14 +649,12 @@ mod tests {
             },
             generic: GenericFiltersConfig {
                 version: 1,
-                filters: IndexMap::from([(
-                    "hydrationError".to_owned(),
-                    GenericFilterConfig {
-                        id: "hydrationError".to_string(),
-                        is_enabled: true,
-                        condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
-                    },
-                )]),
+                filters: vec![GenericFilterConfig {
+                    id: "hydrationError".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
+                }]
+                .into(),
             },
         };
 
@@ -738,28 +756,30 @@ mod tests {
         insta::assert_debug_snapshot!(config, @r###"
         GenericFiltersConfig {
             version: 1,
-            filters: {
-                "hydrationError": GenericFilterConfig {
-                    id: "hydrationError",
-                    is_enabled: true,
-                    condition: Some(
-                        Eq(
-                            EqCondition {
-                                name: "event.exceptions",
-                                value: String("HydrationError"),
-                                options: EqCondOptions {
-                                    ignore_case: false,
+            filters: GenericFiltersMap(
+                {
+                    "hydrationError": GenericFilterConfig {
+                        id: "hydrationError",
+                        is_enabled: true,
+                        condition: Some(
+                            Eq(
+                                EqCondition {
+                                    name: "event.exceptions",
+                                    value: String("HydrationError"),
+                                    options: EqCondOptions {
+                                        ignore_case: false,
+                                    },
                                 },
-                            },
+                            ),
                         ),
-                    ),
+                    },
+                    "chunkLoadError": GenericFilterConfig {
+                        id: "chunkLoadError",
+                        is_enabled: false,
+                        condition: None,
+                    },
                 },
-                "chunkLoadError": GenericFilterConfig {
-                    id: "chunkLoadError",
-                    is_enabled: false,
-                    condition: None,
-                },
-            },
+            ),
         }
         "###);
     }

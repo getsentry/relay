@@ -287,18 +287,13 @@ pub fn filter<G: EventProcessing>(
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(
-            event,
-            client_ip,
-            filter_settings,
-            global_config.filters.as_ref(),
-        )
-        .map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })
     })
 }
 

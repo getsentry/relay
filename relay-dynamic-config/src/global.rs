@@ -10,6 +10,8 @@ use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::ErrorBoundary;
+
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
 /// Values shared across all projects may also be included here, to keep
@@ -28,11 +30,8 @@ pub struct GlobalConfig {
     ///
     /// These filters are merged with generic filters in project configs before
     /// applying.
-    #[serde(
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub filters: Option<GenericFiltersConfig>,
+    #[serde(skip_serializing_if = "skip_generic_filters")]
+    pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
         deserialize_with = "default_on_error",
@@ -55,6 +54,21 @@ impl GlobalConfig {
         } else {
             Ok(None)
         }
+    }
+
+    /// Returns the generic inbound filters.
+    pub fn filters(&self) -> Option<&GenericFiltersConfig> {
+        match &self.filters {
+            ErrorBoundary::Err(_) => None,
+            ErrorBoundary::Ok(f) => Some(f),
+        }
+    }
+}
+
+fn skip_generic_filters(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
+    match filters_config {
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
     }
 }
 
