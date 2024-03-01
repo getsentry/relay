@@ -37,6 +37,7 @@
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
+//!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
