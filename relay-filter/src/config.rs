@@ -256,7 +256,7 @@ impl GenericFilterConfig {
 ///
 /// # Deserialization
 ///
-/// `filters` is expected to be a sequence of [`GenericfilterConfig`].
+/// `filters` is expected to be a sequence of [`GenericFilterConfig`].
 /// Only the first occurrence of a filter is kept, and duplicates are removed.
 /// Two filters are considered duplicates if they have the same ID,
 /// independently of the condition.

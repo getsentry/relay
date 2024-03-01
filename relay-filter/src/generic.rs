@@ -56,8 +56,9 @@ pub(crate) fn should_filter(
 /// Returns an iterator that yields merged generic configs.
 ///
 /// Since filters of project and global configs are complementary and don't
-/// provide much value in isolation, both versions must match [`VERSION`] to be
-/// compatible.  If filters aren't compatible, an empty iterator is returned.
+/// provide much value in isolation, both versions must match
+/// [`MAX_SUPPORTED_VERSION`] to be compatible.  If filters aren't compatible,
+/// an empty iterator is returned.
 ///
 /// If filters are compatible, an iterator over all filters is returned. This
 /// iterator yields filters according to the principles below:
