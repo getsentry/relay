@@ -7,7 +7,7 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -273,6 +273,7 @@ pub fn finalize<G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -285,12 +286,13 @@ pub fn filter<G: EventProcessing>(
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })
     })
 }
 

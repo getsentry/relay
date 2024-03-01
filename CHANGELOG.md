@@ -8,6 +8,7 @@
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
 - Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
+- Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
 
 **Bug Fixes**:
 

@@ -3741,6 +3741,7 @@ version = "24.2.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
+ "indexmap 2.0.0",
  "insta",
  "relay-auth",
  "relay-base-schema",
@@ -3846,6 +3847,7 @@ dependencies = [
 name = "relay-filter"
 version = "24.2.0"
 dependencies = [
+ "indexmap 2.0.0",
  "insta",
  "ipnetwork 0.20.0",
  "once_cell",

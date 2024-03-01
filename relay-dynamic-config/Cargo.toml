@@ -23,7 +23,7 @@ relay-event-normalization = { path = "../relay-event-normalization" }
 relay-filter = { path = "../relay-filter" }
 relay-log = { path = "../relay-log" }
 relay-pii = { path = "../relay-pii" }
-relay-protocol  = { path = "../relay-protocol" }
+relay-protocol = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-sampling = { path = "../relay-sampling" }
 serde = { workspace = true }
@@ -33,3 +33,4 @@ smallvec = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 similar-asserts = { workspace = true }
+indexmap = { workspace = true }

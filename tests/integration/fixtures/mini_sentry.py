@@ -461,5 +461,6 @@ GLOBAL_CONFIG = {
         ],
         "maxCustomMeasurements": 10,
     },
+    "filters": {"version": 1, "filters": []},
     "options": {},
 }
