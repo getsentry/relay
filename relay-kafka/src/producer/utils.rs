@@ -26,7 +26,10 @@ impl ProducerContext for CaptureErrorContext {
                 "failed to produce message to Kafka (delivery callback)",
             );
 
-            metric!(counter(KafkaCounters::ProcessingProduceError) += 1);
+            metric!(
+                counter(KafkaCounters::ProcessingProduceError) += 1,
+                topic = message.topic()
+            );
         }
     }
 }
