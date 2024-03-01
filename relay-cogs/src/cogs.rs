@@ -88,7 +88,7 @@ impl CogsToken {
         self.update(AppFeatures::none());
     }
 
-    /// Updates the app features to whicht the active measurement is attributed to.
+    /// Updates the app features to which the active measurement is attributed to.
     ///
     /// # Example:
     ///

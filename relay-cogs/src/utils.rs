@@ -92,6 +92,53 @@ impl<const LENGTH: usize, E: Enum<LENGTH>, V> Iterator for EnumMapIntoIter<LENGT
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.map.0.len()))
+        (0, Some(self.map.0.len().saturating_sub(self.index)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AppFeature;
+
+    #[test]
+    fn test_iter_empty() {
+        let map = EnumMap::<16, AppFeature, usize>::default();
+
+        let mut iter = map.into_iter();
+        assert_eq!(iter.size_hint(), (0, Some(AppFeature::LENGTH)));
+        assert!(iter.next().is_none());
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+    }
+
+    #[test]
+    fn test_iter_with_elements() {
+        let mut map = EnumMap::<16, AppFeature, usize>::default();
+
+        map.insert(AppFeature::Spans, 1);
+        map.insert(AppFeature::Transactions, 2);
+        map.insert(AppFeature::MetricsSpans, 3);
+        map.remove(AppFeature::Transactions);
+
+        let mut iter = map.into_iter();
+        assert_eq!(iter.size_hint(), (0, Some(AppFeature::LENGTH)));
+        assert_eq!(iter.next(), Some((AppFeature::Spans, 1)));
+        assert_eq!(
+            iter.size_hint(),
+            (
+                0,
+                Some(AppFeature::LENGTH - AppFeature::to_index(AppFeature::Spans) - 1)
+            )
+        );
+        assert_eq!(iter.next(), Some((AppFeature::MetricsSpans, 3)));
+        assert_eq!(
+            iter.size_hint(),
+            (
+                0,
+                Some(AppFeature::LENGTH - AppFeature::to_index(AppFeature::MetricsSpans) - 1)
+            )
+        );
+        assert!(iter.next().is_none());
+        assert_eq!(iter.size_hint(), (0, Some(0)));
     }
 }
