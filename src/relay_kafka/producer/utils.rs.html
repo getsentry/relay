@@ -35,6 +35,9 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>rdkafka::producer::{DeliveryResult, ProducerContext};
@@ -63,7 +66,10 @@
                 <span class="string">"failed to produce message to Kafka (delivery callback)"</span>,
             );
 
-            <span class="macro">metric!</span>(counter(KafkaCounters::ProcessingProduceError) += <span class="number">1</span>);
+            <span class="macro">metric!</span>(
+                counter(KafkaCounters::ProcessingProduceError) += <span class="number">1</span>,
+                topic = message.topic()
+            );
         }
     }
 }

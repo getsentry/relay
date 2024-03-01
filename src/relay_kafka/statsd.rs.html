@@ -31,6 +31,9 @@
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric};
 
 <span class="kw">pub enum </span>KafkaCounters {
@@ -40,6 +43,9 @@
     /// These errors include, for example, _"MessageTooLarge"_ errors when the broker does not
     /// accept the requests over a certain size, which is usually due to invalid or inconsistent
     /// broker/producer configurations.
+    ///
+    /// This metric is tagged with:
+    ///  - `topic`: The Kafka topic being produced to.
     </span>ProcessingProduceError,
 }
 
