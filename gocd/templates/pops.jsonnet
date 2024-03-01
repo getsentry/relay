@@ -5,7 +5,7 @@ local pops = import './pipelines/pops.libsonnet';
 local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libsonnet';
 
 local pipedream_config = {
-  name: 'relay-pops',
+  name: 'relay-pop',
   auto_deploy: false,
   materials: {
     relay_repo: {

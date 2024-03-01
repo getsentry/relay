@@ -15,7 +15,7 @@ for i in "${!project_ids[@]}"; do
   /devinfra/scripts/checks/sentry/release_error_events.py \
     --project-id="${project_ids[i]}" \
     --project-slug="${project_slugs[i]}" \
-    --release="relay@${GO_REVISION_GETSENTRY_REPO}" \
+    --release="relay@${GO_REVISION_RELAY_REPO}" \
     --duration=5 \
     --error-events-limit="${ERROR_LIMIT}" \
     --dry-run="${DRY_RUN}" \
