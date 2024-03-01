@@ -217,7 +217,7 @@ pub struct AppFeaturesBuilder(AppFeatures);
 
 impl AppFeaturesBuilder {
     /// Increases the `weight` of an [`AppFeature`].
-    pub fn add_weight(mut self, feature: AppFeature, weight: usize) -> Self {
+    pub fn add_weight(&mut self, feature: AppFeature, weight: usize) -> &mut Self {
         let Some(weight) = NonZeroUsize::new(weight) else {
             return self;
         };
@@ -232,7 +232,7 @@ impl AppFeaturesBuilder {
     }
 
     /// Sets the specified `weight` for an [`AppFeature`].
-    pub fn weight(mut self, feature: AppFeature, weight: usize) -> Self {
+    pub fn weight(&mut self, feature: AppFeature, weight: usize) -> &mut Self {
         if let Some(weight) = NonZeroUsize::new(weight) {
             self.0 .0.insert(feature, weight);
         } else {
@@ -242,7 +242,7 @@ impl AppFeaturesBuilder {
     }
 
     /// Builds and returns the [`AppFeatures`].
-    pub fn build(self) -> AppFeatures {
+    pub fn build(&mut self) -> AppFeatures {
         self.0
     }
 }

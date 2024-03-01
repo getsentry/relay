@@ -27,7 +27,7 @@ fn metric_app_features(buckets: &[Bucket], f: impl Fn(&Bucket) -> usize) -> AppF
     let mut b = AppFeatures::builder();
 
     for bucket in buckets {
-        b = b.add_weight(to_app_feature(namespace(bucket)), f(bucket));
+        b.add_weight(to_app_feature(namespace(bucket)), f(bucket));
     }
 
     b.build()
