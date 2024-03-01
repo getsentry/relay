@@ -198,7 +198,7 @@
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
 };
-<span class="kw">use </span>relay_filter::FiltersConfig;
+<span class="kw">use </span>relay_filter::ProjectFiltersConfig;
 <span class="kw">use </span>relay_pii::{DataScrubbingConfig, PiiConfig};
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>relay_sampling::SamplingConfig;
@@ -227,8 +227,8 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>grouping_config: <span class="prelude-ty">Option</span>&lt;Value&gt;,
     <span class="doccomment">/// Configuration for filter rules.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"FiltersConfig::is_empty"</span>)]
-    </span><span class="kw">pub </span>filter_settings: FiltersConfig,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"ProjectFiltersConfig::is_empty"</span>)]
+    </span><span class="kw">pub </span>filter_settings: ProjectFiltersConfig,
     <span class="doccomment">/// Configuration for data scrubbers.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"DataScrubbingConfig::is_disabled"</span>)]
     </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
@@ -304,7 +304,7 @@
             trusted_relays: <span class="macro">vec!</span>[],
             pii_config: <span class="prelude-val">None</span>,
             grouping_config: <span class="prelude-val">None</span>,
-            filter_settings: FiltersConfig::default(),
+            filter_settings: ProjectFiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: <span class="prelude-val">None</span>,
             quotas: Vec::new(),
@@ -349,8 +349,8 @@
     <span class="kw">pub </span>allowed_domains: Vec&lt;String&gt;,
     <span class="kw">pub </span>trusted_relays: Vec&lt;PublicKey&gt;,
     <span class="kw">pub </span>pii_config: <span class="prelude-ty">Option</span>&lt;PiiConfig&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"FiltersConfig::is_empty"</span>)]
-    </span><span class="kw">pub </span>filter_settings: FiltersConfig,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"ProjectFiltersConfig::is_empty"</span>)]
+    </span><span class="kw">pub </span>filter_settings: ProjectFiltersConfig,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"DataScrubbingConfig::is_disabled"</span>)]
     </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]

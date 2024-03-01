@@ -885,6 +885,8 @@
 <a href="#884" id="884">884</a>
 <a href="#885" id="885">885</a>
 <a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -894,7 +896,7 @@
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_dynamic_config::Feature;
+<span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
 <span class="kw">use </span>relay_event_normalization::{nel, ClockDriftProcessor};
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -1160,6 +1162,7 @@
 
 <span class="kw">pub fn </span>filter&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
         <span class="prelude-val">Some</span>(event) =&gt; event,
@@ -1172,12 +1175,13 @@
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_state.config.filter_settings;
 
     <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })
     })
 }
 

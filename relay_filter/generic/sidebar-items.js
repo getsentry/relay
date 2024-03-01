@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["VERSION"]};
+window.SIDEBAR_ITEMS = {"fn":["are_generic_filters_supported"]};
