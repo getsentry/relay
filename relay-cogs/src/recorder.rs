@@ -1,11 +1,12 @@
 use crate::CogsMeasurement;
 
-/// Cogs consumer, recording actual measurements.
+/// Cogs recorder, recording actual measurements.
 pub trait CogsRecorder: Send + Sync {
     /// Record a single COGS measurement.
     fn record(&self, measurement: CogsMeasurement);
 }
 
+/// A recorder which discards all measurements.
 #[derive(Debug)]
 pub struct NoopRecorder;
 

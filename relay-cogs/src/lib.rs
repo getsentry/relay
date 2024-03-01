@@ -1,3 +1,68 @@
+//! Break down the cost of Relay by its components and individual features it handles.
+//!
+//! Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
+//! Performance, Metrics, Replays, Crons and more. A single shared resource.
+//!
+//! This module intends to make it possible to give insights how much time and resources
+//! Relay spends processing individual features. The measurements collected can be later used
+//! for increased observability and accounting purposes.
+//!
+//! `relay-cogs` provides a way to to give an answer to the questions:
+//!  - What portion of Relay's costs can be attributed to feature X?
+//!  - How much does feature X cost?
+//!
+//! ## Collecting COGs Measurements
+//!
+//! Measurements are collected through [`Cogs`] which attributes the measurement to either a single
+//! or to multiple different [app features](AppFeature) belonging to a [resource](ResourceId).
+//!
+//! Collected and [attributed measurements](CogsMeasurement) then are recorded by a [`CogsRecorder`].
+//!
+//! ```
+//! use relay_cogs::{AppFeature, AppFeatures, ResourceId, Cogs};
+//!
+//! enum Message {
+//!     Span,
+//!     Transaction,
+//!     TransactionWithSpans { num_spans: usize },
+//! }
+//!
+//! struct Processor {
+//!     cogs: Cogs
+//! }
+//!
+//! impl From<&Message> for AppFeatures {
+//!     fn from(value: &Message) -> Self {
+//!         match value {
+//!             Message::Span => AppFeatures::new(AppFeature::Spans),
+//!             Message::Transaction => AppFeatures::new(AppFeature::Transactions),
+//!             Message::TransactionWithSpans { num_spans } => AppFeatures::builder()
+//!                 .weight(AppFeature::Spans, *num_spans)
+//!                 .weight(AppFeature::Transactions, 1)
+//!                 .build(),
+//!         }
+//!     }
+//! }
+//!
+//! impl Processor {
+//!     fn handle_message(&self, mut message: Message) {
+//!         let _cogs = self.cogs.timed(ResourceId::Relay, &message);
+//!
+//!         self.step1(&mut message);
+//!         self.step2(&mut message);
+//!
+//!         // Measurement automatically recorded here.
+//!     }
+//! #   fn step1(&self, _: &mut Message) {}
+//! #   fn step2(&self, _: &mut Message) {}
+//! }
+//! ```
+#![warn(missing_docs)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
+
 use std::time::Duration;
 
 mod cogs;
@@ -83,6 +148,7 @@ pub enum AppFeature {
 }
 
 impl AppFeature {
+    /// Returns the string representation for this app feature.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unattributed => "unattributed",
@@ -152,7 +218,9 @@ impl utils::Enum<16> for AppFeature {
     }
 }
 
-// A COGS measurement.
+/// A COGS measurement.
+///
+/// The measurement has already been attributed to a specific feature.
 #[derive(Debug, Clone, Copy)]
 pub struct CogsMeasurement {
     /// The measured resource.
