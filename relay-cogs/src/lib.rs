@@ -7,7 +7,7 @@
 //! Relay spends processing individual features. The measurements collected can be later used
 //! for increased observability and accounting purposes.
 //!
-//! `relay-cogs` provides a way to to give an answer to the questions:
+//! `relay-cogs` provides a way to give an answer to the questions:
 //!  - What portion of Relay's costs can be attributed to feature X?
 //!  - How much does feature X cost?
 //!
