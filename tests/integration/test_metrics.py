@@ -1891,7 +1891,7 @@ def test_metric_bucket_encoding_dynamic_global_config_option(
         },
         # Config is valid, but filters aren't supported
         {
-            "version": "65535",
+            "version": 65535,
             "filters": [],
         },
     ],
@@ -1947,9 +1947,12 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
     if is_processing_relay:
         tx, _ = tx_consumer.get_event()
         assert tx is not None
+        # Processing Relays extract metrics even on broken global filters.
+        assert metrics_consumer.get_metrics(timeout=2)
     else:
-        assert mini_sentry.captured_events.get() is not None
-    metrics_consumer.assert_empty()
+        assert mini_sentry.captured_events.get(timeout=2) is not None
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_metrics.get(timeout=2)
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))
@@ -2007,9 +2010,12 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
     if is_processing_relay:
         tx, _ = tx_consumer.get_event()
         assert tx is not None
+        # Processing Relays extract metrics even on unsupported project filters.
+        assert metrics_consumer.get_metrics(timeout=2)
     else:
-        assert mini_sentry.captured_events.get() is not None
-    metrics_consumer.assert_empty()
+        assert mini_sentry.captured_events.get(timeout=2)
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_metrics.get(timeout=2)
 
 
 def test_missing_global_filters_enables_metric_extraction(

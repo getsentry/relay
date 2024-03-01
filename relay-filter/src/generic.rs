@@ -13,14 +13,15 @@ use relay_protocol::RuleCondition;
 /// Maximum supported version of the generic filters schema.
 ///
 /// If the version in the project config is higher, no generic filters are applied.
-const VERSION: u16 = 1;
+const MAX_SUPPORTED_VERSION: u16 = 1;
 
 /// Returns whether the given generic config versions are supported.
 pub fn are_generic_filters_supported(
     global_filters_version: Option<u16>,
     project_filters_version: u16,
 ) -> bool {
-    global_filters_version.map_or(true, |v| v <= VERSION) && project_filters_version <= VERSION
+    global_filters_version.map_or(true, |v| v <= MAX_SUPPORTED_VERSION)
+        && project_filters_version <= MAX_SUPPORTED_VERSION
 }
 
 /// Checks events by patterns in their error messages.
@@ -40,7 +41,7 @@ pub(crate) fn should_filter(
         project_filters,
         global_filters,
         #[cfg(test)]
-        VERSION,
+        MAX_SUPPORTED_VERSION,
     );
 
     for filter_config in filters {
@@ -70,13 +71,13 @@ pub(crate) fn should_filter(
 fn merge_generic_filters<'a>(
     project: &'a GenericFiltersConfig,
     global: Option<&'a GenericFiltersConfig>,
-    #[cfg(test)] version: u16,
+    #[cfg(test)] max_supported_version: u16,
 ) -> impl Iterator<Item = GenericFilterConfigRef<'a>> {
     #[cfg(not(test))]
-    let version = VERSION;
+    let max_supported_version = MAX_SUPPORTED_VERSION;
 
-    let is_supported =
-        project.version <= version && global.map_or(true, |gf| gf.version <= version);
+    let is_supported = project.version <= max_supported_version
+        && global.map_or(true, |gf| gf.version <= max_supported_version);
 
     is_supported
         .then(|| {
@@ -171,7 +172,7 @@ mod tests {
 
     use super::*;
 
-    use crate::generic::{should_filter, VERSION};
+    use crate::generic::{should_filter, MAX_SUPPORTED_VERSION};
     use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
@@ -261,7 +262,7 @@ mod tests {
     fn test_should_filter_with_higher_config_version() {
         let config = GenericFiltersConfig {
             // We simulate receiving a higher configuration version, which we don't support.
-            version: VERSION + 1,
+            version: MAX_SUPPORTED_VERSION + 1,
             filters: mock_filters(),
         };
 

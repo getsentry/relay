@@ -30,7 +30,7 @@ pub struct GlobalConfig {
     ///
     /// These filters are merged with generic filters in project configs before
     /// applying.
-    #[serde(skip_serializing_if = "skip_generic_filters")]
+    #[serde(skip_serializing_if = "is_err_or_empty")]
     pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
@@ -65,7 +65,7 @@ impl GlobalConfig {
     }
 }
 
-fn skip_generic_filters(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
+fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
     match filters_config {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
