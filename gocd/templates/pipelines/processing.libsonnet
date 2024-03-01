@@ -28,6 +28,7 @@ local soak_time(region) =
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
                 // TODO: Switch dry run to false once we're confident in the soak time
                 DRY_RUN: 'true',
+                SKIP_CANARY_CHECKS: 'false',
               },
               elastic_profile_id: 'relay',
               tasks: [
@@ -90,6 +91,7 @@ local deploy_canary(region) =
                 PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
                 // TODO: Switch dry run to false once we're confident in the canary
                 DRY_RUN: 'true',
+                SKIP_CANARY_CHECKS: 'false',
               },
               tasks: [
                 gocdtasks.script(importstr '../bash/deploy-processing-canary.sh'),
