@@ -1138,6 +1138,15 @@ impl StoreService {
                     continue;
                 }
 
+                let mut filtered_tags: BTreeMap<String, String> = BTreeMap::new();
+
+                for (k, v) in tags.iter() {
+                    match v {
+                        Some(v) => filtered_tags.insert(k.into(), v.into()),
+                        _ => continue,
+                    };
+                }
+
                 // Ignore immediate errors on produce.
                 if let Err(error) = self.produce(
                     KafkaTopic::MetricsSummaries,
@@ -1157,7 +1166,7 @@ impl StoreService {
                         segment_id: segment_id.unwrap_or_default(),
                         span_id,
                         sum,
-                        tags,
+                        tags: &filtered_tags,
                         trace_id,
                     }),
                 ) {
@@ -1562,7 +1571,7 @@ struct SpanMetricsSummary {
     #[serde(default)]
     sum: Option<f64>,
     #[serde(default)]
-    tags: BTreeMap<String, String>,
+    tags: BTreeMap<String, Option<String>>,
 }
 
 type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
