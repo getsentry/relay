@@ -197,24 +197,7 @@ impl utils::Enum<16> for AppFeature {
     }
 
     fn to_index(value: Self) -> usize {
-        match value {
-            Self::Unattributed => 0,
-            Self::UnattributedMetrics => 1,
-            Self::UnattributedEnvelope => 2,
-            Self::Transactions => 3,
-            Self::Errors => 4,
-            Self::Spans => 5,
-            Self::Sessions => 6,
-            Self::ClientReports => 7,
-            Self::CheckIns => 8,
-            Self::Replays => 9,
-            Self::MetricMeta => 10,
-            Self::MetricsTransactions => 11,
-            Self::MetricsSpans => 12,
-            Self::MetricsSessions => 13,
-            Self::MetricsCustom => 14,
-            Self::MetricsUnsupported => 15,
-        }
+        value as usize
     }
 }
 

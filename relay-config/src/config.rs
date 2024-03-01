@@ -1341,12 +1341,18 @@ impl Default for Health {
 #[serde(default)]
 pub struct Cogs {
     /// Whether COGS measurements are enabled.
+    ///
+    /// Defaults to `false`.
     enabled: bool,
     /// Granularity of the COGS measurements.
     ///
-    /// Measurements are aggregated based on the granularity.
+    /// Measurements are aggregated based on the granularity in seconds.
     ///
-    /// Defaults to 60 (1 minute).
+    /// Aggregated measurements are always flushed at the end of their
+    /// aggregation window, which means the granularity also controls the flush
+    /// interval.
+    ///
+    /// Defaults to `60` (1 minute).
     granularity_secs: u64,
     /// Maximium amount of COGS measurements allowed to backlog.
     ///

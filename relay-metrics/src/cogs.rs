@@ -10,7 +10,7 @@ pub struct BySize<'a>(pub &'a [Bucket]);
 
 impl<'a> From<BySize<'a>> for AppFeatures {
     fn from(value: BySize<'a>) -> Self {
-        metric_app_featurs(value.0, |b| BucketView::new(b).estimated_size())
+        metric_app_features(value.0, |b| BucketView::new(b).estimated_size())
     }
 }
 
@@ -19,11 +19,11 @@ pub struct ByCount<'a>(pub &'a [Bucket]);
 
 impl<'a> From<ByCount<'a>> for AppFeatures {
     fn from(value: ByCount<'a>) -> Self {
-        metric_app_featurs(value.0, |_| 1)
+        metric_app_features(value.0, |_| 1)
     }
 }
 
-fn metric_app_featurs(buckets: &[Bucket], f: impl Fn(&Bucket) -> usize) -> AppFeatures {
+fn metric_app_features(buckets: &[Bucket], f: impl Fn(&Bucket) -> usize) -> AppFeatures {
     let mut b = AppFeatures::builder();
 
     for bucket in buckets {

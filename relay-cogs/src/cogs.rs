@@ -286,7 +286,6 @@ mod tests {
 
         let measurements = recorder.measurements();
         assert_eq!(measurements.len(), 2);
-        dbg!(&measurements);
         assert_eq!(measurements[0].resource, ResourceId::Relay);
         assert_eq!(measurements[0].feature, AppFeature::Spans);
         assert_eq!(measurements[1].resource, ResourceId::Relay);
