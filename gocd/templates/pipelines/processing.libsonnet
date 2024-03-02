@@ -17,10 +17,9 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                // TODO: Add the monitor IDs
                 DATADOG_MONITOR_IDS: '137566884 14146876 137619914 14030245',
-                SENTRY_PROJECTS: if region == 's4s' then 'sentry-for-sentry' else 'relay pop-relay',
-                SENTRY_PROJECT_IDS: if region == 's4s' then '1513938' else '4 9',
+                // Sentry projects to check for errors <project_id>:<project_slug>:<service>
+                SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
                 SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
@@ -28,7 +27,6 @@ local soak_time(region) =
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
                 // TODO: Switch dry run to false once we're confident in the soak time
                 DRY_RUN: 'true',
-                SKIP_CANARY_CHECKS: 'false',
               },
               elastic_profile_id: 'relay',
               tasks: [
@@ -82,8 +80,8 @@ local deploy_canary(region) =
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
                 DATADOG_MONITOR_IDS: '137566884 14146876 137619914 14030245',
-                SENTRY_PROJECTS: 'relay pop-relay',
-                SENTRY_PROJECT_IDS: '4 9',
+                // Sentry projects to check for errors <project_id>:<project_slug>:<service>
+                SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: 'false',
                 SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
@@ -91,7 +89,6 @@ local deploy_canary(region) =
                 PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',
                 // TODO: Switch dry run to false once we're confident in the canary
                 DRY_RUN: 'true',
-                SKIP_CANARY_CHECKS: 'false',
               },
               tasks: [
                 gocdtasks.script(importstr '../bash/deploy-processing-canary.sh'),
@@ -146,6 +143,7 @@ local deploy_primary(region) = [
 function(region) {
   environment_variables: {
     SENTRY_REGION: region,
+    SKIP_CANARY_CHECKS: false,
   },
   group: 'relay-next',
   lock_behavior: 'unlockWhenFinished',
