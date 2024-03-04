@@ -16,7 +16,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_cogs::{AppFeature, Cogs, CogsToken, FeatureWeights, ResourceId};
+use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
@@ -1624,7 +1624,7 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_process_metrics(&self, cogs: &mut CogsToken, message: ProcessMetrics) {
+    fn handle_process_metrics(&self, cogs: &mut Token, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
             project_key: public_key,
@@ -1638,16 +1638,13 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        let mut buckets: Option<Vec<Bucket>> = None;
+        let mut buckets = Vec::new();
         for item in items {
             let payload = item.payload();
             if item.ty() == &ItemType::Statsd {
                 for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
                     match bucket_result {
-                        Ok(mut bucket) => {
-                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                            buckets.get_or_insert_with(Vec::new).push(bucket);
-                        }
+                        Ok(bucket) => buckets.push(bucket),
                         Err(error) => relay_log::debug!(
                             error = &error as &dyn Error,
                             "failed to parse metric bucket from statsd format",
@@ -1656,16 +1653,12 @@ impl EnvelopeProcessorService {
                 }
             } else if item.ty() == &ItemType::MetricBuckets {
                 match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(mut b) => {
-                        for bucket in &mut b {
-                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                        }
-
+                    Ok(parsed_buckets) => {
                         // Re-use the allocation of `b` if possible.
-                        if let Some(buckets) = buckets.as_mut() {
-                            buckets.extend(b);
+                        if buckets.is_empty() {
+                            buckets = parsed_buckets;
                         } else {
-                            buckets = Some(b);
+                            buckets.extend(parsed_buckets);
                         }
                     }
                     Err(error) => {
@@ -1684,9 +1677,13 @@ impl EnvelopeProcessorService {
             }
         }
 
-        let Some(buckets) = buckets else {
+        if buckets.is_empty() {
             return;
         };
+
+        for bucket in &mut buckets {
+            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+        }
 
         cogs.update(relay_metrics::cogs::BySize(&buckets));
 
@@ -1696,7 +1693,7 @@ impl EnvelopeProcessorService {
             .send(MergeBuckets::new(public_key, buckets));
     }
 
-    fn handle_process_batched_metrics(&self, cogs: &mut CogsToken, message: ProcessBatchedMetrics) {
+    fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
             start_time,

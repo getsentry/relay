@@ -61,8 +61,8 @@ impl Cogs {
     /// }
     ///
     /// ```
-    pub fn timed<F: Into<FeatureWeights>>(&self, resource: ResourceId, weights: F) -> CogsToken {
-        CogsToken {
+    pub fn timed<F: Into<FeatureWeights>>(&self, resource: ResourceId, weights: F) -> Token {
+        Token {
             resource,
             features: weights.into(),
             start: Instant::now(),
@@ -75,14 +75,14 @@ impl Cogs {
 ///
 /// The measurement is recorded when the token is dropped.
 #[must_use]
-pub struct CogsToken {
+pub struct Token {
     resource: ResourceId,
     features: FeatureWeights,
     start: Instant,
     recorder: Arc<dyn CogsRecorder>,
 }
 
-impl CogsToken {
+impl Token {
     /// Cancels the COGS measurement.
     pub fn cancel(&mut self) {
         // No features -> nothing gets attributed.
@@ -114,7 +114,7 @@ impl CogsToken {
     }
 }
 
-impl Drop for CogsToken {
+impl Drop for Token {
     fn drop(&mut self) {
         let elapsed = self.start.elapsed();
 
@@ -129,7 +129,7 @@ impl Drop for CogsToken {
     }
 }
 
-impl fmt::Debug for CogsToken {
+impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CogsToken")
             .field("resource", &self.resource)
@@ -173,9 +173,9 @@ impl FeatureWeights {
         self
     }
 
-    /// Returns an iterator yielding an app feature and it's associated weight
-    /// normalized to the total stored weights in the range between `0.0` and `1.0`.
+    /// Returns an iterator yielding an app feature and it's associated weight.
     ///
+    /// Weights are normalized to the total stored weights in the range between `0.0` and `1.0`.
     /// Used to divide a measurement by the stored weights.
     ///
     /// # Examples
