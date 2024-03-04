@@ -1926,6 +1926,7 @@ def test_span_extraction_with_ddm_missing_values(
                 "count": 4,
                 "tags": {
                     "environment": "test",
+                    "release": None,
                 },
             },
         ],

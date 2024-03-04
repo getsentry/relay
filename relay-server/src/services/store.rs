@@ -1129,6 +1129,11 @@ impl StoreService {
                     continue;
                 }
 
+                let tags = tags
+                    .iter_mut()
+                    .filter_map(|(k, v)| Some((k.as_str(), v.as_deref()?)))
+                    .collect();
+
                 // Ignore immediate errors on produce.
                 if let Err(error) = self.produce(
                     KafkaTopic::MetricsSummaries,
@@ -1553,7 +1558,7 @@ struct SpanMetricsSummary {
     #[serde(default)]
     sum: Option<f64>,
     #[serde(default)]
-    tags: BTreeMap<String, String>,
+    tags: BTreeMap<String, Option<String>>,
 }
 
 type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
@@ -1586,7 +1591,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     sum: &'a Option<f64>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    tags: &'a BTreeMap<String, String>,
+    tags: BTreeMap<&'a str, &'a str>,
 }
 
 #[derive(Debug, Serialize)]
