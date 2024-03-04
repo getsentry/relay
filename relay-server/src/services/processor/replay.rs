@@ -64,7 +64,8 @@ pub fn process(
             return ItemAction::DropSilently;
         }
 
-        // If an item has been dropped, skip processing of the remaining items.
+        // If an item has been dropped, skip processing of the remaining items. We don't
+        // want to emit multiple dropped outcomes for a single envelope or waste CPU time.
         if dropped_item {
             return ItemAction::DropSilently;
         }
