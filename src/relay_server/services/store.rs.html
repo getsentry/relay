@@ -1869,38 +1869,6 @@
 <a href="#1868" id="1868">1868</a>
 <a href="#1869" id="1869">1869</a>
 <a href="#1870" id="1870">1870</a>
-<a href="#1871" id="1871">1871</a>
-<a href="#1872" id="1872">1872</a>
-<a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
-<a href="#1887" id="1887">1887</a>
-<a href="#1888" id="1888">1888</a>
-<a href="#1889" id="1889">1889</a>
-<a href="#1890" id="1890">1890</a>
-<a href="#1891" id="1891">1891</a>
-<a href="#1892" id="1892">1892</a>
-<a href="#1893" id="1893">1893</a>
-<a href="#1894" id="1894">1894</a>
-<a href="#1895" id="1895">1895</a>
-<a href="#1896" id="1896">1896</a>
-<a href="#1897" id="1897">1897</a>
-<a href="#1898" id="1898">1898</a>
-<a href="#1899" id="1899">1899</a>
-<a href="#1900" id="1900">1900</a>
-<a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2142,10 +2110,6 @@
                         start_time,
                         item,
                     )<span class="question-mark">?</span>;
-                    <span class="macro">metric!</span>(
-                        counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                        event_type = <span class="string">"user_report"
-                    </span>);
                 }
                 ItemType::Session | ItemType::Sessions =&gt; {
                     <span class="self">self</span>.produce_sessions(
@@ -2245,21 +2209,7 @@
         );
 
         <span class="kw">for </span>message <span class="kw">in </span>kafka_messages {
-            <span class="kw">let </span>is_attachment = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>message, KafkaMessage::Attachment(<span class="kw">_</span>));
-
             <span class="self">self</span>.produce(topic, scoping.organization_id, message)<span class="question-mark">?</span>;
-
-            <span class="kw">if </span>is_attachment {
-                <span class="macro">metric!</span>(
-                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                    event_type = <span class="string">"attachment"
-                </span>);
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(event_item) = event_item {
-                <span class="macro">metric!</span>(
-                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                    event_type = <span class="kw-2">&amp;</span>event_item.ty().to_string()
-                );
-            }
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -2413,6 +2363,37 @@
         <span class="self">self</span>.producer
             .client
             .send_message(topic, organization_id, <span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
+
+        <span class="kw">match </span><span class="kw-2">&amp;</span>message {
+            KafkaMessage::Span(span) =&gt; {
+                <span class="kw">let </span>is_segment = span.is_segment;
+                <span class="kw">let </span>has_parent = span.parent_span_id.is_some();
+                <span class="kw">let </span>platform = VALID_PLATFORMS.iter().find(|p| <span class="kw-2">*</span>p == <span class="kw-2">&amp;</span>span.platform);
+
+                <span class="macro">metric!</span>(
+                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                    event_type = message.variant(),
+                    platform = platform.unwrap_or(<span class="kw-2">&amp;</span><span class="string">""</span>),
+                    is_segment = bool_to_str(is_segment),
+                    has_parent = bool_to_str(has_parent),
+                );
+            }
+            KafkaMessage::ReplayRecordingNotChunked(replay) =&gt; {
+                <span class="kw">let </span>has_video = replay.replay_video.is_some();
+
+                <span class="macro">metric!</span>(
+                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                    event_type = message.variant(),
+                    has_video = bool_to_str(has_video),
+                );
+            }
+            message =&gt; {
+                <span class="macro">metric!</span>(
+                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                    event_type = message.variant(),
+                );
+            }
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2661,11 +2642,6 @@
             organization_id,
             KafkaMessage::Metric { headers, message },
         )<span class="question-mark">?</span>;
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"metric"</span>,
-            namespace = namespace.as_str()
-        );
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2705,10 +2681,6 @@
             organization_id,
             KafkaMessage::Session(message),
         )<span class="question-mark">?</span>;
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"session"
-        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2736,10 +2708,6 @@
             organization_id,
             KafkaMessage::Profile(message),
         )<span class="question-mark">?</span>;
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"profile"
-        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2764,10 +2732,6 @@
             organization_id,
             KafkaMessage::ReplayEvent(message),
         )<span class="question-mark">?</span>;
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"replay_event"
-        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2825,17 +2789,6 @@
             scoping.organization_id,
             message,
         )<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>event_type = <span class="kw">if </span>replay_video.is_some() {
-            <span class="string">"replay_recording_with_video"
-        </span>} <span class="kw">else </span>{
-            <span class="string">"replay_recording_not_chunked"
-        </span>};
-
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = event_type
-        );
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2914,11 +2867,6 @@
 
         <span class="self">self</span>.produce(KafkaTopic::Monitors, organization_id, message)<span class="question-mark">?</span>;
 
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"check_in"
-        </span>);
-
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2969,10 +2917,6 @@
 
         <span class="self">self</span>.produce_metrics_summary(scoping, item, <span class="kw-2">&amp;</span>span);
 
-        <span class="kw">let </span>is_segment = span.is_segment;
-        <span class="kw">let </span>has_parent = span.parent_span_id.is_some();
-        <span class="kw">let </span>platform = VALID_PLATFORMS.iter().find(|p| <span class="kw-2">*</span>p == <span class="kw-2">&amp;</span>span.platform);
-
         <span class="self">self</span>.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -2988,14 +2932,6 @@
             scoping,
             timestamp: instant_to_date_time(start_time),
         });
-
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-            event_type = <span class="string">"span"</span>,
-            platform = platform.unwrap_or(<span class="kw-2">&amp;</span><span class="string">""</span>),
-            is_segment = bool_to_str(is_segment),
-            has_parent = bool_to_str(has_parent),
-        );
 
         <span class="prelude-val">Ok</span>(())
     }
