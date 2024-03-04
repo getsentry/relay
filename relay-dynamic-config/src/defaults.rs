@@ -131,7 +131,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "c:spans/usage@none".into(),
             field: None,
-            condition: Some(exclusive_time_light_condition.clone()),
+            condition: None,
             tags: vec![],
         },
         MetricSpec {
