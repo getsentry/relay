@@ -601,8 +601,10 @@ checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.48.5",
 ]
 
@@ -3673,6 +3675,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cogs"
+version = "24.2.0"
+
+[[package]]
 name = "relay-common"
 version = "24.2.0"
 dependencies = [
@@ -3921,6 +3927,7 @@ dependencies = [
  "rand",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -4125,6 +4132,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",
@@ -4149,6 +4157,7 @@ dependencies = [
  "reqwest",
  "rmp-serde",
  "rust-embed",
+ "sentry_usage_accountant",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4708,6 +4717,19 @@ dependencies = [
  "time",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "sentry_usage_accountant"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f0a631e328036db251337a0076dc5858a155f6831110c6417fe2537502ceae"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

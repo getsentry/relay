@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
@@ -126,6 +127,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     EnvelopeProcessorService::new(
         Arc::new(config),
         GlobalConfigHandle::fixed(Default::default()),
+        Cogs::noop(),
         #[cfg(feature = "processing")]
         redis,
         outcome_aggregator,

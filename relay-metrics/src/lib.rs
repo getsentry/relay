@@ -69,6 +69,7 @@
 )]
 
 pub mod aggregator;
+pub mod cogs;
 pub mod meta;
 
 mod aggregatorservice;

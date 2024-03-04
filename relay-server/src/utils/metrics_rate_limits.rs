@@ -322,6 +322,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         dropped_stuff
     }
 
+    /// Returns a reference to the contained metrics.
+    #[cfg(feature = "processing")]
+    pub fn metrics(&self) -> &[Bucket] {
+        &self.metrics
+    }
+
     /// Consume this struct and return the contained metrics.
     pub fn into_metrics(self) -> Vec<Bucket> {
         self.metrics
