@@ -164,7 +164,7 @@ impl AppFeature {
             Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSpans => "metrics_spans",
             Self::MetricsSessions => "metrics_sessions",
-            Self::MetricsCustom => "metrics_cusomt",
+            Self::MetricsCustom => "metrics_custom",
             Self::MetricsUnsupported => "metrics_unsupported",
         }
     }
