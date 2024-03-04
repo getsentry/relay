@@ -239,10 +239,6 @@ impl StoreService {
                         start_time,
                         item,
                     )?;
-                    metric!(
-                        counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        event_type = "user_report"
-                    );
                 }
                 ItemType::Session | ItemType::Sessions => {
                     self.produce_sessions(
@@ -342,21 +338,7 @@ impl StoreService {
         );
 
         for message in kafka_messages {
-            let is_attachment = matches!(&message, KafkaMessage::Attachment(_));
-
             self.produce(topic, scoping.organization_id, message)?;
-
-            if is_attachment {
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "attachment"
-                );
-            } else if let Some(event_item) = event_item {
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = &event_item.ty().to_string()
-                );
-            }
         }
 
         Ok(())
@@ -510,6 +492,37 @@ impl StoreService {
         self.producer
             .client
             .send_message(topic, organization_id, &message)?;
+
+        match &message {
+            KafkaMessage::Span(span) => {
+                let is_segment = span.is_segment;
+                let has_parent = span.parent_span_id.is_some();
+                let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
+
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                    platform = platform.unwrap_or(&""),
+                    is_segment = bool_to_str(is_segment),
+                    has_parent = bool_to_str(has_parent),
+                );
+            }
+            KafkaMessage::ReplayRecordingNotChunked(replay) => {
+                let has_video = replay.replay_video.is_some();
+
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                    has_video = bool_to_str(has_video),
+                );
+            }
+            message => {
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                );
+            }
+        }
 
         Ok(())
     }
@@ -758,11 +771,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Metric { headers, message },
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "metric",
-            namespace = namespace.as_str()
-        );
         Ok(())
     }
 
@@ -802,10 +810,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Session(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "session"
-        );
         Ok(())
     }
 
@@ -833,10 +837,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Profile(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "profile"
-        );
         Ok(())
     }
 
@@ -861,10 +861,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::ReplayEvent(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_event"
-        );
         Ok(())
     }
 
@@ -922,17 +918,6 @@ impl StoreService {
             scoping.organization_id,
             message,
         )?;
-
-        let event_type = if replay_video.is_some() {
-            "replay_recording_with_video"
-        } else {
-            "replay_recording_not_chunked"
-        };
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = event_type
-        );
 
         Ok(())
     }
@@ -1011,11 +996,6 @@ impl StoreService {
 
         self.produce(KafkaTopic::Monitors, organization_id, message)?;
 
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "check_in"
-        );
-
         Ok(())
     }
 
@@ -1066,10 +1046,6 @@ impl StoreService {
 
         self.produce_metrics_summary(scoping, item, &span);
 
-        let is_segment = span.is_segment;
-        let has_parent = span.parent_span_id.is_some();
-        let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
-
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -1085,14 +1061,6 @@ impl StoreService {
             scoping,
             timestamp: instant_to_date_time(start_time),
         });
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "span",
-            platform = platform.unwrap_or(&""),
-            is_segment = bool_to_str(is_segment),
-            has_parent = bool_to_str(has_parent),
-        );
 
         Ok(())
     }
