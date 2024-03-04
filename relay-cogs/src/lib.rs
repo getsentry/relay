@@ -69,7 +69,6 @@ mod cogs;
 mod recorder;
 #[cfg(test)]
 mod test;
-mod utils;
 
 pub use cogs::*;
 pub use recorder::*;
@@ -95,7 +94,7 @@ pub enum ResourceId {
 /// app features do no need to directly match a Sentry product.
 /// Multiple app features are later grouped and aggregated to determine
 /// the cost of a product.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AppFeature {
     /// A placeholder which should not be emitted but can be emitted in rare cases,
     /// for example error scenarios.
@@ -171,36 +170,6 @@ impl AppFeature {
     }
 }
 
-impl utils::Enum<16> for AppFeature {
-    fn from_index(index: usize) -> Option<Self> {
-        let r = match index {
-            0 => Self::Unattributed,
-            1 => Self::UnattributedMetrics,
-            2 => Self::UnattributedEnvelope,
-            3 => Self::Transactions,
-            4 => Self::Errors,
-            5 => Self::Spans,
-            6 => Self::Sessions,
-            7 => Self::ClientReports,
-            8 => Self::CheckIns,
-            9 => Self::Replays,
-            10 => Self::MetricMeta,
-            11 => Self::MetricsTransactions,
-            12 => Self::MetricsSpans,
-            13 => Self::MetricsSessions,
-            14 => Self::MetricsCustom,
-            15 => Self::MetricsUnsupported,
-            _ => return None,
-        };
-
-        Some(r)
-    }
-
-    fn to_index(value: Self) -> usize {
-        value as usize
-    }
-}
-
 /// A COGS measurement.
 ///
 /// The measurement has already been attributed to a specific feature.
@@ -219,22 +188,4 @@ pub struct CogsMeasurement {
 pub enum Value {
     /// A time measurement.
     Time(Duration),
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::utils::Enum;
-
-    use super::*;
-
-    #[test]
-    fn test_app_feature() {
-        for i in 0.. {
-            let Some(f) = AppFeature::from_index(i) else {
-                assert_eq!(i, AppFeature::LENGTH);
-                break;
-            };
-            assert_eq!(i, AppFeature::to_index(f));
-        }
-    }
 }

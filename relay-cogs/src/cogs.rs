@@ -1,10 +1,11 @@
 use core::fmt;
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Instant;
 use std::usize;
 
-use crate::{utils::EnumMap, AppFeature, ResourceId};
+use crate::{AppFeature, ResourceId};
 use crate::{CogsMeasurement, CogsRecorder, Value};
 
 /// COGS measurements collector.
@@ -140,8 +141,8 @@ impl fmt::Debug for CogsToken {
 /// A collection of weighted [app features](AppFeature).
 ///
 /// Used to attribute a single COGS measurement to multiple features.
-#[derive(Clone, Copy)]
-pub struct AppFeatures(EnumMap<16, AppFeature, NonZeroUsize>);
+#[derive(Clone)]
+pub struct AppFeatures(BTreeMap<AppFeature, NonZeroUsize>);
 
 impl AppFeatures {
     /// Attributes all measurements to a single [`AppFeature`].
@@ -162,7 +163,7 @@ impl AppFeatures {
     /// Merges two instances of [`AppFeatures`] and sums the contained weights.
     pub fn merge(mut self, other: Self) -> Self {
         for (feature, weight) in other.0.into_iter() {
-            if let Some(w) = self.0.get_mut(feature) {
+            if let Some(w) = self.0.get_mut(&feature) {
                 *w = w.saturating_add(weight.get());
             } else {
                 self.0.insert(feature, weight);
@@ -176,16 +177,31 @@ impl AppFeatures {
     /// normalized to the total stored weights in the range between `0.0` and `1.0`.
     ///
     /// Used to divide a measurement by the stored weights.
-    pub fn weights(&self) -> impl Iterator<Item = (AppFeature, f32)> {
-        let total_weight: usize = self.0.into_iter().map(|(_, weight)| weight.get()).sum();
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_cogs::{AppFeature, AppFeatures};
+    /// use std::collections::HashMap;
+    ///
+    /// let app_features = AppFeatures::builder()
+    ///     .weight(AppFeature::Transactions, 1)
+    ///     .weight(AppFeature::Spans, 1)
+    ///     .build();
+    ///
+    /// let weights: HashMap<AppFeature, f32> = app_features.weights().collect();
+    /// assert_eq!(weights, HashMap::from([(AppFeature::Transactions, 0.5), (AppFeature::Spans, 0.5)]))
+    /// ```
+    pub fn weights(&self) -> impl Iterator<Item = (AppFeature, f32)> + '_ {
+        let total_weight: usize = self.0.values().map(|weight| weight.get()).sum();
 
-        self.0.into_iter().filter_map(move |(feature, weight)| {
+        self.0.iter().filter_map(move |(feature, weight)| {
             if total_weight == 0 {
                 return None;
             }
 
             let ratio = (weight.get() as f32 / total_weight as f32).clamp(0.0, 1.0);
-            Some((feature, ratio))
+            Some((*feature, ratio))
         })
     }
 }
@@ -222,7 +238,7 @@ impl AppFeaturesBuilder {
             return self;
         };
 
-        if let Some(previous) = self.0 .0.get_mut(feature) {
+        if let Some(previous) = self.0 .0.get_mut(&feature) {
             *previous = previous.saturating_add(weight.get());
         } else {
             self.0 .0.insert(feature, weight);
@@ -236,14 +252,14 @@ impl AppFeaturesBuilder {
         if let Some(weight) = NonZeroUsize::new(weight) {
             self.0 .0.insert(feature, weight);
         } else {
-            self.0 .0.remove(feature);
+            self.0 .0.remove(&feature);
         }
         self
     }
 
     /// Builds and returns the [`AppFeatures`].
     pub fn build(&mut self) -> AppFeatures {
-        self.0
+        std::mem::replace(self, AppFeatures::builder()).0
     }
 }
 
