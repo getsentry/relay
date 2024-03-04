@@ -33,7 +33,7 @@ pub trait Limiter {
     fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &'a [CardinalityLimit],
+        limits: &'a [impl AsRef<CardinalityLimit>],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
@@ -103,7 +103,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
     pub fn check_cardinality_limits<'a, I: CardinalityItem>(
         &self,
         scoping: Scoping,
-        limits: &'a [CardinalityLimit],
+        limits: &'a [impl AsRef<CardinalityLimit>],
         items: Vec<I>,
     ) -> Result<CardinalityLimits<'a, I>, (Vec<I>, Error)> {
         if limits.is_empty() {
@@ -210,6 +210,25 @@ impl<'a, T> CardinalityLimits<'a, T> {
             })
             .collect()
     }
+
+    /// Filters all rejections using a supplied filter `f`.
+    ///
+    /// Every item for which the filter returns `true` is removed
+    /// from the rejections.
+    pub fn filter_rejections<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        let source = &self.source;
+        self.rejections
+            .extract_if(move |rejection| {
+                let Some(s) = source.get(*rejection) else {
+                    return false;
+                };
+                f(s)
+            })
+            .for_each(|_| {});
+    }
 }
 
 #[cfg(test)]
@@ -312,7 +331,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 _scoping: Scoping,
-                _limits: &'a [CardinalityLimit],
+                _limits: &'a [impl AsRef<CardinalityLimit>],
                 entries: I,
                 outcomes: &mut T,
             ) -> Result<()>
@@ -354,7 +373,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 _scoping: Scoping,
-                _limits: &'a [CardinalityLimit],
+                _limits: &'a [impl AsRef<CardinalityLimit>],
                 _entries: I,
                 _outcomes: &mut T,
             ) -> Result<()>
@@ -388,7 +407,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 scoping: Scoping,
-                limits: &[CardinalityLimit],
+                limits: &[impl AsRef<CardinalityLimit>],
                 entries: I,
                 outcomes: &mut T,
             ) -> Result<()>
@@ -397,7 +416,7 @@ mod tests {
                 T: Rejections<'a>,
             {
                 assert_eq!(scoping, build_scoping());
-                assert_eq!(limits, &build_limits());
+                assert!(limits.iter().map(AsRef::as_ref).eq(&build_limits()));
 
                 for entry in entries {
                     if entry.id.0 % 2 == 0 {

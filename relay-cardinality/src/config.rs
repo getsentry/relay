@@ -1,7 +1,7 @@
 use relay_base_schema::metrics::MetricNamespace;
 use serde::{Deserialize, Serialize};
 
-use crate::SlidingWindow;
+use crate::{CardinalityItem, SlidingWindow};
 
 /// A cardinality limit.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -20,6 +20,19 @@ pub struct CardinalityLimit {
     ///
     /// No namespace means this specific limit is enforced across all namespaces.
     pub namespace: Option<MetricNamespace>,
+}
+
+impl CardinalityLimit {
+    /// Wether the cardinality limit can be applied to a cardinality item.
+    pub fn matches<T: CardinalityItem>(&self, item: &T) -> bool {
+        self.namespace.is_none() || item.namespace() == self.namespace
+    }
+}
+
+impl AsRef<CardinalityLimit> for CardinalityLimit {
+    fn as_ref(&self) -> &CardinalityLimit {
+        self
+    }
 }
 
 /// A scope to restrict the [`CardinalityLimit`] to.

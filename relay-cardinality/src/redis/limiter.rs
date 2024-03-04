@@ -97,7 +97,7 @@ impl Limiter for RedisSetLimiter {
     fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &'a [CardinalityLimit],
+        limits: &'a [impl AsRef<CardinalityLimit>],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
@@ -213,10 +213,10 @@ impl<'a> LimitState<'a> {
         })
     }
 
-    pub fn from_limits(scoping: Scoping, limits: &'a [CardinalityLimit]) -> Vec<Self> {
+    pub fn from_limits(scoping: Scoping, limits: &'a [impl AsRef<CardinalityLimit>]) -> Vec<Self> {
         limits
             .iter()
-            .filter_map(|limit| LimitState::new(scoping, limit))
+            .filter_map(|limit| LimitState::new(scoping, limit.as_ref()))
             .collect::<Vec<_>>()
     }
 

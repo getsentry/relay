@@ -10,6 +10,7 @@ use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
+use crate::CardinalityLimiterMode;
 
 /// Configuration for metrics filtering.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -17,7 +18,7 @@ use crate::project::ProjectConfig;
 pub struct Metrics {
     /// List of cardinality limits to enforce for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub cardinality_limits: Vec<CardinalityLimit>,
+    pub cardinality_limits: Vec<ProjectCardinalityLimit>,
     /// List of patterns for blocking metrics based on their name.
     #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
     pub denied_names: GlobPatterns,
@@ -34,6 +35,28 @@ impl Metrics {
         self.cardinality_limits.is_empty()
             && self.denied_names.is_empty()
             && self.denied_tags.is_empty()
+    }
+}
+
+/// Cardinality limiter options.
+///
+/// Includes all options from [`relay_cardinality::CardinalityLimit`] and additional
+/// options how to process limits.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectCardinalityLimit {
+    /// Whether to treat this limit as a passive limit.
+    ///
+    /// Passive limits are not enforced only logged.
+    #[serde(default)]
+    pub passive: bool,
+    /// Configuration for the cardinality limiter.
+    #[serde(flatten)]
+    pub inner: CardinalityLimit,
+}
+
+impl AsRef<CardinalityLimit> for ProjectCardinalityLimit {
+    fn as_ref(&self) -> &relay_cardinality::CardinalityLimit {
+        &self.inner
     }
 }
 
