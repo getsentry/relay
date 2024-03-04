@@ -1,7 +1,7 @@
 [package]
 name = "relay-cardinality"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Metrics Cardiniality Limiter"
+description = "Metrics Cardinality Limiter"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "24.2.0"
