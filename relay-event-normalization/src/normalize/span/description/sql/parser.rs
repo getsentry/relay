@@ -569,7 +569,15 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_compound_identifier(include);
             }
             Statement::CreateRole { .. } => {}
-            Statement::AlterIndex { .. } => {}
+            Statement::AlterIndex { name, operation } => {
+                // Names here are not visited by `visit_relation`.
+                Self::simplify_compound_identifier(&mut name.0);
+                match operation {
+                    sqlparser::ast::AlterIndexOperation::RenameIndex { index_name } => {
+                        Self::simplify_compound_identifier(&mut index_name.0);
+                    }
+                }
+            }
             Statement::AlterView { .. } => {}
             Statement::AlterRole { name, .. } => {
                 Self::scrub_name(name);
