@@ -553,14 +553,31 @@ impl VisitorMut for NormalizeVisitor {
                 Self::scrub_name(module_name);
                 Self::simplify_compound_identifier(module_args);
             }
-            Statement::CreateIndex { using, include, .. } => {
+            Statement::CreateIndex {
+                name,
+                using,
+                include,
+                ..
+            } => {
+                // `table_name` is visited by `visit_relation`, but `name` is not.
+                if let Some(name) = name {
+                    Self::simplify_compound_identifier(&mut name.0);
+                }
                 if let Some(using) = using {
                     Self::scrub_name(using);
                 }
                 Self::simplify_compound_identifier(include);
             }
             Statement::CreateRole { .. } => {}
-            Statement::AlterIndex { .. } => {}
+            Statement::AlterIndex { name, operation } => {
+                // Names here are not visited by `visit_relation`.
+                Self::simplify_compound_identifier(&mut name.0);
+                match operation {
+                    sqlparser::ast::AlterIndexOperation::RenameIndex { index_name } => {
+                        Self::simplify_compound_identifier(&mut index_name.0);
+                    }
+                }
+            }
             Statement::AlterView { .. } => {}
             Statement::AlterRole { name, .. } => {
                 Self::scrub_name(name);
