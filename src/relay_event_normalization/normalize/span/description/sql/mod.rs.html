@@ -986,6 +986,18 @@
 <a href="#985" id="985">985</a>
 <a href="#986" id="986">986</a>
 <a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 
@@ -1965,6 +1977,18 @@
         replace_into_set_dont_panic,
         <span class="string">r#"REPLACE INTO `foo` SET x = y"#</span>,
         <span class="string">"REPLACE INTO foo SET x = y"
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        create_index_hex,
+    	<span class="string">"CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)"</span>,
+        <span class="string">"CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        alter_index_hex,
+        <span class="string">"ALTER INDEX name_0123456789abcdef0123456789abcdef RENAME TO new_name_0123456789abcdef0123456789abcdef"</span>,
+        <span class="string">"ALTER INDEX name_{%s} RENAME TO new_name_{%s}"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
