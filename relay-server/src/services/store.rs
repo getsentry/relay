@@ -1138,14 +1138,10 @@ impl StoreService {
                     continue;
                 }
 
-                let mut filtered_tags: BTreeMap<String, String> = BTreeMap::new();
-
-                for (k, v) in tags.iter() {
-                    match v {
-                        Some(v) => filtered_tags.insert(k.into(), v.into()),
-                        _ => continue,
-                    };
-                }
+                let tags = tags
+                    .iter_mut()
+                    .filter_map(|(k, v)| Some((k.as_str(), v.as_deref()?)))
+                    .collect();
 
                 // Ignore immediate errors on produce.
                 if let Err(error) = self.produce(
@@ -1166,7 +1162,7 @@ impl StoreService {
                         segment_id: segment_id.unwrap_or_default(),
                         span_id,
                         sum,
-                        tags: &filtered_tags,
+                        tags,
                         trace_id,
                     }),
                 ) {
@@ -1604,7 +1600,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     sum: &'a Option<f64>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    tags: &'a BTreeMap<String, String>,
+    tags: BTreeMap<&'a str, &'a str>,
 }
 
 /// An enum over all possible ingest messages.
