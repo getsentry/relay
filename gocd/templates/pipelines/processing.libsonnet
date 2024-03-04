@@ -13,7 +13,9 @@ local soak_time(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentryio][token]}}',
+                // Temporary; self-service encrypted secrets aren't implemented yet.
+                // This should really be rotated to an internal integration token.
+                SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
@@ -77,7 +79,9 @@ local deploy_canary(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentryio][token]}}',
+                // Temporary; self-service encrypted secrets aren't implemented yet.
+                // This should really be rotated to an internal integration token.
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
