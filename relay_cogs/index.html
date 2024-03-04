@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Break down the cost of Relay by its components and individual features it handles."><title>relay_cogs - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_cogs" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../relay_cogs/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../relay_cogs/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2><a href="../relay_cogs/index.html">relay_cogs</a><span class="version">24.2.0</span></h2></div><div class="sidebar-elems"><ul class="block">
+            <li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></section></div></nav><div class="sidebar-resizer"></div>
+    <main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../relay_cogs/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">relay_cogs</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/relay_cogs/lib.rs.html#1-191">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Break down the cost of Relay by its components and individual features it handles.</p>
+<p>Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
+Performance, Metrics, Replays, Crons and more. A single shared resource.</p>
+<p>This module intends to make it possible to give insights how much time and resources
+Relay spends processing individual features. The measurements collected can be later used
+for increased observability and accounting purposes.</p>
+<p><code>relay-cogs</code> provides a way to give an answer to the questions:</p>
+<ul>
+<li>What portion of Relay’s costs can be attributed to feature X?</li>
+<li>How much does feature X cost?</li>
+</ul>
+<h3 id="collecting-cogs-measurements"><a href="#collecting-cogs-measurements">Collecting COGs Measurements</a></h3>
+<p>Measurements are collected through <a href="struct.Cogs.html" title="struct relay_cogs::Cogs"><code>Cogs</code></a> which attributes the measurement to either a single
+or to multiple different <a href="enum.AppFeature.html" title="enum relay_cogs::AppFeature">app features</a> belonging to a <a href="enum.ResourceId.html" title="enum relay_cogs::ResourceId">resource</a>.</p>
+<p>Collected and <a href="struct.CogsMeasurement.html" title="struct relay_cogs::CogsMeasurement">attributed measurements</a> then are recorded by a <a href="trait.CogsRecorder.html" title="trait relay_cogs::CogsRecorder"><code>CogsRecorder</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId};
+
+<span class="kw">enum </span>Message {
+    Span,
+    Transaction,
+    TransactionWithSpans { num_spans: usize },
+}
+
+<span class="kw">struct </span>Processor {
+    cogs: Cogs
+}
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>Message&gt; <span class="kw">for </span>FeatureWeights {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>Message) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value {
+            Message::Span =&gt; FeatureWeights::new(AppFeature::Spans),
+            Message::Transaction =&gt; FeatureWeights::new(AppFeature::Transactions),
+            Message::TransactionWithSpans { num_spans } =&gt; FeatureWeights::builder()
+                .weight(AppFeature::Spans, <span class="kw-2">*</span>num_spans)
+                .weight(AppFeature::Transactions, <span class="number">1</span>)
+                .build(),
+        }
+    }
+}
+
+<span class="kw">impl </span>Processor {
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>message: Message) {
+        <span class="kw">let </span>_cogs = <span class="self">self</span>.cogs.timed(ResourceId::Relay, <span class="kw-2">&amp;</span>message);
+
+        <span class="self">self</span>.step1(<span class="kw-2">&amp;mut </span>message);
+        <span class="self">self</span>.step2(<span class="kw-2">&amp;mut </span>message);
+
+        <span class="comment">// Measurement automatically recorded here.
+    </span>}
+}</code></pre></div>
+</div></details><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Cogs.html" title="struct relay_cogs::Cogs">Cogs</a></div><div class="desc docblock-short">COGS measurements collector.</div></li><li><div class="item-name"><a class="struct" href="struct.CogsMeasurement.html" title="struct relay_cogs::CogsMeasurement">CogsMeasurement</a></div><div class="desc docblock-short">A COGS measurement.</div></li><li><div class="item-name"><a class="struct" href="struct.FeatureWeights.html" title="struct relay_cogs::FeatureWeights">FeatureWeights</a></div><div class="desc docblock-short">A collection of weighted <a href="enum.AppFeature.html" title="enum relay_cogs::AppFeature">app features</a>.</div></li><li><div class="item-name"><a class="struct" href="struct.FeatureWeightsBuilder.html" title="struct relay_cogs::FeatureWeightsBuilder">FeatureWeightsBuilder</a></div><div class="desc docblock-short">A builder for <a href="struct.FeatureWeights.html" title="struct relay_cogs::FeatureWeights"><code>FeatureWeights</code></a> which can be used to configure different weights per <a href="enum.AppFeature.html" title="enum relay_cogs::AppFeature"><code>AppFeature</code></a>.</div></li><li><div class="item-name"><a class="struct" href="struct.NoopRecorder.html" title="struct relay_cogs::NoopRecorder">NoopRecorder</a></div><div class="desc docblock-short">A recorder which discards all measurements.</div></li><li><div class="item-name"><a class="struct" href="struct.Token.html" title="struct relay_cogs::Token">Token</a></div><div class="desc docblock-short">An in progress COGS measurement.</div></li></ul><h2 id="enums" class="section-header"><a href="#enums">Enums</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.AppFeature.html" title="enum relay_cogs::AppFeature">AppFeature</a></div><div class="desc docblock-short">App feature a COGS measurement is related to.</div></li><li><div class="item-name"><a class="enum" href="enum.ResourceId.html" title="enum relay_cogs::ResourceId">ResourceId</a></div><div class="desc docblock-short">Resource ID as tracked in COGS.</div></li><li><div class="item-name"><a class="enum" href="enum.Value.html" title="enum relay_cogs::Value">Value</a></div><div class="desc docblock-short">A COGS measurement value.</div></li></ul><h2 id="traits" class="section-header"><a href="#traits">Traits</a></h2><ul class="item-table"><li><div class="item-name"><a class="trait" href="trait.CogsRecorder.html" title="trait relay_cogs::CogsRecorder">CogsRecorder</a></div><div class="desc docblock-short">Cogs recorder, recording actual measurements.</div></li></ul></section></div></main></body></html>

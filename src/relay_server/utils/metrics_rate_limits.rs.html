@@ -524,6 +524,12 @@
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -846,6 +852,12 @@
         };
 
         dropped_stuff
+    }
+
+    <span class="doccomment">/// Returns a reference to the contained metrics.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Bucket] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.metrics
     }
 
     <span class="doccomment">/// Consume this struct and return the contained metrics.

@@ -379,6 +379,7 @@
 <a href="#378" id="378">378</a>
 <a href="#379" id="379">379</a>
 <a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 //!
 //! There are two different producers that are supported in Relay right now:
@@ -387,7 +388,8 @@
 //! the shard number the different messages will be sent to different topics using the configured
 //! producer for the this exact shard.
 
-</span><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -455,7 +457,7 @@
     /// # Errors
     /// Returns the [`ClientError::InvalidMsgPack`] or [`ClientError::InvalidJson`] if the
     /// serialization failed.
-    </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ClientError&gt;;
+    </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Cow&lt;<span class="lifetime">'_</span>, [u8]&gt;, ClientError&gt;;
 }
 
 <span class="doccomment">/// Single kafka producer config with assigned topic.

@@ -418,6 +418,13 @@
 <a href="#417" id="417">417</a>
 <a href="#418" id="418">418</a>
 <a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -473,6 +480,8 @@
     </span>Spans,
     <span class="doccomment">/// Summary for metrics collected during a span.
     </span>MetricsSummaries,
+    <span class="doccomment">/// COGS measurements topic.
+    </span>Cogs,
 }
 
 <span class="kw">impl </span>KafkaTopic {
@@ -480,7 +489,7 @@
     /// It will have to be adjusted if the new variants are added.
     </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">'static</span>, <span class="self">Self</span>&gt; {
         <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
-        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">14</span>] = [
+        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">15</span>] = [
             Events,
             Attachments,
             Transactions,
@@ -495,6 +504,7 @@
             Monitors,
             Spans,
             MetricsSummaries,
+            Cogs,
         ];
         TOPICS.iter()
     }
@@ -536,6 +546,8 @@
     </span><span class="kw">pub </span>spans: TopicAssignment,
     <span class="doccomment">/// Summary for metrics collected during a span.
     </span><span class="kw">pub </span>metrics_summaries: TopicAssignment,
+    <span class="doccomment">/// COGS measurements.
+    </span><span class="kw">pub </span>cogs: TopicAssignment,
 }
 
 <span class="kw">impl </span>TopicAssignments {
@@ -557,6 +569,7 @@
             KafkaTopic::Monitors =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.monitors,
             KafkaTopic::Spans =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.spans,
             KafkaTopic::MetricsSummaries =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_summaries,
+            KafkaTopic::Cogs =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.cogs,
         }
     }
 }
@@ -579,6 +592,7 @@
             monitors: <span class="string">"ingest-monitors"</span>.to_owned().into(),
             spans: <span class="string">"snuba-spans"</span>.to_owned().into(),
             metrics_summaries: <span class="string">"snuba-metrics-summaries"</span>.to_owned().into(),
+            cogs: <span class="string">"shared-resources-usage"</span>.to_owned().into(),
         }
     }
 }

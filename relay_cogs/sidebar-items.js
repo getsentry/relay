@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AppFeature","ResourceId","Value"],"struct":["Cogs","CogsMeasurement","FeatureWeights","FeatureWeightsBuilder","NoopRecorder","Token"],"trait":["CogsRecorder"]};
