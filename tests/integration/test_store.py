@@ -1845,6 +1845,7 @@ def test_span_extraction_with_metrics_summary(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1915,6 +1916,7 @@ def test_span_extraction_with_ddm_missing_values(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
