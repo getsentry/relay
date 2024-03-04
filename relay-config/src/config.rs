@@ -1331,6 +1331,49 @@ impl Default for Health {
     }
 }
 
+/// COGS configuration.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Cogs {
+    /// Whether COGS measurements are enabled.
+    ///
+    /// Defaults to `false`.
+    enabled: bool,
+    /// Granularity of the COGS measurements.
+    ///
+    /// Measurements are aggregated based on the granularity in seconds.
+    ///
+    /// Aggregated measurements are always flushed at the end of their
+    /// aggregation window, which means the granularity also controls the flush
+    /// interval.
+    ///
+    /// Defaults to `60` (1 minute).
+    granularity_secs: u64,
+    /// Maximium amount of COGS measurements allowed to backlog.
+    ///
+    /// Any additional COGS measurements recorded will be dropped.
+    ///
+    /// Defaults to `10_000`.
+    max_queue_size: u64,
+    /// Relay COGS resource id.
+    ///
+    /// All Relay related COGS measurements are emitted with this resource id.
+    ///
+    /// Defaults to `relay_service`.
+    relay_resource_id: String,
+}
+
+impl Default for Cogs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            granularity_secs: 60,
+            max_queue_size: 10_000,
+            relay_resource_id: "relay_service".to_owned(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1371,6 +1414,8 @@ struct ConfigValues {
     cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
     health: Health,
+    #[serde(default)]
+    cogs: Cogs,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2208,6 +2253,26 @@ impl Config {
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
         self.values.health.max_memory_percent
+    }
+
+    /// Whether COGS measurements are enabled.
+    pub fn cogs_enabled(&self) -> bool {
+        self.values.cogs.enabled
+    }
+
+    /// Granularity for COGS measurements.
+    pub fn cogs_granularity(&self) -> Duration {
+        Duration::from_secs(self.values.cogs.granularity_secs)
+    }
+
+    /// Maximum amount of COGS measurements buffered in memory.
+    pub fn cogs_max_queue_size(&self) -> u64 {
+        self.values.cogs.max_queue_size
+    }
+
+    /// Resource ID to use for Relay COGS measurements.
+    pub fn cogs_relay_resource_id(&self) -> &str {
+        &self.values.cogs.relay_resource_id
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

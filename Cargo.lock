@@ -601,8 +601,10 @@ checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.48.5",
 ]
 
@@ -1879,7 +1881,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 2.0.0",
+ "indexmap 2.2.5",
  "slab",
  "tokio",
  "tokio-util",
@@ -2204,9 +2206,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.0.0"
+version = "2.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5477fe2230a79769d8dc68e0eabf5437907c0457a5614a9e8dddb67f65eb65d"
+checksum = "7b0b929d511467233429c45a44ac1dcaa21ba0f5ba11e4879e6ed28ddb4f9df4"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.3",
@@ -3673,6 +3675,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cogs"
+version = "24.2.0"
+
+[[package]]
 name = "relay-common"
 version = "24.2.0"
 dependencies = [
@@ -3741,7 +3747,7 @@ version = "24.2.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
- "indexmap 2.0.0",
+ "indexmap 2.2.5",
  "insta",
  "relay-auth",
  "relay-base-schema",
@@ -3847,7 +3853,7 @@ dependencies = [
 name = "relay-filter"
 version = "24.2.0"
 dependencies = [
- "indexmap 2.0.0",
+ "indexmap 2.2.5",
  "insta",
  "ipnetwork 0.20.0",
  "once_cell",
@@ -3921,6 +3927,7 @@ dependencies = [
  "rand",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -4125,6 +4132,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-base-schema",
  "relay-cardinality",
+ "relay-cogs",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",
@@ -4149,6 +4157,7 @@ dependencies = [
  "reqwest",
  "rmp-serde",
  "rust-embed",
+ "sentry_usage_accountant",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4711,6 +4720,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentry_usage_accountant"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f0a631e328036db251337a0076dc5858a155f6831110c6417fe2537502ceae"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5081,7 +5103,7 @@ dependencies = [
  "futures-util",
  "hashlink",
  "hex",
- "indexmap 2.0.0",
+ "indexmap 2.2.5",
  "log",
  "memchr",
  "once_cell",

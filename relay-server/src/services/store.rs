@@ -97,11 +97,15 @@ pub struct StoreMetrics {
     pub mode: ExtractionMode,
 }
 
+#[derive(Debug)]
+pub struct StoreCogs(pub Vec<u8>);
+
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
     Envelope(StoreEnvelope),
     Metrics(StoreMetrics),
+    Cogs(StoreCogs),
 }
 
 impl Interface for Store {}
@@ -119,6 +123,14 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
+    }
+}
+
+impl FromMessage<StoreCogs> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: StoreCogs, _: ()) -> Self {
+        Self::Cogs(message)
     }
 }
 
@@ -149,6 +161,7 @@ impl StoreService {
         match message {
             Store::Envelope(message) => self.handle_store_envelope(message),
             Store::Metrics(message) => self.handle_store_metrics(message),
+            Store::Cogs(message) => self.handle_store_cogs(message),
         }
     }
 
@@ -226,10 +239,6 @@ impl StoreService {
                         start_time,
                         item,
                     )?;
-                    metric!(
-                        counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        event_type = "user_report"
-                    );
                 }
                 ItemType::Session | ItemType::Sessions => {
                     self.produce_sessions(
@@ -329,21 +338,7 @@ impl StoreService {
         );
 
         for message in kafka_messages {
-            let is_attachment = matches!(&message, KafkaMessage::Attachment(_));
-
             self.produce(topic, scoping.organization_id, message)?;
-
-            if is_attachment {
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "attachment"
-                );
-            } else if let Some(event_item) = event_item {
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = &event_item.ty().to_string()
-                );
-            }
         }
 
         Ok(())
@@ -396,6 +391,16 @@ impl StoreService {
                 dropped,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+            );
+        }
+    }
+
+    fn handle_store_cogs(&self, StoreCogs(payload): StoreCogs) {
+        let message = KafkaMessage::Cogs(CogsKafkaMessage(payload));
+        if let Err(error) = self.produce(KafkaTopic::Cogs, 0, message) {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "failed to store cogs measurement"
             );
         }
     }
@@ -487,6 +492,37 @@ impl StoreService {
         self.producer
             .client
             .send_message(topic, organization_id, &message)?;
+
+        match &message {
+            KafkaMessage::Span(span) => {
+                let is_segment = span.is_segment;
+                let has_parent = span.parent_span_id.is_some();
+                let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
+
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                    platform = platform.unwrap_or(&""),
+                    is_segment = bool_to_str(is_segment),
+                    has_parent = bool_to_str(has_parent),
+                );
+            }
+            KafkaMessage::ReplayRecordingNotChunked(replay) => {
+                let has_video = replay.replay_video.is_some();
+
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                    has_video = bool_to_str(has_video),
+                );
+            }
+            message => {
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                );
+            }
+        }
 
         Ok(())
     }
@@ -735,11 +771,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Metric { headers, message },
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "metric",
-            namespace = namespace.as_str()
-        );
         Ok(())
     }
 
@@ -779,10 +810,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Session(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "session"
-        );
         Ok(())
     }
 
@@ -810,10 +837,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Profile(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "profile"
-        );
         Ok(())
     }
 
@@ -838,10 +861,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::ReplayEvent(message),
         )?;
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_event"
-        );
         Ok(())
     }
 
@@ -899,17 +918,6 @@ impl StoreService {
             scoping.organization_id,
             message,
         )?;
-
-        let event_type = if replay_video.is_some() {
-            "replay_recording_with_video"
-        } else {
-            "replay_recording_not_chunked"
-        };
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = event_type
-        );
 
         Ok(())
     }
@@ -988,11 +996,6 @@ impl StoreService {
 
         self.produce(KafkaTopic::Monitors, organization_id, message)?;
 
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "check_in"
-        );
-
         Ok(())
     }
 
@@ -1043,10 +1046,6 @@ impl StoreService {
 
         self.produce_metrics_summary(scoping, item, &span);
 
-        let is_segment = span.is_segment;
-        let has_parent = span.parent_span_id.is_some();
-        let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
-
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
@@ -1062,14 +1061,6 @@ impl StoreService {
             scoping,
             timestamp: instant_to_date_time(start_time),
         });
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "span",
-            platform = platform.unwrap_or(&""),
-            is_segment = bool_to_str(is_segment),
-            has_parent = bool_to_str(has_parent),
-        );
 
         Ok(())
     }
@@ -1598,6 +1589,10 @@ struct MetricsSummaryKafkaMessage<'a> {
     tags: &'a BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(transparent)]
+struct CogsKafkaMessage(Vec<u8>);
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1620,6 +1615,7 @@ enum KafkaMessage<'a> {
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
+    Cogs(CogsKafkaMessage),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1637,6 +1633,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span(_) => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
+            KafkaMessage::Cogs(_) => "cogs",
         }
     }
 
@@ -1660,7 +1657,8 @@ impl Message for KafkaMessage<'_> {
             | Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
             | Self::Span(_)
-            | Self::MetricsSummary(_) => Uuid::nil(),
+            | Self::MetricsSummary(_)
+            | Self::Cogs(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1692,25 +1690,29 @@ impl Message for KafkaMessage<'_> {
     }
 
     /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Vec<u8>, ClientError> {
+    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError> {
         match self {
-            KafkaMessage::Session(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::Metric { message, .. } => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::ReplayEvent(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::Span(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
-            KafkaMessage::MetricsSummary(message) => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
-            }
+            KafkaMessage::Session(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Span(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
 
-            _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
+            KafkaMessage::Cogs(CogsKafkaMessage(payload)) => Ok(payload.into()),
+
+            _ => rmp_serde::to_vec_named(&self)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidMsgPack),
         }
     }
 }
