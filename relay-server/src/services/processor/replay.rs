@@ -55,10 +55,17 @@ pub fn process(
     let combined_envelope_items =
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
+    let mut dropped_item = false;
+
     state.managed_envelope.retain_items(|item| {
         // If replays aren't enabled or an item was dropped - drop the remainder of the
         // envelope.
         if !replays_enabled {
+            return ItemAction::DropSilently;
+        }
+
+        // If an item has been dropped, skip processing of the remaining items.
+        if dropped_item {
             return ItemAction::DropSilently;
         }
 
@@ -73,7 +80,10 @@ pub fn process(
                     client_addr,
                     user_agent,
                 ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
+                    Err(outcome) => {
+                        dropped_item = true;
+                        ItemAction::Drop(outcome)
+                    }
                     Ok(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
                         ItemAction::Keep
@@ -87,7 +97,10 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
+                    Err(outcome) => {
+                        dropped_item = true;
+                        ItemAction::Drop(outcome)
+                    }
                     Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
                         ItemAction::Keep
@@ -103,7 +116,10 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                Err(outcome) => ItemAction::Drop(outcome),
+                Err(outcome) => {
+                    dropped_item = true;
+                    ItemAction::Drop(outcome)
+                }
                 Ok(payload) => {
                     item.set_payload(ContentType::OctetStream, payload);
                     ItemAction::Keep
@@ -112,6 +128,12 @@ pub fn process(
             _ => ItemAction::Keep,
         }
     });
+
+    if dropped_item {
+        state
+            .managed_envelope
+            .reject(Outcome::Invalid(DiscardReason::ReplayRejected));
+    }
 
     Ok(())
 }
