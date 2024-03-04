@@ -1869,6 +1869,11 @@
 <a href="#1868" id="1868">1868</a>
 <a href="#1869" id="1869">1869</a>
 <a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -3000,6 +3005,11 @@
                     <span class="kw">continue</span>;
                 }
 
+                <span class="kw">let </span>tags = tags
+                    .iter_mut()
+                    .filter_map(|(k, v)| <span class="prelude-val">Some</span>((k.as_str(), v.as_deref()<span class="question-mark">?</span>)))
+                    .collect();
+
                 <span class="comment">// Ignore immediate errors on produce.
                 </span><span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.produce(
                     KafkaTopic::MetricsSummaries,
@@ -3424,7 +3434,7 @@
     <span class="attr">#[serde(default)]
     </span>sum: <span class="prelude-ty">Option</span>&lt;f64&gt;,
     <span class="attr">#[serde(default)]
-    </span>tags: BTreeMap&lt;String, String&gt;,
+    </span>tags: BTreeMap&lt;String, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;,
 }
 
 <span class="kw">type </span>SpanMetricsSummaries = Vec&lt;<span class="prelude-ty">Option</span>&lt;SpanMetricsSummary&gt;&gt;;
@@ -3457,7 +3467,7 @@
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>sum: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="prelude-ty">Option</span>&lt;f64&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
-    </span>tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, String&gt;,
+    </span>tags: BTreeMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
 }
 
 <span class="attr">#[derive(Debug, Serialize)]
