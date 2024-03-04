@@ -42,7 +42,7 @@ impl Cogs {
     /// with the configured [recorder](CogsRecorder).
     ///
     /// The recorded measurement can be attributed to multiple features by supplying a
-    /// weighted [`AppFeatures`]. A single [`AppFeature`] attributes the entire measurement
+    /// weighted [`FeatureWeights`]. A single [`AppFeature`] attributes the entire measurement
     /// to the feature.
     ///
     /// # Example:
@@ -61,10 +61,10 @@ impl Cogs {
     /// }
     ///
     /// ```
-    pub fn timed<F: Into<AppFeatures>>(&self, resource: ResourceId, features: F) -> CogsToken {
+    pub fn timed<F: Into<FeatureWeights>>(&self, resource: ResourceId, weights: F) -> CogsToken {
         CogsToken {
             resource,
-            features: features.into(),
+            features: weights.into(),
             start: Instant::now(),
             recorder: Arc::clone(&self.recorder),
         }
@@ -77,7 +77,7 @@ impl Cogs {
 #[must_use]
 pub struct CogsToken {
     resource: ResourceId,
-    features: AppFeatures,
+    features: FeatureWeights,
     start: Instant,
     recorder: Arc<dyn CogsRecorder>,
 }
@@ -86,7 +86,7 @@ impl CogsToken {
     /// Cancels the COGS measurement.
     pub fn cancel(&mut self) {
         // No features -> nothing gets attributed.
-        self.update(AppFeatures::none());
+        self.update(FeatureWeights::none());
     }
 
     /// Updates the app features to which the active measurement is attributed to.
@@ -109,7 +109,7 @@ impl CogsToken {
     ///     }
     /// }
     /// ```
-    pub fn update<T: Into<AppFeatures>>(&mut self, features: T) {
+    pub fn update<T: Into<FeatureWeights>>(&mut self, features: T) {
         self.features = features.into();
     }
 }
@@ -142,9 +142,9 @@ impl fmt::Debug for CogsToken {
 ///
 /// Used to attribute a single COGS measurement to multiple features.
 #[derive(Clone)]
-pub struct AppFeatures(BTreeMap<AppFeature, NonZeroUsize>);
+pub struct FeatureWeights(BTreeMap<AppFeature, NonZeroUsize>);
 
-impl AppFeatures {
+impl FeatureWeights {
     /// Attributes all measurements to a single [`AppFeature`].
     pub fn new(feature: AppFeature) -> Self {
         Self::builder().weight(feature, 1).build()
@@ -155,12 +155,12 @@ impl AppFeatures {
         Self::builder().build()
     }
 
-    /// Returns an [`AppFeatures`] builder.
-    pub fn builder() -> AppFeaturesBuilder {
-        AppFeaturesBuilder(Self(Default::default()))
+    /// Returns an [`FeatureWeights`] builder.
+    pub fn builder() -> FeatureWeightsBuilder {
+        FeatureWeightsBuilder(Self(Default::default()))
     }
 
-    /// Merges two instances of [`AppFeatures`] and sums the contained weights.
+    /// Merges two instances of [`FeatureWeights`] and sums the contained weights.
     pub fn merge(mut self, other: Self) -> Self {
         for (feature, weight) in other.0.into_iter() {
             if let Some(w) = self.0.get_mut(&feature) {
@@ -181,10 +181,10 @@ impl AppFeatures {
     /// # Examples
     ///
     /// ```
-    /// use relay_cogs::{AppFeature, AppFeatures};
+    /// use relay_cogs::{AppFeature, FeatureWeights};
     /// use std::collections::HashMap;
     ///
-    /// let app_features = AppFeatures::builder()
+    /// let app_features = FeatureWeights::builder()
     ///     .weight(AppFeature::Transactions, 1)
     ///     .weight(AppFeature::Spans, 1)
     ///     .build();
@@ -206,9 +206,9 @@ impl AppFeatures {
     }
 }
 
-impl fmt::Debug for AppFeatures {
+impl fmt::Debug for FeatureWeights {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AppFeatures(")?;
+        write!(f, "FeatureWeights(")?;
 
         let mut first = true;
         for (feature, weight) in self.weights() {
@@ -222,16 +222,16 @@ impl fmt::Debug for AppFeatures {
     }
 }
 
-impl From<AppFeature> for AppFeatures {
+impl From<AppFeature> for FeatureWeights {
     fn from(value: AppFeature) -> Self {
         Self::new(value)
     }
 }
 
-/// A builder for [`AppFeatures`] which can be used to configure different weights per [`AppFeature`].
-pub struct AppFeaturesBuilder(AppFeatures);
+/// A builder for [`FeatureWeights`] which can be used to configure different weights per [`AppFeature`].
+pub struct FeatureWeightsBuilder(FeatureWeights);
 
-impl AppFeaturesBuilder {
+impl FeatureWeightsBuilder {
     /// Increases the `weight` of an [`AppFeature`].
     pub fn add_weight(&mut self, feature: AppFeature, weight: usize) -> &mut Self {
         let Some(weight) = NonZeroUsize::new(weight) else {
@@ -257,9 +257,9 @@ impl AppFeaturesBuilder {
         self
     }
 
-    /// Builds and returns the [`AppFeatures`].
-    pub fn build(&mut self) -> AppFeatures {
-        std::mem::replace(self, AppFeatures::builder()).0
+    /// Builds and returns the [`FeatureWeights`].
+    pub fn build(&mut self) -> FeatureWeights {
+        std::mem::replace(self, FeatureWeights::builder()).0
     }
 }
 
@@ -288,7 +288,7 @@ mod tests {
         let recorder = TestRecorder::default();
         let cogs = Cogs::new(recorder.clone());
 
-        let f = AppFeatures::builder()
+        let f = FeatureWeights::builder()
             .weight(AppFeature::Spans, 1)
             .weight(AppFeature::Transactions, 1)
             .weight(AppFeature::MetricsSpans, 0) // Noop
@@ -311,13 +311,13 @@ mod tests {
 
     #[test]
     fn test_app_features_none() {
-        let a = AppFeatures::none();
+        let a = FeatureWeights::none();
         assert_eq!(a.weights().count(), 0);
     }
 
     #[test]
     fn test_app_features_new() {
-        let a = AppFeatures::new(AppFeature::Spans);
+        let a = FeatureWeights::new(AppFeature::Spans);
         assert_eq!(
             a.weights().collect::<Vec<_>>(),
             vec![(AppFeature::Spans, 1.0)]
@@ -326,17 +326,17 @@ mod tests {
 
     #[test]
     fn test_app_features_merge() {
-        let a = AppFeatures::builder()
+        let a = FeatureWeights::builder()
             .weight(AppFeature::Spans, 1)
             .weight(AppFeature::Transactions, 2)
             .build();
 
-        let b = AppFeatures::builder()
+        let b = FeatureWeights::builder()
             .weight(AppFeature::Spans, 2)
             .weight(AppFeature::Unattributed, 5)
             .build();
 
-        let c = AppFeatures::merge(AppFeatures::none(), AppFeatures::merge(a, b));
+        let c = FeatureWeights::merge(FeatureWeights::none(), FeatureWeights::merge(a, b));
 
         let weights: HashMap<_, _> = c.weights().collect();
         assert_eq!(

@@ -19,7 +19,7 @@
 //! Collected and [attributed measurements](CogsMeasurement) then are recorded by a [`CogsRecorder`].
 //!
 //! ```
-//! use relay_cogs::{AppFeature, AppFeatures, ResourceId, Cogs};
+//! use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId};
 //!
 //! enum Message {
 //!     Span,
@@ -31,12 +31,12 @@
 //!     cogs: Cogs
 //! }
 //!
-//! impl From<&Message> for AppFeatures {
+//! impl From<&Message> for FeatureWeights {
 //!     fn from(value: &Message) -> Self {
 //!         match value {
-//!             Message::Span => AppFeatures::new(AppFeature::Spans),
-//!             Message::Transaction => AppFeatures::new(AppFeature::Transactions),
-//!             Message::TransactionWithSpans { num_spans } => AppFeatures::builder()
+//!             Message::Span => FeatureWeights::new(AppFeature::Spans),
+//!             Message::Transaction => FeatureWeights::new(AppFeature::Transactions),
+//!             Message::TransactionWithSpans { num_spans } => FeatureWeights::builder()
 //!                 .weight(AppFeature::Spans, *num_spans)
 //!                 .weight(AppFeature::Transactions, 1)
 //!                 .build(),

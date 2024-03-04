@@ -16,7 +16,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_cogs::{AppFeature, AppFeatures, Cogs, CogsToken, ResourceId};
+use relay_cogs::{AppFeature, Cogs, CogsToken, FeatureWeights, ResourceId};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
@@ -2359,10 +2359,10 @@ impl EnvelopeProcessorService {
 
     fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
-        let app_features = self.app_features(&message);
+        let feature_weights = self.feature_weights(&message);
 
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, app_features);
+            let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
 
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
@@ -2381,7 +2381,7 @@ impl EnvelopeProcessorService {
         });
     }
 
-    fn app_features(&self, message: &EnvelopeProcessor) -> AppFeatures {
+    fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
         match message {
             EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::ProcessMetrics(_) => AppFeature::Unattributed.into(),
@@ -2399,7 +2399,7 @@ impl EnvelopeProcessorService {
                         relay_metrics::cogs::BySize(&s.buckets).into()
                     }
                 })
-                .fold(AppFeatures::none(), AppFeatures::merge),
+                .fold(FeatureWeights::none(), FeatureWeights::merge),
             EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
