@@ -8,6 +8,8 @@
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/) (required by devinfra/scripts/checks/sentry/release_new_issues.py)
 #   SENTRY_BASE: Sentry base API URL (e.g. https://sentry.io/api/0)
 #   SENTRY_PROJECTS: A space-separated list of <project_id>:<project_slug>:<service> tuples
+#                    The reason for this is because project_slug and service do not always
+#                    match, and we need the service to get the release name
 #   SENTRY_SINGLE_TENANT: When single-tenant is 'true' this script will use the sentry-st organization instead of sentry
 #   SKIP_CANARY_CHECKS: Whether to skip checks entirely (true/false)
 
