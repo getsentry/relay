@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Don't run validation on renormalization, and don't normalize spans. ([#3214](https://github.com/getsentry/relay/pull/3214))
+
 ## 0.8.46
 
 - This release requires Python 3.10 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.9.
