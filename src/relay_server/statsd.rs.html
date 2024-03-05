@@ -810,6 +810,16 @@
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
 <a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -832,6 +842,14 @@
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     </span>BufferEnvelopesDiskCount,
+    <span class="doccomment">/// The currently used memory by the entire system.
+    ///
+    /// Relay uses the same value for its memory health check.
+    </span>SystemMemoryUsed,
+    <span class="doccomment">/// The total system memory.
+    ///
+    /// Relay uses the same value for its memory health check.
+    </span>SystemMemoryTotal,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -841,6 +859,8 @@
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">"project_cache.garbage.queue_size"</span>,
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
+            RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
+            RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
         }
     }
 }
