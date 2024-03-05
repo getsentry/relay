@@ -1477,6 +1477,7 @@ mod tests {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_renormalize: false,
             },
         )
         .unwrap();
@@ -1537,6 +1538,7 @@ mod tests {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_renormalize: false,
             },
         )
         .unwrap();
