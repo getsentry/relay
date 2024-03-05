@@ -329,9 +329,9 @@ impl ManagedEnvelope {
         self.envelope.retain_or_reject_all(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
-            ItemAction::Drop(drop_outcome) => {
+            ItemAction::Drop(outcome) => {
                 if let Some(category) = item.outcome_category(use_indexed) {
-                    maybe_outcome = Some((drop_outcome, category, item.quantity()));
+                    maybe_outcome = Some((outcome, category, item.quantity()));
                 };
                 false
             }
