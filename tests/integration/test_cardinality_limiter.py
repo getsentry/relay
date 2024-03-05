@@ -109,7 +109,9 @@ def test_cardinality_limits_global_config_mode(
         assert len(metrics["transactions"]) == 2
 
 
-def test_cardinality_limits_passive_limit(mini_sentry, relay_with_processing, metrics_consumer):
+def test_cardinality_limits_passive_limit(
+    mini_sentry, relay_with_processing, metrics_consumer
+):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
@@ -160,4 +162,3 @@ def test_cardinality_limits_passive_limit(mini_sentry, relay_with_processing, me
     assert len(metrics["sessions"]) == 1
     # The passive limit should be ignored, the non-passive limit still needs to be enforced.
     assert len(metrics["transactions"]) == 3
-

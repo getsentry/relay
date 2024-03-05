@@ -505,12 +505,16 @@ mod tests {
         assert_eq!(limited.limits(), &limits.iter().collect());
 
         // All passive items and no enforced (passive = False) should be accepted.
-        assert!(limited.rejected().eq([
-            Item::new(0, MetricNamespace::Custom),
-            Item::new(2, MetricNamespace::Custom),
-            Item::new(4, MetricNamespace::Custom),
-        ]
-        .iter()));
+        let rejected = limited.rejected().collect::<HashSet<_>>();
+        assert_eq!(
+            rejected,
+            HashSet::from([
+                &Item::new(0, MetricNamespace::Custom),
+                &Item::new(2, MetricNamespace::Custom),
+                &Item::new(4, MetricNamespace::Custom),
+            ])
+        );
+        drop(rejected); // NLL are broken here without the explicit drop
         assert_eq!(
             limited.into_accepted(),
             vec![
