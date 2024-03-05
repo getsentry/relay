@@ -74,7 +74,7 @@ pub enum DynamicArrayEncoding<T> {
     ///
     /// Encodes all items as an array.
     Array { data: T },
-    /// Base64 encoding.
+    /// Base64 (with padding) encoding.
     ///
     /// Converts all items to little endian byte sequences
     /// and Base64 encodes the raw bytes.
@@ -83,7 +83,7 @@ pub enum DynamicArrayEncoding<T> {
     ///
     /// Converts all items to little endian byte sequences,
     /// compresses the data using zstd and then encodes the result
-    /// using Base64.
+    /// using Base64 (with padding).
     ///
     /// Items may be sorted to achieve better compression results.
     Zstd { data: String },
@@ -102,13 +102,13 @@ impl<T> DynamicArrayEncoding<T> {
 
 struct EncoderWriteAdapter<'a>(pub data_encoding::Encoder<'a>);
 
-impl<'a> std::io::Write for EncoderWriteAdapter<'a> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+impl<'a> io::Write for EncoderWriteAdapter<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.append(buf);
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
