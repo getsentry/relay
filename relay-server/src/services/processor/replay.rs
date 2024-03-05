@@ -68,6 +68,7 @@ pub fn process(
             ItemType::ReplayEvent => {
                 match handle_replay_event_item(
                     item.payload(),
+                    &event_id,
                     project_config,
                     client_addr,
                     user_agent,
@@ -119,6 +120,7 @@ pub fn process(
 
 fn handle_replay_event_item(
     payload: Bytes,
+    event_id: &Option<EventId>,
     config: &ProjectConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
@@ -127,12 +129,20 @@ fn handle_replay_event_item(
         Ok(replay) => match replay.to_json() {
             Ok(json) => Ok(json.into_bytes().into()),
             Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to serialize replay");
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    ?event_id,
+                    "failed to serialize replay"
+                );
                 Ok(payload)
             }
         },
         Err(error) => {
-            relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
+            relay_log::warn!(
+                error = &error as &dyn Error,
+                ?event_id,
+                "invalid replay event"
+            );
             Err(Outcome::Invalid(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
@@ -241,7 +251,8 @@ fn handle_replay_video_item(
     };
 
     // Process as a replay-event envelope item.
-    let replay_event = handle_replay_event_item(replay_event, config, client_ip, user_agent)?;
+    let replay_event =
+        handle_replay_event_item(replay_event, event_id, config, client_ip, user_agent)?;
 
     // Process as a replay-recording envelope item.
     let replay_recording =

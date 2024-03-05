@@ -1339,10 +1339,12 @@ def test_span_extraction(
     relay_with_processing,
     spans_consumer,
     transactions_consumer,
+    events_consumer,
     discard_transaction,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
+    events_consumer = events_consumer()
 
     relay = relay_with_processing()
     project_id = 42
@@ -1373,8 +1375,10 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     if discard_transaction:
-        result = transactions_consumer.poll(timeout=2.0)
-        assert result is None
+        transactions_consumer.poll(timeout=2.0) is None
+
+        # We do not accidentally produce to the events topic:
+        assert events_consumer.poll(timeout=2.0) is None
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
@@ -1858,6 +1862,7 @@ def test_span_extraction_with_metrics_summary(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1916,6 +1921,45 @@ def test_span_extraction_with_metrics_summary(
     assert metrics_summary["mri"] == mri
 
 
+def test_span_no_extraction_with_metrics_summary(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_summaries_consumer,
+):
+    spans_consumer = spans_consumer()
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    mri = "c:spans/some_metric@none"
+    metrics_summary = {
+        mri: [
+            {
+                "min": 1.0,
+                "max": 2.0,
+                "sum": 3.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    spans_consumer.assert_empty()
+    metrics_summaries_consumer.assert_empty()
+
+
 def test_span_extraction_with_ddm_missing_values(
     mini_sentry,
     relay_with_processing,
@@ -1928,6 +1972,7 @@ def test_span_extraction_with_ddm_missing_values(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1939,6 +1984,7 @@ def test_span_extraction_with_ddm_missing_values(
                 "count": 4,
                 "tags": {
                     "environment": "test",
+                    "release": None,
                 },
             },
         ],
@@ -2160,8 +2206,11 @@ def test_span_ingestion_with_performance_scores(
                 bytes=json.dumps(
                     {
                         "data": {
-                            "transaction": "/page/with/click/interaction/jane/123"
+                            "transaction": "/page/with/click/interaction/jane/123",
+                            "replay_id": "8477286c8e5148b386b71ade38374d58",
+                            "user": "admin@sentry.io",
                         },
+                        "profile_id": "3d9428087fda4ba0936788b70a7587d0",
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -2225,6 +2274,7 @@ def test_span_ingestion_with_performance_scores(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -2233,6 +2283,8 @@ def test_span_ingestion_with_performance_scores(
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
                 "transaction": "/page/with/click/interaction/*/*",
+                "replay_id": "8477286c8e5148b386b71ade38374d58",
+                "user": "admin@sentry.io",
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),

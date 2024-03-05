@@ -7,7 +7,7 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -15,7 +15,7 @@ use relay_event_schema::protocol::{
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, FromValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -273,6 +273,7 @@ pub fn finalize<G: EventProcessing>(
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -285,12 +286,13 @@ pub fn filter<G: EventProcessing>(
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })
     })
 }
 
@@ -330,6 +332,11 @@ pub fn scrub<G: EventProcessing>(
 pub fn serialize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
 ) -> Result<(), ProcessingError> {
+    if state.event.is_empty() {
+        relay_log::error!("Cannot serialize empty event");
+        return Ok(());
+    }
+
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -400,6 +407,7 @@ pub fn store<G: EventProcessing>(
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
+        normalize_spans: false, // noop
     };
 
     let mut store_processor = StoreProcessor::new(store_config);

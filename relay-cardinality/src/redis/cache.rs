@@ -212,6 +212,7 @@ mod tests {
             },
             &CardinalityLimit {
                 id: String::new(),
+                passive: false,
                 window,
                 limit: 100,
                 scope: CardinalityScope::Organization,

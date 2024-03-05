@@ -1242,7 +1242,10 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
-        MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
+        MetricNamespace::Spans => {
+            state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+                || state.has_feature(Feature::StandaloneSpanIngestion)
+        }
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported => false,
     }

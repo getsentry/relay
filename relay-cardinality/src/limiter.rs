@@ -22,7 +22,7 @@ pub struct Scoping {
 /// Accumulator of all cardinality limiter rejections.
 pub trait Rejections<'a> {
     /// Called for ever [`Entry`] which was rejected from the [`Limiter`].
-    fn reject(&mut self, limit_id: &'a str, entry_id: EntryId);
+    fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId);
 }
 
 /// Limiter responsible to enforce limits.
@@ -141,15 +141,17 @@ impl<T: Limiter> CardinalityLimiter<T> {
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
 struct RejectionTracker<'a> {
-    limits: HashSet<&'a str>,
+    limits: HashSet<&'a CardinalityLimit>,
     entries: HashSet<usize>,
 }
 
 impl<'a> Rejections<'a> for RejectionTracker<'a> {
     #[inline(always)]
-    fn reject(&mut self, limit_id: &'a str, entry_id: EntryId) {
-        self.limits.insert(limit_id);
-        self.entries.insert(entry_id.0);
+    fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
+        self.limits.insert(limit);
+        if !limit.passive {
+            self.entries.insert(entry_id.0);
+        }
     }
 }
 
@@ -158,7 +160,7 @@ impl<'a> Rejections<'a> for RejectionTracker<'a> {
 pub struct CardinalityLimits<'a, T> {
     source: Vec<T>,
     rejections: HashSet<usize>,
-    limits: HashSet<&'a str>,
+    limits: HashSet<&'a CardinalityLimit>,
 }
 
 impl<'a, T> CardinalityLimits<'a, T> {
@@ -176,7 +178,9 @@ impl<'a, T> CardinalityLimits<'a, T> {
     }
 
     /// Returns all id's of cardinality limits which were exceeded.
-    pub fn enforced_limits(&self) -> &HashSet<&'a str> {
+    ///
+    /// This includes passive limits.
+    pub fn exceeded_limits(&self) -> &HashSet<&'a CardinalityLimit> {
         &self.limits
     }
 
@@ -246,6 +250,7 @@ mod tests {
     fn build_limits() -> [CardinalityLimit; 1] {
         [CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -312,16 +317,16 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 _scoping: Scoping,
-                _limits: &'a [CardinalityLimit],
+                limits: &'a [CardinalityLimit],
                 entries: I,
-                outcomes: &mut T,
+                rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
                 T: Rejections<'a>,
             {
                 for entry in entries {
-                    outcomes.reject("test", entry.id);
+                    rejections.reject(&limits[0], entry.id);
                 }
 
                 Ok(())
@@ -342,7 +347,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.enforced_limits(), &HashSet::from(["test"]));
+        assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
         assert!(result.into_accepted().is_empty());
     }
 
@@ -356,7 +361,7 @@ mod tests {
                 _scoping: Scoping,
                 _limits: &'a [CardinalityLimit],
                 _entries: I,
-                _outcomes: &mut T,
+                _rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
@@ -388,9 +393,9 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 scoping: Scoping,
-                limits: &[CardinalityLimit],
+                limits: &'a [CardinalityLimit],
                 entries: I,
-                outcomes: &mut T,
+                rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
@@ -401,7 +406,7 @@ mod tests {
 
                 for entry in entries {
                     if entry.id.0 % 2 == 0 {
-                        outcomes.reject("test", entry.id);
+                        rejections.reject(&limits[0], entry.id);
                     }
                 }
 
@@ -431,6 +436,91 @@ mod tests {
                 Item::new(1, MetricNamespace::Transactions),
                 Item::new(3, MetricNamespace::Custom),
                 Item::new(5, MetricNamespace::Transactions),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_limiter_passive() {
+        struct RejectLimits;
+
+        impl Limiter for RejectLimits {
+            fn check_cardinality_limits<'a, I, T>(
+                &self,
+                _scoping: Scoping,
+                limits: &'a [CardinalityLimit],
+                entries: I,
+                rejections: &mut T,
+            ) -> Result<()>
+            where
+                I: IntoIterator<Item = Entry>,
+                T: Rejections<'a>,
+            {
+                for entry in entries {
+                    rejections.reject(&limits[entry.id.0 % limits.len()], entry.id);
+                }
+                Ok(())
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(RejectLimits);
+        let limits = &[
+            CardinalityLimit {
+                id: "limit_passive".to_owned(),
+                passive: false,
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+            CardinalityLimit {
+                id: "limit_enforced".to_owned(),
+                passive: true,
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+        ];
+
+        let items = vec![
+            Item::new(0, MetricNamespace::Custom),
+            Item::new(1, MetricNamespace::Custom),
+            Item::new(2, MetricNamespace::Custom),
+            Item::new(3, MetricNamespace::Custom),
+            Item::new(4, MetricNamespace::Custom),
+            Item::new(5, MetricNamespace::Custom),
+        ];
+        let limited = limiter
+            .check_cardinality_limits(build_scoping(), limits, items)
+            .unwrap();
+
+        assert!(limited.has_rejections());
+        assert_eq!(limited.exceeded_limits(), &limits.iter().collect());
+
+        // All passive items and no enforced (passive = False) should be accepted.
+        let rejected = limited.rejected().collect::<HashSet<_>>();
+        assert_eq!(
+            rejected,
+            HashSet::from([
+                &Item::new(0, MetricNamespace::Custom),
+                &Item::new(2, MetricNamespace::Custom),
+                &Item::new(4, MetricNamespace::Custom),
+            ])
+        );
+        drop(rejected); // NLL are broken here without the explicit drop
+        assert_eq!(
+            limited.into_accepted(),
+            vec![
+                Item::new(1, MetricNamespace::Custom),
+                Item::new(3, MetricNamespace::Custom),
+                Item::new(5, MetricNamespace::Custom),
             ]
         );
     }

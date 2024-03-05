@@ -5,9 +5,12 @@ use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
+use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::ErrorBoundary;
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -23,6 +26,12 @@ pub struct GlobalConfig {
     /// Quotas that apply to all projects.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
+    /// Configuration for global inbound filters.
+    ///
+    /// These filters are merged with generic filters in project configs before
+    /// applying.
+    #[serde(skip_serializing_if = "is_err_or_empty")]
+    pub filters: ErrorBoundary<GenericFiltersConfig>,
     /// Sentry options passed down to Relay.
     #[serde(
         deserialize_with = "default_on_error",
@@ -45,6 +54,21 @@ impl GlobalConfig {
         } else {
             Ok(None)
         }
+    }
+
+    /// Returns the generic inbound filters.
+    pub fn filters(&self) -> Option<&GenericFiltersConfig> {
+        match &self.filters {
+            ErrorBoundary::Err(_) => None,
+            ErrorBoundary::Ok(f) => Some(f),
+        }
+    }
+}
+
+fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
+    match filters_config {
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
     }
 }
 
@@ -246,6 +270,20 @@ mod tests {
       "namespace": null
     }
   ],
+  "filters": {
+    "version": 1,
+    "filters": [
+      {
+        "id": "myError",
+        "isEnabled": true,
+        "condition": {
+          "op": "eq",
+          "name": "event.exceptions",
+          "value": "myError"
+        }
+      }
+    ]
+  },
   "options": {
     "profiling.profile_metrics.unsampled_profiles.enabled": true
   }

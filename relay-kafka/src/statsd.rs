@@ -7,6 +7,9 @@ pub enum KafkaCounters {
     /// These errors include, for example, _"MessageTooLarge"_ errors when the broker does not
     /// accept the requests over a certain size, which is usually due to invalid or inconsistent
     /// broker/producer configurations.
+    ///
+    /// This metric is tagged with:
+    ///  - `topic`: The Kafka topic being produced to.
     ProcessingProduceError,
 }
 

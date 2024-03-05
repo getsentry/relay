@@ -68,14 +68,12 @@ pub struct NormalizationConfig<'a> {
     /// Configuration to apply to transaction names, especially around sanitizing.
     pub transaction_name_config: TransactionNameConfig<'a>,
 
-    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    /// When `true`, it is assumed that the event has been normalized before.
     ///
     /// This disables certain normalizations, especially all that are not idempotent. The
     /// renormalize mode is intended for the use in the processing pipeline, so an event modified
     /// during ingestion can be validated against the schema and large data can be trimmed. However,
     /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
-    ///
-    /// `None` equals to `false`.
     pub is_renormalize: bool,
 
     /// When `true`, infers the device class from CPU and model.
@@ -102,6 +100,11 @@ pub struct NormalizationConfig<'a> {
     ///
     /// See the event schema for size declarations.
     pub enable_trimming: bool,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans, `is_renormalize` must be disabled _and_ `normalize_spans` enabled.
+    pub normalize_spans: bool,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -122,6 +125,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
+            normalize_spans: true,
         }
     }
 }
@@ -234,7 +238,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if event.ty.value() == Some(&EventType::Transaction) {
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
@@ -2900,5 +2904,50 @@ mod tests {
                 ),
             ),
         }"#);
+    }
+
+    #[test]
+    fn test_skip_span_normalization_when_configured() {
+        let json = r#"{
+            "type": "transaction",
+            "start_timestamp": 1,
+            "timestamp": 2,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            },
+            "spans": [
+                {
+                    "op": "db",
+                    "description": "SELECT * FROM table;",
+                    "start_timestamp": 1,
+                    "timestamp": 2,
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa"
+                }
+            ]
+        }"#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: false,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_some());
     }
 }

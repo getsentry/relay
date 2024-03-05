@@ -364,7 +364,7 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Removes event item(s) and log an outcome.
+    /// Removes event item(s) and logs an outcome.
     ///
     /// Note: This function relies on the envelope summary being correct.
     pub fn reject_event(&mut self, outcome: Outcome) {

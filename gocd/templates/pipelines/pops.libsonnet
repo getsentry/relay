@@ -3,8 +3,7 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 
 local canary_region_pops = {
   de: [],
-  // TODO: Check that these are right
-  us: ['us-pop-1', 'us-pop-regional-1'],
+  us: ['us-pop-1', 'us-pop-2'],
 };
 
 local region_pops = {
@@ -36,13 +35,13 @@ local soak_time(region) =
               environment_variables: {
                 SENTRY_REGION: region,
                 GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentryio][token]}}',
+                SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-sentryst][token]}}' else '{{SECRET:[devinfra-sentrymysentry][token]}}',
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
                 DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
-                SENTRY_PROJECTS: if region == 's4s' then 'sentry-for-sentry' else 'pop-relay relay',
-                SENTRY_PROJECT_IDS: if region == 's4s' then '1513938' else '9 4',
+                // Sentry projects to check for errors <project_id>:<project_slug>:<service>
+                SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '9:pop-relay:relay-pop 4:relay:relay',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
                 SENTRY_BASE: if region == 's4s' then 'https://sentry.io/api/0' else 'https://sentry.my.sentry.io/api/0',
                 // TODO: Set a proper error limit
@@ -76,13 +75,13 @@ local deploy_pop_canary_job(region) =
     environment_variables: {
       SENTRY_REGION: region,
       GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}',
-      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentryio][token]}}',
+      SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-sentrymysentry][token]}}',
       DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
       DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
       // Datadog monitor IDs for the canary deployment
       DATADOG_MONITOR_IDS: '137575470 22592147 27804625 22634395 22635255',
-      SENTRY_PROJECTS: 'pop-relay relay',
-      SENTRY_PROJECT_IDS: '9 4',
+      // Sentry projects to check for errors <project_id>:<project_slug>:<service>
+      SENTRY_PROJECTS: '9:pop-relay:relay-pop 4:relay:relay',
       SENTRY_SINGLE_TENANT: 'false',
       SENTRY_BASE: 'https://sentry.my.sentry.io/api/0',
       // TODO: Set a proper error limit
@@ -217,6 +216,7 @@ local deployment_stages(region) =
 function(region) {
   environment_variables: {
     SENTRY_REGION: region,
+    SKIP_CANARY_CHECKS: false,
   },
   group: 'relay-pops-next',
   lock_behavior: 'unlockWhenFinished',

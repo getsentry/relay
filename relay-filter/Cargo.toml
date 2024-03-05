@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 ipnetwork = "0.20.0"
 once_cell = { workspace = true }
+indexmap = { workspace = true }
 regex = { workspace = true }
 relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }
