@@ -263,6 +263,17 @@
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
 <a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -334,6 +345,7 @@
             ItemType::ReplayEvent =&gt; {
                 <span class="kw">match </span>handle_replay_event_item(
                     item.payload(),
+                    <span class="kw-2">&amp;</span>event_id,
                     project_config,
                     client_addr,
                     user_agent,
@@ -385,6 +397,7 @@
 
 </span><span class="kw">fn </span>handle_replay_event_item(
     payload: Bytes,
+    event_id: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;EventId&gt;,
     config: <span class="kw-2">&amp;</span>ProjectConfig,
     client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
@@ -393,12 +406,20 @@
         <span class="prelude-val">Ok</span>(replay) =&gt; <span class="kw">match </span>replay.to_json() {
             <span class="prelude-val">Ok</span>(json) =&gt; <span class="prelude-val">Ok</span>(json.into_bytes().into()),
             <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to serialize replay"</span>);
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="question-mark">?</span>event_id,
+                    <span class="string">"failed to serialize replay"
+                </span>);
                 <span class="prelude-val">Ok</span>(payload)
             }
         },
         <span class="prelude-val">Err</span>(error) =&gt; {
-            <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"invalid replay event"</span>);
+            <span class="macro">relay_log::warn!</span>(
+                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                <span class="question-mark">?</span>event_id,
+                <span class="string">"invalid replay event"
+            </span>);
             <span class="prelude-val">Err</span>(Outcome::Invalid(<span class="kw">match </span>error {
                 ReplayError::NoContent =&gt; DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(<span class="kw">_</span>) =&gt; DiscardReason::InvalidReplayEventPii,
@@ -507,7 +528,8 @@
     };
 
     <span class="comment">// Process as a replay-event envelope item.
-    </span><span class="kw">let </span>replay_event = handle_replay_event_item(replay_event, config, client_ip, user_agent)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>replay_event =
+        handle_replay_event_item(replay_event, event_id, config, client_ip, user_agent)<span class="question-mark">?</span>;
 
     <span class="comment">// Process as a replay-recording envelope item.
     </span><span class="kw">let </span>replay_recording =
