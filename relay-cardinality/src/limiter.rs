@@ -180,7 +180,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
     /// Returns all id's of cardinality limits which were exceeded.
     ///
     /// This includes passive limits.
-    pub fn limits(&self) -> &HashSet<&'a CardinalityLimit> {
+    pub fn exceeded_limits(&self) -> &HashSet<&'a CardinalityLimit> {
         &self.limits
     }
 
@@ -347,7 +347,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.limits(), &HashSet::from([&limits[0]]));
+        assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
         assert!(result.into_accepted().is_empty());
     }
 
@@ -502,7 +502,7 @@ mod tests {
             .unwrap();
 
         assert!(limited.has_rejections());
-        assert_eq!(limited.limits(), &limits.iter().collect());
+        assert_eq!(limited.exceeded_limits(), &limits.iter().collect());
 
         // All passive items and no enforced (passive = False) should be accepted.
         let rejected = limited.rejected().collect::<HashSet<_>>();

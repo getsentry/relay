@@ -2073,8 +2073,8 @@ impl EnvelopeProcessorService {
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.limits().is_empty() && sample(error_sample_rate) {
-            for limit in limits.limits() {
+        if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
+            for limit in limits.exceeded_limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
                     tags.limit_id = limit.id,
