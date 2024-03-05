@@ -386,6 +386,7 @@
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
@@ -600,6 +601,7 @@
             },
             <span class="kw-2">&amp;</span>CardinalityLimit {
                 id: String::new(),
+                passive: <span class="bool-val">false</span>,
                 window,
                 limit: <span class="number">100</span>,
                 scope: CardinalityScope::Organization,

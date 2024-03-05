@@ -123,6 +123,10 @@
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Counter metrics for the Relay Cardinality Limiter.
@@ -130,25 +134,29 @@
     <span class="doccomment">/// Incremented for every accepted item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>Accepted,
     <span class="doccomment">/// Incremented for every rejected item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>Rejected,
     <span class="doccomment">/// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>RedisCacheHit,
     <span class="doccomment">/// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>RedisCacheMiss,
     <span class="doccomment">/// Amount of entries removed from the cache via periodic cleanups.

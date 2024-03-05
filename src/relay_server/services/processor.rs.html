@@ -5272,29 +5272,29 @@
             <span class="kw">return </span>buckets;
         };
 
-        <span class="kw">let </span>cardinality_scope = relay_cardinality::Scoping {
+        <span class="kw">let </span>scope = relay_cardinality::Scoping {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
         };
 
-        <span class="kw">let </span>limits = <span class="kw">match </span>limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
+        <span class="kw">let </span>limits = <span class="kw">match </span>limiter.check_cardinality_limits(scope, limits, buckets) {
             <span class="prelude-val">Ok</span>(limits) =&gt; limits,
             <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                     <span class="string">"cardinality limiter failed"
                 </span>);
-
                 <span class="kw">return </span>buckets;
             }
         };
 
         <span class="kw">let </span>error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        <span class="kw">if </span>limits.has_rejections() &amp;&amp; sample(error_sample_rate) {
-            <span class="kw">for </span>limit_id <span class="kw">in </span>limits.enforced_limits() {
+        <span class="kw">if </span>!limits.limits().is_empty() &amp;&amp; sample(error_sample_rate) {
+            <span class="kw">for </span>limit <span class="kw">in </span>limits.limits() {
                 <span class="macro">relay_log::error!</span>(
                     tags.organization_id = scoping.organization_id,
-                    tags.limit_id = limit_id,
+                    tags.limit_id = limit.id,
+                    tags.passive = limit.passive,
                     <span class="string">"Cardinality Limit"
                 </span>);
             }
