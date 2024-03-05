@@ -146,7 +146,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
-        normalize_spans: false,
+        normalize_spans: config.normalize_spans,
     };
     normalize_event(&mut event, &normalization_config);
 

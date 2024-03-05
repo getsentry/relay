@@ -407,6 +407,7 @@ pub fn store<G: EventProcessing>(
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
+        normalize_spans: false, // noop
     };
 
     let mut store_processor = StoreProcessor::new(store_config);
