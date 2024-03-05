@@ -1129,7 +1129,10 @@ impl EnvelopeProcessorService {
             }
 
             match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref tx_config)) if tx_config.is_enabled() => {
+                Some(ErrorBoundary::Ok(ref tx_config))
+                    if tx_config.is_enabled()
+                        && !state.project_state.has_feature(Feature::DiscardTransaction) =>
+                {
                     let transaction_from_dsc = state
                         .managed_envelope
                         .envelope()

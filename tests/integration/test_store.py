@@ -19,6 +19,8 @@ from flask import Response, abort
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .test_metrics import TEST_CONFIG
+
 
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
@@ -1340,19 +1342,24 @@ def test_span_extraction(
     spans_consumer,
     transactions_consumer,
     events_consumer,
+    metrics_consumer,
     discard_transaction,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
+    metrics_consumer = metrics_consumer()
 
-    relay = relay_with_processing()
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "projects:span-metrics-extraction-all-modules",
     ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
 
@@ -1379,9 +1386,17 @@ def test_span_extraction(
 
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
+
+        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
+            ("namespace", b"spans")
+        }
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
+        assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
+            ("namespace", b"spans"),
+            ("namespace", b"transactions"),
+        }
 
     child_span = spans_consumer.get_span()
     del child_span["received"]
