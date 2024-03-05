@@ -421,6 +421,9 @@
 <a href="#420" id="420">420</a>
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -540,12 +543,14 @@
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        is_validated: config.is_renormalize.unwrap_or(<span class="bool-val">false</span>),
     };
     validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>event_validation_config)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
         timestamp_range: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
-    </span>};
+        </span>is_validated: config.is_renormalize.unwrap_or(<span class="bool-val">false</span>),
+    };
     validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>tx_validation_config)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>normalization_config = NormalizationConfig {
@@ -567,6 +572,7 @@
         geoip_lookup: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
         </span>enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: <span class="prelude-val">None</span>,
+        normalize_spans: config.normalize_spans,
     };
     normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>normalization_config);
 

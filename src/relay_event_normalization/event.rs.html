@@ -2903,6 +2903,55 @@
 <a href="#2902" id="2902">2902</a>
 <a href="#2903" id="2903">2903</a>
 <a href="#2904" id="2904">2904</a>
+<a href="#2905" id="2905">2905</a>
+<a href="#2906" id="2906">2906</a>
+<a href="#2907" id="2907">2907</a>
+<a href="#2908" id="2908">2908</a>
+<a href="#2909" id="2909">2909</a>
+<a href="#2910" id="2910">2910</a>
+<a href="#2911" id="2911">2911</a>
+<a href="#2912" id="2912">2912</a>
+<a href="#2913" id="2913">2913</a>
+<a href="#2914" id="2914">2914</a>
+<a href="#2915" id="2915">2915</a>
+<a href="#2916" id="2916">2916</a>
+<a href="#2917" id="2917">2917</a>
+<a href="#2918" id="2918">2918</a>
+<a href="#2919" id="2919">2919</a>
+<a href="#2920" id="2920">2920</a>
+<a href="#2921" id="2921">2921</a>
+<a href="#2922" id="2922">2922</a>
+<a href="#2923" id="2923">2923</a>
+<a href="#2924" id="2924">2924</a>
+<a href="#2925" id="2925">2925</a>
+<a href="#2926" id="2926">2926</a>
+<a href="#2927" id="2927">2927</a>
+<a href="#2928" id="2928">2928</a>
+<a href="#2929" id="2929">2929</a>
+<a href="#2930" id="2930">2930</a>
+<a href="#2931" id="2931">2931</a>
+<a href="#2932" id="2932">2932</a>
+<a href="#2933" id="2933">2933</a>
+<a href="#2934" id="2934">2934</a>
+<a href="#2935" id="2935">2935</a>
+<a href="#2936" id="2936">2936</a>
+<a href="#2937" id="2937">2937</a>
+<a href="#2938" id="2938">2938</a>
+<a href="#2939" id="2939">2939</a>
+<a href="#2940" id="2940">2940</a>
+<a href="#2941" id="2941">2941</a>
+<a href="#2942" id="2942">2942</a>
+<a href="#2943" id="2943">2943</a>
+<a href="#2944" id="2944">2944</a>
+<a href="#2945" id="2945">2945</a>
+<a href="#2946" id="2946">2946</a>
+<a href="#2947" id="2947">2947</a>
+<a href="#2948" id="2948">2948</a>
+<a href="#2949" id="2949">2949</a>
+<a href="#2950" id="2950">2950</a>
+<a href="#2951" id="2951">2951</a>
+<a href="#2952" id="2952">2952</a>
+<a href="#2953" id="2953">2953</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2973,14 +3022,12 @@
     <span class="doccomment">/// Configuration to apply to transaction names, especially around sanitizing.
     </span><span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">'a</span>&gt;,
 
-    <span class="doccomment">/// When `Some(true)`, it is assumed that the event has been normalized before.
+    <span class="doccomment">/// When `true`, it is assumed that the event has been normalized before.
     ///
     /// This disables certain normalizations, especially all that are not idempotent. The
     /// renormalize mode is intended for the use in the processing pipeline, so an event modified
     /// during ingestion can be validated against the schema and large data can be trimmed. However,
     /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
-    ///
-    /// `None` equals to `false`.
     </span><span class="kw">pub </span>is_renormalize: bool,
 
     <span class="doccomment">/// When `true`, infers the device class from CPU and model.
@@ -3007,6 +3054,11 @@
     ///
     /// See the event schema for size declarations.
     </span><span class="kw">pub </span>enable_trimming: bool,
+
+    <span class="doccomment">/// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans, `is_renormalize` must be disabled _and_ `normalize_spans` enabled.
+    </span><span class="kw">pub </span>normalize_spans: bool,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -3027,6 +3079,7 @@
             geoip_lookup: Default::default(),
             enable_trimming: <span class="bool-val">false</span>,
             measurements: <span class="prelude-val">None</span>,
+            normalize_spans: <span class="bool-val">true</span>,
         }
     }
 }
@@ -3139,7 +3192,7 @@
     <span class="comment">// Some contexts need to be normalized before metrics extraction takes place.
     </span>normalize_contexts(<span class="kw-2">&amp;mut </span>event.contexts);
 
-    <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+    <span class="kw">if </span>config.normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">crate</span>::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
@@ -5805,6 +5858,51 @@
                 ),
             ),
         }"#</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_skip_span_normalization_when_configured() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "type": "transaction",
+            "start_timestamp": 1,
+            "timestamp": 2,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            },
+            "spans": [
+                {
+                    "op": "db",
+                    "description": "SELECT * FROM table;",
+                    "start_timestamp": 1,
+                    "timestamp": 2,
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa"
+                }
+            ]
+        }"#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
+        normalize_event(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;</span>NormalizationConfig {
+                is_renormalize: <span class="bool-val">true</span>,
+                ..Default::default()
+            },
+        );
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
+        normalize_event(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;</span>NormalizationConfig {
+                is_renormalize: <span class="bool-val">false</span>,
+                ..Default::default()
+            },
+        );
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_some());
     }
 }
 </code></pre></div></section></main></body></html>

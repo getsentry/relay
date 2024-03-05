@@ -3221,6 +3221,9 @@
 <a href="#3220" id="3220">3220</a>
 <a href="#3221" id="3221">3221</a>
 <a href="#3222" id="3222">3222</a>
+<a href="#3223" id="3223">3223</a>
+<a href="#3224" id="3224">3224</a>
+<a href="#3225" id="3225">3225</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4407,11 +4410,13 @@
                 timestamp_range: <span class="prelude-val">Some</span>(
                     AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
                 ),
+                is_validated: <span class="bool-val">false</span>,
             };
             <span class="kw">let </span>event_validation_config = EventValidationConfig {
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
+                is_validated: <span class="bool-val">false</span>,
             };
             <span class="kw">let </span>normalization_config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -4449,6 +4454,7 @@
                     state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
+                normalize_spans: <span class="bool-val">true</span>,
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {

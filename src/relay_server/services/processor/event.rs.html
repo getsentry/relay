@@ -892,6 +892,7 @@
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1301,7 +1302,8 @@
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
-    };
+        normalize_spans: <span class="bool-val">false</span>, <span class="comment">// noop
+    </span>};
 
     <span class="kw">let </span><span class="kw-2">mut </span>store_processor = StoreProcessor::new(store_config);
     <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingProcess), {

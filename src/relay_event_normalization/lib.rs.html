@@ -218,6 +218,13 @@
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -378,6 +385,13 @@
     ///
     /// It is persisted into the event payload for correlation.
     </span><span class="kw">pub </span>replay_id: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
+
+    <span class="doccomment">/// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans in [`crate::normalize_event`], `is_renormalize` must
+    /// be disabled _and_ `normalize_spans` enabled in
+    /// [`crate::NormalizationConfig`].
+    </span><span class="kw">pub </span>normalize_spans: bool,
 }
 
 <span class="doccomment">/// The processor that normalizes events for processing and storage.
