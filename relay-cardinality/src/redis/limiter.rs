@@ -251,21 +251,31 @@ impl<'a> LimitState<'a> {
 
 impl<'a> Drop for LimitState<'a> {
     fn drop(&mut self) {
+        let passive = if self.cardinality_limit.passive {
+            "true"
+        } else {
+            "false"
+        };
+
         metric!(
             counter(CardinalityLimiterCounters::RedisCacheHit) += self.cache_hits,
-            id = &self.cardinality_limit.id
+            id = &self.cardinality_limit.id,
+            passive = passive,
         );
         metric!(
             counter(CardinalityLimiterCounters::RedisCacheMiss) += self.cache_misses,
-            id = &self.cardinality_limit.id
+            id = &self.cardinality_limit.id,
+            passive = passive,
         );
         metric!(
             counter(CardinalityLimiterCounters::Accepted) += self.accepts,
-            id = &self.cardinality_limit.id
+            id = &self.cardinality_limit.id,
+            passive = passive,
         );
         metric!(
             counter(CardinalityLimiterCounters::Rejected) += self.rejections,
-            id = &self.cardinality_limit.id
+            id = &self.cardinality_limit.id,
+            passive = passive,
         );
 
         let organization_id = self.scoping.organization_id as i64;
@@ -273,6 +283,7 @@ impl<'a> Drop for LimitState<'a> {
         metric!(
             set(CardinalityLimiterSets::Organizations) = organization_id,
             id = &self.cardinality_limit.id,
+            passive = passive,
             status = status,
         )
     }

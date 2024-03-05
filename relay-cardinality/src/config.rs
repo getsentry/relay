@@ -9,7 +9,7 @@ use crate::SlidingWindow;
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
-    /// Wether this is a passive limit.
+    /// Whether this is a passive limit.
     ///
     /// Passive limits are tracked separately to normal limits
     /// and are not enforced, but still evaluated.

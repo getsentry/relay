@@ -141,15 +141,14 @@ impl<T: Limiter> CardinalityLimiter<T> {
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
 struct RejectionTracker<'a> {
-    entries: HashSet<usize>,
     limits: HashSet<&'a CardinalityLimit>,
+    entries: HashSet<usize>,
 }
 
 impl<'a> Rejections<'a> for RejectionTracker<'a> {
     #[inline(always)]
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
         self.limits.insert(limit);
-
         if !limit.passive {
             self.entries.insert(entry_id.0);
         }
@@ -180,7 +179,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
 
     /// Returns all id's of cardinality limits which were exceeded.
     ///
-    /// This includes limits which were only tracked passively.
+    /// This includes passive limits.
     pub fn limits(&self) -> &HashSet<&'a CardinalityLimit> {
         &self.limits
     }
