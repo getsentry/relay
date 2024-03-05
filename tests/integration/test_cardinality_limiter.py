@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 import pytest
 
 from .test_metrics import metrics_by_name
