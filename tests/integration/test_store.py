@@ -1339,10 +1339,12 @@ def test_span_extraction(
     relay_with_processing,
     spans_consumer,
     transactions_consumer,
+    events_consumer,
     discard_transaction,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
+    events_consumer = events_consumer()
 
     relay = relay_with_processing()
     project_id = 42
@@ -1373,8 +1375,10 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     if discard_transaction:
-        result = transactions_consumer.poll(timeout=2.0)
-        assert result is None
+        transactions_consumer.poll(timeout=2.0) is None
+
+        # We do not accidentally produce to the events topic:
+        assert events_consumer.poll(timeout=2.0) is None
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
