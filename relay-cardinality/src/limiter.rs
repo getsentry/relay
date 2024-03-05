@@ -319,14 +319,14 @@ mod tests {
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
                 entries: I,
-                outcomes: &mut T,
+                rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
                 T: Rejections<'a>,
             {
                 for entry in entries {
-                    outcomes.reject(&limits[0], entry.id);
+                    rejections.reject(&limits[0], entry.id);
                 }
 
                 Ok(())
@@ -361,7 +361,7 @@ mod tests {
                 _scoping: Scoping,
                 _limits: &'a [CardinalityLimit],
                 _entries: I,
-                _outcomes: &mut T,
+                _rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
@@ -395,7 +395,7 @@ mod tests {
                 scoping: Scoping,
                 limits: &'a [CardinalityLimit],
                 entries: I,
-                outcomes: &mut T,
+                rejections: &mut T,
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
@@ -406,7 +406,7 @@ mod tests {
 
                 for entry in entries {
                     if entry.id.0 % 2 == 0 {
-                        outcomes.reject(&limits[0], entry.id);
+                        rejections.reject(&limits[0], entry.id);
                     }
                 }
 
@@ -436,6 +436,87 @@ mod tests {
                 Item::new(1, MetricNamespace::Transactions),
                 Item::new(3, MetricNamespace::Custom),
                 Item::new(5, MetricNamespace::Transactions),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_limiter_passive() {
+        struct RejectLimits;
+
+        impl Limiter for RejectLimits {
+            fn check_cardinality_limits<'a, I, T>(
+                &self,
+                _scoping: Scoping,
+                limits: &'a [CardinalityLimit],
+                entries: I,
+                rejections: &mut T,
+            ) -> Result<()>
+            where
+                I: IntoIterator<Item = Entry>,
+                T: Rejections<'a>,
+            {
+                for entry in entries {
+                    rejections.reject(&limits[entry.id.0 % limits.len()], entry.id);
+                }
+                Ok(())
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(RejectLimits);
+        let limits = &[
+            CardinalityLimit {
+                id: "limit_passive".to_owned(),
+                passive: false,
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+            CardinalityLimit {
+                id: "limit_enforced".to_owned(),
+                passive: true,
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+        ];
+
+        let items = vec![
+            Item::new(0, MetricNamespace::Custom),
+            Item::new(1, MetricNamespace::Custom),
+            Item::new(2, MetricNamespace::Custom),
+            Item::new(3, MetricNamespace::Custom),
+            Item::new(4, MetricNamespace::Custom),
+            Item::new(5, MetricNamespace::Custom),
+        ];
+        let limited = limiter
+            .check_cardinality_limits(build_scoping(), limits, items)
+            .unwrap();
+
+        assert!(limited.has_rejections());
+        assert_eq!(limited.limits(), &limits.iter().collect());
+
+        // All passive items and no enforced (passive = False) should be accepted.
+        assert!(limited.rejected().eq([
+            Item::new(0, MetricNamespace::Custom),
+            Item::new(2, MetricNamespace::Custom),
+            Item::new(4, MetricNamespace::Custom),
+        ]
+        .iter()));
+        assert_eq!(
+            limited.into_accepted(),
+            vec![
+                Item::new(1, MetricNamespace::Custom),
+                Item::new(3, MetricNamespace::Custom),
+                Item::new(5, MetricNamespace::Custom),
             ]
         );
     }
