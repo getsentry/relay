@@ -1349,7 +1349,9 @@ impl EnvelopeProcessorService {
                     });
                 }
 
-                span::maybe_discard_transaction(state);
+                if_processing!(self.inner.config, {
+                    span::maybe_discard_transaction(state);
+                });
 
                 if state.has_event() {
                     event::serialize(state)?;
