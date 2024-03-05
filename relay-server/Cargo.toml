@@ -19,6 +19,7 @@ dashboard = [
     "relay-log/dashboard",
 ]
 processing = [
+    "dep:bytemuck",
     "dep:minidump",
     "dep:symbolic-common",
     "dep:symbolic-unreal",
@@ -46,7 +47,7 @@ axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
-bytemuck = { version = "1.14.3", features = ["min_const_generics"] }
+bytemuck = { version = "1.14.3", features = ["min_const_generics"], optional = true }
 bytes = { version = "1.4.0", features = ["serde"] }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = "2.5.0"
