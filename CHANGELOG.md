@@ -10,6 +10,7 @@
 - Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
 - Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
+- Individual cardinality limits can now be set into passive mode and not be enforced. ([#3199](https://github.com/getsentry/relay/pull/3199))
 
 **Bug Fixes**:
 
@@ -25,6 +26,7 @@
 - Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
 - Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
+- Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 
 ## 24.2.0
 

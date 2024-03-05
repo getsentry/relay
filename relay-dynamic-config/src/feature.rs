@@ -27,7 +27,7 @@ pub enum Feature {
     DeviceClassSynthesis,
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
-    SpanMetricsExtraction,
+    ExtractSpansAndSpanMetricsFromEvent,
     /// Allow ingestion of metrics in the "custom" namespace.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
@@ -46,6 +46,10 @@ pub enum Feature {
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
+
+    /// Discard transactions in a spans-only world.
+    #[serde(rename = "projects:discard-transaction")]
+    DiscardTransaction,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

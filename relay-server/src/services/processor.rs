@@ -1214,7 +1214,7 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::SpanMetricsExtraction),
+                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1347,10 +1347,17 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
-                    event::serialize(state)?;
                     if_processing!(self.inner.config, {
                         span::extract_from_event(state);
                     });
+                }
+
+                if_processing!(self.inner.config, {
+                    span::maybe_discard_transaction(state);
+                });
+
+                if state.has_event() {
+                    event::serialize(state)?;
                 }
 
                 attachment::scrub(state);
@@ -2059,29 +2066,29 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let cardinality_scope = relay_cardinality::Scoping {
+        let scope = relay_cardinality::Scoping {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
+        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
                     "cardinality limiter failed"
                 );
-
                 return buckets;
             }
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if limits.has_rejections() && sample(error_sample_rate) {
-            for limit_id in limits.enforced_limits() {
+        if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
+            for limit in limits.exceeded_limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
-                    tags.limit_id = limit_id,
+                    tags.limit_id = limit.id,
+                    tags.passive = limit.passive,
                     "Cardinality Limit"
                 );
             }
