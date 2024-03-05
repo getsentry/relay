@@ -1,4 +1,5 @@
 mod api;
+mod bucket_encoding;
 mod buffer;
 mod dynamic_sampling;
 mod garbage;
@@ -20,6 +21,7 @@ mod native;
 mod unreal;
 
 pub use self::api::*;
+pub use self::bucket_encoding::*;
 pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
 pub use self::garbage::*;

@@ -539,6 +539,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c676a478f63e9fa2dd5368a42f28bba0d6c560b775f38583c8bbaa7fcd67c9c"
 
 [[package]]
+name = "bytemuck"
+version = "1.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2ef034f05691a48569bd920a96c81b9d91bbad1ab5ac7c4616c1f6ef36cb79f"
+
+[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,9 +1045,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.3.3"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
+checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 
 [[package]]
 name = "debugid"
@@ -4111,6 +4117,7 @@ dependencies = [
  "backoff",
  "brotli",
  "bytecount",
+ "bytemuck",
  "bytes",
  "chrono",
  "data-encoding",

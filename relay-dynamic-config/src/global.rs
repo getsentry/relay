@@ -211,6 +211,10 @@ pub enum MetricEncoding {
     /// Uses already the dynamic value format but still encodes
     /// all values as a JSON number array.
     Array,
+    /// Auto mode.
+    ///
+    /// Relay chooses the best available encoding for distributions and sets.
+    Auto,
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.

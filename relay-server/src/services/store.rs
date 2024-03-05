@@ -1,5 +1,5 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
-//! The service uses kafka topics to forward data to Sentry
+//! The service uses Kafka topics to forward data to Sentry
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode, TypedEnvelope};
+use crate::utils::{self, ArrayEncoding, ExtractionMode, TypedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -48,6 +48,8 @@ const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 pub enum StoreError {
     #[error("failed to send the message to kafka")]
     SendFailed(#[from] ClientError),
+    #[error("failed to encode data: {0}")]
+    EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
 }
@@ -376,7 +378,9 @@ impl StoreService {
                     retention,
                 );
 
-                if let Err(e) = self.send_metric_message(namespace, message) {
+                if let Err(e) =
+                    message.and_then(|message| self.send_metric_message(namespace, message))
+                {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
@@ -412,17 +416,31 @@ impl StoreService {
         encoding: MetricEncoding,
         view: &'a BucketView<'a>,
         retention_days: u16,
-    ) -> MetricKafkaMessage<'a> {
+    ) -> Result<MetricKafkaMessage<'a>, StoreError> {
         let value = match view.value() {
             BucketViewValue::Counter(c) => MetricValue::Counter(c),
-            BucketViewValue::Distribution(d) => {
-                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
+            BucketViewValue::Distribution(data) => {
+                let data = match encoding {
+                    MetricEncoding::Legacy => ArrayEncoding::legacy(data),
+                    MetricEncoding::Array => ArrayEncoding::array(data),
+                    MetricEncoding::Auto => {
+                        ArrayEncoding::zstd(data).map_err(StoreError::EncodingFailed)?
+                    }
+                };
+                MetricValue::Distribution(data)
             }
-            BucketViewValue::Set(s) => MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Set(data) => {
+                let data = match encoding {
+                    MetricEncoding::Legacy => ArrayEncoding::legacy(data),
+                    MetricEncoding::Array => ArrayEncoding::array(data),
+                    MetricEncoding::Auto => ArrayEncoding::base64(data),
+                };
+                MetricValue::Set(data)
+            }
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
-        MetricKafkaMessage {
+        Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
             name: view.name(),
@@ -430,7 +448,7 @@ impl StoreService {
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
-        }
+        })
     }
 
     fn extract_kafka_messages_for_event(
@@ -815,7 +833,7 @@ impl StoreService {
 
             let message =
                 self.create_metric_message(org_id, project_id, encoding, &view, retention);
-            self.send_metric_message(namespace, message)?;
+            message.and_then(|message| self.send_metric_message(namespace, message))?;
         }
 
         Ok(())
@@ -1455,45 +1473,6 @@ impl<'a> MetricValue<'a> {
             _ => None,
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(untagged)]
-enum ArrayEncoding<T> {
-    /// The original, legacy, encoding.
-    ///
-    /// Encodes all values as a JSON array of numbers.
-    Legacy(T),
-    /// Dynamic encoding supporting multiple formats.
-    ///
-    /// Adds metadata and adds support for multiple different encodings.
-    Dynamic(DynamicArrayEncoding<T>),
-}
-
-impl<T> ArrayEncoding<T> {
-    /// Builds a [`ArrayEncoding`] from the format and the data.
-    fn new(encoding: MetricEncoding, data: T) -> Self {
-        match encoding {
-            MetricEncoding::Legacy => Self::Legacy(data),
-            MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Legacy(_) => "legacy",
-            Self::Dynamic(DynamicArrayEncoding::Array { .. }) => "array",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "format", rename_all = "lowercase")]
-enum DynamicArrayEncoding<T> {
-    /// JSON Array encoding.
-    ///
-    /// Encodes all items as a JSON array.
-    Array { data: T },
 }
 
 #[derive(Clone, Debug, Serialize)]
