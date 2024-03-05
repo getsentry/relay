@@ -340,7 +340,7 @@ impl ManagedEnvelope {
         if let Some((outcome, category, quantity)) = maybe_outcome {
             self.track_outcome(outcome, category, quantity);
 
-            // TODO: it would be nice to reject the outcome with the normal category and
+            // TODO: it would be nice to reject the envelope with the normal category and
             // quantity arguments. Envelope rejection may be overloaded in this context so
             // we opt to send an envelope with no items to the next step.
             //
