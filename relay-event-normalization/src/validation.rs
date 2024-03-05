@@ -19,6 +19,13 @@ pub struct TransactionValidationConfig {
     /// Transactions that finish outside this range are invalid. The check is
     /// skipped if no range is provided.
     pub timestamp_range: Option<Range<UnixTimestamp>>,
+
+    /// Controls whether the event has been validated before, in which case disables validation.
+    ///
+    /// By default, `is_validated` is disabled and transaction validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates a transaction.
@@ -35,6 +42,10 @@ pub fn validate_transaction(
     event: &mut Annotated<Event>,
     config: &TransactionValidationConfig,
 ) -> ProcessingResult {
+    if config.is_validated {
+        return Ok(());
+    }
+
     let Annotated(Some(ref mut event), ref _meta) = event else {
         return Ok(());
     };
@@ -237,6 +248,13 @@ pub struct EventValidationConfig {
     ///
     /// If the event's timestamp lies further into the future, the received timestamp is assumed.
     pub max_secs_in_future: Option<i64>,
+
+    /// Controls whether the event has been validated before, in which case disables validation.
+    ///
+    /// By default, `is_validated` is disabled and event validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates the timestamp values of an event, after performing minimal timestamp normalization.
@@ -259,6 +277,10 @@ pub fn validate_event_timestamps(
     event: &mut Annotated<Event>,
     config: &EventValidationConfig,
 ) -> ProcessingResult {
+    if config.is_validated {
+        return Ok(());
+    }
+
     let Annotated(Some(ref mut event), ref mut meta) = event else {
         return Ok(());
     };
@@ -397,6 +419,7 @@ mod tests {
                 &mut event,
                 &TransactionValidationConfig {
                     timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -436,7 +459,8 @@ mod tests {
             validate_transaction(
                 &mut event,
                 &TransactionValidationConfig {
-                    timestamp_range: None
+                    timestamp_range: None,
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -461,7 +485,8 @@ mod tests {
             validate_transaction(
                 &mut event,
                 &TransactionValidationConfig {
-                    timestamp_range: None
+                    timestamp_range: None,
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -710,6 +735,7 @@ mod tests {
             received_at: Some(Utc::now()),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
+            is_validated: false,
         };
 
         let json = r#"{
@@ -735,6 +761,7 @@ mod tests {
             received_at: Some(now),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
+            is_validated: false,
         };
 
         let json = format!(
@@ -824,6 +851,7 @@ mod tests {
                 received_at: Some(Utc::now()),
                 max_secs_in_past: Some(2),
                 max_secs_in_future: Some(1),
+                is_validated: false,
             },
         )
         .unwrap();
@@ -834,5 +862,46 @@ mod tests {
         let span = get_value!(spans[0]!);
 
         assert_eq!(span.timestamp.value(), event.timestamp.value());
+    }
+
+    #[test]
+    fn test_skip_transaction_validation_on_renormalization() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I'm invalid because I don't have any timestamps!"
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(validate_transaction(&mut event, &TransactionValidationConfig::default()).is_err());
+        assert!(validate_transaction(
+            &mut event,
+            &TransactionValidationConfig {
+                is_validated: true,
+                ..Default::default()
+            }
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_skip_event_timestamp_validation_on_renormalization() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "completely outdated transaction",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(validate_event_timestamps(&mut event, &EventValidationConfig::default()).is_err());
+        assert!(validate_event_timestamps(
+            &mut event,
+            &EventValidationConfig {
+                is_validated: true,
+                ..Default::default()
+            }
+        )
+        .is_ok());
     }
 }
