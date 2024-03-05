@@ -133,6 +133,14 @@ impl HealthCheckService {
                 self.config.health_max_memory_watermark_percent() * 100.0,
             );
             return Status::Unhealthy;
+        } else {
+            relay_log::info!(
+                "Memory usage report, {} / {} ({:.2}% >= {:.2}%)",
+                memory.used,
+                memory.total,
+                memory.used_percent() * 100.0,
+                self.config.health_max_memory_watermark_percent() * 100.0,
+            );
         }
 
         if memory.used > self.config.health_max_memory_watermark_bytes() {
@@ -144,6 +152,14 @@ impl HealthCheckService {
                 self.config.health_max_memory_watermark_bytes(),
             );
             return Status::Unhealthy;
+        } else {
+            relay_log::info!(
+                "Memory usage report, {} / {} ({} >= {})",
+                memory.used,
+                memory.total,
+                memory.used,
+                self.config.health_max_memory_watermark_bytes(),
+            );
         }
 
         Status::Healthy
