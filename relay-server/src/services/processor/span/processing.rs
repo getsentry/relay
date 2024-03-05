@@ -150,7 +150,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 
     if !state
         .project_state
-        .has_feature(Feature::SpanMetricsExtraction)
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
         return;
     }

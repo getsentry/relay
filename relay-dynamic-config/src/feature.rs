@@ -27,7 +27,7 @@ pub enum Feature {
     DeviceClassSynthesis,
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
-    SpanMetricsExtraction,
+    ExtractSpansAndSpanMetricsFromEvent,
     /// Allow ingestion of metrics in the "custom" namespace.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
