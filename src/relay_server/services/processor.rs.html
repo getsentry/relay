@@ -5289,8 +5289,8 @@
         };
 
         <span class="kw">let </span>error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        <span class="kw">if </span>!limits.limits().is_empty() &amp;&amp; sample(error_sample_rate) {
-            <span class="kw">for </span>limit <span class="kw">in </span>limits.limits() {
+        <span class="kw">if </span>!limits.exceeded_limits().is_empty() &amp;&amp; sample(error_sample_rate) {
+            <span class="kw">for </span>limit <span class="kw">in </span>limits.exceeded_limits() {
                 <span class="macro">relay_log::error!</span>(
                     tags.organization_id = scoping.organization_id,
                     tags.limit_id = limit.id,

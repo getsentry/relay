@@ -708,7 +708,7 @@
     <span class="doccomment">/// Returns all id's of cardinality limits which were exceeded.
     ///
     /// This includes passive limits.
-    </span><span class="kw">pub fn </span>limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>HashSet&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt; {
+    </span><span class="kw">pub fn </span>exceeded_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>HashSet&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.limits
     }
 
@@ -875,7 +875,7 @@
             )
             .unwrap();
 
-        <span class="macro">assert_eq!</span>(result.limits(), <span class="kw-2">&amp;</span>HashSet::from([<span class="kw-2">&amp;</span>limits[<span class="number">0</span>]]));
+        <span class="macro">assert_eq!</span>(result.exceeded_limits(), <span class="kw-2">&amp;</span>HashSet::from([<span class="kw-2">&amp;</span>limits[<span class="number">0</span>]]));
         <span class="macro">assert!</span>(result.into_accepted().is_empty());
     }
 
@@ -1030,7 +1030,7 @@
             .unwrap();
 
         <span class="macro">assert!</span>(limited.has_rejections());
-        <span class="macro">assert_eq!</span>(limited.limits(), <span class="kw-2">&amp;</span>limits.iter().collect());
+        <span class="macro">assert_eq!</span>(limited.exceeded_limits(), <span class="kw-2">&amp;</span>limits.iter().collect());
 
         <span class="comment">// All passive items and no enforced (passive = False) should be accepted.
         </span><span class="kw">let </span>rejected = limited.rejected().collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
