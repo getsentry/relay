@@ -13,6 +13,9 @@
 #                    match, and we need the service to get the release name
 #   SENTRY_SINGLE_TENANT: When single-tenant is 'true' this script will use the sentry-st organization instead of sentry
 #   SKIP_CANARY_CHECKS: Whether to skip checks entirely (true/false)
+#
+# Since Processing and PoPs can be deployed independently, we don't fail if
+# we can't find a release as it may not exist yet
 
 # shellcheck disable=SC2206
 projects=(${SENTRY_PROJECTS})
@@ -26,8 +29,6 @@ for project in "${projects[@]}"; do
   release_name=$(./relay/scripts/get-sentry-release-name "${GO_REVISION_RELAY_REPO}" "${service}")
   if [ -z "${release_name}" ]; then
     echo "Failed to get the release name for ${service} at ${GO_REVISION_RELAY_REPO}"
-    # Since Processing and PoPs can be deployed independently, we shouldn't fail if
-    # we can't find a release as it may not exist yet
     continue
   fi
 
