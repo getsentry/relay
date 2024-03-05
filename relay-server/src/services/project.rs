@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_config::Config;
 #[cfg(feature = "processing")]
-use relay_dynamic_config::ProjectCardinalityLimit;
+use relay_cardinality::CardinalityLimit;
+use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
@@ -292,7 +292,7 @@ impl ProjectState {
 
     /// Returns cardinality limits declared in this project state.
     #[cfg(feature = "processing")]
-    pub fn get_cardinality_limits(&self) -> &[ProjectCardinalityLimit] {
+    pub fn get_cardinality_limits(&self) -> &[CardinalityLimit] {
         match self.config.metrics {
             ErrorBoundary::Ok(ref m) => m.cardinality_limits.as_slice(),
             _ => &[],

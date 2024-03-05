@@ -67,7 +67,7 @@ impl RedisSetLimiter {
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
-            id = &state.id,
+            id = state.id(),
         );
 
         let keys = scope
@@ -83,7 +83,7 @@ impl RedisSetLimiter {
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            id = &state.id,
+            id = state.id(),
         );
 
         Ok(CheckedLimits {
@@ -97,7 +97,7 @@ impl Limiter for RedisSetLimiter {
     fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &'a [impl AsRef<CardinalityLimit>],
+        limits: &'a [CardinalityLimit],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
@@ -129,7 +129,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Rejected => {
                         // Rejected, add it to the rejected list and move on.
-                        rejections.reject(state.id, entry.id);
+                        rejections.reject(state.cardinality_limit(), entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -151,7 +151,7 @@ impl Limiter for RedisSetLimiter {
                 continue;
             }
 
-            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id, {
+            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
                 self.check_limits(&mut connection, &mut state, timestamp)
             })?;
 
@@ -161,7 +161,7 @@ impl Limiter for RedisSetLimiter {
             let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    rejections.reject(state.id, entry.id);
+                    rejections.reject(state.cardinality_limit(), entry.id);
                     state.rejected();
                 } else {
                     cache.accept(entry.hash);
@@ -177,8 +177,6 @@ impl Limiter for RedisSetLimiter {
 
 /// Internal state combining relevant entries for the respective quota.
 struct LimitState<'a> {
-    /// Id of the original limit.
-    pub id: &'a str,
     /// Entries which are relevant for the quota.
     pub entries: Vec<RedisEntry>,
     /// Scoping of the quota.
@@ -186,6 +184,8 @@ struct LimitState<'a> {
     /// The limit of the quota.
     pub limit: u64,
 
+    /// The original cardinality limit.
+    cardinality_limit: &'a CardinalityLimit,
     /// The original/full scoping.
     scoping: Scoping,
     /// Amount of cache hits.
@@ -199,12 +199,12 @@ struct LimitState<'a> {
 }
 
 impl<'a> LimitState<'a> {
-    pub fn new(scoping: Scoping, limit: &'a CardinalityLimit) -> Option<Self> {
+    pub fn new(scoping: Scoping, cardinality_limit: &'a CardinalityLimit) -> Option<Self> {
         Some(Self {
-            id: &limit.id,
             entries: Vec::new(),
-            scope: QuotaScoping::new(scoping, limit)?,
-            limit: limit.limit,
+            scope: QuotaScoping::new(scoping, cardinality_limit)?,
+            limit: cardinality_limit.limit,
+            cardinality_limit,
             scoping,
             cache_hits: 0,
             cache_misses: 0,
@@ -213,11 +213,19 @@ impl<'a> LimitState<'a> {
         })
     }
 
-    pub fn from_limits(scoping: Scoping, limits: &'a [impl AsRef<CardinalityLimit>]) -> Vec<Self> {
+    pub fn from_limits(scoping: Scoping, limits: &'a [CardinalityLimit]) -> Vec<Self> {
         limits
             .iter()
-            .filter_map(|limit| LimitState::new(scoping, limit.as_ref()))
+            .filter_map(|limit| LimitState::new(scoping, limit))
             .collect::<Vec<_>>()
+    }
+
+    pub fn id(&self) -> &'a str {
+        &self.cardinality_limit.id
+    }
+
+    pub fn cardinality_limit(&self) -> &'a CardinalityLimit {
+        self.cardinality_limit
     }
 
     pub fn take_entries(&mut self) -> Vec<RedisEntry> {
@@ -245,26 +253,26 @@ impl<'a> Drop for LimitState<'a> {
     fn drop(&mut self) {
         metric!(
             counter(CardinalityLimiterCounters::RedisCacheHit) += self.cache_hits,
-            id = self.id
+            id = &self.cardinality_limit.id
         );
         metric!(
             counter(CardinalityLimiterCounters::RedisCacheMiss) += self.cache_misses,
-            id = self.id
+            id = &self.cardinality_limit.id
         );
         metric!(
             counter(CardinalityLimiterCounters::Accepted) += self.accepts,
-            id = self.id
+            id = &self.cardinality_limit.id
         );
         metric!(
             counter(CardinalityLimiterCounters::Rejected) += self.rejections,
-            id = self.id
+            id = &self.cardinality_limit.id
         );
 
         let organization_id = self.scoping.organization_id as i64;
         let status = if self.rejections > 0 { "limited" } else { "ok" };
         metric!(
             set(CardinalityLimiterSets::Organizations) = organization_id,
-            id = self.id,
+            id = &self.cardinality_limit.id,
             status = status,
         )
     }
@@ -356,7 +364,7 @@ mod tests {
     struct Rejections(HashSet<EntryId>);
 
     impl<'a> super::Rejections<'a> for Rejections {
-        fn reject(&mut self, _limit_id: &'a str, entry_id: EntryId) {
+        fn reject(&mut self, _limit: &'a CardinalityLimit, entry_id: EntryId) {
             self.0.insert(entry_id);
         }
     }
@@ -451,6 +459,7 @@ mod tests {
         let scoping = new_scoping(&limiter);
         let mut limit = CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -494,6 +503,7 @@ mod tests {
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: granularity_seconds * 3,
                 granularity_seconds,
@@ -554,6 +564,7 @@ mod tests {
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -583,6 +594,7 @@ mod tests {
         let scoping = new_scoping(&limiter);
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -611,6 +623,7 @@ mod tests {
         };
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window,
             limit: 1,
             scope: CardinalityScope::Organization,
@@ -653,6 +666,7 @@ mod tests {
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -684,6 +698,7 @@ mod tests {
         let limits = &[
             CardinalityLimit {
                 id: "limit1".to_owned(),
+                passive: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -694,6 +709,7 @@ mod tests {
             },
             CardinalityLimit {
                 id: "limit2".to_owned(),
+                passive: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -704,6 +720,7 @@ mod tests {
             },
             CardinalityLimit {
                 id: "limit3".to_owned(),
+                passive: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -714,6 +731,7 @@ mod tests {
             },
             CardinalityLimit {
                 id: "unknown_skipped".to_owned(),
+                passive: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -761,6 +779,7 @@ mod tests {
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -797,6 +816,7 @@ mod tests {
         };
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window,
             limit: 100,
             scope: CardinalityScope::Organization,
@@ -880,6 +900,7 @@ mod tests {
         };
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window,
             limit: 100,
             scope: CardinalityScope::Organization,

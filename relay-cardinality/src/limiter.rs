@@ -22,7 +22,7 @@ pub struct Scoping {
 /// Accumulator of all cardinality limiter rejections.
 pub trait Rejections<'a> {
     /// Called for ever [`Entry`] which was rejected from the [`Limiter`].
-    fn reject(&mut self, limit_id: &'a str, entry_id: EntryId);
+    fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId);
 }
 
 /// Limiter responsible to enforce limits.
@@ -33,7 +33,7 @@ pub trait Limiter {
     fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &'a [impl AsRef<CardinalityLimit>],
+        limits: &'a [CardinalityLimit],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
@@ -103,7 +103,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
     pub fn check_cardinality_limits<'a, I: CardinalityItem>(
         &self,
         scoping: Scoping,
-        limits: &'a [impl AsRef<CardinalityLimit>],
+        limits: &'a [CardinalityLimit],
         items: Vec<I>,
     ) -> Result<CardinalityLimits<'a, I>, (Vec<I>, Error)> {
         if limits.is_empty() {
@@ -141,15 +141,18 @@ impl<T: Limiter> CardinalityLimiter<T> {
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
 struct RejectionTracker<'a> {
-    limits: HashSet<&'a str>,
     entries: HashSet<usize>,
+    limits: HashSet<&'a CardinalityLimit>,
 }
 
 impl<'a> Rejections<'a> for RejectionTracker<'a> {
     #[inline(always)]
-    fn reject(&mut self, limit_id: &'a str, entry_id: EntryId) {
-        self.limits.insert(limit_id);
-        self.entries.insert(entry_id.0);
+    fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
+        self.limits.insert(limit);
+
+        if !limit.passive {
+            self.entries.insert(entry_id.0);
+        }
     }
 }
 
@@ -158,7 +161,7 @@ impl<'a> Rejections<'a> for RejectionTracker<'a> {
 pub struct CardinalityLimits<'a, T> {
     source: Vec<T>,
     rejections: HashSet<usize>,
-    limits: HashSet<&'a str>,
+    limits: HashSet<&'a CardinalityLimit>,
 }
 
 impl<'a, T> CardinalityLimits<'a, T> {
@@ -176,7 +179,9 @@ impl<'a, T> CardinalityLimits<'a, T> {
     }
 
     /// Returns all id's of cardinality limits which were exceeded.
-    pub fn enforced_limits(&self) -> &HashSet<&'a str> {
+    ///
+    /// This includes limits which were only tracked passively.
+    pub fn limits(&self) -> &HashSet<&'a CardinalityLimit> {
         &self.limits
     }
 
@@ -209,25 +214,6 @@ impl<'a, T> CardinalityLimits<'a, T> {
                 }
             })
             .collect()
-    }
-
-    /// Filters all rejections using a supplied filter `f`.
-    ///
-    /// Every item for which the filter returns `true` is removed
-    /// from the rejections.
-    pub fn filter_rejections<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&T) -> bool,
-    {
-        let source = &self.source;
-        self.rejections
-            .extract_if(move |rejection| {
-                let Some(s) = source.get(*rejection) else {
-                    return false;
-                };
-                f(s)
-            })
-            .for_each(|_| {});
     }
 }
 
@@ -265,6 +251,7 @@ mod tests {
     fn build_limits() -> [CardinalityLimit; 1] {
         [CardinalityLimit {
             id: "limit".to_owned(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -331,7 +318,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 _scoping: Scoping,
-                _limits: &'a [impl AsRef<CardinalityLimit>],
+                limits: &'a [CardinalityLimit],
                 entries: I,
                 outcomes: &mut T,
             ) -> Result<()>
@@ -340,7 +327,7 @@ mod tests {
                 T: Rejections<'a>,
             {
                 for entry in entries {
-                    outcomes.reject("test", entry.id);
+                    outcomes.reject(&limits[0], entry.id);
                 }
 
                 Ok(())
@@ -361,7 +348,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.enforced_limits(), &HashSet::from(["test"]));
+        assert_eq!(result.limits(), &HashSet::from([&limits[0]]));
         assert!(result.into_accepted().is_empty());
     }
 
@@ -373,7 +360,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 _scoping: Scoping,
-                _limits: &'a [impl AsRef<CardinalityLimit>],
+                _limits: &'a [CardinalityLimit],
                 _entries: I,
                 _outcomes: &mut T,
             ) -> Result<()>
@@ -407,7 +394,7 @@ mod tests {
             fn check_cardinality_limits<'a, I, T>(
                 &self,
                 scoping: Scoping,
-                limits: &[impl AsRef<CardinalityLimit>],
+                limits: &'a [CardinalityLimit],
                 entries: I,
                 outcomes: &mut T,
             ) -> Result<()>
@@ -416,11 +403,11 @@ mod tests {
                 T: Rejections<'a>,
             {
                 assert_eq!(scoping, build_scoping());
-                assert!(limits.iter().map(AsRef::as_ref).eq(&build_limits()));
+                assert_eq!(limits, &build_limits());
 
                 for entry in entries {
                     if entry.id.0 % 2 == 0 {
-                        outcomes.reject("test", entry.id);
+                        outcomes.reject(&limits[0], entry.id);
                     }
                 }
 

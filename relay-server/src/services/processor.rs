@@ -49,8 +49,10 @@ use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
-    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions},
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, ProjectCardinalityLimit},
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
+    },
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -2039,7 +2041,7 @@ impl EnvelopeProcessorService {
     fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
-        limits: &[ProjectCardinalityLimit],
+        limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
@@ -2054,57 +2056,47 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let cardinality_scope = relay_cardinality::Scoping {
+        let scope = relay_cardinality::Scoping {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
         };
 
-        let mut limited = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets)
-        {
+        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
                     "cardinality limiter failed"
                 );
-
                 return buckets;
             }
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if limited.has_rejections() && sample(error_sample_rate) {
-            for limit_id in limited.enforced_limits() {
+        if !limits.limits().is_empty() && sample(error_sample_rate) {
+            for limit in limits.limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
-                    tags.limit_id = limit_id,
+                    tags.limit_id = limit.id,
+                    tags.passive = limit.passive,
                     "Cardinality Limit"
                 );
             }
         }
 
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
-            return limited.into_source();
-        }
-
-        if limits.iter().any(|limit| limit.passive) {
-            limited.filter_rejections(|bucket| {
-                limits
-                    .iter()
-                    .filter(|limit| limit.inner.matches(bucket))
-                    .all(|limit| limit.passive)
-            })
+            return limits.into_source();
         }
 
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.outcome_aggregator,
-            utils::extract_metric_quantities(limited.rejected(), mode),
+            utils::extract_metric_quantities(limits.rejected(), mode),
             scoping,
             Outcome::CardinalityLimited,
         );
 
-        limited.into_accepted()
+        limits.into_accepted()
     }
 
     /// Processes metric buckets and sends them to kafka.

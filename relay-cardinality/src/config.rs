@@ -1,14 +1,21 @@
 use relay_base_schema::metrics::MetricNamespace;
 use serde::{Deserialize, Serialize};
 
-use crate::{CardinalityItem, SlidingWindow};
+use crate::SlidingWindow;
 
 /// A cardinality limit.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
+    /// Wether this is a passive limit.
+    ///
+    /// Passive limits are tracked separately to normal limits
+    /// and are not enforced, but still evaluated.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub passive: bool,
+
     /// The sliding window to enforce the cardinality limits in.
     pub window: SlidingWindow,
     /// The cardinality limit.
@@ -19,24 +26,12 @@ pub struct CardinalityLimit {
     /// Metric namespace the limit applies to.
     ///
     /// No namespace means this specific limit is enforced across all namespaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<MetricNamespace>,
 }
 
-impl CardinalityLimit {
-    /// Wether the cardinality limit can be applied to a cardinality item.
-    pub fn matches<T: CardinalityItem>(&self, item: &T) -> bool {
-        self.namespace.is_none() || item.namespace() == self.namespace
-    }
-}
-
-impl AsRef<CardinalityLimit> for CardinalityLimit {
-    fn as_ref(&self) -> &CardinalityLimit {
-        self
-    }
-}
-
 /// A scope to restrict the [`CardinalityLimit`] to.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CardinalityScope {
     /// An organization level cardinality limit.
@@ -62,6 +57,7 @@ mod tests {
     fn test_cardinality_limit_json() {
         let limit = CardinalityLimit {
             id: "some_id".to_string(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 200,
