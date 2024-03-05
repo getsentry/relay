@@ -1184,13 +1184,13 @@ impl EnvelopeProcessorService {
                 timestamp_range: Some(
                     AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
                 ),
-                is_renormalize: false,
+                is_validated: false,
             };
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                is_renormalize: false,
+                is_validated: false,
             };
             let normalization_config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),

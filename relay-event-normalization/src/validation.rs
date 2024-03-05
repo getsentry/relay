@@ -21,7 +21,11 @@ pub struct TransactionValidationConfig {
     pub timestamp_range: Option<Range<UnixTimestamp>>,
 
     /// Controls whether the event has been validated before, in which case disables validation.
-    pub is_renormalize: bool,
+    ///
+    /// By default, `is_validated` is disabled and transaction validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates a transaction.
@@ -38,7 +42,7 @@ pub fn validate_transaction(
     event: &mut Annotated<Event>,
     config: &TransactionValidationConfig,
 ) -> ProcessingResult {
-    if config.is_renormalize {
+    if config.is_validated {
         return Ok(());
     }
 
@@ -246,7 +250,11 @@ pub struct EventValidationConfig {
     pub max_secs_in_future: Option<i64>,
 
     /// Controls whether the event has been validated before, in which case disables validation.
-    pub is_renormalize: bool,
+    ///
+    /// By default, `is_validated` is disabled and event validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates the timestamp values of an event, after performing minimal timestamp normalization.
@@ -269,7 +277,7 @@ pub fn validate_event_timestamps(
     event: &mut Annotated<Event>,
     config: &EventValidationConfig,
 ) -> ProcessingResult {
-    if config.is_renormalize {
+    if config.is_validated {
         return Ok(());
     }
 
@@ -411,7 +419,7 @@ mod tests {
                 &mut event,
                 &TransactionValidationConfig {
                     timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
-                    is_renormalize: false
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -452,7 +460,7 @@ mod tests {
                 &mut event,
                 &TransactionValidationConfig {
                     timestamp_range: None,
-                    is_renormalize: false
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -478,7 +486,7 @@ mod tests {
                 &mut event,
                 &TransactionValidationConfig {
                     timestamp_range: None,
-                    is_renormalize: false
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -727,7 +735,7 @@ mod tests {
             received_at: Some(Utc::now()),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
-            is_renormalize: false,
+            is_validated: false,
         };
 
         let json = r#"{
@@ -753,7 +761,7 @@ mod tests {
             received_at: Some(now),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
-            is_renormalize: false,
+            is_validated: false,
         };
 
         let json = format!(
@@ -843,7 +851,7 @@ mod tests {
                 received_at: Some(Utc::now()),
                 max_secs_in_past: Some(2),
                 max_secs_in_future: Some(1),
-                is_renormalize: false,
+                is_validated: false,
             },
         )
         .unwrap();
@@ -869,7 +877,7 @@ mod tests {
         assert!(validate_transaction(
             &mut event,
             &TransactionValidationConfig {
-                is_renormalize: true,
+                is_validated: true,
                 ..Default::default()
             }
         )
@@ -890,7 +898,7 @@ mod tests {
         assert!(validate_event_timestamps(
             &mut event,
             &EventValidationConfig {
-                is_renormalize: true,
+                is_validated: true,
                 ..Default::default()
             }
         )
