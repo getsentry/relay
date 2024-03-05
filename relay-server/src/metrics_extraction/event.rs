@@ -976,7 +976,9 @@ mod tests {
         "#;
 
         let mut event = Annotated::from_json(json).unwrap();
-        let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
+        let features = FeatureSet(BTreeSet::from([
+            Feature::ExtractSpansAndSpanMetricsFromEvent,
+        ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1111,7 +1113,9 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -1170,7 +1174,9 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -1204,7 +1210,9 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -1235,7 +1243,10 @@ mod tests {
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
         let mut config = ProjectConfig::default();
-        config.features.0.insert(Feature::SpanMetricsExtraction);
+        config
+            .features
+            .0
+            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
