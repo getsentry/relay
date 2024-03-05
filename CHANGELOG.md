@@ -24,7 +24,7 @@
 - Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
 - Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
-- Emit a processed span outcome for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
+- Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 
 ## 24.2.0
 
