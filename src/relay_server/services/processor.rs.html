@@ -3214,6 +3214,13 @@
 <a href="#3213" id="3213">3213</a>
 <a href="#3214" id="3214">3214</a>
 <a href="#3215" id="3215">3215</a>
+<a href="#3216" id="3216">3216</a>
+<a href="#3217" id="3217">3217</a>
+<a href="#3218" id="3218">3218</a>
+<a href="#3219" id="3219">3219</a>
+<a href="#3220" id="3220">3220</a>
+<a href="#3221" id="3221">3221</a>
+<a href="#3222" id="3222">3222</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4560,10 +4567,17 @@
 
                 <span class="kw">if </span>state.has_event() {
                     event::scrub(state)<span class="question-mark">?</span>;
-                    event::serialize(state)<span class="question-mark">?</span>;
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                         span::extract_from_event(state);
                     });
+                }
+
+                <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                    span::maybe_discard_transaction(state);
+                });
+
+                <span class="kw">if </span>state.has_event() {
+                    event::serialize(state)<span class="question-mark">?</span>;
                 }
 
                 attachment::scrub(state);
