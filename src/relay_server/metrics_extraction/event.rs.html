@@ -1408,6 +1408,17 @@
 <a href="#1407" id="1407">1407</a>
 <a href="#1408" id="1408">1408</a>
 <a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, Options};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2386,7 +2397,9 @@
         "#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        <span class="kw">let </span>features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
+        <span class="kw">let </span>features = FeatureSet(BTreeSet::from([
+            Feature::ExtractSpansAndSpanMetricsFromEvent,
+        ]));
 
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
         </span>normalize_event(
@@ -2521,7 +2534,9 @@
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
         </span><span class="kw">let </span><span class="kw-2">mut </span>project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -2580,7 +2595,9 @@
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
         </span><span class="kw">let </span><span class="kw-2">mut </span>project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -2614,7 +2631,9 @@
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
         </span><span class="kw">let </span><span class="kw-2">mut </span>project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -2645,7 +2664,10 @@
     <span class="doccomment">/// Helper function for span metric extraction tests.
     </span><span class="kw">fn </span>extract_span_metrics(span: <span class="kw-2">&amp;</span>Span) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
-        config.features.<span class="number">0</span>.insert(Feature::SpanMetricsExtraction);
+        config
+            .features
+            .<span class="number">0
+            </span>.insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
         config.sanitize(); <span class="comment">// apply defaults for span extraction
 
         </span><span class="kw">let </span>extraction_config = config.metric_extraction.ok().unwrap();

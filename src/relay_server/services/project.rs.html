@@ -1722,6 +1722,9 @@
 <a href="#1721" id="1721">1721</a>
 <a href="#1722" id="1722">1722</a>
 <a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2966,7 +2969,10 @@
     <span class="kw">match </span>namespace {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
-        MetricNamespace::Spans =&gt; state.has_feature(Feature::SpanMetricsExtraction),
+        MetricNamespace::Spans =&gt; {
+            state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+                || state.has_feature(Feature::StandaloneSpanIngestion)
+        }
         MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
     }
