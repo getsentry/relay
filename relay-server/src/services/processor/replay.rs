@@ -132,7 +132,8 @@ fn handle_replay_event_item(
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
-                    "failed to serialize replay: {event_id:?}"
+                    ?event_id,
+                    "failed to serialize replay"
                 );
                 Ok(payload)
             }
@@ -140,7 +141,8 @@ fn handle_replay_event_item(
         Err(error) => {
             relay_log::warn!(
                 error = &error as &dyn Error,
-                "invalid replay event: {event_id:?}"
+                ?event_id,
+                "invalid replay event"
             );
             Err(Outcome::Invalid(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
