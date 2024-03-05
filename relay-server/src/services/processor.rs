@@ -1212,7 +1212,7 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::SpanMetricsExtraction),
+                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config

@@ -41,7 +41,10 @@ const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resourc
 /// This requires the `SpanMetricsExtraction` feature. This feature should be set to `false` if the
 /// default should no longer be placed.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
-    if !project_config.features.has(Feature::SpanMetricsExtraction) {
+    if !project_config
+        .features
+        .has(Feature::ExtractSpansAndSpanMetricsFromEvent)
+    {
         return;
     }
 
