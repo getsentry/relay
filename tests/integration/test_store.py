@@ -1333,12 +1333,18 @@ def test_invalid_project_id(mini_sentry, relay):
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
+@pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
+    transactions_consumer,
+    events_consumer,
+    discard_transaction,
 ):
     spans_consumer = spans_consumer()
+    transactions_consumer = transactions_consumer()
+    events_consumer = events_consumer()
 
     relay = relay_with_processing()
     project_id = 42
@@ -1347,6 +1353,8 @@ def test_span_extraction(
         "projects:span-metrics-extraction",
         "projects:span-metrics-extraction-all-modules",
     ]
+    if discard_transaction:
+        project_config["config"]["features"].append("projects:discard-transaction")
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
@@ -1365,6 +1373,15 @@ def test_span_extraction(
     ]
 
     relay.send_event(project_id, event)
+
+    if discard_transaction:
+        transactions_consumer.poll(timeout=2.0) is None
+
+        # We do not accidentally produce to the events topic:
+        assert events_consumer.poll(timeout=2.0) is None
+    else:
+        received_event, _ = transactions_consumer.get_event(timeout=2.0)
+        assert received_event["event_id"] == event["event_id"]
 
     child_span = spans_consumer.get_span()
     del child_span["received"]
