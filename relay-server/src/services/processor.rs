@@ -2056,29 +2056,29 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let cardinality_scope = relay_cardinality::Scoping {
+        let scope = relay_cardinality::Scoping {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
+        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
                     "cardinality limiter failed"
                 );
-
                 return buckets;
             }
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if limits.has_rejections() && sample(error_sample_rate) {
-            for limit_id in limits.enforced_limits() {
+        if !limits.limits().is_empty() && sample(error_sample_rate) {
+            for limit in limits.limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
-                    tags.limit_id = limit_id,
+                    tags.limit_id = limit.id,
+                    tags.passive = limit.passive,
                     "Cardinality Limit"
                 );
             }

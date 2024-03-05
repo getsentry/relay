@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 import pytest
 
 from .test_metrics import metrics_by_name
@@ -57,7 +55,6 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
 
     add_project_config(mini_sentry, project_id, cardinality_limits)
 
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics_payload = "\n".join(
         [
             "transactions/foo@second:12|c",
@@ -65,7 +62,7 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
             "sessions/foo@second:12|c",
             "foo@second:12|c",
             "bar@second:23|c",
-            f"baz@second:17|c|T{timestamp}",
+            "baz@second:17|c",
         ]
     )
     relay.send_metrics(project_id, metrics_payload)
@@ -108,3 +105,58 @@ def test_cardinality_limits_global_config_mode(
     else:
         metrics = metrics_by_namespace(metrics_consumer, 2)
         assert len(metrics["transactions"]) == 2
+
+
+def test_cardinality_limits_passive_limit(
+    mini_sentry, relay_with_processing, metrics_consumer
+):
+    relay = relay_with_processing(options=TEST_CONFIG)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    cardinality_limits = [
+        {
+            "id": "transactions_passive",
+            "passive": True,
+            "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+            "limit": 1,
+            "scope": "organization",
+            "namespace": "transactions",
+        },
+        {
+            "id": "transactions_enforced",
+            "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+            "limit": 3,
+            "scope": "organization",
+            "namespace": "transactions",
+        },
+        {
+            "id": "custom",
+            "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+            "limit": 2,
+            "scope": "organization",
+            "namespace": "custom",
+        },
+    ]
+
+    add_project_config(mini_sentry, project_id, cardinality_limits)
+
+    metrics_payload = "\n".join(
+        [
+            "transactions/foo@second:11|c",
+            "transactions/bar@second:22|c",
+            "transactions/baz@second:33|c",
+            "transactions/lol@second:55|c",
+            "sessions/foo@second:12|c",
+            "foo@second:12|c",
+            "bar@second:23|c",
+            "baz@second:17|c",
+        ]
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_namespace(metrics_consumer, 6)
+    assert len(metrics["custom"]) == 2
+    assert len(metrics["sessions"]) == 1
+    # The passive limit should be ignored, the non-passive limit still needs to be enforced.
+    assert len(metrics["transactions"]) == 3
