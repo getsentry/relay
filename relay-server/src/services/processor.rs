@@ -418,6 +418,9 @@ pub enum ProcessingError {
 
     #[error("invalid processing group type")]
     InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
+
+    #[error("envelope invalid")]
+    Invalid(DiscardReason),
 }
 
 impl ProcessingError {
@@ -459,6 +462,8 @@ impl ProcessingError {
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
+
+            Self::Invalid(reason) => Some(Outcome::Invalid(reason)),
         }
     }
 

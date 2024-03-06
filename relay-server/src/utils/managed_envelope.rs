@@ -13,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::{Processed, ProcessingGroup};
+use crate::services::processor::{Processed, ProcessingError, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -322,30 +322,30 @@ impl ManagedEnvelope {
     /// it will break early and shorten the vector to length 0. In the event of processing
     /// failure a maximum of one outcome is emitted. All other items are dropped without
     /// processing. DropSilently does not emit an outcome.
-    pub fn retain_or_reject_all<F: FnMut(&mut Item) -> ItemAction>(&mut self, mut f: F) {
-        let use_indexed = self.use_index_category();
-        let mut maybe_outcome = None;
+    pub fn retain_or_reject_all<F: FnMut(&mut Item) -> ItemAction>(
+        &mut self,
+        mut f: F,
+    ) -> Result<(), ProcessingError> {
+        let mut discard_reason = None;
 
         self.envelope.retain_or_reject_all(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                if let Some(category) = item.outcome_category(use_indexed) {
-                    maybe_outcome = Some((outcome, category, item.quantity()));
+                // Outcome does not implement `Copy`. We pass reason which doesn. This means
+                // only invalid outcomes can be handled.
+                if let Outcome::Invalid(reason) = outcome {
+                    discard_reason = Some(reason)
                 };
                 false
             }
         });
 
-        if let Some((outcome, category, quantity)) = maybe_outcome {
-            self.track_outcome(outcome, category, quantity);
-
-            // TODO: it would be nice to reject the envelope with the normal category and
-            // quantity arguments. Envelope rejection may be overloaded in this context so
-            // we opt to send an envelope with no items to the next step.
-            //
-            // self.reject(outcome);
-        };
+        if let Some(reason) = discard_reason {
+            Err(ProcessingError::Invalid(reason))
+        } else {
+            Ok(())
+        }
     }
 
     /// Record that event metrics have been extracted.

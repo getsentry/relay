@@ -111,7 +111,7 @@ pub fn process(
             },
             _ => ItemAction::Keep,
         }
-    });
+    })?;
 
     Ok(())
 }
