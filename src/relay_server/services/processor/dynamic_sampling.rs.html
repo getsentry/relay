@@ -754,6 +754,7 @@
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
 <a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -818,18 +819,19 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
-</span><span class="kw">pub fn </span>run(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>run(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; SamplingResult {
     <span class="comment">// Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
     </span><span class="kw">match </span>state.event_type().unwrap_or_default() {
         EventType::Default | EventType::Error =&gt; {
             tag_error_with_sampling_decision(state, config);
+            SamplingResult::Pending
         }
         EventType::Transaction =&gt; {
             <span class="kw">match </span>state.project_state.config.transaction_metrics {
                 <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.is_enabled() =&gt; (),
-                <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span>SamplingResult::Pending,
             }
 
             <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_state.config.sampling {
@@ -843,26 +845,27 @@
                 <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
             };
 
-            state.sampling_result = compute_sampling_decision(
+            compute_sampling_decision(
                 config.processing_enabled(),
                 <span class="kw-2">&amp;</span>state.reservoir,
                 sampling_config,
                 state.event.value(),
                 root_config,
                 state.envelope().dsc(),
-            );
+            )
         }
-        <span class="kw">_ </span>=&gt; {}
+        <span class="kw">_ </span>=&gt; SamplingResult::Pending,
     }
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
 </span><span class="kw">pub fn </span>sample_envelope_items(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    sampling_result: SamplingResult,
     config: <span class="kw-2">&amp;</span>Config,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) {
-    <span class="kw">if let </span>SamplingResult::Match(sampling_match) = std::mem::take(<span class="kw-2">&amp;mut </span>state.sampling_result) {
+    <span class="kw">if let </span>SamplingResult::Match(sampling_match) = sampling_result {
         <span class="comment">// We assume that sampling is only supposed to work on transactions.
         </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
             <span class="kw">return</span>;
@@ -1235,7 +1238,6 @@
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
-                sampling_result: SamplingResult::Pending,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: <span class="prelude-val">None</span>,
@@ -1257,18 +1259,18 @@
 
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">None</span>);
-        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(state.sampling_result.should_keep());
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="macro">assert!</span>(sampling_result.should_keep());
 
         <span class="comment">// Current version is 1, so it won't run DS if it's outdated
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">0</span>));
-        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(state.sampling_result.should_keep());
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="macro">assert!</span>(sampling_result.should_keep());
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">1</span>));
-        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(state.sampling_result.should_drop());
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="macro">assert!</span>(sampling_result.should_drop());
     }
 
     <span class="kw">fn </span>project_state_with_single_rule(sample_rate: f64) -&gt; ProjectState {

@@ -3220,10 +3220,6 @@
 <a href="#3219" id="3219">3219</a>
 <a href="#3220" id="3220">3220</a>
 <a href="#3221" id="3221">3221</a>
-<a href="#3222" id="3222">3222</a>
-<a href="#3223" id="3223">3223</a>
-<a href="#3224" id="3224">3224</a>
-<a href="#3225" id="3225">3225</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3765,11 +3761,6 @@
     /// resulting item.
     </span>sample_rates: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 
-    <span class="doccomment">/// The result of a dynamic sampling operation on this envelope.
-    ///
-    /// The event will be kept if there's either no match, or there's a match and it was sampled.
-    </span>sampling_result: SamplingResult,
-
     <span class="doccomment">/// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -4251,7 +4242,6 @@
             event_metrics_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             sample_rates: <span class="prelude-val">None</span>,
-            sampling_result: SamplingResult::Pending,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -4328,6 +4318,7 @@
     </span><span class="kw">fn </span>extract_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+        sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
@@ -4366,7 +4357,7 @@
                         config: tx_config,
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
-                        sampling_result: <span class="kw-2">&amp;</span>state.sampling_result,
+                        sampling_result,
                         has_profile: state.profile_id.is_some(),
                     };
 
@@ -4544,18 +4535,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_should_drop = <span class="bool-val">false</span>;
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || supported_generic_filters {
-            dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+            <span class="kw">let </span>sampling_result = dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
             <span class="comment">// Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            </span>sampling_should_drop = state.sampling_result.should_drop();
+            </span>sampling_should_drop = sampling_result.should_drop();
 
             <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
             </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_should_drop {
-                <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
+                <span class="self">self</span>.extract_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
             }
 
             dynamic_sampling::sample_envelope_items(
                 state,
+                sampling_result,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
             );
