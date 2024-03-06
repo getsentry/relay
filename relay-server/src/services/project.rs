@@ -1246,6 +1246,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
             state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
                 || state.has_feature(Feature::StandaloneSpanIngestion)
         }
+        MetricNamespace::Profiles => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported => false,
     }

@@ -169,6 +169,7 @@ pub struct MetricBucketEncodings {
     sessions: MetricEncoding,
     transactions: MetricEncoding,
     spans: MetricEncoding,
+    profiles: MetricEncoding,
     custom: MetricEncoding,
     unsupported: MetricEncoding,
 }
@@ -180,6 +181,7 @@ impl MetricBucketEncodings {
             MetricNamespace::Sessions => self.sessions,
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
+            MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
             MetricNamespace::Unsupported => self.unsupported,
         }
