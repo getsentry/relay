@@ -360,16 +360,25 @@ impl StoreService {
 
         let encodings = self.global_config.current().options.metric_bucket_encodings;
 
-        for bucket in buckets {
+        for mut bucket in buckets {
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
-            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
-                let namespace = MetricResourceIdentifier::parse(view.name())
-                    .map(|mri| mri.namespace)
-                    .unwrap_or(MetricNamespace::Unsupported);
-                let encoding = encodings.for_namespace(namespace);
 
+            let namespace = MetricResourceIdentifier::parse(&bucket.name)
+                .map(|mri| mri.namespace)
+                .unwrap_or(MetricNamespace::Unsupported);
+
+            let encoding = encodings.for_namespace(namespace);
+
+            if !matches!(encoding, MetricEncoding::Legacy | MetricEncoding::Auto) {
+                // Sort values when using a compression for better results.
+                if let relay_metrics::BucketValue::Distribution(ref mut data) = bucket.value {
+                    data.sort_unstable();
+                }
+            }
+
+            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,

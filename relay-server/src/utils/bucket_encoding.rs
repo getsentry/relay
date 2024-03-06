@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use relay_metrics::{FiniteF64, SetView};
 use serde::Serialize;
@@ -48,20 +48,17 @@ impl<T> ArrayEncoding<T> {
     }
 
     pub fn zstd(data: &[FiniteF64]) -> io::Result<Self> {
-        // Sort data for better compression results.
-        let mut data = data
-            .iter()
-            .map(|f| f.to_f64().to_le_bytes())
-            .collect::<Vec<_>>();
-        data.sort_unstable();
-
         let mut encoded = String::new();
-
-        zstd::stream::copy_encode(
-            bytemuck::cast_slice(data.as_slice()),
+        let mut writer = zstd::Encoder::new(
             EncoderWriteAdapter(BASE64.new_encoder(&mut encoded)),
             zstd::DEFAULT_COMPRESSION_LEVEL,
         )?;
+
+        for f in data {
+            writer.write_all(&f.to_f64().to_le_bytes())?;
+        }
+
+        writer.finish()?;
 
         Ok(Self::Dynamic(DynamicArrayEncoding::Zstd { data: encoded }))
     }
@@ -77,7 +74,7 @@ pub enum DynamicArrayEncoding<T> {
     /// Base64 (with padding) encoding.
     ///
     /// Converts all items to little endian byte sequences
-    /// and Base64 encodes the raw bytes.
+    /// and Base64 encodes the raw little endian bytes.
     Base64 { data: String },
     /// Zstd encoding.
     ///
