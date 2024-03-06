@@ -360,6 +360,11 @@ impl ManagedEnvelope {
         }
     }
 
+    /// Drops every item in the envelope.
+    pub fn drop_items(&mut self) {
+        self.envelope.drop_items();
+    }
+
     /// Record that event metrics have been extracted.
     ///
     /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,

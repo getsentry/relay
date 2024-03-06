@@ -55,12 +55,13 @@ pub fn process(
     let combined_envelope_items =
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
-    state.managed_envelope.retain_or_reject_all(|item| {
-        // If replay is not enabled the envelope is dropped. No outcomes are emitted.
-        if !replays_enabled {
-            return ItemAction::DropSilently;
-        }
+    // If the replay feature is not enabled drop the items silenty.
+    if !replays_enabled {
+        state.managed_envelope.drop_items();
+        return Ok(());
+    }
 
+    state.managed_envelope.retain_or_reject_all(|item| {
         // Set the combined payload header to the value of the combined feature.
         item.set_replay_combined_payload(combined_envelope_items);
 
