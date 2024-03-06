@@ -327,7 +327,7 @@ impl StoreService {
         }
 
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
-        relay_log::error!(event_id = ?event_id, "foo");
+
         let kafka_messages = Self::extract_kafka_messages_for_event(
             event_item,
             event_id.ok_or(StoreError::NoEventId)?,
