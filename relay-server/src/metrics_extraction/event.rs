@@ -1244,7 +1244,7 @@ mod tests {
             .filter(|b| b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 7; // We count all spans received by Relay
+        let expected_usage = 8; // We count all spans received by Relay
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
