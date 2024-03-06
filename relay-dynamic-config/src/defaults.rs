@@ -23,6 +23,7 @@ const MOBILE_OPS: &[&str] = &[
     "app.*",
     "application.load",
     "contentprovider.load",
+    "process.load",
     "ui.load*",
 ];
 
