@@ -328,12 +328,23 @@ impl ManagedEnvelope {
     ) -> Result<(), ProcessingError> {
         let mut discard_reason = None;
 
+        // We pass a callback to the `retain_or_reject_all` method on the `Envelope` type
+        // because `items.truncate(0)` is not available to us in this scope. Otherwise we
+        // could move the for loop in `Envelope.retain_or_reject_all` into this scope.
         self.envelope.retain_or_reject_all(|item| match f(item) {
+            // Retained items are mutated in place. If no errors are found, the mutated envelope
+            // items are kept and Ok(()) is returned.
             ItemAction::Keep => true,
+            // Envelope items which are dropped silenty break iteration, truncate the envelope,
+            // and return `Ok(())`.
             ItemAction::DropSilently => false,
+            // Envelope items which are dropped with an error break iteration, truncate the
+            // envelope, and return an error response to the outerscope. This allows the
+            // caller to propagate the `ProcessingError` which can reject the `Envelope` and
+            // record an outcome obeying the `to_outcome` logic for `ProcessingError::Reject`.
             ItemAction::Drop(outcome) => {
-                // Outcome does not implement `Copy`. We pass reason which doesn. This means
-                // only invalid outcomes can be handled.
+                // Outcome does not implement `Copy`. We pass reason instead. This means only
+                // invalid outcomes can be handled.
                 if let Outcome::Invalid(reason) = outcome {
                     discard_reason = Some(reason)
                 };
