@@ -1128,10 +1128,11 @@ impl EnvelopeProcessorService {
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 
-            match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref tx_config))
-                    if tx_config.is_enabled()
-                        && !state.project_state.has_feature(Feature::DiscardTransaction) =>
+            if let Some(ErrorBoundary::Ok(ref tx_config)) =
+                state.project_state.config.transaction_metrics
+            {
+                if tx_config.is_enabled()
+                    && !state.project_state.has_feature(Feature::DiscardTransaction)
                 {
                     let transaction_from_dsc = state
                         .managed_envelope
@@ -1150,7 +1151,6 @@ impl EnvelopeProcessorService {
                     state.extracted_metrics.extend(extractor.extract(event)?);
                     state.event_metrics_extracted |= true;
                 }
-                _ => (),
             }
 
             if state.event_metrics_extracted {
