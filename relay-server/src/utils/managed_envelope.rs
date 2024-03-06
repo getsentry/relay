@@ -13,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::{Processed, ProcessingError, ProcessingGroup};
+use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -313,51 +313,6 @@ impl ManagedEnvelope {
             self.track_outcome(outcome, category, quantity);
         }
         // TODO: once `update` is private, it should be called here.
-    }
-
-    /// Retains or drops items based on the [`ItemAction`].
-    ///
-    ///
-    /// This method loops through the envelope items until it observes a failure. After which
-    /// it will break early and shorten the vector to length 0. In the event of processing
-    /// failure a maximum of one outcome is emitted. All other items are dropped without
-    /// processing. DropSilently does not emit an outcome.
-    pub fn retain_or_reject_all<F: FnMut(&mut Item) -> ItemAction>(
-        &mut self,
-        mut f: F,
-    ) -> Result<(), ProcessingError> {
-        let mut discard_reason = None;
-
-        // We pass a callback to the `retain_or_reject_all` method on the `Envelope` type
-        // because `items.truncate(0)` is not available to us in this scope. Otherwise we
-        // could move the for loop in `Envelope.retain_or_reject_all` into this scope.
-        self.envelope.retain_or_reject_all(|item| match f(item) {
-            // Retained items are mutated in place. If no errors are found, the mutated envelope
-            // items are kept and Ok(()) is returned.
-            ItemAction::Keep => true,
-            // Envelope items which are dropped silenty break iteration, truncate the envelope,
-            // and return `Ok(())`. We don't want silently dropped envelopes to emit an outcome
-            // so no error is returned.
-            ItemAction::DropSilently => false,
-            // Envelope items which are dropped with an error break iteration, truncate the
-            // envelope, and return an error response to the outerscope. This allows the
-            // caller to propagate the `ProcessingError` which can reject the `Envelope` and
-            // record an outcome obeying the `to_outcome` logic for `ProcessingError::Reject`.
-            ItemAction::Drop(outcome) => {
-                // Outcome does not implement `Copy`. We pass reason instead. This means only
-                // invalid outcomes can be handled.
-                if let Outcome::Invalid(reason) = outcome {
-                    discard_reason = Some(reason)
-                };
-                false
-            }
-        });
-
-        if let Some(reason) = discard_reason {
-            Err(ProcessingError::Invalid(reason))
-        } else {
-            Ok(())
-        }
     }
 
     /// Drops every item in the envelope.

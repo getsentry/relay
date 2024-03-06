@@ -1319,16 +1319,6 @@ impl Envelope {
         self.items.retain(f)
     }
 
-    pub fn retain_or_reject_all<F: FnMut(&mut Item) -> bool>(&mut self, mut f: F) {
-        for item in self.items.iter_mut() {
-            if !f(item) {
-                // Vector is reduced to `[]` and processing is terminated.
-                self.items.truncate(0);
-                break;
-            }
-        }
-    }
-
     /// Drops every item in the envelope.
     pub fn drop_items(&mut self) {
         self.items.truncate(0);

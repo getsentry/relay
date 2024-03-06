@@ -20,7 +20,6 @@ use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
-use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -61,7 +60,7 @@ pub fn process(
         return Ok(());
     }
 
-    state.managed_envelope.retain_or_reject_all(|item| {
+    for item in state.managed_envelope.envelope_mut().items_mut() {
         // Set the combined payload header to the value of the combined feature.
         item.set_replay_combined_payload(combined_envelope_items);
 
@@ -74,10 +73,13 @@ pub fn process(
                     client_addr,
                     user_agent,
                 ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
+                    Err(outcome) => {
+                        if let Outcome::Invalid(reason) = outcome {
+                            return Err(ProcessingError::Invalid(reason));
+                        }
+                    }
                     Ok(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
-                        ItemAction::Keep
                     }
                 }
             }
@@ -88,10 +90,13 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
+                    Err(outcome) => {
+                        if let Outcome::Invalid(reason) = outcome {
+                            return Err(ProcessingError::Invalid(reason));
+                        }
+                    }
                     Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
-                        ItemAction::Keep
                     }
                 }
             }
@@ -104,15 +109,18 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                Err(outcome) => ItemAction::Drop(outcome),
+                Err(outcome) => {
+                    if let Outcome::Invalid(reason) = outcome {
+                        return Err(ProcessingError::Invalid(reason));
+                    }
+                }
                 Ok(payload) => {
                     item.set_payload(ContentType::OctetStream, payload);
-                    ItemAction::Keep
                 }
             },
-            _ => ItemAction::Keep,
+            _ => {}
         }
-    })?;
+    }
 
     Ok(())
 }
