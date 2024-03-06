@@ -62,7 +62,7 @@ pub enum SpanTagKey {
     /// File extension for resource spans.
     FileExtension,
     /// Span started on main thread.
-    MainTread,
+    MainThread,
     /// The start type of the application when the span occurred.
     AppStartType,
     ReplayId,
@@ -103,7 +103,7 @@ impl SpanTagKey {
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
-            SpanTagKey::MainTread => "main_thread",
+            SpanTagKey::MainThread => "main_thread",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -496,7 +496,7 @@ pub fn extract_tags(
             .and_then(|value| value.as_str())
         {
             if thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainTread, "true".to_owned());
+                span_tags.insert(SpanTagKey::MainThread, "true".to_owned());
             }
         }
 
