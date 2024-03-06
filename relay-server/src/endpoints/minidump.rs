@@ -46,10 +46,10 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
 
 fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
     match field_name.unwrap_or("") {
-        self::MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
-        self::ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
-        self::ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
-        self::ITEM_NAME_EVENT => AttachmentType::EventPayload,
+        MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
+        ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+        ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+        ITEM_NAME_EVENT => AttachmentType::EventPayload,
         _ => AttachmentType::Attachment,
     }
 }
@@ -172,6 +172,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use axum::body::Full;
+    use axum::extract::FromRequest;
+
+    use relay_config::ByteSize;
+
+    use crate::utils::{multipart_items, FormDataIter};
+
     use super::*;
 
     #[test]
@@ -184,5 +191,111 @@ mod tests {
 
         let garbage = b"xxxxxx";
         assert!(validate_minidump(garbage).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_minidump_multipart_attachments() -> anyhow::Result<()> {
+        let _body_data2 : &[u8] =
+            b"-----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"guid\"\x0d\x0a\x0d\x0add46bb04-bb27-448c-aad0-0deb0c134bdb\x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"config.json\"; filename=\"config.json\"\x0d\x0a\x0d\x0a\
+            \"Sentry\": { \"Dsn\": \"https://ingest.us.sentry.io/xxxxxxx\", \"MaxBreadcrumbs\": 50, \"Debug\": true }\x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"__sentry-breadcrumb1\"; filename=\"__sentry-breadcrumb1\"\x0d\x0a\
+            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
+            \x82\
+            \xa9timestamp\xb82024-03-12T16:59:33.069Z\
+            \xa7message\xb5default level is info\x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"__sentry-breadcrumb2\"; filename=\"__sentry-breadcrumb2\"\x0d\x0a\
+            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
+            \x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"__sentry-event\"; filename=\"__sentry-event\"\x0d\x0a\
+            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
+            \x82\xa5level\xa5fatal\xa8platform\xa6native\x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw-----\x0d\x0a";
+
+        let request = Request::builder()
+            .header(
+                "content-type",
+                "multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---",
+            )
+            .body(Full::new(_body_data2))
+            .unwrap();
+
+        let multipart = Multipart::from_request(request, &()).await?;
+
+        let items = multipart_items(
+            multipart,
+            ByteSize::mebibytes(100).as_bytes(),
+            infer_attachment_type,
+        )
+        .await?;
+
+        // we expect the multipart body to contain
+        // * form-data (as single item)
+        // * two breadcrumb files
+        // * one event file
+        // * one arbitrary attachment from the user (a `config.json`)
+        assert_eq!(5, items.len());
+
+        // `config.json` has no content-type. MIME-detection in later processing will assign this.
+        let item = &items[0];
+        assert_eq!(item.filename().unwrap(), "config.json");
+        assert!(item.content_type().is_none());
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(item.attachment_type().unwrap(), &AttachmentType::Attachment);
+        assert_eq!(item.payload().len(), 95);
+
+        // the first breadcrumb buffer
+        let item = &items[1];
+        assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb1");
+        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(
+            item.attachment_type().unwrap(),
+            &AttachmentType::Breadcrumbs
+        );
+        assert_eq!(item.payload().len(), 66);
+
+        // the second breadcrumb buffer is empty since we haven't reached our max in the first
+        let item = &items[2];
+        assert_eq!(item.filename().unwrap(), "__sentry-breadcrumb2");
+        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(
+            item.attachment_type().unwrap(),
+            &AttachmentType::Breadcrumbs
+        );
+        assert_eq!(item.payload().len(), 0);
+
+        // the msg-pack encoded event file
+        let item = &items[3];
+        assert_eq!(item.filename().unwrap(), "__sentry-event");
+        assert_eq!(item.content_type().unwrap(), &ContentType::OctetStream);
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(
+            item.attachment_type().unwrap(),
+            &AttachmentType::EventPayload
+        );
+        assert_eq!(item.payload().len(), 29);
+
+        // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
+        let item = &items[4];
+        assert!(item.filename().is_none());
+        assert_eq!(item.content_type().unwrap(), &ContentType::Text);
+        assert_eq!(item.ty(), &ItemType::FormData);
+        assert!(item.attachment_type().is_none());
+        let form_payload = item.payload();
+        let form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
+        assert_eq!(form_data_entry.key(), "guid");
+        assert_eq!(
+            form_data_entry.value(),
+            "dd46bb04-bb27-448c-aad0-0deb0c134bdb"
+        );
+
+        Ok(())
     }
 }

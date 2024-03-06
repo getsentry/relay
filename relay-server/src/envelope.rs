@@ -269,7 +269,7 @@ impl ContentType {
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
-            Self::Envelope => self::CONTENT_TYPE,
+            Self::Envelope => CONTENT_TYPE,
             Self::Other(ref other) => other,
         }
     }
@@ -720,19 +720,29 @@ impl Item {
         self.payload.clone()
     }
 
-    /// Sets the payload and content-type of this envelope.
-    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    /// Sets the truncated payload of this envelope item without specifying a content-type.
+    /// Use `set_payload` if you want to define a content-type for the payload.
+    pub fn set_truncated_payload<B>(&mut self, payload: B)
     where
         B: Into<Bytes>,
     {
         let mut payload = payload.into();
 
-        let length = std::cmp::min(u32::max_value() as usize, payload.len());
+        let length = std::cmp::min(u32::MAX as usize, payload.len());
         payload.truncate(length);
 
         self.headers.length = Some(length as u32);
-        self.headers.content_type = Some(content_type);
         self.payload = payload;
+    }
+
+    /// Sets the truncated payload and content-type of this envelope item.
+    /// Use `set_truncated_payload` if you need to set the payload without a content-type.
+    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    where
+        B: Into<Bytes>,
+    {
+        self.headers.content_type = Some(content_type);
+        self.set_truncated_payload(payload);
     }
 
     /// Returns the file name of this item, if it is an attachment.
