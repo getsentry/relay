@@ -11,6 +11,7 @@
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
 - Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
 - Individual cardinality limits can now be set into passive mode and not be enforced. ([#3199](https://github.com/getsentry/relay/pull/3199))
+- Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
 
 **Bug Fixes**:
 
