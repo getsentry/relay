@@ -336,7 +336,8 @@ impl ManagedEnvelope {
             // items are kept and Ok(()) is returned.
             ItemAction::Keep => true,
             // Envelope items which are dropped silenty break iteration, truncate the envelope,
-            // and return `Ok(())`.
+            // and return `Ok(())`. We don't want silently dropped envelopes to emit an outcome
+            // so no error is returned.
             ItemAction::DropSilently => false,
             // Envelope items which are dropped with an error break iteration, truncate the
             // envelope, and return an error response to the outerscope. This allows the
