@@ -15,7 +15,7 @@ use relay_event_schema::protocol::{
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, FromValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -367,6 +367,11 @@ pub fn scrub<G: EventProcessing>(
 pub fn serialize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
 ) -> Result<(), ProcessingError> {
+    if state.event.is_empty() {
+        relay_log::error!("Cannot serialize empty event");
+        return Ok(());
+    }
+
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -437,6 +442,7 @@ pub fn store<G: EventProcessing>(
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
+        normalize_spans: false, // noop
     };
 
     let mut store_processor = StoreProcessor::new(store_config);

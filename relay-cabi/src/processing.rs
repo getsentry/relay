@@ -117,11 +117,13 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        is_validated: config.is_renormalize.unwrap_or(false),
     };
     validate_event_timestamps(&mut event, &event_validation_config)?;
 
     let tx_validation_config = TransactionValidationConfig {
         timestamp_range: None, // only supported in relay
+        is_validated: config.is_renormalize.unwrap_or(false),
     };
     validate_transaction(&mut event, &tx_validation_config)?;
 
@@ -144,6 +146,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
+        normalize_spans: config.normalize_spans,
     };
     normalize_event(&mut event, &normalization_config);
 

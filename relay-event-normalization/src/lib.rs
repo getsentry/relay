@@ -158,6 +158,13 @@ pub struct StoreConfig {
     ///
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans in [`crate::normalize_event`], `is_renormalize` must
+    /// be disabled _and_ `normalize_spans` enabled in
+    /// [`crate::NormalizationConfig`].
+    pub normalize_spans: bool,
 }
 
 /// The processor that normalizes events for processing and storage.

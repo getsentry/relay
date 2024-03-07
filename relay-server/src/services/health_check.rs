@@ -124,6 +124,9 @@ impl HealthCheckService {
                 .memory()
         };
 
+        metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
+        metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
+
         if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({:.2}% >= {:.2}%)",

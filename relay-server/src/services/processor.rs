@@ -540,11 +540,6 @@ struct ProcessEnvelopeState<'a, Group> {
     /// resulting item.
     sample_rates: Option<Value>,
 
-    /// The result of a dynamic sampling operation on this envelope.
-    ///
-    /// The event will be kept if there's either no match, or there's a match and it was sampled.
-    sampling_result: SamplingResult,
-
     /// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -1026,7 +1021,6 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            sampling_result: SamplingResult::Pending,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -1103,6 +1097,7 @@ impl EnvelopeProcessorService {
     fn extract_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
+        sampling_result: &SamplingResult,
     ) -> Result<(), ProcessingError> {
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
@@ -1141,7 +1136,7 @@ impl EnvelopeProcessorService {
                         config: tx_config,
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
-                        sampling_result: &state.sampling_result,
+                        sampling_result,
                         has_profile: state.profile_id.is_some(),
                     };
 
@@ -1185,11 +1180,13 @@ impl EnvelopeProcessorService {
                 timestamp_range: Some(
                     AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
                 ),
+                is_validated: false,
             };
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                is_validated: false,
             };
             let normalization_config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -1213,7 +1210,7 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::SpanMetricsExtraction),
+                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1227,6 +1224,7 @@ impl EnvelopeProcessorService {
                     state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
+                normalize_spans: true,
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -1302,18 +1300,19 @@ impl EnvelopeProcessorService {
         let mut sampling_should_drop = false;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersApplied::Ok) {
-            dynamic_sampling::run(state, &self.inner.config);
+            let sampling_result = dynamic_sampling::run(state, &self.inner.config);
             // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            sampling_should_drop = state.sampling_result.should_drop();
+            sampling_should_drop = sampling_result.should_drop();
 
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
             if self.inner.config.processing_enabled() || sampling_should_drop {
-                self.extract_metrics(state)?;
+                self.extract_metrics(state, &sampling_result)?;
             }
 
             dynamic_sampling::sample_envelope_items(
                 state,
+                sampling_result,
                 &self.inner.config,
                 &self.inner.global_config.current(),
             );
@@ -1331,10 +1330,17 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
-                    event::serialize(state)?;
                     if_processing!(self.inner.config, {
                         span::extract_from_event(state);
                     });
+                }
+
+                if_processing!(self.inner.config, {
+                    span::maybe_discard_transaction(state);
+                });
+
+                if state.has_event() {
+                    event::serialize(state)?;
                 }
 
                 attachment::scrub(state);
