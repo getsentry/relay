@@ -17,7 +17,7 @@ use rmp_serde;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
 
@@ -86,7 +86,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    Err(reason) => Err(ProcessingError::Invalid(reason)),
+                    Err(reason) => return Err(ProcessingError::Invalid(reason)),
                     Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
                     }
