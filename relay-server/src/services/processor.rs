@@ -71,6 +71,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::event::FiltersStatus;
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 use crate::services::test_store::{Capture, TestStore};
@@ -1260,8 +1261,11 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
-        event::filter(state, &self.inner.global_config.current())?;
-        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+        let filter_run = event::filter(state, &self.inner.global_config.current())?;
+
+        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
+            dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+        }
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config)?;
@@ -1294,25 +1298,11 @@ impl EnvelopeProcessorService {
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
         dynamic_sampling::normalize(state);
-        event::filter(state, &self.inner.global_config.current())?;
-        // Don't extract metrics if relay can't apply generic inbound filters.
-        // An inbound filter applied in another up-to-date relay in chain may
-        // need to drop the event, and there should not be metrics from dropped
-        // events.
-        // In processing relays, always extract metrics to avoid losing them.
-        let supported_generic_filters = self.inner.global_config.current().filters.is_ok()
-            && relay_filter::are_generic_filters_supported(
-                self.inner
-                    .global_config
-                    .current()
-                    .filters()
-                    .map(|f| f.version),
-                state.project_state.config.filter_settings.generic.version,
-            );
+        let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         let mut sampling_should_drop = false;
 
-        if self.inner.config.processing_enabled() || supported_generic_filters {
+        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             let sampling_result = dynamic_sampling::run(state, &self.inner.config);
             // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
             sampling_should_drop = sampling_result.should_drop();
