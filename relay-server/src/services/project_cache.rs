@@ -633,11 +633,8 @@ impl ProjectCacheBroker {
             no_cache,
         );
 
-        // Schedule unspool if nothing is running at the moment.
-        if !self.buffer_unspool_backoff.started() {
-            self.buffer_unspool_backoff.reset();
-            self.schedule_unspool();
-        }
+        // Try to schedule unspool if it's not scheduled yet.
+        self.schedule_unspool();
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -935,8 +932,7 @@ impl ProjectCacheBroker {
             return;
         }
         // If there is nothing spooled, schedule the next check a little bit later.
-        // And do *not* attempt to unspool if the assigned permits over low watermark.
-        if self.index.is_empty() || !self.buffer_guard.is_below_low_watermark() {
+        if self.index.is_empty() {
             self.schedule_unspool();
             return;
         }
