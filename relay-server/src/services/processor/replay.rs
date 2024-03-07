@@ -73,11 +73,7 @@ pub fn process(
                     client_addr,
                     user_agent,
                 ) {
-                    Err(outcome) => {
-                        if let Outcome::Invalid(reason) = outcome {
-                            return Err(ProcessingError::Invalid(reason));
-                        }
-                    }
+                    Err(reason) => return Err(ProcessingError::Invalid(reason)),
                     Ok(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
                     }
@@ -90,11 +86,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    Err(outcome) => {
-                        if let Outcome::Invalid(reason) = outcome {
-                            return Err(ProcessingError::Invalid(reason));
-                        }
-                    }
+                    Err(reason) => Err(ProcessingError::Invalid(reason)),
                     Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
                     }
@@ -109,11 +101,7 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                Err(outcome) => {
-                    if let Outcome::Invalid(reason) = outcome {
-                        return Err(ProcessingError::Invalid(reason));
-                    }
-                }
+                Err(reason) => return Err(ProcessingError::Invalid(reason)),
                 Ok(payload) => {
                     item.set_payload(ContentType::OctetStream, payload);
                 }
@@ -133,7 +121,7 @@ fn handle_replay_event_item(
     config: &ProjectConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     match process_replay_event(&payload, config, client_ip, user_agent) {
         Ok(replay) => match replay.to_json() {
             Ok(json) => Ok(json.into_bytes().into()),
@@ -152,12 +140,12 @@ fn handle_replay_event_item(
                 ?event_id,
                 "invalid replay event"
             );
-            Err(Outcome::Invalid(match error {
+            Err(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
                 ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
                 ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-            }))
+            })
         }
     }
 }
@@ -205,7 +193,7 @@ fn handle_replay_recording_item(
     event_id: &Option<EventId>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
     if !scrubbing_enabled || scrubber.is_empty() {
@@ -224,7 +212,7 @@ fn handle_replay_recording_item(
         Ok(recording) => Ok(recording.into()),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            Err(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
+            Err(DiscardReason::InvalidReplayRecordingEvent)
         }
     }
 }
@@ -246,7 +234,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
@@ -255,7 +243,7 @@ fn handle_replay_video_item(
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+            return Err(DiscardReason::InvalidReplayVideoEvent);
         }
     };
 
@@ -269,7 +257,7 @@ fn handle_replay_video_item(
 
     // Verify the replay-video payload is not empty.
     if replay_video.is_empty() {
-        return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+        return Err(DiscardReason::InvalidReplayVideoEvent);
     }
 
     match rmp_serde::to_vec_named(&ReplayVideoEvent {
@@ -278,6 +266,6 @@ fn handle_replay_video_item(
         replay_video,
     }) {
         Ok(payload) => Ok(payload.into()),
-        Err(_) => Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent)),
+        Err(_) => Err(DiscardReason::InvalidReplayVideoEvent),
     }
 }
