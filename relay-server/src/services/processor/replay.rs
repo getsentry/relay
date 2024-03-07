@@ -73,7 +73,7 @@ pub fn process(
                     client_addr,
                     user_agent,
                 ) {
-                    Err(reason) => return Err(ProcessingError::Invalid(reason)),
+                    Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
                     Ok(replay_event) => {
                         item.set_payload(ContentType::Json, replay_event);
                     }
@@ -86,7 +86,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 ) {
-                    Err(reason) => return Err(ProcessingError::Invalid(reason)),
+                    Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
                     Ok(replay_recording) => {
                         item.set_payload(ContentType::OctetStream, replay_recording);
                     }
@@ -101,7 +101,7 @@ pub fn process(
                 scrubbing_enabled,
                 &mut scrubber,
             ) {
-                Err(reason) => return Err(ProcessingError::Invalid(reason)),
+                Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
                 Ok(payload) => {
                     item.set_payload(ContentType::OctetStream, payload);
                 }

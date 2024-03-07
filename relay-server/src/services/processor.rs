@@ -419,8 +419,8 @@ pub enum ProcessingError {
     #[error("invalid processing group type")]
     InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
 
-    #[error("envelope invalid")]
-    Invalid(DiscardReason),
+    #[error("invalid replay")]
+    InvalidReplay(DiscardReason),
 }
 
 impl ProcessingError {
@@ -463,7 +463,7 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
 
-            Self::Invalid(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
         }
     }
 
