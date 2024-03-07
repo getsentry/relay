@@ -140,15 +140,15 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>start_time_from_timestamp() {
-        <span class="kw">let </span>elapsed = <span class="number">10</span>;
+        <span class="kw">let </span>elapsed = Duration::from_secs(<span class="number">10</span>);
         <span class="kw">let </span>now = Instant::now();
-        <span class="kw">let </span>system_time =
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - Duration::from_secs(elapsed);
+        <span class="kw">let </span>system_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - elapsed;
         <span class="kw">let </span>start_time =
             StartTime::from_timestamp_millis(system_time.as_millis() <span class="kw">as </span>u64).into_inner();
 
         <span class="comment">// Check that the difference between the now and generated start_time is about 10s.
-        </span><span class="macro">assert_eq!</span>((now - start_time).as_secs(), elapsed);
+        </span><span class="macro">assert!</span>((now - start_time) &lt; elapsed + Duration::from_millis(<span class="number">50</span>));
+        <span class="macro">assert!</span>((now - start_time) &gt; elapsed - Duration::from_millis(<span class="number">50</span>));
     }
 }
 </code></pre></div></section></main></body></html>
