@@ -2062,7 +2062,7 @@ def test_profiles_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"profiles/foo:42|c|T{timestamp}\profiles/bar:17|c|T{timestamp}"
+    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
 
     relay.send_metrics(project_id, metrics_payload)
 
