@@ -1910,6 +1910,17 @@
 <a href="#1909" id="1909">1909</a>
 <a href="#1910" id="1910">1910</a>
 <a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2683,6 +2694,17 @@
                     || <span class="macro">relay_log::error!</span>(<span class="string">"store service dropping unknown metric usecase"</span>),
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+            MetricNamespace::Profiles =&gt; {
+                <span class="kw">if </span>!<span class="self">self
+                    </span>.global_config
+                    .current()
+                    .options
+                    .profiles_function_generic_metrics_enabled
+                {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                }
+                KafkaTopic::MetricsGeneric
             }
             <span class="kw">_ </span>=&gt; KafkaTopic::MetricsGeneric,
         };

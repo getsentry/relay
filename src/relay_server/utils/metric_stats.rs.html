@@ -85,6 +85,8 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_metrics::{Bucket, BucketView, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_statsd::metric;
 
@@ -99,6 +101,7 @@
     custom: Stat,
     sessions: Stat,
     spans: Stat,
+    profiles: Stat,
     transactions: Stat,
     unsupported: Stat,
 }
@@ -147,6 +150,7 @@
             MetricNamespace::Sessions =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.sessions,
             MetricNamespace::Transactions =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.transactions,
             MetricNamespace::Spans =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.spans,
+            MetricNamespace::Profiles =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profiles,
             MetricNamespace::Custom =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.custom,
             MetricNamespace::Unsupported =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.unsupported,
         }

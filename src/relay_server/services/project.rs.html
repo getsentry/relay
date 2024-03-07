@@ -1725,6 +1725,7 @@
 <a href="#1724" id="1724">1724</a>
 <a href="#1725" id="1725">1725</a>
 <a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2973,6 +2974,7 @@
             state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
                 || state.has_feature(Feature::StandaloneSpanIngestion)
         }
+        MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
     }

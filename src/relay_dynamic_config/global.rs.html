@@ -333,6 +333,17 @@
 <a href="#332" id="332">332</a>
 <a href="#333" id="333">333</a>
 <a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -429,13 +440,22 @@
     </span>)]
     </span><span class="kw">pub </span>profile_metrics_sample_rate: f32,
 
-    <span class="doccomment">/// Kill switch for shutting down profile metrics
+    <span class="doccomment">/// Kill switch for shutting down unsampled_profile metrics
     </span><span class="attr">#[serde(
         rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.enabled"</span>,
         deserialize_with = <span class="string">"default_on_error"</span>,
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
+
+    <span class="doccomment">/// Kill switch for shutting down profile function metrics
+    /// ingestion in the generic-metrics platform
+    </span><span class="attr">#[serde(
+        rename = <span class="string">"profiling.generic_metrics.functions_ingestion.enabled"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>profiles_function_generic_metrics_enabled: bool,
 
     <span class="doccomment">/// Kill switch for controlling the cardinality limiter.
     </span><span class="attr">#[serde(
@@ -504,6 +524,7 @@
     sessions: MetricEncoding,
     transactions: MetricEncoding,
     spans: MetricEncoding,
+    profiles: MetricEncoding,
     custom: MetricEncoding,
     unsupported: MetricEncoding,
 }
@@ -515,6 +536,7 @@
             MetricNamespace::Sessions =&gt; <span class="self">self</span>.sessions,
             MetricNamespace::Transactions =&gt; <span class="self">self</span>.transactions,
             MetricNamespace::Spans =&gt; <span class="self">self</span>.spans,
+            MetricNamespace::Profiles =&gt; <span class="self">self</span>.profiles,
             MetricNamespace::Custom =&gt; <span class="self">self</span>.custom,
             MetricNamespace::Unsupported =&gt; <span class="self">self</span>.unsupported,
         }

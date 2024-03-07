@@ -470,6 +470,10 @@
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::{borrow::Cow, error::Error};
 
@@ -584,6 +588,8 @@
     </span>Transactions,
     <span class="doccomment">/// Metrics extracted from spans.
     </span>Spans,
+    <span class="doccomment">/// Metrics extracted from profile functions.
+    </span>Profiles,
     <span class="doccomment">/// User-defined metrics directly sent by SDKs and applications.
     </span>Custom,
     <span class="doccomment">/// An unknown and unsupported metric.
@@ -605,6 +611,7 @@
             MetricNamespace::Sessions =&gt; <span class="string">"sessions"</span>,
             MetricNamespace::Transactions =&gt; <span class="string">"transactions"</span>,
             MetricNamespace::Spans =&gt; <span class="string">"spans"</span>,
+            MetricNamespace::Profiles =&gt; <span class="string">"profiles"</span>,
             MetricNamespace::Custom =&gt; <span class="string">"custom"</span>,
             MetricNamespace::Unsupported =&gt; <span class="string">"unsupported"</span>,
         }
@@ -619,6 +626,7 @@
             <span class="string">"sessions" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Sessions),
             <span class="string">"transactions" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Transactions),
             <span class="string">"spans" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Spans),
+            <span class="string">"profiles" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Profiles),
             <span class="string">"custom" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Custom),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unsupported),
         }
