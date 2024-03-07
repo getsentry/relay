@@ -291,6 +291,10 @@
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -336,7 +340,9 @@
         webkit-masked-url:|
         # Firefox message when an extension tries to modify a no-longer-existing DOM node
         # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
-        can't\saccess\sdead\sobject
+        can't\saccess\sdead\sobject|
+        # Crypocurrency related extension errors
+        Cannot\sredefine\sproperty:\s(solana|ethereum)
     "#</span>,
     )
     .expect(<span class="string">"Invalid browser extensions filter (Exec Vals) Regex"</span>)
@@ -553,6 +559,8 @@
             <span class="string">"Extension context invalidated"</span>,
             <span class="string">"useless error webkit-masked-url: please filter"</span>,
             <span class="string">"TypeError: can't access dead object because dead stuff smells bad"</span>,
+            <span class="string">"Cannot redefine property: solana"</span>,
+            <span class="string">"Cannot redefine property: ethereum"</span>,
         ];
 
         <span class="kw">for </span>exc_value <span class="kw">in </span><span class="kw-2">&amp;</span>exceptions {
