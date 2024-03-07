@@ -5393,15 +5393,15 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.30.6"
-source = "git+https://github.com/getsentry/sysinfo.git?rev=2fe6093#2fe60934273f56f6d8995486dd162309784dde4b"
+version = "0.30.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c385888ef380a852a16209afc8cfad22795dd8873d69c9a14d2e2088f118d18"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
  "ntapi",
  "once_cell",
- "rayon",
  "windows",
 ]
 
