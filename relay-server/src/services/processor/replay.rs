@@ -66,46 +66,42 @@ pub fn process(
 
         match item.ty() {
             ItemType::ReplayEvent => {
-                match handle_replay_event_item(
+                let replay_event = handle_replay_event_item(
                     item.payload(),
                     &event_id,
                     project_config,
                     client_addr,
                     user_agent,
-                ) {
-                    Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
-                    Ok(replay_event) => {
-                        item.set_payload(ContentType::Json, replay_event);
-                    }
-                }
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::Json, replay_event);
             }
             ItemType::ReplayRecording => {
-                match handle_replay_recording_item(
+                let replay_recording = handle_replay_recording_item(
                     item.payload(),
                     &event_id,
                     scrubbing_enabled,
                     &mut scrubber,
-                ) {
-                    Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
-                    Ok(replay_recording) => {
-                        item.set_payload(ContentType::OctetStream, replay_recording);
-                    }
-                }
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::OctetStream, replay_recording);
             }
-            ItemType::ReplayVideo => match handle_replay_video_item(
-                item.payload(),
-                &event_id,
-                project_config,
-                client_addr,
-                user_agent,
-                scrubbing_enabled,
-                &mut scrubber,
-            ) {
-                Err(reason) => return Err(ProcessingError::InvalidReplay(reason)),
-                Ok(payload) => {
-                    item.set_payload(ContentType::OctetStream, payload);
-                }
-            },
+            ItemType::ReplayVideo => {
+                let replay_video = handle_replay_video_item(
+                    item.payload(),
+                    &event_id,
+                    project_config,
+                    client_addr,
+                    user_agent,
+                    scrubbing_enabled,
+                    &mut scrubber,
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::OctetStream, replay_video);
+            }
             _ => {}
         }
     }
