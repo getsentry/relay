@@ -769,12 +769,6 @@ impl StoreService {
                     .options
                     .profiles_function_generic_metrics_enabled
                 {
-                    relay_log::with_scope(
-                        |scope| scope.set_extra("metric_message.name", message.name.into()),
-                        || {
-                            relay_log::error!("store service dropping profiles metric usecase: currently disabled")
-                        },
-                    );
                     return Ok(());
                 }
                 KafkaTopic::MetricsGeneric
