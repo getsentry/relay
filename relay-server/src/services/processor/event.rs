@@ -274,8 +274,8 @@ pub fn finalize<G: EventProcessing>(
 /// Status for applying some filters that don't drop the event.
 ///
 /// The enum represents either the success of running all filters and keeping
-/// the event, [`FiltersApplied::Ok`], or not running all the filters because
-/// some are unsupported, [`FiltersApplied::Unsupported`].
+/// the event, [`FiltersStatus::Ok`], or not running all the filters because
+/// some are unsupported, [`FiltersStatus::Unsupported`].
 ///
 /// If there are unsuppported filters, Relay should forward the event upstream
 /// so that a more up-to-date Relay can apply filters appropriately. Actions
