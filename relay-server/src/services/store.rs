@@ -1439,8 +1439,8 @@ impl<'a> MetricValue<'a> {
 
     fn encoding(&self) -> Option<&'static str> {
         match self {
-            Self::Distribution(ae) => Some(ae.encoding()),
-            Self::Set(ae) => Some(ae.encoding()),
+            Self::Distribution(ae) => Some(ae.name()),
+            Self::Set(ae) => Some(ae.name()),
             _ => None,
         }
     }
@@ -1468,7 +1468,7 @@ impl<T> ArrayEncoding<T> {
         }
     }
 
-    fn encoding(&self) -> &'static str {
+    fn name(&self) -> &'static str {
         match self {
             Self::Legacy(_) => "legacy",
             Self::Dynamic(DynamicArrayEncoding::Array { .. }) => "array",
