@@ -893,6 +893,42 @@
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
 <a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1166,15 +1202,36 @@
     <span class="prelude-val">Ok</span>(())
 }
 
+<span class="doccomment">/// Status for applying some filters that don't drop the event.
+///
+/// The enum represents either the success of running all filters and keeping
+/// the event, [`FiltersStatus::Ok`], or not running all the filters because
+/// some are unsupported, [`FiltersStatus::Unsupported`].
+///
+/// If there are unsuppported filters, Relay should forward the event upstream
+/// so that a more up-to-date Relay can apply filters appropriately. Actions
+/// that depend on the outcome of event filtering, such as metric extraction,
+/// should be postponed until a filtering decision is made.
+</span><span class="attr">#[must_use]
+</span><span class="kw">pub enum </span>FiltersStatus {
+    <span class="doccomment">/// All filters have been applied and the event should be kept.
+    </span><span class="prelude-val">Ok</span>,
+    <span class="doccomment">/// Some filters are not supported and were not applied.
+    ///
+    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
+    /// Supported filters were applied and they don't reject the event.
+    </span>Unsupported,
+}
+
 <span class="kw">pub fn </span>filter&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;FiltersStatus, ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
         <span class="prelude-val">Some</span>(event) =&gt; event,
         <span class="comment">// Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        </span><span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+        </span><span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(FiltersStatus::Ok),
     };
 
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -1188,7 +1245,22 @@
                     .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
-    })
+    })<span class="question-mark">?</span>;
+
+    <span class="comment">// Don't extract metrics if relay can't apply generic filters.  A filter
+    // applied in another up-to-date relay in chain may need to drop the event,
+    // and there should not be metrics from dropped events.
+    // In processing relays, always extract metrics to avoid losing them.
+    </span><span class="kw">let </span>supported_generic_filters = global_config.filters.is_ok()
+        &amp;&amp; relay_filter::are_generic_filters_supported(
+            global_config.filters().map(|f| f.version),
+            state.project_state.config.filter_settings.generic.version,
+        );
+    <span class="kw">if </span>supported_generic_filters {
+        <span class="prelude-val">Ok</span>(FiltersStatus::Ok)
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Ok</span>(FiltersStatus::Unsupported)
+    }
 }
 
 <span class="doccomment">/// Apply data privacy rules to the event payload.

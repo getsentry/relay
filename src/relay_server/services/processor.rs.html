@@ -3210,16 +3210,6 @@
 <a href="#3209" id="3209">3209</a>
 <a href="#3210" id="3210">3210</a>
 <a href="#3211" id="3211">3211</a>
-<a href="#3212" id="3212">3212</a>
-<a href="#3213" id="3213">3213</a>
-<a href="#3214" id="3214">3214</a>
-<a href="#3215" id="3215">3215</a>
-<a href="#3216" id="3216">3216</a>
-<a href="#3217" id="3217">3217</a>
-<a href="#3218" id="3218">3218</a>
-<a href="#3219" id="3219">3219</a>
-<a href="#3220" id="3220">3220</a>
-<a href="#3221" id="3221">3221</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3293,6 +3283,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
@@ -4482,8 +4473,11 @@
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
-        event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
-        dynamic_sampling::tag_error_with_sampling_decision(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+        <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
+
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
+            dynamic_sampling::tag_error_with_sampling_decision(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+        }
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
@@ -4516,25 +4510,11 @@
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
         dynamic_sampling::normalize(state);
-        event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
-        <span class="comment">// Don't extract metrics if relay can't apply generic inbound filters.
-        // An inbound filter applied in another up-to-date relay in chain may
-        // need to drop the event, and there should not be metrics from dropped
-        // events.
-        // In processing relays, always extract metrics to avoid losing them.
-        </span><span class="kw">let </span>supported_generic_filters = <span class="self">self</span>.inner.global_config.current().filters.is_ok()
-            &amp;&amp; relay_filter::are_generic_filters_supported(
-                <span class="self">self</span>.inner
-                    .global_config
-                    .current()
-                    .filters()
-                    .map(|f| f.version),
-                state.project_state.config.filter_settings.generic.version,
-            );
+        <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_should_drop = <span class="bool-val">false</span>;
 
-        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || supported_generic_filters {
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
             <span class="kw">let </span>sampling_result = dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
             <span class="comment">// Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
             </span>sampling_should_drop = sampling_result.should_drop();
