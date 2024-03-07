@@ -1597,7 +1597,7 @@
     <span class="doccomment">/// File extension for resource spans.
     </span>FileExtension,
     <span class="doccomment">/// Span started on main thread.
-    </span>MainTread,
+    </span>MainThread,
     <span class="doccomment">/// The start type of the application when the span occurred.
     </span>AppStartType,
     ReplayId,
@@ -1638,7 +1638,7 @@
             SpanTagKey::TimeToFullDisplay =&gt; <span class="string">"ttfd"</span>,
             SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">"ttid"</span>,
             SpanTagKey::FileExtension =&gt; <span class="string">"file_extension"</span>,
-            SpanTagKey::MainTread =&gt; <span class="string">"main_thread"</span>,
+            SpanTagKey::MainThread =&gt; <span class="string">"main_thread"</span>,
             SpanTagKey::OsName =&gt; <span class="string">"os.name"</span>,
             SpanTagKey::AppStartType =&gt; <span class="string">"app_start_type"</span>,
             SpanTagKey::ReplayId =&gt; <span class="string">"replay_id"</span>,
@@ -2031,7 +2031,7 @@
             .and_then(|value| value.as_str())
         {
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainTread, <span class="string">"true"</span>.to_owned());
+                span_tags.insert(SpanTagKey::MainThread, <span class="string">"true"</span>.to_owned());
             }
         }
 
