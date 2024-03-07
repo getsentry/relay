@@ -1337,15 +1337,13 @@ impl EnvelopeProcessorService {
             {
                 if_processing!(self.inner.config, {
                     event::store(state, &self.inner.config)?;
+                    span::extract_from_event(state);
                     self.enforce_quotas(state)?;
                     profile::process(state, &self.inner.config);
                 });
 
                 if state.has_event() {
                     event::scrub(state)?;
-                    if_processing!(self.inner.config, {
-                        span::extract_from_event(state);
-                    });
                 }
 
                 if_processing!(self.inner.config, {
