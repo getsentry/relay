@@ -1874,6 +1874,42 @@
 <a href="#1873" id="1873">1873</a>
 <a href="#1874" id="1874">1874</a>
 <a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2370,6 +2406,16 @@
             .send_message(topic, organization_id, <span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>message {
+            KafkaMessage::Metric {
+                message: metric, ..
+            } =&gt; {
+                <span class="macro">metric!</span>(
+                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                    event_type = message.variant(),
+                    metric_type = metric.value.variant(),
+                    metric_encoding = metric.value.encoding().unwrap_or(<span class="string">""</span>),
+                );
+            }
             KafkaMessage::Span(span) =&gt; {
                 <span class="kw">let </span>is_segment = span.is_segment;
                 <span class="kw">let </span>has_parent = span.parent_span_id.is_some();
@@ -3293,6 +3339,25 @@
     </span>Gauge(GaugeValue),
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; MetricValue&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Counter(<span class="kw">_</span>) =&gt; <span class="string">"counter"</span>,
+            <span class="self">Self</span>::Distribution(<span class="kw">_</span>) =&gt; <span class="string">"distribution"</span>,
+            <span class="self">Self</span>::Set(<span class="kw">_</span>) =&gt; <span class="string">"set"</span>,
+            <span class="self">Self</span>::Gauge(<span class="kw">_</span>) =&gt; <span class="string">"gauge"</span>,
+        }
+    }
+
+    <span class="kw">fn </span>encoding(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Distribution(ae) =&gt; <span class="prelude-val">Some</span>(ae.name()),
+            <span class="self">Self</span>::Set(ae) =&gt; <span class="prelude-val">Some</span>(ae.name()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 </span><span class="kw">enum </span>ArrayEncoding&lt;T&gt; {
@@ -3312,6 +3377,13 @@
         <span class="kw">match </span>encoding {
             MetricEncoding::Legacy =&gt; <span class="self">Self</span>::Legacy(data),
             MetricEncoding::Array =&gt; <span class="self">Self</span>::Dynamic(DynamicArrayEncoding::Array { data }),
+        }
+    }
+
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Legacy(<span class="kw">_</span>) =&gt; <span class="string">"legacy"</span>,
+            <span class="self">Self</span>::Dynamic(DynamicArrayEncoding::Array { .. }) =&gt; <span class="string">"array"</span>,
         }
     }
 }

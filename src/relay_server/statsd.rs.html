@@ -820,6 +820,10 @@
 <a href="#819" id="819">819</a>
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1382,6 +1386,10 @@
     ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
     ///  - `platform` (only for event_type span): The platform from which the span was spent.
+    ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
+    ///  gauge or set.
+    ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
+    ///  set metrics.
     ///
     /// The message types can be:
     ///
