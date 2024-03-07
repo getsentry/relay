@@ -316,8 +316,8 @@ impl ManagedEnvelope {
     }
 
     /// Drops every item in the envelope.
-    pub fn drop_items(&mut self) {
-        self.envelope.drop_items();
+    pub fn drop_items_silently(&mut self) {
+        self.envelope.drop_items_silently();
     }
 
     /// Record that event metrics have been extracted.

@@ -56,7 +56,7 @@ pub fn process(
 
     // If the replay feature is not enabled drop the items silenty.
     if !replays_enabled {
-        state.managed_envelope.drop_items();
+        state.managed_envelope.drop_items_silently();
         return Ok(());
     }
 

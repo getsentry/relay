@@ -1320,7 +1320,7 @@ impl Envelope {
     }
 
     /// Drops every item in the envelope.
-    pub fn drop_items(&mut self) {
+    pub fn drop_items_silently(&mut self) {
         self.items.clear()
     }
 
