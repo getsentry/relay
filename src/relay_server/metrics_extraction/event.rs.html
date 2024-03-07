@@ -1419,6 +1419,17 @@
 <a href="#1418" id="1418">1418</a>
 <a href="#1419" id="1419">1419</a>
 <a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, Options};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2513,6 +2524,17 @@
                     "data": {
                         "app_start_type": "cold"
                     }
+                },
+                {
+                    "op": "process.load",
+                    "description": "Process Initialization",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "app_start_type": "cold"
+                    }
                 }
             ]
         }
@@ -2654,7 +2676,7 @@
             .filter(|b| b.name == <span class="string">"c:spans/usage@none"</span>)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-        <span class="kw">let </span>expected_usage = <span class="number">7</span>; <span class="comment">// We count all spans received by Relay
+        <span class="kw">let </span>expected_usage = <span class="number">8</span>; <span class="comment">// We count all spans received by Relay
         </span><span class="macro">assert_eq!</span>(usage_metrics.len(), expected_usage);
         <span class="kw">for </span>m <span class="kw">in </span>usage_metrics {
             <span class="macro">assert!</span>(m.tags.is_empty());
