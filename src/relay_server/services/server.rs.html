@@ -142,6 +142,8 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -153,6 +155,7 @@
 <span class="kw">use </span>relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 <span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
 <span class="kw">use </span>tower::ServiceBuilder;
+<span class="kw">use </span>tower_http::compression::CompressionLayer;
 <span class="kw">use </span>tower_http::set_header::SetResponseHeaderLayer;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants;
@@ -228,7 +231,8 @@
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
-            .layer(RequestDecompressionLayer::new());
+            .layer(RequestDecompressionLayer::new())
+            .layer(CompressionLayer::new());
 
         <span class="kw">let </span>router = <span class="kw">crate</span>::endpoints::routes(service.config())
             .layer(middleware)
