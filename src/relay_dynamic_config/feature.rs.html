@@ -123,6 +123,36 @@
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -131,68 +161,98 @@
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 </span><span class="kw">pub enum </span>Feature {
     <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
+    ///
+    /// Serialized as `organizations:session-replay`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay"</span>)]
     </span>SessionReplay,
     <span class="doccomment">/// Enables data scrubbing of replay recording payloads.
+    ///
+    /// Serialized as `organizations:session-replay-recording-scrubbing`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay-recording-scrubbing"</span>)]
     </span>SessionReplayRecordingScrubbing,
     <span class="doccomment">/// Enables combining session replay envelope items (Replay Recordings and Replay Events).
     /// into one Kafka message.
+    ///
+    /// Serialized as `organizations:session-replay-combined-envelope-items`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay-combined-envelope-items"</span>)]
     </span>SessionReplayCombinedEnvelopeItems,
     <span class="doccomment">/// Enables new User Feedback ingest.
     ///
     /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    ///
+    /// Serialized as `organizations:user-feedback-ingest`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:user-feedback-ingest"</span>)]
     </span>UserReportV2Ingest,
     <span class="doccomment">/// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
+    ///
+    /// Serialized as `organizations:device-class-synthesis`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:device-class-synthesis"</span>)]
     </span>DeviceClassSynthesis,
     <span class="doccomment">/// Enables metric extraction from spans.
+    ///
+    /// Serialized as `projects:span-metrics-extraction`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:span-metrics-extraction"</span>)]
     </span>ExtractSpansAndSpanMetricsFromEvent,
     <span class="doccomment">/// Allow ingestion of metrics in the "custom" namespace.
+    ///
+    /// Serialized as `organizations:custom-metrics`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:custom-metrics"</span>)]
     </span>CustomMetrics,
 
-    <span class="doccomment">/// Enable processing profiles
+    <span class="doccomment">/// Enable processing profiles.
+    ///
+    /// Serialized as `organizations:profiling`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:profiling"</span>)]
     </span>Profiling,
     <span class="doccomment">/// Enable standalone span ingestion.
+    ///
+    /// Serialized as `organizations:standalone-span-ingestion`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:standalone-span-ingestion"</span>)]
     </span>StandaloneSpanIngestion,
     <span class="doccomment">/// Enable metric metadata.
+    ///
+    /// Serialized as `organizations:metric-meta`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:metric-meta"</span>)]
     </span>MetricMeta,
     <span class="doccomment">/// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
     ///
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
+    ///
+    /// Serialized as `projects:profiling-ingest-unsampled-profiles`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:profiling-ingest-unsampled-profiles"</span>)]
     </span>IngestUnsampledProfiles,
 
     <span class="doccomment">/// Discard transactions in a spans-only world.
+    ///
+    /// Serialized as `projects:discard-transaction`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:discard-transaction"</span>)]
     </span>DiscardTransaction,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">"organizations:transaction-name-mark-scrubbed-as-sanitized"</span>)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"organizations:transaction-name-mark-scrubbed-as-sanitized"</span>)]
     </span>Deprecated1,
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">"organizations:transaction-name-normalize"</span>)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"organizations:transaction-name-normalize"</span>)]
     </span>Deprecated2,
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">"projects:extract-standalone-spans"</span>)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"projects:extract-standalone-spans"</span>)]
     </span>Deprecated4,
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">"projects:span-metrics-extraction-resource"</span>)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"projects:span-metrics-extraction-resource"</span>)]
     </span>Deprecated5,
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">"projects:span-metrics-extraction-all-modules"</span>)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"projects:span-metrics-extraction-all-modules"</span>)]
     </span>Deprected6,
     <span class="doccomment">/// Forward compatibility.
-    </span><span class="attr">#[serde(other)]
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(other)]
     </span>Unknown,
 }
 
