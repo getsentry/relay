@@ -271,7 +271,7 @@ pub fn finalize<G: EventProcessing>(
     Ok(())
 }
 
-/// Decision for applying some filters that don't drop the event.
+/// Status for applying some filters that don't drop the event.
 ///
 /// The enum represents either the success of running all filters and keeping
 /// the event, [`FiltersApplied::Ok`], or not running all the filters because
@@ -281,7 +281,8 @@ pub fn finalize<G: EventProcessing>(
 /// so that a more up-to-date Relay can apply filters appropriately. Actions
 /// that depend on the outcome of event filtering, such as metric extraction,
 /// should be postponed until a filtering decision is made.
-pub enum FiltersApplied {
+#[must_use]
+pub enum FiltersStatus {
     /// All filters have been applied and the event should be kept.
     Ok,
     /// Some filters are not supported and were not applied.
@@ -294,12 +295,12 @@ pub enum FiltersApplied {
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     global_config: &GlobalConfig,
-) -> Result<FiltersApplied, ProcessingError> {
+) -> Result<FiltersStatus, ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        None => return Ok(FiltersApplied::Ok),
+        None => return Ok(FiltersStatus::Ok),
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -325,9 +326,9 @@ pub fn filter<G: EventProcessing>(
             state.project_state.config.filter_settings.generic.version,
         );
     if supported_generic_filters {
-        Ok(FiltersApplied::Ok)
+        Ok(FiltersStatus::Ok)
     } else {
-        Ok(FiltersApplied::Unsupported)
+        Ok(FiltersStatus::Unsupported)
     }
 }
 

@@ -71,7 +71,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::event::FiltersApplied;
+use crate::services::processor::event::FiltersStatus;
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 use crate::services::test_store::{Capture, TestStore};
@@ -1261,8 +1261,11 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
-        event::filter(state, &self.inner.global_config.current())?;
-        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+        let filter_run = event::filter(state, &self.inner.global_config.current())?;
+
+        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
+            dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+        }
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config)?;
@@ -1299,7 +1302,7 @@ impl EnvelopeProcessorService {
 
         let mut sampling_should_drop = false;
 
-        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersApplied::Ok) {
+        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             let sampling_result = dynamic_sampling::run(state, &self.inner.config);
             // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
             sampling_should_drop = sampling_result.should_drop();
