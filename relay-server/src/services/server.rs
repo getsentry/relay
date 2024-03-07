@@ -9,6 +9,7 @@ use relay_config::Config;
 use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
+use tower_http::compression::CompressionLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
@@ -84,7 +85,8 @@ impl Service for HttpServer {
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
-            .layer(RequestDecompressionLayer::new());
+            .layer(RequestDecompressionLayer::new())
+            .layer(CompressionLayer::new());
 
         let router = crate::endpoints::routes(service.config())
             .layer(middleware)
