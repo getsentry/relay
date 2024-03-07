@@ -494,6 +494,16 @@ impl StoreService {
             .send_message(topic, organization_id, &message)?;
 
         match &message {
+            KafkaMessage::Metric {
+                message: metric, ..
+            } => {
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = message.variant(),
+                    metric_type = metric.value.variant(),
+                    metric_encoding = metric.value.encoding().unwrap_or(""),
+                );
+            }
             KafkaMessage::Span(span) => {
                 let is_segment = span.is_segment;
                 let has_parent = span.parent_span_id.is_some();
@@ -1417,6 +1427,25 @@ enum MetricValue<'a> {
     Gauge(GaugeValue),
 }
 
+impl<'a> MetricValue<'a> {
+    fn variant(&self) -> &'static str {
+        match self {
+            Self::Counter(_) => "counter",
+            Self::Distribution(_) => "distribution",
+            Self::Set(_) => "set",
+            Self::Gauge(_) => "gauge",
+        }
+    }
+
+    fn encoding(&self) -> Option<&'static str> {
+        match self {
+            Self::Distribution(ae) => Some(ae.encoding()),
+            Self::Set(ae) => Some(ae.encoding()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 enum ArrayEncoding<T> {
@@ -1436,6 +1465,13 @@ impl<T> ArrayEncoding<T> {
         match encoding {
             MetricEncoding::Legacy => Self::Legacy(data),
             MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
+        }
+    }
+
+    fn encoding(&self) -> &'static str {
+        match self {
+            Self::Legacy(_) => "legacy",
+            Self::Dynamic(DynamicArrayEncoding::Array { .. }) => "array",
         }
     }
 }
