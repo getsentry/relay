@@ -2053,3 +2053,40 @@ def test_missing_global_filters_enables_metric_extraction(
     tx, _ = tx_consumer.get_event()
     assert tx is not None
     assert metrics_consumer.get_metrics()
+
+
+def test_profiles_metrics(mini_sentry, relay):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"profiles/foo:42|c|T{timestamp}\profiles/bar:17|c|T{timestamp}"
+
+    relay.send_metrics(project_id, metrics_payload)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+
+    metrics_item = envelope.items[0]
+    assert metrics_item.type == "metric_buckets"
+
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:profiles/bar@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:profiles/foo@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
