@@ -1321,7 +1321,7 @@ impl Envelope {
 
     /// Drops every item in the envelope.
     pub fn drop_items(&mut self) {
-        self.items.truncate(0);
+        self.items.clear()
     }
 
     /// Serializes this envelope into the given writer.
