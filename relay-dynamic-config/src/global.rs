@@ -94,13 +94,22 @@ pub struct Options {
     )]
     pub profile_metrics_sample_rate: f32,
 
-    /// Kill switch for shutting down profile metrics
+    /// Kill switch for shutting down unsampled_profile metrics
     #[serde(
         rename = "profiling.profile_metrics.unsampled_profiles.enabled",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
     pub unsampled_profiles_enabled: bool,
+
+    /// Kill switch for shutting down profile function metrics
+    /// ingestion in the generic-metrics platform
+    #[serde(
+        rename = "profiling.generic_metrics.functions_ingestion.enabled",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub profiles_function_generic_metrics_enabled: bool,
 
     /// Kill switch for controlling the cardinality limiter.
     #[serde(
@@ -169,6 +178,7 @@ pub struct MetricBucketEncodings {
     sessions: MetricEncoding,
     transactions: MetricEncoding,
     spans: MetricEncoding,
+    profiles: MetricEncoding,
     custom: MetricEncoding,
     unsupported: MetricEncoding,
 }
@@ -180,6 +190,7 @@ impl MetricBucketEncodings {
             MetricNamespace::Sessions => self.sessions,
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
+            MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
             MetricNamespace::Unsupported => self.unsupported,
         }
