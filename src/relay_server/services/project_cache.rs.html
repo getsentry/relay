@@ -1485,10 +1485,6 @@
 <a href="#1484" id="1484">1484</a>
 <a href="#1485" id="1485">1485</a>
 <a href="#1486" id="1486">1486</a>
-<a href="#1487" id="1487">1487</a>
-<a href="#1488" id="1488">1488</a>
-<a href="#1489" id="1489">1489</a>
-<a href="#1490" id="1490">1490</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2124,11 +2120,8 @@
             no_cache,
         );
 
-        <span class="comment">// Schedule unspool if nothing is running at the moment.
-        </span><span class="kw">if </span>!<span class="self">self</span>.buffer_unspool_backoff.started() {
-            <span class="self">self</span>.buffer_unspool_backoff.reset();
-            <span class="self">self</span>.schedule_unspool();
-        }
+        <span class="comment">// Try to schedule unspool if it's not scheduled yet.
+        </span><span class="self">self</span>.schedule_unspool();
     }
 
     <span class="kw">fn </span>handle_request_update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: RequestUpdate) {
@@ -2426,8 +2419,7 @@
             <span class="kw">return</span>;
         }
         <span class="comment">// If there is nothing spooled, schedule the next check a little bit later.
-        // And do *not* attempt to unspool if the assigned permits over low watermark.
-        </span><span class="kw">if </span><span class="self">self</span>.index.is_empty() || !<span class="self">self</span>.buffer_guard.is_below_low_watermark() {
+        </span><span class="kw">if </span><span class="self">self</span>.index.is_empty() {
             <span class="self">self</span>.schedule_unspool();
             <span class="kw">return</span>;
         }
