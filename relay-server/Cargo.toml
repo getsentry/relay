@@ -117,6 +117,9 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.4.0", default-features = false, features = [
     "catch-panic",
+    "compression-br",
+    "compression-deflate",
+    "compression-gzip",
     "cors",
     "decompression-br",
     "decompression-deflate",

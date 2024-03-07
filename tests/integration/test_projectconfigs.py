@@ -406,3 +406,26 @@ def test_get_global_config(mini_sentry, relay):
     data = get_response(relay, packed, signature, version="3")
 
     assert data["global"] == mini_sentry.global_config
+
+
+def test_compression(mini_sentry, relay):
+    relay = relay(mini_sentry, wait_health_check=True)
+    mini_sentry.add_basic_project_config(42)
+    public_key = mini_sentry.get_dsn_public_key(42)
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+
+    response = relay.post(
+        "/api/0/relays/projectconfigs/?version=2",
+        data=packed,
+        headers={
+            "Accept-Encoding": "gzip",
+            "X-Sentry-Relay-Id": relay.relay_id,
+            "X-Sentry-Relay-Signature": signature,
+        },
+    )
+
+    assert response.ok
+    assert response.headers["content-encoding"] == "gzip"
+    assert public_key in response.json()["configs"]
