@@ -1,5 +1,8 @@
+from collections import Counter
 import json
 from datetime import datetime, timedelta, timezone
+from queue import Queue
+import queue
 
 from opentelemetry.proto.trace.v1.trace_pb2 import (
     Span,
@@ -143,38 +146,7 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
 
-def test_span_ingestion(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-):
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "max_secs_in_past": 2**64 - 1,
-            }
-        }
-    )
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
-    ]
-
-    duration = timedelta(milliseconds=500)
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
-    start = end - duration
-
-    # 1 - Send OTel span and sentry span via envelope
+def get_envelope_with_spans(start: datetime, end: datetime) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
@@ -197,7 +169,9 @@ def test_span_ingestion(
                             {
                                 "key": "sentry.exclusive_time_ns",
                                 "value": {
-                                    "intValue": int(duration.total_seconds() * 1e9),
+                                    "intValue": int(
+                                        (end - start).total_seconds() * 1e9
+                                    ),
                                 },
                             },
                         ],
@@ -262,6 +236,43 @@ def test_span_ingestion(
             ),
         )
     )
+
+    return envelope
+
+
+def test_span_ingestion(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    # 1 - Send OTel span and sentry span via envelope
+    envelope = get_envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
     # 2 - Send OTel json span via endpoint
@@ -994,3 +1005,105 @@ def test_span_ingestion_with_performance_scores(
             },
         },
     ]
+
+
+@pytest.mark.parametrize(
+    "quotas,expect_metrics,expect_spans",
+    [
+        # control group - no quotas, receive everything
+        ([], True, True),
+        # spans exceeded - should get nothing
+        (
+            [{"categories": ["spans"], "limit": 0, "reasonCode": "spans_exceeded"}],
+            False,
+            False,
+        ),
+        # indexed exceeded - should still get metrics
+        (
+            [
+                {
+                    "categories": ["spans_indexed"],
+                    "limit": 0,
+                    "reasonCode": "indexed_exceeded",
+                },
+            ],
+            True,
+            False,
+        ),
+        # both exceeded - should get nothing
+        (
+            [
+                {
+                    "categories": ["spans_indexed", "spans"],
+                    "limit": 0,
+                    "reasonCode": "indexed_exceeded",
+                },
+            ],
+            False,
+            False,
+        ),
+        # both separate - should get nothing
+        (
+            [
+                {"categories": ["spans"], "limit": 0, "reasonCode": "spans_exceeded"},
+                {
+                    "categories": ["spans_indexed"],
+                    "limit": 0,
+                    "reasonCode": "indexed_exceeded",
+                },
+            ],
+            False,
+            False,
+        ),
+    ],
+    ids=["none", "total", "indexed", "both", "separate"],
+)
+def test_rate_limit_edge(mini_sentry, relay, quotas, expect_metrics, expect_spans):
+    """Zero quotas are enforced on outer relays"""
+    relay = relay(mini_sentry)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["quotas"] = quotas
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=1)
+
+    envelope = get_envelope_with_spans(start, end)
+    relay.send_envelope(project_id, envelope)
+
+    try:
+        envelope = mini_sentry.captured_events.get(timeout=2)
+    except queue.Empty:
+        envelope = None
+
+    try:
+        outcomes = mini_sentry.captured_outcomes.get(timeout=2)
+    except queue.Empty:
+        outcomes = None
+
+    import ipdb
+
+    ipdb.set_trace()
+    pass
+
+    if expect_spans:
+        assert Counter(item.type for item in envelope.items) == {
+            "span": 3,
+            "otel_span": 1,
+        }
+        assert outcomes is None
+    else:
+        assert envelope is None
+        assert outcomes == "todo"
+
+    # TODO: expect metrics
+
+
+def test_rate_limit_chain(mini_sentry, relay):
+    """Quotas are enforced correctly in a chain of Relays"""
+    # TODO: get dynamic sampling into the mix?
+    assert False  # TODO
