@@ -11,7 +11,9 @@
 - Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
 - Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
 - Individual cardinality limits can now be set into passive mode and not be enforced. ([#3199](https://github.com/getsentry/relay/pull/3199))
+- Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
 - Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
+- Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
 
 
 **Bug Fixes**:
@@ -29,6 +31,7 @@
 - Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
 - Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
+- Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
 
 ## 24.2.0
 

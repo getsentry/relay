@@ -12,6 +12,7 @@ pub struct MetricStats {
     custom: Stat,
     sessions: Stat,
     spans: Stat,
+    profiles: Stat,
     transactions: Stat,
     unsupported: Stat,
 }
@@ -60,6 +61,7 @@ impl MetricStats {
             MetricNamespace::Sessions => &mut self.sessions,
             MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Spans => &mut self.spans,
+            MetricNamespace::Profiles => &mut self.profiles,
             MetricNamespace::Custom => &mut self.custom,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
