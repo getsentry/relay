@@ -1,8 +1,19 @@
 import json
 from datetime import datetime, timedelta, timezone
+
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Span,
+    ScopeSpans,
+    ResourceSpans,
+    TracesData,
+)
+from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+
 import pytest
+
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .test_store import make_transaction
 from .test_metrics import TEST_CONFIG
 
 
