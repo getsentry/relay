@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.49
 
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
 
