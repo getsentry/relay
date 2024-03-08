@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
+
 ## 0.8.48
 
 - Add `passive` flag to cardinality limits in project configs. ([#3199](https://github.com/getsentry/relay/pull/3199))
