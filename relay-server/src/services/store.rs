@@ -13,7 +13,6 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
 };
@@ -21,7 +20,7 @@ use relay_event_schema::protocol::{
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
-    MetricResourceIdentifier, SetView,
+    SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -36,7 +35,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ArrayEncoding, ExtractionMode, TypedEnvelope};
+use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -358,31 +357,21 @@ impl StoreService {
         let mut dropped = SourceQuantities::default();
         let mut error = None;
 
-        let encodings = self.global_config.current().options.metric_bucket_encodings;
+        let global_config = self.global_config.current();
+        let encoder = BucketEncoder::new(&global_config);
 
         for mut bucket in buckets {
+            let namespace = encoder.prepare(&mut bucket);
+
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
-
-            let namespace = MetricResourceIdentifier::parse(&bucket.name)
-                .map(|mri| mri.namespace)
-                .unwrap_or(MetricNamespace::Unsupported);
-
-            let encoding = encodings.for_namespace(namespace);
-
-            if !matches!(encoding, MetricEncoding::Legacy | MetricEncoding::Auto) {
-                // Sort values when using a compression for better results.
-                if let relay_metrics::BucketValue::Distribution(ref mut data) = bucket.value {
-                    data.sort_unstable();
-                }
-            }
-
             for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
-                    encoding,
+                    &encoder,
+                    namespace,
                     &view,
                     retention,
                 );
@@ -422,30 +411,23 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
-        encoding: MetricEncoding,
-        view: &'a BucketView<'a>,
+        encoder: &BucketEncoder,
+        namespace: MetricNamespace,
+        view: &BucketView<'a>,
         retention_days: u16,
     ) -> Result<MetricKafkaMessage<'a>, StoreError> {
         let value = match view.value() {
             BucketViewValue::Counter(c) => MetricValue::Counter(c),
-            BucketViewValue::Distribution(data) => {
-                let data = match encoding {
-                    MetricEncoding::Legacy => ArrayEncoding::legacy(data),
-                    MetricEncoding::Array => ArrayEncoding::array(data),
-                    MetricEncoding::Auto => {
-                        ArrayEncoding::zstd(data).map_err(StoreError::EncodingFailed)?
-                    }
-                };
-                MetricValue::Distribution(data)
-            }
-            BucketViewValue::Set(data) => {
-                let data = match encoding {
-                    MetricEncoding::Legacy => ArrayEncoding::legacy(data),
-                    MetricEncoding::Array => ArrayEncoding::array(data),
-                    MetricEncoding::Auto => ArrayEncoding::base64(data),
-                };
-                MetricValue::Set(data)
-            }
+            BucketViewValue::Distribution(data) => MetricValue::Distribution(
+                encoder
+                    .encode_distribution(namespace, data)
+                    .map_err(StoreError::EncodingFailed)?,
+            ),
+            BucketViewValue::Set(data) => MetricValue::Set(
+                encoder
+                    .encode_set(namespace, data)
+                    .map_err(StoreError::EncodingFailed)?,
+            ),
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
@@ -830,18 +812,16 @@ impl StoreService {
         retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
-        let encodings = self.global_config.current().options.metric_bucket_encodings;
 
-        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
+        let global_config = self.global_config.current();
+        let encoder = BucketEncoder::new(&global_config);
+
+        for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
+            let namespace = encoder.prepare(&mut bucket);
+
             let view = BucketView::new(&bucket);
-
-            let namespace = MetricResourceIdentifier::parse(view.name())
-                .map(|mri| mri.namespace)
-                .unwrap_or(MetricNamespace::Unsupported);
-            let encoding = encodings.for_namespace(namespace);
-
-            let message =
-                self.create_metric_message(org_id, project_id, encoding, &view, retention);
+            let message = self
+                .create_metric_message(org_id, project_id, &encoder, namespace, &view, retention);
             message.and_then(|message| self.send_metric_message(namespace, message))?;
         }
 

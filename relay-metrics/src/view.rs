@@ -370,7 +370,7 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'a str {
         &self.inner.name
     }
 
@@ -387,14 +387,14 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::tags`]
-    pub fn tags(&self) -> &BTreeMap<String, String> {
+    pub fn tags(&self) -> &'a BTreeMap<String, String> {
         &self.inner.tags
     }
 
     /// Returns the value of the specified tag if it exists.
     ///
     /// See also: [`Bucket::tag()`]
-    pub fn tag(&self, name: &str) -> Option<&str> {
+    pub fn tag(&self, name: &str) -> Option<&'a str> {
         self.inner.tag(name)
     }
 
