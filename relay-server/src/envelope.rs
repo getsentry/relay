@@ -1319,6 +1319,11 @@ impl Envelope {
         self.items.retain(f)
     }
 
+    /// Drops every item in the envelope.
+    pub fn drop_items_silently(&mut self) {
+        self.items.clear()
+    }
+
     /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where

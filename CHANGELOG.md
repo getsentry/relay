@@ -29,6 +29,7 @@
 - Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
 - Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
 - Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
+- Drop replay envelopes if any item fails. ([#3201](https://github.com/getsentry/relay/pull/3201))
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
 - Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))

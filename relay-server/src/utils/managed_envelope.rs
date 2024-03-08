@@ -315,6 +315,11 @@ impl ManagedEnvelope {
         // TODO: once `update` is private, it should be called here.
     }
 
+    /// Drops every item in the envelope.
+    pub fn drop_items_silently(&mut self) {
+        self.envelope.drop_items_silently();
+    }
+
     /// Record that event metrics have been extracted.
     ///
     /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
@@ -460,10 +465,18 @@ impl ManagedEnvelope {
         // (see: `Self::event_category()`).
         if self.context.summary.secondary_transaction_quantity > 0 {
             self.track_outcome(
-                outcome,
+                outcome.clone(),
                 // Secondary transaction counts are never indexed transactions
                 DataCategory::Transaction,
                 self.context.summary.secondary_transaction_quantity,
+            );
+        }
+
+        if self.context.summary.replay_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Replay,
+                self.context.summary.replay_quantity,
             );
         }
 
