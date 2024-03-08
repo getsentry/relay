@@ -2297,3 +2297,9 @@ def test_span_ingestion_with_performance_scores(
             },
         },
     ]
+
+
+def test_kafka_ssl(relay_with_processing):
+    relay_with_processing(
+        options={"kafka_config": [{"name": "ssl.key.password", "value": "foo"}]}
+    )
