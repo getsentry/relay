@@ -2033,6 +2033,11 @@
 <a href="#2032" id="2032">2032</a>
 <a href="#2033" id="2033">2033</a>
 <a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -3352,6 +3357,11 @@
         </span>F: FnMut(<span class="kw-2">&amp;mut </span>Item) -&gt; bool,
     {
         <span class="self">self</span>.items.retain(f)
+    }
+
+    <span class="doccomment">/// Drops every item in the envelope.
+    </span><span class="kw">pub fn </span>drop_items_silently(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.items.clear()
     }
 
     <span class="doccomment">/// Serializes this envelope into the given writer.

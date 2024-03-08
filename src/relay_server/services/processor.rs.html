@@ -3213,6 +3213,11 @@
 <a href="#3212" id="3212">3212</a>
 <a href="#3213" id="3213">3213</a>
 <a href="#3214" id="3214">3214</a>
+<a href="#3215" id="3215">3215</a>
+<a href="#3216" id="3216">3216</a>
+<a href="#3217" id="3217">3217</a>
+<a href="#3218" id="3218">3218</a>
+<a href="#3219" id="3219">3219</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3634,6 +3639,9 @@
 
     <span class="attr">#[error(<span class="string">"invalid processing group type"</span>)]
     </span>InvalidProcessingGroup(<span class="attr">#[from] </span>InvalidProcessingGroupType),
+
+    <span class="attr">#[error(<span class="string">"invalid replay"</span>)]
+    </span>InvalidReplay(DiscardReason),
 }
 
 <span class="kw">impl </span>ProcessingError {
@@ -3675,6 +3683,8 @@
             </span><span class="self">Self</span>::MissingProjectId =&gt; <span class="prelude-val">None</span>,
             <span class="self">Self</span>::EventFiltered(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="self">Self</span>::InvalidProcessingGroup(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+
+            <span class="self">Self</span>::InvalidReplay(reason) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(reason)),
         }
     }
 
