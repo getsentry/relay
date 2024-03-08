@@ -2100,7 +2100,7 @@ def test_replay_outcomes_item_failed(
         "key_id": 123,
         "outcome": 3,
         "project_id": 42,
-        "quantity": 1,
+        "quantity": 2,
         "reason": "invalid_replay",
         "remote_addr": "127.0.0.1",
         "source": "pop-relay",
