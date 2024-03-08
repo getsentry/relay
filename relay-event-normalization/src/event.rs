@@ -1201,6 +1201,136 @@ mod tests {
         }
         "#;
 
+    const ANDROID_MOBILE_EVENT: &str = r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.java.android"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "MainActivity",
+            "transaction_info": {"source": "component"},
+            "platform": "java",
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
+                },
+                "device": {
+                    "family": "sdk_gphone64_arm64",
+                    "model": "sdk_gphone64_arm64"
+                },
+                "app": {
+                    "app_identifier": "io.sentry.samples.android",
+                    "app_name": "Sentry sample"
+                },
+                "os": {
+                    "name": "Android",
+                    "version": "14"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 22648,
+                    "unit": "millisecond"
+                },
+                "frames_frozen": {
+                    "value": 3,
+                    "unit": "none"
+                },
+                "frames_frozen_rate": {
+                    "value": 0.75,
+                    "unit": "ratio"
+                },
+                "frames_slow": {
+                    "value": 1,
+                    "unit": "none"
+                },
+                "frames_slow_rate": {
+                    "value": 0.25,
+                    "unit": "ratio"
+                },
+                "frames_total": {
+                    "value": 4,
+                    "unit": "none"
+                },
+                "screen_load_count": {
+                    "value": 1,
+                    "unit": "test"
+                },
+                "time_to_full_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                }
+            },
+            "spans": [
+                {
+                    "timestamp": 1709753673.350251,
+                    "start_timestamp": 1709753650.702251,
+                    "exclusive_time": 12073.000192,
+                    "description": "Cold Start",
+                    "op": "app.start.cold",
+                    "span_id": "197f31fc643a43df",
+                    "parent_span_id": "363165cea483463b",
+                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+                    "status": "ok",
+                    "origin": "auto.ui.activity",
+                    "data": {
+                        "thread.name": "main",
+                        "frames.frozen": 0,
+                        "frames.slow": 0,
+                        "frames.total": 1358,
+                        "thread.id": "2"
+                    }
+                },
+                {
+                    "timestamp": 1709753673.349252,
+                    "start_timestamp": 1709753650.702251,
+                    "exclusive_time": 22647.001028,
+                    "description": "MainActivity initial display",
+                    "op": "ui.load.initial_display",
+                    "span_id": "057ba4bc2b8b4551",
+                    "parent_span_id": "363165cea483463b",
+                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+                    "status": "ok",
+                    "origin": "auto.ui.activity",
+                    "data": {
+                        "thread.name": "main",
+                        "frames.frozen": 0,
+                        "frames.slow": 0,
+                        "frames.total": 1358,
+                        "thread.id": "2"
+                    }
+                },
+                {
+                    "timestamp": 1709753673.349252,
+                    "start_timestamp": 1709753650.702251,
+                    "exclusive_time": 22647.001028,
+                    "description": "MainActivity full display",
+                    "op": "ui.load.full_display",
+                    "span_id": "6e61203e533f44d0",
+                    "parent_span_id": "363165cea483463b",
+                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+                    "status": "ok",
+                    "origin": "auto.ui.activity",
+                    "data": {
+                        "thread.name": "main",
+                        "frames.frozen": 0,
+                        "frames.slow": 0,
+                        "frames.total": 901,
+                        "thread.id": "2"
+                    }
+                }
+
+            ]
+        }
+        "#;
+
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
@@ -2942,6 +3072,250 @@ mod tests {
             },
             "time_to_initial_display": {
               "value": 8049.345970153808,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_android_profile() {
+        let mut event = Annotated::<Event>::from_json(ANDROID_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+        println!("{:#?}", event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "transaction": "MainActivity",
+          "transaction_info": {
+            "source": "component",
+          },
+          "platform": "java",
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "release": "1.2.3",
+          "contexts": {
+            "app": {
+              "app_identifier": "io.sentry.samples.android",
+              "app_name": "Sentry sample",
+              "type": "app",
+            },
+            "device": {
+              "family": "sdk_gphone64_arm64",
+              "model": "sdk_gphone64_arm64",
+              "type": "device",
+            },
+            "os": {
+              "name": "Android",
+              "version": "14",
+              "type": "os",
+            },
+            "trace": {
+              "trace_id": "ff62a8b040f340bda5d830223def1d81",
+              "span_id": "bd429c44b67a3eb4",
+              "op": "ui.load",
+              "type": "trace",
+            },
+          },
+          "sdk": {
+            "name": "sentry.java.android",
+          },
+          "spans": [
+            {
+              "timestamp": 1709753673.350251,
+              "start_timestamp": 1709753650.702251,
+              "exclusive_time": 12073.000192,
+              "description": "Cold Start",
+              "op": "app.start.cold",
+              "span_id": "197f31fc643a43df",
+              "parent_span_id": "363165cea483463b",
+              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+              "status": "ok",
+              "origin": "auto.ui.activity",
+              "data": {
+                "thread.name": "main",
+                "frames.frozen": 0,
+                "frames.slow": 0,
+                "frames.total": 1358,
+                "thread.id": "2",
+              },
+            },
+            {
+              "timestamp": 1709753673.349252,
+              "start_timestamp": 1709753650.702251,
+              "exclusive_time": 22647.001028,
+              "description": "MainActivity initial display",
+              "op": "ui.load.initial_display",
+              "span_id": "057ba4bc2b8b4551",
+              "parent_span_id": "363165cea483463b",
+              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+              "status": "ok",
+              "origin": "auto.ui.activity",
+              "data": {
+                "thread.name": "main",
+                "frames.frozen": 0,
+                "frames.slow": 0,
+                "frames.total": 1358,
+                "thread.id": "2",
+              },
+            },
+            {
+              "timestamp": 1709753673.349252,
+              "start_timestamp": 1709753650.702251,
+              "exclusive_time": 22647.001028,
+              "description": "MainActivity full display",
+              "op": "ui.load.full_display",
+              "span_id": "6e61203e533f44d0",
+              "parent_span_id": "363165cea483463b",
+              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
+              "status": "ok",
+              "origin": "auto.ui.activity",
+              "data": {
+                "thread.name": "main",
+                "frames.frozen": 0,
+                "frames.slow": 0,
+                "frames.total": 901,
+                "thread.id": "2",
+              },
+            },
+          ],
+          "measurements": {
+            "app_start_cold": {
+              "value": 22648.0,
+              "unit": "millisecond",
+            },
+            "frames_frozen": {
+              "value": 3.0,
+              "unit": "none",
+            },
+            "frames_frozen_rate": {
+              "value": 0.75,
+              "unit": "ratio",
+            },
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
+            },
+            "frames_slow_rate": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "frames_total": {
+              "value": 4.0,
+              "unit": "none",
+            },
+            "score.app_start_cold": {
+              "value": 0.00000001611009708968325,
+              "unit": "ratio",
+            },
+            "score.time_to_full_display": {
+              "value": 0.00000037958132777700843,
+              "unit": "ratio",
+            },
+            "score.time_to_initial_display": {
+              "value": 0.00000006596433643757393,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0000004616557613042656,
+              "unit": "ratio",
+            },
+            "score.weight.app_start_cold": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "score.weight.app_start_warm": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.time_to_full_display": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "score.weight.time_to_initial_display": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "screen_load_count": {
+              "value": 1.0,
+              "unit": "test",
+            },
+            "time_to_full_display": {
+              "value": 22647.0,
+              "unit": "millisecond",
+            },
+            "time_to_initial_display": {
+              "value": 22647.0,
               "unit": "millisecond",
             },
           },
