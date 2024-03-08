@@ -17,10 +17,9 @@ use rmp_serde;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
-use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -55,64 +54,57 @@ pub fn process(
     let combined_envelope_items =
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
-    state.managed_envelope.retain_items(|item| {
-        // If replays aren't enabled or an item was dropped - drop the remainder of the
-        // envelope.
-        if !replays_enabled {
-            return ItemAction::DropSilently;
-        }
+    // If the replay feature is not enabled drop the items silenty.
+    if !replays_enabled {
+        state.managed_envelope.drop_items_silently();
+        return Ok(());
+    }
 
+    for item in state.managed_envelope.envelope_mut().items_mut() {
         // Set the combined payload header to the value of the combined feature.
         item.set_replay_combined_payload(combined_envelope_items);
 
         match item.ty() {
             ItemType::ReplayEvent => {
-                match handle_replay_event_item(
+                let replay_event = handle_replay_event_item(
                     item.payload(),
                     &event_id,
                     project_config,
                     client_addr,
                     user_agent,
-                ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
-                    Ok(replay_event) => {
-                        item.set_payload(ContentType::Json, replay_event);
-                        ItemAction::Keep
-                    }
-                }
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::Json, replay_event);
             }
             ItemType::ReplayRecording => {
-                match handle_replay_recording_item(
+                let replay_recording = handle_replay_recording_item(
                     item.payload(),
                     &event_id,
                     scrubbing_enabled,
                     &mut scrubber,
-                ) {
-                    Err(outcome) => ItemAction::Drop(outcome),
-                    Ok(replay_recording) => {
-                        item.set_payload(ContentType::OctetStream, replay_recording);
-                        ItemAction::Keep
-                    }
-                }
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::OctetStream, replay_recording);
             }
-            ItemType::ReplayVideo => match handle_replay_video_item(
-                item.payload(),
-                &event_id,
-                project_config,
-                client_addr,
-                user_agent,
-                scrubbing_enabled,
-                &mut scrubber,
-            ) {
-                Err(outcome) => ItemAction::Drop(outcome),
-                Ok(payload) => {
-                    item.set_payload(ContentType::OctetStream, payload);
-                    ItemAction::Keep
-                }
-            },
-            _ => ItemAction::Keep,
+            ItemType::ReplayVideo => {
+                let replay_video = handle_replay_video_item(
+                    item.payload(),
+                    &event_id,
+                    project_config,
+                    client_addr,
+                    user_agent,
+                    scrubbing_enabled,
+                    &mut scrubber,
+                )
+                .map_err(ProcessingError::InvalidReplay)?;
+
+                item.set_payload(ContentType::OctetStream, replay_video);
+            }
+            _ => {}
         }
-    });
+    }
 
     Ok(())
 }
@@ -125,7 +117,7 @@ fn handle_replay_event_item(
     config: &ProjectConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     match process_replay_event(&payload, config, client_ip, user_agent) {
         Ok(replay) => match replay.to_json() {
             Ok(json) => Ok(json.into_bytes().into()),
@@ -144,12 +136,12 @@ fn handle_replay_event_item(
                 ?event_id,
                 "invalid replay event"
             );
-            Err(Outcome::Invalid(match error {
+            Err(match error {
                 ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
                 ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
                 ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
                 ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-            }))
+            })
         }
     }
 }
@@ -197,7 +189,7 @@ fn handle_replay_recording_item(
     event_id: &Option<EventId>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
     if !scrubbing_enabled || scrubber.is_empty() {
@@ -216,7 +208,7 @@ fn handle_replay_recording_item(
         Ok(recording) => Ok(recording.into()),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            Err(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
+            Err(DiscardReason::InvalidReplayRecordingEvent)
         }
     }
 }
@@ -238,7 +230,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, Outcome> {
+) -> Result<Bytes, DiscardReason> {
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
@@ -247,7 +239,7 @@ fn handle_replay_video_item(
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+            return Err(DiscardReason::InvalidReplayVideoEvent);
         }
     };
 
@@ -261,7 +253,7 @@ fn handle_replay_video_item(
 
     // Verify the replay-video payload is not empty.
     if replay_video.is_empty() {
-        return Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent));
+        return Err(DiscardReason::InvalidReplayVideoEvent);
     }
 
     match rmp_serde::to_vec_named(&ReplayVideoEvent {
@@ -270,6 +262,6 @@ fn handle_replay_video_item(
         replay_video,
     }) {
         Ok(payload) => Ok(payload.into()),
-        Err(_) => Err(Outcome::Invalid(DiscardReason::InvalidReplayVideoEvent)),
+        Err(_) => Err(DiscardReason::InvalidReplayVideoEvent),
     }
 }

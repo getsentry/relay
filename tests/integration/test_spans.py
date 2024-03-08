@@ -1,8 +1,6 @@
 from collections import Counter
 import json
 from datetime import datetime, timedelta, timezone
-from queue import Queue
-import queue
 
 from opentelemetry.proto.trace.v1.trace_pb2 import (
     Span,

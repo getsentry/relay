@@ -419,6 +419,9 @@ pub enum ProcessingError {
 
     #[error("invalid processing group type")]
     InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
+
+    #[error("invalid replay")]
+    InvalidReplay(DiscardReason),
 }
 
 impl ProcessingError {
@@ -460,6 +463,8 @@ impl ProcessingError {
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
+
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
         }
     }
 
