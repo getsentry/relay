@@ -182,7 +182,6 @@ pub enum CardinalityLimiterMode {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(default)]
 pub struct BucketEncodings {
-    sessions: BucketEncoding,
     transactions: BucketEncoding,
     spans: BucketEncoding,
     profiles: BucketEncoding,
@@ -193,12 +192,11 @@ impl BucketEncodings {
     /// Returns the configured encoding for a specific namespace.
     pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
-            MetricNamespace::Sessions => self.sessions,
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
-            MetricNamespace::Unsupported => BucketEncoding::default(),
+            _ => BucketEncoding::Legacy,
         }
     }
 }
@@ -225,7 +223,6 @@ where
         {
             let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
             Ok(BucketEncodings {
-                sessions: encoding,
                 transactions: encoding,
                 spans: encoding,
                 profiles: encoding,
@@ -420,7 +417,6 @@ mod tests {
         assert_eq!(
             o.metric_bucket_set_encodings,
             BucketEncodings {
-                sessions: BucketEncoding::Legacy,
                 transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
@@ -430,7 +426,6 @@ mod tests {
         assert_eq!(
             o.metric_bucket_dist_encodings,
             BucketEncodings {
-                sessions: BucketEncoding::Zstd,
                 transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
@@ -442,7 +437,6 @@ mod tests {
     #[test]
     fn test_metric_bucket_encodings_de_from_obj() {
         let original = BucketEncodings {
-            sessions: BucketEncoding::Legacy,
             transactions: BucketEncoding::Base64,
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
