@@ -1109,6 +1109,98 @@ mod tests {
         RawUserAgentInfo,
     };
 
+    const IOS_MOBILE_EVENT: &str = r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.cocoa"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "platform": "cocoa",
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
+                },
+                "device": {
+                    "family": "iOS",
+                    "model": "iPhone14,7"
+                },
+                "app": {
+                    "app_identifier": "io.sentry.sample.iOS-Swift",
+                    "app_name": "iOS-Swift"
+                },
+                "os": {
+                    "name": "iOS",
+                    "version": "16.4"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 8240.571022033691,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                }
+            },
+            "spans": [
+                {
+                    "timestamp": 1709815996.283093,
+                    "start_timestamp": 1709815988.233747,
+                    "description": "ErrorsViewController initial display",
+                    "op": "ui.load.initial_display",
+                    "span_id": "b71d246b1344499c",
+                    "parent_span_id": "11cc9af2a75f4e27",
+                    "trace_id": "53ac94600a62405d931d93da28a81481",
+                    "data": {
+                    "thread.name": "main",
+                    "frames.delay": 0,
+                    "thread.id": 259
+                    }
+                },
+                {
+                    "timestamp": 1709815996.474318,
+                    "start_timestamp": 1709815988.233747,
+                    "description": "ErrorsViewController full display",
+                    "op": "ui.load.full_display",
+                    "span_id": "4d4592c84dce4dfe",
+                    "parent_span_id": "11cc9af2a75f4e27",
+                    "trace_id": "53ac94600a62405d931d93da28a81481",
+                    "data": {
+                    "thread.name": "main",
+                    "frames.delay": 0.17219973445753567,
+                    "frames.frozen": 0,
+                    "frames.slow": 1,
+                    "frames.total": 1,
+                    "thread.id": 259
+                    }
+                },
+                {
+                    "timestamp": 1709815995.052375,
+                    "start_timestamp": 1709815994.868309,
+                    "description": "loadView",
+                    "op": "ui.load",
+                    "span_id": "0aa1d50c2ad74b01",
+                    "parent_span_id": "11cc9af2a75f4e27",
+                    "trace_id": "53ac94600a62405d931d93da28a81481",
+                    "data": {
+                    "thread.name": "main",
+                    "thread.id": 259
+                    }
+                }
+            ]
+        }
+        "#;
+
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
@@ -2644,6 +2736,213 @@ mod tests {
             "score.weight.inp": {
               "value": 1.0,
               "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_ios_profile() {
+        let mut event = Annotated::<Event>::from_json(IOS_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+        println!("{:#?}", event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "transaction": "gEt /api/:version/users/",
+          "transaction_info": {
+            "source": "custom",
+          },
+          "platform": "cocoa",
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "release": "1.2.3",
+          "contexts": {
+            "app": {
+              "app_identifier": "io.sentry.sample.iOS-Swift",
+              "app_name": "iOS-Swift",
+              "type": "app",
+            },
+            "device": {
+              "family": "iOS",
+              "model": "iPhone14,7",
+              "type": "device",
+            },
+            "os": {
+              "name": "iOS",
+              "version": "16.4",
+              "type": "os",
+            },
+            "trace": {
+              "trace_id": "ff62a8b040f340bda5d830223def1d81",
+              "span_id": "bd429c44b67a3eb4",
+              "op": "ui.load",
+              "type": "trace",
+            },
+          },
+          "sdk": {
+            "name": "sentry.cocoa",
+          },
+          "spans": [
+            {
+              "timestamp": 1709815996.283093,
+              "start_timestamp": 1709815988.233747,
+              "description": "ErrorsViewController initial display",
+              "op": "ui.load.initial_display",
+              "span_id": "b71d246b1344499c",
+              "parent_span_id": "11cc9af2a75f4e27",
+              "trace_id": "53ac94600a62405d931d93da28a81481",
+              "data": {
+                "thread.name": "main",
+                "frames.delay": 0,
+                "thread.id": 259,
+              },
+            },
+            {
+              "timestamp": 1709815996.474318,
+              "start_timestamp": 1709815988.233747,
+              "description": "ErrorsViewController full display",
+              "op": "ui.load.full_display",
+              "span_id": "4d4592c84dce4dfe",
+              "parent_span_id": "11cc9af2a75f4e27",
+              "trace_id": "53ac94600a62405d931d93da28a81481",
+              "data": {
+                "thread.name": "main",
+                "frames.delay": 0.17219973445753567,
+                "frames.frozen": 0,
+                "frames.slow": 1,
+                "frames.total": 1,
+                "thread.id": 259,
+              },
+            },
+            {
+              "timestamp": 1709815995.052375,
+              "start_timestamp": 1709815994.868309,
+              "description": "loadView",
+              "op": "ui.load",
+              "span_id": "0aa1d50c2ad74b01",
+              "parent_span_id": "11cc9af2a75f4e27",
+              "trace_id": "53ac94600a62405d931d93da28a81481",
+              "data": {
+                "thread.name": "main",
+                "thread.id": 259,
+              },
+            },
+          ],
+          "measurements": {
+            "app_start_warm": {
+              "value": 8049.345970153808,
+              "unit": "millisecond",
+            },
+            "score.app_start_warm": {
+              "value": 0.000016961769767009915,
+              "unit": "ratio",
+            },
+            "score.time_to_full_display": {
+              "value": 0.008124816267980856,
+              "unit": "ratio",
+            },
+            "score.time_to_initial_display": {
+              "value": 0.002213671895176313,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.010355449932924178,
+              "unit": "ratio",
+            },
+            "score.weight.app_start_cold": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.app_start_warm": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "score.weight.time_to_full_display": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "score.weight.time_to_initial_display": {
+              "value": 0.3333333333333333,
+              "unit": "ratio",
+            },
+            "time_to_full_display": {
+              "value": 8240.571022033691,
+              "unit": "millisecond",
+            },
+            "time_to_initial_display": {
+              "value": 8049.345970153808,
+              "unit": "millisecond",
             },
           },
         }
