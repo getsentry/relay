@@ -1008,17 +1008,16 @@ def test_span_ingestion_with_performance_scores(
 
 
 @pytest.mark.parametrize(
-    "quotas,expect_metrics,expect_spans",
+    "quotas,expect_spans",
     [
         # control group - no quotas, receive everything
-        ([], True, True),
+        ([], True),
         # spans exceeded - should get nothing
         (
             [{"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"}],
             False,
-            False,
         ),
-        # indexed exceeded - should still get metrics
+        # indexed exceeded
         (
             [
                 {
@@ -1027,8 +1026,8 @@ def test_span_ingestion_with_performance_scores(
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            True,
-            False,
+            True,  # before extracting metrics, we do not enforce
+            # indexed quota
         ),
         # both exceeded - should get nothing
         (
@@ -1039,7 +1038,6 @@ def test_span_ingestion_with_performance_scores(
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            False,
             False,
         ),
         # both separate - should get nothing
@@ -1053,12 +1051,11 @@ def test_span_ingestion_with_performance_scores(
                 },
             ],
             False,
-            False,
         ),
     ],
     ids=["none", "total", "indexed", "both", "separate"],
 )
-def test_rate_limit_edge(mini_sentry, relay, quotas, expect_metrics, expect_spans):
+def test_rate_limit_edge(mini_sentry, relay, quotas, expect_spans):
     """Zero quotas are enforced on outer relays"""
     relay = relay(mini_sentry)
     project_id = 42
@@ -1088,10 +1085,12 @@ def test_rate_limit_edge(mini_sentry, relay, quotas, expect_metrics, expect_span
         assert len(envelope.items) == 1
         item = envelope.items[0]
         assert item.type == "client_report"
-        assert json.loads(item.payload.get_bytes())["rate_limited_events"][0] == {
+        outcomes = json.loads(item.payload.get_bytes())["rate_limited_events"]
+        assert len(outcomes) == 1
+        assert outcomes[0] == {
             "category": "span",
             "quantity": 4,
-            "reason": "spans_exceeded",
+            "reason": quotas[0]["reasonCode"],
         }
 
     # TODO: expect metrics

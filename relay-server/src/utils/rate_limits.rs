@@ -648,14 +648,19 @@ where
             } else if longest.is_none() {
                 // Metrics were extracted and aren't rate limited. Check if there
                 // is a separate rate limit for indexed spans:
+                relay_log::trace!("Checking indexed limits");
                 let limits = (self.check)(
                     scoping.item(DataCategory::SpanIndexed),
                     summary.span_quantity,
                 )?;
-                let longest = limits.longest();
+                let longest = dbg!(limits.longest());
                 relay_log::trace!("Enforcing spans");
                 enforcement.spans =
                     CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
+            } else {
+                // We have a rate limit on total spans, but metrics were already extracted.
+                enforcement.spans =
+                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
             }
         }
 
