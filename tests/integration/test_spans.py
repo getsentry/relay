@@ -1011,11 +1011,11 @@ def test_span_ingestion_with_performance_scores(
     "quotas,expect_spans",
     [
         # control group - no quotas, receive everything
-        ([], True),
+        ([], lambda _: True),
         # spans exceeded - should get nothing
         (
             [{"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"}],
-            False,
+            lambda _: False,
         ),
         # indexed exceeded
         (
@@ -1026,18 +1026,19 @@ def test_span_ingestion_with_performance_scores(
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            None,  # depends on whether metrics have been extracted
+            # If metrics have been extracted, enforce rate limits on indexed spans
+            lambda metrics_extracted: not metrics_extracted,
         ),
         # both exceeded - should get nothing
         (
             [
                 {
-                    "categories": ["span_indexed", "span"],
+                    "categories": ["span", "span_indexed"],
                     "limit": 0,
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            False,
+            lambda _: False,
         ),
         # both separate - should get nothing
         (
@@ -1049,14 +1050,17 @@ def test_span_ingestion_with_performance_scores(
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            False,
+            lambda _: False,
         ),
     ],
     ids=["none", "total", "indexed", "both", "separate"],
 )
 @pytest.mark.parametrize("metrics_extracted", [False, True])
-def test_rate_limit(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
-    """Zero quotas are enforced on outer relays"""
+def test_quotas(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
+    """Zero-quotas are enforced.
+
+    This test does not cover consistent enforcement.
+    """
     relay = relay(mini_sentry)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1079,7 +1083,7 @@ def test_rate_limit(mini_sentry, relay, quotas, expect_spans, metrics_extracted)
 
     assert mini_sentry.captured_events.empty()
 
-    if expect_spans or (expect_spans is None and not metrics_extracted):
+    if expect_spans(metrics_extracted):
         assert Counter(item.type for item in envelope.items) == {
             "span": 3,
             "otel_span": 1,
@@ -1091,7 +1095,7 @@ def test_rate_limit(mini_sentry, relay, quotas, expect_spans, metrics_extracted)
         outcomes = json.loads(item.payload.get_bytes())["rate_limited_events"]
         assert len(outcomes) == 1
         assert outcomes[0] == {
-            "category": "span",
+            "category": quotas[0]["categories"][0],
             "quantity": 4,
             "reason": quotas[0]["reasonCode"],
         }
