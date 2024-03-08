@@ -1026,8 +1026,7 @@ def test_span_ingestion_with_performance_scores(
                     "reasonCode": "indexed_exceeded",
                 },
             ],
-            True,  # before extracting metrics, we do not enforce
-            # indexed quota
+            None,  # depends on whether metrics have been extracted
         ),
         # both exceeded - should get nothing
         (
@@ -1055,7 +1054,8 @@ def test_span_ingestion_with_performance_scores(
     ],
     ids=["none", "total", "indexed", "both", "separate"],
 )
-def test_rate_limit_edge(mini_sentry, relay, quotas, expect_spans):
+@pytest.mark.parametrize("metrics_extracted", [False, True])
+def test_rate_limit(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
     """Zero quotas are enforced on outer relays"""
     relay = relay(mini_sentry)
     project_id = 42
@@ -1070,13 +1070,16 @@ def test_rate_limit_edge(mini_sentry, relay, quotas, expect_spans):
     end = start + timedelta(seconds=1)
 
     envelope = get_envelope_with_spans(start, end)
+    if metrics_extracted:
+        for item in envelope.items:
+            item.headers["metrics_extracted"] = True
     relay.send_envelope(project_id, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=2)
 
     assert mini_sentry.captured_events.empty()
 
-    if expect_spans:
+    if expect_spans or (expect_spans is None and not metrics_extracted):
         assert Counter(item.type for item in envelope.items) == {
             "span": 3,
             "otel_span": 1,
@@ -1092,11 +1095,3 @@ def test_rate_limit_edge(mini_sentry, relay, quotas, expect_spans):
             "quantity": 4,
             "reason": quotas[0]["reasonCode"],
         }
-
-    # TODO: expect metrics
-
-
-def test_rate_limit_chain(mini_sentry, relay):
-    """Quotas are enforced correctly in a chain of Relays"""
-    # TODO: get dynamic sampling into the mix?
-    assert False  # TODO

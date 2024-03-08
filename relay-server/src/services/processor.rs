@@ -1431,12 +1431,12 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         span::filter(state);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
             span::process(
                 state,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             );
+            self.enforce_quotas(state)?;
         });
         Ok(())
     }

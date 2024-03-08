@@ -191,7 +191,7 @@ impl EnvelopeSummary {
                 summary.event_metrics_extracted = true;
             }
 
-            if *item.ty() == ItemType::Span && item.metrics_extracted() {
+            if item.is_span() && item.metrics_extracted() {
                 // TODO: need to check OTel spans as well? Especially on fast path.
                 // This assumes that if one span had metrics extracted, all of them have.
                 summary.span_metrics_extracted = true;
@@ -642,19 +642,16 @@ where
             // Only enforce and record an outcome if metrics haven't been extracted yet.
             // Otherwise, the outcome is logged by the metrics rate limiter.
             if !summary.span_metrics_extracted {
-                relay_log::trace!("Enforcing span metrics");
                 enforcement.span_metrics =
                     CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
             } else if longest.is_none() {
                 // Metrics were extracted and aren't rate limited. Check if there
                 // is a separate rate limit for indexed spans:
-                relay_log::trace!("Checking indexed limits");
                 let limits = (self.check)(
                     scoping.item(DataCategory::SpanIndexed),
                     summary.span_quantity,
                 )?;
-                let longest = dbg!(limits.longest());
-                relay_log::trace!("Enforcing spans");
+                let longest = limits.longest();
                 enforcement.spans =
                     CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
             } else {
