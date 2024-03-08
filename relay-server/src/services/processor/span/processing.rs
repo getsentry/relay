@@ -96,7 +96,7 @@ pub fn process(
             };
             let metrics = extract_metrics(span, config, Some(&global_config.options));
             state.extracted_metrics.project_metrics.extend(metrics);
-            dbg!(item.set_metrics_extracted(true));
+            item.set_metrics_extracted(true);
         }
 
         // TODO: dynamic sampling

@@ -146,11 +146,14 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
 
-def get_envelope_with_spans(start: datetime, end: datetime) -> Envelope:
+def envelope_with_spans(
+    start: datetime, end: datetime, metrics_extracted: bool = False
+) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="otel_span",
+            headers={"metrics_extracted": metrics_extracted},
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
@@ -272,7 +275,7 @@ def test_span_ingestion(
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
-    envelope = get_envelope_with_spans(start, end)
+    envelope = envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
     # 2 - Send OTel json span via endpoint
@@ -1073,10 +1076,7 @@ def test_quotas(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
     start = datetime.utcnow()
     end = start + timedelta(seconds=1)
 
-    envelope = get_envelope_with_spans(start, end)
-    if metrics_extracted:
-        for item in envelope.items:
-            item.headers["metrics_extracted"] = True
+    envelope = envelope_with_spans(start, end, metrics_extracted)
     relay.send_envelope(project_id, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=2)
@@ -1099,3 +1099,55 @@ def test_quotas(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
             "quantity": 4,
             "reason": quotas[0]["reasonCode"],
         }
+
+
+def test_rate_limit_indexed_consistent(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span_indexed"],
+            "limit": 4,
+            "window": 1000,
+            "id": "foo",
+            "reasonCode": "indexed_exceeded",
+        },
+    ]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_spans(start, end)
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=5))
+    assert len(spans) == 4
+    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+
+    # Second batch is limited
+    relay.send_envelope(project_id, envelope)
+    assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
