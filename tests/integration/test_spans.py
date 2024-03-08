@@ -1014,7 +1014,7 @@ def test_span_ingestion_with_performance_scores(
         ([], True, True),
         # spans exceeded - should get nothing
         (
-            [{"categories": ["spans"], "limit": 0, "reasonCode": "spans_exceeded"}],
+            [{"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"}],
             False,
             False,
         ),
@@ -1022,7 +1022,7 @@ def test_span_ingestion_with_performance_scores(
         (
             [
                 {
-                    "categories": ["spans_indexed"],
+                    "categories": ["span_indexed"],
                     "limit": 0,
                     "reasonCode": "indexed_exceeded",
                 },
@@ -1034,7 +1034,7 @@ def test_span_ingestion_with_performance_scores(
         (
             [
                 {
-                    "categories": ["spans_indexed", "spans"],
+                    "categories": ["span_indexed", "span"],
                     "limit": 0,
                     "reasonCode": "indexed_exceeded",
                 },
@@ -1045,9 +1045,9 @@ def test_span_ingestion_with_performance_scores(
         # both separate - should get nothing
         (
             [
-                {"categories": ["spans"], "limit": 0, "reasonCode": "spans_exceeded"},
+                {"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"},
                 {
-                    "categories": ["spans_indexed"],
+                    "categories": ["span_indexed"],
                     "limit": 0,
                     "reasonCode": "indexed_exceeded",
                 },
@@ -1064,7 +1064,7 @@ def test_rate_limit_edge(mini_sentry, relay, quotas, expect_metrics, expect_span
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:span-metrics-extraction",
+        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["quotas"] = quotas
@@ -1075,30 +1075,24 @@ def test_rate_limit_edge(mini_sentry, relay, quotas, expect_metrics, expect_span
     envelope = get_envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
-    try:
-        envelope = mini_sentry.captured_events.get(timeout=2)
-    except queue.Empty:
-        envelope = None
+    envelope = mini_sentry.captured_events.get(timeout=2)
 
-    try:
-        outcomes = mini_sentry.captured_outcomes.get(timeout=2)
-    except queue.Empty:
-        outcomes = None
-
-    import ipdb
-
-    ipdb.set_trace()
-    pass
+    assert mini_sentry.captured_events.empty()
 
     if expect_spans:
         assert Counter(item.type for item in envelope.items) == {
             "span": 3,
             "otel_span": 1,
         }
-        assert outcomes is None
     else:
-        assert envelope is None
-        assert outcomes == "todo"
+        assert len(envelope.items) == 1
+        item = envelope.items[0]
+        assert item.type == "client_report"
+        assert json.loads(item.payload.get_bytes())["rate_limited_events"][0] == {
+            "category": "span",
+            "quantity": 4,
+            "reason": "spans_exceeded",
+        }
 
     # TODO: expect metrics
 

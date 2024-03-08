@@ -640,6 +640,11 @@ impl Item {
         }
     }
 
+    /// True if the item represents any kind of span.
+    pub fn is_span(&self) -> bool {
+        matches!(self.ty(), ItemType::OtelSpan | ItemType::Span)
+    }
+
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).

@@ -225,6 +225,7 @@ impl EnvelopeSummary {
             ItemType::ReplayRecording => &mut self.replay_quantity,
             ItemType::ReplayVideo => &mut self.replay_quantity,
             ItemType::CheckIn => &mut self.checkin_quantity,
+            ItemType::OtelSpan => &mut self.span_quantity,
             ItemType::Span => &mut self.span_quantity,
             _ => return,
         };
@@ -641,7 +642,9 @@ where
             // Only enforce and record an outcome if metrics haven't been extracted yet.
             // Otherwise, the outcome is logged by the metrics rate limiter.
             if !summary.span_metrics_extracted {
-                enforcement.span_metrics = CategoryLimit::new(DataCategory::Span, 1, longest);
+                relay_log::trace!("Enforcing span metrics");
+                enforcement.span_metrics =
+                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
             } else if longest.is_none() {
                 // Metrics were extracted and aren't rate limited. Check if there
                 // is a separate rate limit for indexed spans:
@@ -650,8 +653,9 @@ where
                     summary.span_quantity,
                 )?;
                 let longest = limits.longest();
+                relay_log::trace!("Enforcing spans");
                 enforcement.spans =
-                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                    CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
             }
         }
 
@@ -695,9 +699,7 @@ where
             return false;
         }
 
-        // TODO: shouldn't events also check event_metrics?q
-        if (enforcement.spans.is_active() || enforcement.span_metrics.is_active())
-            && item.ty() == &ItemType::Span
+        if (enforcement.spans.is_active() || enforcement.span_metrics.is_active()) && item.is_span()
         {
             return false;
         }
