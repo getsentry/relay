@@ -465,10 +465,18 @@ impl ManagedEnvelope {
         // (see: `Self::event_category()`).
         if self.context.summary.secondary_transaction_quantity > 0 {
             self.track_outcome(
-                outcome,
+                outcome.clone(),
                 // Secondary transaction counts are never indexed transactions
                 DataCategory::Transaction,
                 self.context.summary.secondary_transaction_quantity,
+            );
+        }
+
+        if self.context.summary.replay_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Replay,
+                self.context.summary.replay_quantity,
             );
         }
 
