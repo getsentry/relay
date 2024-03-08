@@ -473,11 +473,7 @@ impl ManagedEnvelope {
         }
 
         if self.context.summary.replay_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::Replay,
-                self.context.summary.replay_quantity,
-            );
+            self.track_outcome(outcome.clone(), DataCategory::Replay, 1);
         }
 
         self.finish(RelayCounters::EnvelopeRejected, handling);

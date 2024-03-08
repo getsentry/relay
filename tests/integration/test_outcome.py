@@ -2093,14 +2093,17 @@ def test_replay_outcomes_item_failed(
     outcomes = outcomes_consumer.get_outcomes()
 
     assert len(outcomes) == 1
-    assert outcomes[0] == {
-        "category": 6,  # Profile
+
+    expected = {
+        "category": 7,
+        "event_id": "515539018c9b4260a6f999572f1661ee",
         "key_id": 123,
-        "org_id": 1,
-        "outcome": 3,  # Invalid
+        "outcome": 3,
         "project_id": 42,
         "quantity": 1,
-        "reason": "profiling_too_many_profiles",
+        "reason": "invalid_replay",
         "remote_addr": "127.0.0.1",
         "source": "pop-relay",
     }
+    expected["timestamp"] = outcomes[0]["timestamp"]
+    assert outcomes[0] == expected
