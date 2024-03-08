@@ -209,6 +209,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
                     .when(is_resource.clone()),
+                // HTTP module:
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .always(),
             ],
         },
         MetricSpec {
@@ -260,6 +264,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
                     .when(is_resource.clone()),
+                // HTTP module:
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .always(),
             ],
         },
         MetricSpec {
