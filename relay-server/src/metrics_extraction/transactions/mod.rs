@@ -599,6 +599,7 @@ mod tests {
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
+                        version: Some("".into()),
                     }],
                 }),
                 ..Default::default()
