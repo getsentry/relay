@@ -1,0 +1,85 @@
+---
+source: relay-event-normalization/src/event.rs
+expression: "SerializableAnnotated(&Annotated::new(event))"
+---
+{
+  "contexts": {
+    "trace": {
+      "op": "ui.load",
+      "type": "trace",
+    },
+  },
+  "sdk": {
+    "name": "sentry.java.android",
+  },
+  "measurements": {
+    "app_start_cold": {
+      "value": 22648.0,
+      "unit": "millisecond",
+    },
+    "frames_frozen": {
+      "value": 3.0,
+      "unit": "none",
+    },
+    "frames_frozen_rate": {
+      "value": 0.75,
+      "unit": "ratio",
+    },
+    "frames_slow": {
+      "value": 1.0,
+      "unit": "none",
+    },
+    "frames_slow_rate": {
+      "value": 0.25,
+      "unit": "ratio",
+    },
+    "frames_total": {
+      "value": 4.0,
+      "unit": "none",
+    },
+    "score.app_start_cold": {
+      "value": 0.00000001611009708968325,
+      "unit": "ratio",
+    },
+    "score.time_to_full_display": {
+      "value": 0.00000037958132777700843,
+      "unit": "ratio",
+    },
+    "score.time_to_initial_display": {
+      "value": 0.00000006596433643757393,
+      "unit": "ratio",
+    },
+    "score.total": {
+      "value": 0.0000004616557613042656,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_cold": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_warm": {
+      "value": 0.0,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_full_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_initial_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "screen_load_count": {
+      "value": 1.0,
+      "unit": "test",
+    },
+    "time_to_full_display": {
+      "value": 22647.0,
+      "unit": "millisecond",
+    },
+    "time_to_initial_display": {
+      "value": 22647.0,
+      "unit": "millisecond",
+    },
+  },
+}

@@ -1111,31 +1111,10 @@ mod tests {
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
-            "type": "transaction",
             "sdk": {"name": "sentry.cocoa"},
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "release": "1.2.3",
-            "transaction": "gEt /api/:version/users/",
-            "transaction_info": {"source": "custom"},
-            "platform": "cocoa",
             "contexts": {
                 "trace": {
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4",
                     "op": "ui.load"
-                },
-                "device": {
-                    "family": "iOS",
-                    "model": "iPhone14,7"
-                },
-                "app": {
-                    "app_identifier": "io.sentry.sample.iOS-Swift",
-                    "app_name": "iOS-Swift"
-                },
-                "os": {
-                    "name": "iOS",
-                    "version": "16.4"
                 }
             },
             "measurements": {
@@ -1151,83 +1130,16 @@ mod tests {
                     "value": 8049.345970153808,
                     "unit": "millisecond"
                 }
-            },
-            "spans": [
-                {
-                    "timestamp": 1709815996.283093,
-                    "start_timestamp": 1709815988.233747,
-                    "description": "ErrorsViewController initial display",
-                    "op": "ui.load.initial_display",
-                    "span_id": "b71d246b1344499c",
-                    "parent_span_id": "11cc9af2a75f4e27",
-                    "trace_id": "53ac94600a62405d931d93da28a81481",
-                    "data": {
-                    "thread.name": "main",
-                    "frames.delay": 0,
-                    "thread.id": 259
-                    }
-                },
-                {
-                    "timestamp": 1709815996.474318,
-                    "start_timestamp": 1709815988.233747,
-                    "description": "ErrorsViewController full display",
-                    "op": "ui.load.full_display",
-                    "span_id": "4d4592c84dce4dfe",
-                    "parent_span_id": "11cc9af2a75f4e27",
-                    "trace_id": "53ac94600a62405d931d93da28a81481",
-                    "data": {
-                    "thread.name": "main",
-                    "frames.delay": 0.17219973445753567,
-                    "frames.frozen": 0,
-                    "frames.slow": 1,
-                    "frames.total": 1,
-                    "thread.id": 259
-                    }
-                },
-                {
-                    "timestamp": 1709815995.052375,
-                    "start_timestamp": 1709815994.868309,
-                    "description": "loadView",
-                    "op": "ui.load",
-                    "span_id": "0aa1d50c2ad74b01",
-                    "parent_span_id": "11cc9af2a75f4e27",
-                    "trace_id": "53ac94600a62405d931d93da28a81481",
-                    "data": {
-                    "thread.name": "main",
-                    "thread.id": 259
-                    }
-                }
-            ]
+            }
         }
         "#;
 
     const ANDROID_MOBILE_EVENT: &str = r#"
         {
-            "type": "transaction",
             "sdk": {"name": "sentry.java.android"},
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "release": "1.2.3",
-            "transaction": "MainActivity",
-            "transaction_info": {"source": "component"},
-            "platform": "java",
             "contexts": {
                 "trace": {
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4",
                     "op": "ui.load"
-                },
-                "device": {
-                    "family": "sdk_gphone64_arm64",
-                    "model": "sdk_gphone64_arm64"
-                },
-                "app": {
-                    "app_identifier": "io.sentry.samples.android",
-                    "app_name": "Sentry sample"
-                },
-                "os": {
-                    "name": "Android",
-                    "version": "14"
                 }
             },
             "measurements": {
@@ -1267,67 +1179,7 @@ mod tests {
                     "value": 22647,
                     "unit": "millisecond"
                 }
-            },
-            "spans": [
-                {
-                    "timestamp": 1709753673.350251,
-                    "start_timestamp": 1709753650.702251,
-                    "exclusive_time": 12073.000192,
-                    "description": "Cold Start",
-                    "op": "app.start.cold",
-                    "span_id": "197f31fc643a43df",
-                    "parent_span_id": "363165cea483463b",
-                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-                    "status": "ok",
-                    "origin": "auto.ui.activity",
-                    "data": {
-                        "thread.name": "main",
-                        "frames.frozen": 0,
-                        "frames.slow": 0,
-                        "frames.total": 1358,
-                        "thread.id": "2"
-                    }
-                },
-                {
-                    "timestamp": 1709753673.349252,
-                    "start_timestamp": 1709753650.702251,
-                    "exclusive_time": 22647.001028,
-                    "description": "MainActivity initial display",
-                    "op": "ui.load.initial_display",
-                    "span_id": "057ba4bc2b8b4551",
-                    "parent_span_id": "363165cea483463b",
-                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-                    "status": "ok",
-                    "origin": "auto.ui.activity",
-                    "data": {
-                        "thread.name": "main",
-                        "frames.frozen": 0,
-                        "frames.slow": 0,
-                        "frames.total": 1358,
-                        "thread.id": "2"
-                    }
-                },
-                {
-                    "timestamp": 1709753673.349252,
-                    "start_timestamp": 1709753650.702251,
-                    "exclusive_time": 22647.001028,
-                    "description": "MainActivity full display",
-                    "op": "ui.load.full_display",
-                    "span_id": "6e61203e533f44d0",
-                    "parent_span_id": "363165cea483463b",
-                    "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-                    "status": "ok",
-                    "origin": "auto.ui.activity",
-                    "data": {
-                        "thread.name": "main",
-                        "frames.frozen": 0,
-                        "frames.slow": 0,
-                        "frames.total": 901,
-                        "thread.id": "2"
-                    }
-                }
-
-            ]
+            }
         }
         "#;
 
@@ -2944,139 +2796,8 @@ mod tests {
         .unwrap();
 
         normalize_performance_score(&mut event, Some(&performance_score));
-        println!("{:#?}", event);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
-        {
-          "type": "transaction",
-          "transaction": "gEt /api/:version/users/",
-          "transaction_info": {
-            "source": "custom",
-          },
-          "platform": "cocoa",
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "release": "1.2.3",
-          "contexts": {
-            "app": {
-              "app_identifier": "io.sentry.sample.iOS-Swift",
-              "app_name": "iOS-Swift",
-              "type": "app",
-            },
-            "device": {
-              "family": "iOS",
-              "model": "iPhone14,7",
-              "type": "device",
-            },
-            "os": {
-              "name": "iOS",
-              "version": "16.4",
-              "type": "os",
-            },
-            "trace": {
-              "trace_id": "ff62a8b040f340bda5d830223def1d81",
-              "span_id": "bd429c44b67a3eb4",
-              "op": "ui.load",
-              "type": "trace",
-            },
-          },
-          "sdk": {
-            "name": "sentry.cocoa",
-          },
-          "spans": [
-            {
-              "timestamp": 1709815996.283093,
-              "start_timestamp": 1709815988.233747,
-              "description": "ErrorsViewController initial display",
-              "op": "ui.load.initial_display",
-              "span_id": "b71d246b1344499c",
-              "parent_span_id": "11cc9af2a75f4e27",
-              "trace_id": "53ac94600a62405d931d93da28a81481",
-              "data": {
-                "thread.name": "main",
-                "frames.delay": 0,
-                "thread.id": 259,
-              },
-            },
-            {
-              "timestamp": 1709815996.474318,
-              "start_timestamp": 1709815988.233747,
-              "description": "ErrorsViewController full display",
-              "op": "ui.load.full_display",
-              "span_id": "4d4592c84dce4dfe",
-              "parent_span_id": "11cc9af2a75f4e27",
-              "trace_id": "53ac94600a62405d931d93da28a81481",
-              "data": {
-                "thread.name": "main",
-                "frames.delay": 0.17219973445753567,
-                "frames.frozen": 0,
-                "frames.slow": 1,
-                "frames.total": 1,
-                "thread.id": 259,
-              },
-            },
-            {
-              "timestamp": 1709815995.052375,
-              "start_timestamp": 1709815994.868309,
-              "description": "loadView",
-              "op": "ui.load",
-              "span_id": "0aa1d50c2ad74b01",
-              "parent_span_id": "11cc9af2a75f4e27",
-              "trace_id": "53ac94600a62405d931d93da28a81481",
-              "data": {
-                "thread.name": "main",
-                "thread.id": 259,
-              },
-            },
-          ],
-          "measurements": {
-            "app_start_warm": {
-              "value": 8049.345970153808,
-              "unit": "millisecond",
-            },
-            "score.app_start_warm": {
-              "value": 0.000016961769767009915,
-              "unit": "ratio",
-            },
-            "score.time_to_full_display": {
-              "value": 0.008124816267980856,
-              "unit": "ratio",
-            },
-            "score.time_to_initial_display": {
-              "value": 0.002213671895176313,
-              "unit": "ratio",
-            },
-            "score.total": {
-              "value": 0.010355449932924178,
-              "unit": "ratio",
-            },
-            "score.weight.app_start_cold": {
-              "value": 0.0,
-              "unit": "ratio",
-            },
-            "score.weight.app_start_warm": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "score.weight.time_to_full_display": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "score.weight.time_to_initial_display": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "time_to_full_display": {
-              "value": 8240.571022033691,
-              "unit": "millisecond",
-            },
-            "time_to_initial_display": {
-              "value": 8049.345970153808,
-              "unit": "millisecond",
-            },
-          },
-        }
-        "###);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
     }
 
     #[test]
@@ -3151,176 +2872,8 @@ mod tests {
         .unwrap();
 
         normalize_performance_score(&mut event, Some(&performance_score));
-        println!("{:#?}", event);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
-        {
-          "type": "transaction",
-          "transaction": "MainActivity",
-          "transaction_info": {
-            "source": "component",
-          },
-          "platform": "java",
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "release": "1.2.3",
-          "contexts": {
-            "app": {
-              "app_identifier": "io.sentry.samples.android",
-              "app_name": "Sentry sample",
-              "type": "app",
-            },
-            "device": {
-              "family": "sdk_gphone64_arm64",
-              "model": "sdk_gphone64_arm64",
-              "type": "device",
-            },
-            "os": {
-              "name": "Android",
-              "version": "14",
-              "type": "os",
-            },
-            "trace": {
-              "trace_id": "ff62a8b040f340bda5d830223def1d81",
-              "span_id": "bd429c44b67a3eb4",
-              "op": "ui.load",
-              "type": "trace",
-            },
-          },
-          "sdk": {
-            "name": "sentry.java.android",
-          },
-          "spans": [
-            {
-              "timestamp": 1709753673.350251,
-              "start_timestamp": 1709753650.702251,
-              "exclusive_time": 12073.000192,
-              "description": "Cold Start",
-              "op": "app.start.cold",
-              "span_id": "197f31fc643a43df",
-              "parent_span_id": "363165cea483463b",
-              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-              "status": "ok",
-              "origin": "auto.ui.activity",
-              "data": {
-                "thread.name": "main",
-                "frames.frozen": 0,
-                "frames.slow": 0,
-                "frames.total": 1358,
-                "thread.id": "2",
-              },
-            },
-            {
-              "timestamp": 1709753673.349252,
-              "start_timestamp": 1709753650.702251,
-              "exclusive_time": 22647.001028,
-              "description": "MainActivity initial display",
-              "op": "ui.load.initial_display",
-              "span_id": "057ba4bc2b8b4551",
-              "parent_span_id": "363165cea483463b",
-              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-              "status": "ok",
-              "origin": "auto.ui.activity",
-              "data": {
-                "thread.name": "main",
-                "frames.frozen": 0,
-                "frames.slow": 0,
-                "frames.total": 1358,
-                "thread.id": "2",
-              },
-            },
-            {
-              "timestamp": 1709753673.349252,
-              "start_timestamp": 1709753650.702251,
-              "exclusive_time": 22647.001028,
-              "description": "MainActivity full display",
-              "op": "ui.load.full_display",
-              "span_id": "6e61203e533f44d0",
-              "parent_span_id": "363165cea483463b",
-              "trace_id": "fad3ea69ff6143488417e66b411ed97d",
-              "status": "ok",
-              "origin": "auto.ui.activity",
-              "data": {
-                "thread.name": "main",
-                "frames.frozen": 0,
-                "frames.slow": 0,
-                "frames.total": 901,
-                "thread.id": "2",
-              },
-            },
-          ],
-          "measurements": {
-            "app_start_cold": {
-              "value": 22648.0,
-              "unit": "millisecond",
-            },
-            "frames_frozen": {
-              "value": 3.0,
-              "unit": "none",
-            },
-            "frames_frozen_rate": {
-              "value": 0.75,
-              "unit": "ratio",
-            },
-            "frames_slow": {
-              "value": 1.0,
-              "unit": "none",
-            },
-            "frames_slow_rate": {
-              "value": 0.25,
-              "unit": "ratio",
-            },
-            "frames_total": {
-              "value": 4.0,
-              "unit": "none",
-            },
-            "score.app_start_cold": {
-              "value": 0.00000001611009708968325,
-              "unit": "ratio",
-            },
-            "score.time_to_full_display": {
-              "value": 0.00000037958132777700843,
-              "unit": "ratio",
-            },
-            "score.time_to_initial_display": {
-              "value": 0.00000006596433643757393,
-              "unit": "ratio",
-            },
-            "score.total": {
-              "value": 0.0000004616557613042656,
-              "unit": "ratio",
-            },
-            "score.weight.app_start_cold": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "score.weight.app_start_warm": {
-              "value": 0.0,
-              "unit": "ratio",
-            },
-            "score.weight.time_to_full_display": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "score.weight.time_to_initial_display": {
-              "value": 0.3333333333333333,
-              "unit": "ratio",
-            },
-            "screen_load_count": {
-              "value": 1.0,
-              "unit": "test",
-            },
-            "time_to_full_display": {
-              "value": 22647.0,
-              "unit": "millisecond",
-            },
-            "time_to_initial_display": {
-              "value": 22647.0,
-              "unit": "millisecond",
-            },
-          },
-        }
-        "###);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
     }
 
     #[test]
