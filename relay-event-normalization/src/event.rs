@@ -16,7 +16,7 @@ use relay_event_schema::processor::{self, MaxChars, ProcessingAction, Processing
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
     Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
-    Tags, Timestamp, User,
+    TagEntry, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -818,6 +818,16 @@ pub fn normalize_performance_score(
                     );
                 }
                 if should_add_total {
+                    if profile.name.is_some() {
+                        event
+                            .tags
+                            .value_mut()
+                            .get_or_insert_with(Tags::default)
+                            .push(Annotated::new(TagEntry(
+                                Annotated::new("sentry.score_profile".to_string()),
+                                Annotated::new(profile.name.as_ref().unwrap().to_string()),
+                            )));
+                    }
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -1851,6 +1861,12 @@ mod tests {
               "type": "browser",
             },
           },
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -1999,6 +2015,12 @@ mod tests {
               "type": "browser",
             },
           },
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -2147,6 +2169,12 @@ mod tests {
               "type": "browser",
             },
           },
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -2355,6 +2383,12 @@ mod tests {
               "type": "browser",
             },
           },
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "a": {
               "value": 213.0,
@@ -2488,6 +2522,12 @@ mod tests {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "score.total": {
               "value": 1.0,
@@ -2626,6 +2666,12 @@ mod tests {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
+          "tags": [
+            [
+              "sentry.score_profile",
+              "Desktop",
+            ],
+          ],
           "measurements": {
             "cls": {
               "value": 0.11,
