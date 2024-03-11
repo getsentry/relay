@@ -943,6 +943,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        uuid_in_table_name_with_underscores,
+        "SELECT * FROM prefix_0a234567_89ab_cdef_0123_456789ABCDEF",
+        "SELECT * FROM prefix_{%s}"
+    );
+
+    scrub_sql_test!(
         long_hex_in_table_name,
         "SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300",
         "SELECT id FROM {%s} LIMIT %s OFFSET %s"
