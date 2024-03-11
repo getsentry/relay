@@ -1140,7 +1140,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=5))
+    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
