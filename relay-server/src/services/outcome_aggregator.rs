@@ -94,7 +94,7 @@ impl OutcomeAggregator {
             (msg.event_id, msg.remote_addr)
         };
 
-        if let Some(event_id) = event_id {
+        if event_id.is_some() {
             self.outcome_producer.send(msg);
             return;
         }
