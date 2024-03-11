@@ -14,6 +14,8 @@
 - Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
 - Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
 - Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
+- Extract `span.status_code` tag for HTTP spans. ([#3245](https://github.com/getsentry/relay/pull/3245))
+
 
 
 **Bug Fixes**:
