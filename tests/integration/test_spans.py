@@ -1,6 +1,7 @@
 from collections import Counter
 import json
 from datetime import datetime, timedelta, timezone
+import uuid
 
 from opentelemetry.proto.trace.v1.trace_pb2 import (
     Span,
@@ -1118,7 +1119,7 @@ def test_rate_limit_indexed_consistent(
             "categories": ["span_indexed"],
             "limit": 4,
             "window": 1000,
-            "id": "foo",
+            "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
         },
     ]
