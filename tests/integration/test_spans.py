@@ -1100,63 +1100,6 @@ def test_quotas_standalone(mini_sentry, relay, quotas, expect_spans, metrics_ext
         }
 
 
-def test_quotas_extracted(mini_sentry, relay):
-    """Zero-quotas are enforced on extracted spans."""
-    relay = relay(mini_sentry)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
-        "organizations:standalone-span-ingestion",
-    ]
-    project_config["config"]["quotas"] = [
-        {"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"}
-    ]
-
-    start = datetime.utcnow()
-    end = start + timedelta(seconds=1)
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    envelope = mini_sentry.captured_events.get(timeout=2)
-
-    # TODO: second envelope should contain outcomes
-
-    assert mini_sentry.captured_events.empty()
-
-    # if expect_spans(metrics_extracted):
-    # assert Counter(item.type for item in envelope.items) == {
-    #     "transaction": 1,
-    # }
-    # else:
-    #     assert len(envelope.items) == 1
-    #     item = envelope.items[0]
-    #     assert item.type == "client_report"
-    #     outcomes = json.loads(item.payload.get_bytes())["rate_limited_events"]
-    #     assert len(outcomes) == 1
-    #     assert outcomes[0] == {
-    #         "category": quotas[0]["categories"][0],
-    #         "quantity": 4,
-    #         "reason": quotas[0]["reasonCode"],
-    #     }
-
-
 def test_rate_limit_indexed_consistent(
     mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):

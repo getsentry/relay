@@ -192,7 +192,6 @@ impl EnvelopeSummary {
             }
 
             if item.is_span() && item.metrics_extracted() {
-                // TODO: need to check OTel spans as well? Especially on fast path.
                 // This assumes that if one span had metrics extracted, all of them have.
                 summary.span_metrics_extracted = true;
             }
