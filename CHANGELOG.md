@@ -8,6 +8,11 @@
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
 - Drop `event_id` and `remote_addr` from all outcomes. ([#3319](https://github.com/getsentry/relay/pull/3319))
 
+**Bug Fixes**:
+
+- Do not consider strings with the word "tokens" plural to be passwords ([#3106](https://github.com/getsentry/relay/pull/3106))
+
+
 **Internal**:
 
 - Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
