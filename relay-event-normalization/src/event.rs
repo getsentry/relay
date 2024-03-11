@@ -818,14 +818,14 @@ pub fn normalize_performance_score(
                     );
                 }
                 if should_add_total {
-                    if profile.name.is_some() {
+                    if profile.version.is_some() {
                         event
                             .tags
                             .value_mut()
                             .get_or_insert_with(Tags::default)
                             .push(Annotated::new(TagEntry(
-                                Annotated::new("sentry.score_profile".to_string()),
-                                Annotated::new(profile.name.as_ref().unwrap().to_string()),
+                                Annotated::new("score.profile_version".to_string()),
+                                Annotated::new(profile.version.as_ref().unwrap().to_string()),
                             )));
                     }
                     measurements.insert(
@@ -1861,12 +1861,6 @@ mod tests {
               "type": "browser",
             },
           },
-          "tags": [
-            [
-              "sentry.score_profile",
-              "Desktop",
-            ],
-          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -2015,12 +2009,6 @@ mod tests {
               "type": "browser",
             },
           },
-          "tags": [
-            [
-              "sentry.score_profile",
-              "Desktop",
-            ],
-          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -2169,12 +2157,6 @@ mod tests {
               "type": "browser",
             },
           },
-          "tags": [
-            [
-              "sentry.score_profile",
-              "Desktop",
-            ],
-          ],
           "measurements": {
             "cls": {
               "value": 0.11,
@@ -2383,12 +2365,6 @@ mod tests {
               "type": "browser",
             },
           },
-          "tags": [
-            [
-              "sentry.score_profile",
-              "Desktop",
-            ],
-          ],
           "measurements": {
             "a": {
               "value": 213.0,
@@ -2522,12 +2498,6 @@ mod tests {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
-          "tags": [
-            [
-              "sentry.score_profile",
-              "Desktop",
-            ],
-          ],
           "measurements": {
             "score.total": {
               "value": 1.0,
@@ -2666,10 +2636,95 @@ mod tests {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computes_performance_score_and_tags_with_profile_version() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "alpha"
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
           "tags": [
             [
-              "sentry.score_profile",
-              "Desktop",
+              "score.profile_version",
+              "beta",
             ],
           ],
           "measurements": {

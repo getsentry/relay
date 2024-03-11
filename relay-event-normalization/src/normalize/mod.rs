@@ -338,6 +338,8 @@ pub struct PerformanceScoreProfile {
     pub score_components: Vec<PerformanceScoreWeightedComponent>,
     /// See [`RuleCondition`] for all available options to specify and combine conditions.
     pub condition: Option<RuleCondition>,
+    /// The version of the profile for separating changes to the profile
+    pub version: Option<String>,
 }
 
 /// Defines the performance configuration for the project.
