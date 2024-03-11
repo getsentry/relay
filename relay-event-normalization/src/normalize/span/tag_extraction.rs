@@ -669,7 +669,7 @@ fn sql_tables_from_query(
             (!s.is_empty()).then_some(s)
         }
         None => {
-            relay_log::trace!("Failed to parse SQL, falling back to regex");
+            relay_log::debug!("Failed to parse SQL");
             extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
     }
