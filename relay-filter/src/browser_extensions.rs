@@ -51,6 +51,16 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
 });
 
+static IOS_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?ix)
+        # Translation errors in Chrome on iOS
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)
+    "#,
+    )
+    .expect("Invalid browser extensions filter (iOS Vals) Regex")
+});
+
 static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?ix)
@@ -82,6 +92,13 @@ pub fn matches(event: &Event) -> bool {
     if let Some(ex_val) = get_exception_value(event) {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
             return true;
+        }
+        // Filtering for iOS based chrome trasnlation errors
+        if let Some(os_name) = event.tag_value("os.name") {
+            // Using iOS instead of device.name because it can be iPad or iPhone
+            if os_name == "iOS" && IOS_EXC_VALUES.is_match(ex_val) {
+                return true;
+            }
         }
     }
     if let Some(ex_source) = get_exception_source(event) {
@@ -133,7 +150,7 @@ fn get_exception_source(event: &Event) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{
-        Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
+        Frame, JsonLenientString, PairList, RawStacktrace, Stacktrace, TagEntry, Tags, Values,
     };
     use relay_protocol::Annotated;
 
@@ -187,6 +204,20 @@ mod tests {
         };
 
         get_event_with_exception(ex)
+    }
+
+    fn get_event_with_exception_value_and_os_name(val: &str, os_name: &str) -> Event {
+        let event = get_event_with_exception_value(val);
+
+        let tags = vec![Annotated::new(TagEntry(
+            Annotated::new("os.name".to_string()),
+            Annotated::new(os_name.to_string()),
+        ))];
+
+        Event {
+            tags: Annotated::new(Tags(PairList::from(tags))),
+            ..event
+        }
     }
 
     #[test]
@@ -290,6 +321,21 @@ mod tests {
                 filter_result,
                 Ok(()),
                 "Event filter although the source or value are ok "
+            )
+        }
+    }
+
+    #[test]
+    fn test_filter_ios_specific_extensions() {
+        let exceptions = ["undefined is not an object (evaluating 'a.L')"];
+
+        for exc_value in &exceptions {
+            let event = get_event_with_exception_value_and_os_name(exc_value, "iOS");
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_ne!(
+                filter_result,
+                Ok(()),
+                "iOS Event filter not recognizing events with known value '{exc_value}'"
             )
         }
     }
