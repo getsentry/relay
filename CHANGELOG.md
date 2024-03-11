@@ -14,7 +14,7 @@
 - Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
 - Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
 - Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
-- Set profile name as tag when a performance profile has calculated data. ([#3249](https://github.com/getsentry/relay/pull/3249))
+- Add `version` property and set as tag when a performance profile has calculated data. ([#3249](https://github.com/getsentry/relay/pull/3249))
 
 **Bug Fixes**:
 
