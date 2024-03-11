@@ -45,7 +45,7 @@ const PROFILE_TAG: &str = "has_profile";
 /// Additionally tracks whether the transactions also contained profiling information.
 ///
 /// Returns `None` if the metric was not extracted from transactions.
-fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<TransactionCount> {
+fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<BucketSummary> {
     let mri = match MetricResourceIdentifier::parse(metric.name()) {
         Ok(mri) => mri,
         Err(_) => {
@@ -54,21 +54,27 @@ fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<T
         }
     };
 
-    if mri.namespace != MetricNamespace::Transactions {
+    let count = if mri.namespace == MetricNamespace::Transactions {
+        let usage = matches!(mode, ExtractionMode::Usage);
+        BucketCount::Transactions(match metric.value() {
+            BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
+            BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+            _ => 0,
+        })
+    } else if mri.namespace == MetricNamespace::Spans {
+        BucketCount::Spans(match metric.value() {
+            BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
+            _ => 0,
+        })
+    } else {
+        // Nothing to count
         return None;
-    }
-
-    let usage = matches!(mode, ExtractionMode::Usage);
-    let count = match metric.value() {
-        BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
-        BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
-        _ => 0,
     };
 
     let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
         && metric.tag(PROFILE_TAG) == Some("true");
 
-    Some(TransactionCount { count, has_profile })
+    Some(BucketSummary { count, has_profile })
 }
 
 /// Extracts quota information from a list of metric buckets.
@@ -81,10 +87,15 @@ where
 
     for bucket in buckets {
         quantities.buckets += 1;
-        if let Some(count) = count_metric_bucket(bucket.into(), mode) {
-            quantities.transactions += count.count;
-            if count.has_profile {
-                quantities.profiles += count.count;
+        if let Some(summary) = count_metric_bucket(bucket.into(), mode) {
+            let (count, target) = match summary.count {
+                BucketCount::Transactions(count) => (count, &mut quantities.transactions),
+                BucketCount::Spans(count) => (count, &mut quantities.spans),
+            };
+            *target += count;
+
+            if summary.has_profile {
+                quantities.profiles += count;
             }
         }
     }
@@ -130,20 +141,45 @@ pub enum ExtractionMode {
     Duration,
 }
 
-/// Return value of [`count_metric_bucket`], containing the extracted
-/// count of transactions and wether they have associated profiles.
+/// The return value of [`count_metric_bucket`].
+///
+/// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Clone, Copy)]
-struct TransactionCount {
-    /// Number of transactions.
-    pub count: usize,
-    /// Whether the transactions have associated profiles.
+struct BucketSummary {
+    /// Number of countable entities.
+    pub count: BucketCount,
+    /// Whether the countable entities have associated profiles.
     pub has_profile: bool,
+}
+
+impl BucketSummary {
+    fn into_counts(self) -> BucketCounts {
+        let transactions =
+        match self.count {
+            BucketCount::Transactions(count) => todo!(),
+            BucketCount::Spans(_) => todo!(),
+        }
+
+        BucketCounts{transactions, spans, profiles}
+    }
+}
+
+struct BucketCounts {
+    transactions: usize,
+    spans: usize,
+    profiles: usize
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BucketCount {
+    Transactions(usize),
+    Spans(usize),
 }
 
 impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
-    /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
+    /// Returns Ok if `metrics` contain relevant metrics, `metrics` otherwise.
     pub fn create(
         buckets: Vec<Bucket>,
         quotas: Q,
@@ -155,11 +191,15 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
             .map(|metric| count_metric_bucket(BucketView::new(metric), mode))
             .collect();
 
-        // Accumulate the total transaction count and profile count
+        // Accumulate the total counts
         let total_counts = counts
             .iter()
             .filter_map(Option::as_ref)
-            .map(|c| {
+            .map(|summary| {
+                match summary.count {
+                    BucketCount::Transactions(count) => todo!(),
+                    BucketCount::Spans(count) => todo!(),
+                }
                 let profile_count = if c.has_profile { c.count } else { 0 };
                 (c.count, profile_count)
             })

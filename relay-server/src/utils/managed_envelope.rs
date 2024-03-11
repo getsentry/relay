@@ -421,6 +421,7 @@ impl ManagedEnvelope {
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
+                    tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,

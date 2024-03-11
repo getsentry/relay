@@ -578,6 +578,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
