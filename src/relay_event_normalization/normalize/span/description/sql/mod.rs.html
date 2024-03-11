@@ -998,6 +998,12 @@
 <a href="#997" id="997">997</a>
 <a href="#998" id="998">998</a>
 <a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 
@@ -1940,6 +1946,12 @@
         uuid_in_table_name,
         <span class="string">"SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix"</span>,
         <span class="string">"SELECT * FROM prefix_{%s}_{%s}_suffix"
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        uuid_in_table_name_with_underscores,
+        <span class="string">"SELECT * FROM prefix_0a234567_89ab_cdef_0123_456789ABCDEF"</span>,
+        <span class="string">"SELECT * FROM prefix_{%s}"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(

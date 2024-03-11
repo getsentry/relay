@@ -843,6 +843,15 @@
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -866,7 +875,16 @@
 </span><span class="kw">const </span>MAX_EXPRESSION_DEPTH: usize = <span class="number">64</span>;
 
 <span class="doccomment">/// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(?i)[0-9a-f]{8,}|\d\d+"</span>).unwrap());
+</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
+        <span class="string">r"(?ix)
+        [0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12} |
+        [0-9a-f]{8,} |
+        \d\d+
+        "</span>,
+    )
+    .unwrap()
+});
 
 <span class="doccomment">/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
