@@ -212,7 +212,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 // HTTP module:
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
-                    .always(),
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {
@@ -267,7 +267,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 // HTTP module:
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
-                    .always(),
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {
