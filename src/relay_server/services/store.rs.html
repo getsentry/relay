@@ -1889,6 +1889,12 @@
 <a href="#1888" id="1888">1888</a>
 <a href="#1889" id="1889">1889</a>
 <a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2249,7 +2255,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
-        <span class="kw">let </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
 
         <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>buckets {
             <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
@@ -2261,7 +2267,7 @@
                 <span class="kw">let </span>message = <span class="self">self</span>.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
-                    <span class="kw-2">&amp;</span>encoder,
+                    <span class="kw-2">&amp;mut </span>encoder,
                     namespace,
                     <span class="kw-2">&amp;</span>view,
                     retention,
@@ -2302,7 +2308,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         organization_id: u64,
         project_id: ProjectId,
-        encoder: <span class="kw-2">&amp;</span>BucketEncoder,
+        encoder: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>BucketEncoder,
         namespace: MetricNamespace,
         view: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'a</span>&gt;,
         retention_days: u16,
@@ -2705,14 +2711,20 @@
         <span class="kw">let </span>payload = item.payload();
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
-        <span class="kw">let </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
 
         <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
             <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
 
             <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket);
-            <span class="kw">let </span>message = <span class="self">self
-                </span>.create_metric_message(org_id, project_id, <span class="kw-2">&amp;</span>encoder, namespace, <span class="kw-2">&amp;</span>view, retention);
+            <span class="kw">let </span>message = <span class="self">self</span>.create_metric_message(
+                org_id,
+                project_id,
+                <span class="kw-2">&amp;mut </span>encoder,
+                namespace,
+                <span class="kw-2">&amp;</span>view,
+                retention,
+            );
             message.and_then(|message| <span class="self">self</span>.send_metric_message(namespace, message))<span class="question-mark">?</span>;
         }
 
@@ -3329,9 +3341,9 @@
     <span class="attr">#[serde(rename = <span class="string">"c"</span>)]
     </span>Counter(FiniteF64),
     <span class="attr">#[serde(rename = <span class="string">"d"</span>)]
-    </span>Distribution(ArrayEncoding&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[FiniteF64]&gt;),
+    </span>Distribution(ArrayEncoding&lt;<span class="lifetime">'a</span>, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[FiniteF64]&gt;),
     <span class="attr">#[serde(rename = <span class="string">"s"</span>)]
-    </span>Set(ArrayEncoding&lt;SetView&lt;<span class="lifetime">'a</span>&gt;&gt;),
+    </span>Set(ArrayEncoding&lt;<span class="lifetime">'a</span>, SetView&lt;<span class="lifetime">'a</span>&gt;&gt;),
     <span class="attr">#[serde(rename = <span class="string">"g"</span>)]
     </span>Gauge(GaugeValue),
 }

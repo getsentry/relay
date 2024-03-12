@@ -200,6 +200,15 @@
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 
 <span class="kw">use </span>relay_dynamic_config::{BucketEncoding, GlobalConfig};
@@ -212,12 +221,16 @@
 
 <span class="kw">pub struct </span>BucketEncoder&lt;<span class="lifetime">'a</span>&gt; {
     global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig,
+    buffer: String,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketEncoder&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new bucket encoder with the provided config.
     </span><span class="kw">pub fn </span>new(global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ global_config }
+        <span class="self">Self </span>{
+            global_config,
+            buffer: String::new(),
+        }
     }
 
     <span class="doccomment">/// Prepares the bucket before encoding.
@@ -246,34 +259,42 @@
 
     <span class="doccomment">/// Encodes a distribution.
     </span><span class="kw">pub fn </span>encode_distribution&lt;<span class="lifetime">'data</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         namespace: MetricNamespace,
         dist: <span class="kw-2">&amp;</span><span class="lifetime">'data </span>[FiniteF64],
-    ) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="kw-2">&amp;</span><span class="lifetime">'data </span>[FiniteF64]&gt;&gt; {
+    ) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="lifetime">'_</span>, <span class="kw-2">&amp;</span><span class="lifetime">'data </span>[FiniteF64]&gt;&gt; {
         <span class="kw">let </span>enc = <span class="self">self</span>.global_config.options.metric_bucket_dist_encodings;
         <span class="kw">let </span>enc = enc.for_namespace(namespace);
-        <span class="self">Self</span>::do_encode(enc, dist)
+        <span class="self">self</span>.do_encode(enc, dist)
     }
 
     <span class="doccomment">/// Encodes a set.
     </span><span class="kw">pub fn </span>encode_set&lt;<span class="lifetime">'data</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         namespace: MetricNamespace,
         set: SetView&lt;<span class="lifetime">'data</span>&gt;,
-    ) -&gt; io::Result&lt;ArrayEncoding&lt;SetView&lt;<span class="lifetime">'data</span>&gt;&gt;&gt; {
+    ) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="lifetime">'_</span>, SetView&lt;<span class="lifetime">'data</span>&gt;&gt;&gt; {
         <span class="kw">let </span>enc = <span class="self">self</span>.global_config.options.metric_bucket_set_encodings;
         <span class="kw">let </span>enc = enc.for_namespace(namespace);
-        <span class="self">Self</span>::do_encode(enc, set)
+        <span class="self">self</span>.do_encode(enc, set)
     }
 
-    <span class="kw">fn </span>do_encode&lt;T: Encodable&gt;(enc: BucketEncoding, data: T) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
+    <span class="kw">fn </span>do_encode&lt;T: Encodable&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        enc: BucketEncoding,
+        data: T,
+    ) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="lifetime">'_</span>, T&gt;&gt; {
+        <span class="comment">// If the buffer is not cleared before encoding more data,
+        // the new data will just be appended to the end.
+        </span><span class="self">self</span>.buffer.clear();
+
         <span class="kw">match </span>enc {
             BucketEncoding::Legacy =&gt; <span class="prelude-val">Ok</span>(ArrayEncoding::Legacy(data)),
             BucketEncoding::Array =&gt; {
                 <span class="prelude-val">Ok</span>(ArrayEncoding::Dynamic(DynamicArrayEncoding::Array { data }))
             }
-            BucketEncoding::Base64 =&gt; base64(data),
-            BucketEncoding::Zstd =&gt; zstd(data),
+            BucketEncoding::Base64 =&gt; base64(data, <span class="kw-2">&amp;mut </span><span class="self">self</span>.buffer),
+            BucketEncoding::Zstd =&gt; zstd(data, <span class="kw-2">&amp;mut </span><span class="self">self</span>.buffer),
         }
     }
 }
@@ -281,7 +302,7 @@
 <span class="doccomment">/// Dynamic array encoding intended for distribution and set metric buckets.
 </span><span class="attr">#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
-</span><span class="kw">pub enum </span>ArrayEncoding&lt;T&gt; {
+</span><span class="kw">pub enum </span>ArrayEncoding&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// The original, legacy, encoding.
     ///
     /// Encodes all values as an array of numbers.
@@ -289,10 +310,10 @@
     <span class="doccomment">/// Dynamic encoding supporting multiple formats.
     ///
     /// Adds metadata and adds support for multiple different encodings.
-    </span>Dynamic(DynamicArrayEncoding&lt;T&gt;),
+    </span>Dynamic(DynamicArrayEncoding&lt;<span class="lifetime">'a</span>, T&gt;),
 }
 
-<span class="kw">impl</span>&lt;T&gt; ArrayEncoding&lt;T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; ArrayEncoding&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// Name of the encoding.
     ///
     /// Should only be used for debugging purposes.
@@ -306,7 +327,7 @@
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
 #[serde(tag = <span class="string">"format"</span>, rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">pub enum </span>DynamicArrayEncoding&lt;T&gt; {
+</span><span class="kw">pub enum </span>DynamicArrayEncoding&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// Array encoding.
     ///
     /// Encodes all items as an array.
@@ -315,7 +336,7 @@
     ///
     /// Converts all items to little endian byte sequences
     /// and Base64 encodes the raw little endian bytes.
-    </span>Base64 { data: String },
+    </span>Base64 { data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str },
     <span class="doccomment">/// Zstd encoding.
     ///
     /// Converts all items to little endian byte sequences,
@@ -323,10 +344,10 @@
     /// using Base64 (with padding).
     ///
     /// Items may be sorted to achieve better compression results.
-    </span>Zstd { data: String },
+    </span>Zstd { data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str },
 }
 
-<span class="kw">impl</span>&lt;T&gt; DynamicArrayEncoding&lt;T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; DynamicArrayEncoding&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// Returns the serialized format name.
     </span><span class="kw">pub fn </span>format(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
@@ -337,22 +358,19 @@
     }
 }
 
-<span class="kw">fn </span>base64&lt;T: Encodable&gt;(data: T) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>encoded = String::new();
-
-    <span class="kw">let </span><span class="kw-2">mut </span>writer = EncoderWriteAdapter(BASE64.new_encoder(<span class="kw-2">&amp;mut </span>encoded));
+<span class="kw">fn </span>base64&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>writer = EncoderWriteAdapter(BASE64.new_encoder(buffer));
     data.write_to(<span class="kw-2">&amp;mut </span>writer)<span class="question-mark">?</span>;
     drop(writer);
 
     <span class="prelude-val">Ok</span>(ArrayEncoding::Dynamic(DynamicArrayEncoding::Base64 {
-        data: encoded,
+        data: buffer,
     }))
 }
 
-<span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>encoded = String::new();
+<span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64.new_encoder(<span class="kw-2">&amp;mut </span>encoded)),
+        EncoderWriteAdapter(BASE64.new_encoder(buffer)),
         zstd::DEFAULT_COMPRESSION_LEVEL,
     )<span class="question-mark">?</span>;
 
@@ -361,7 +379,7 @@
     writer.finish()<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(ArrayEncoding::Dynamic(DynamicArrayEncoding::Zstd {
-        data: encoded,
+        data: buffer,
     }))
 }
 
