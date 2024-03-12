@@ -514,60 +514,66 @@ mod tests {
         );
     }
 
-    #[test]
-    fn profiles_quota_is_enforced() {
-        let metrics = vec![
+    /// A few different bucket types
+    fn mixed_bag() -> Vec<Bucket> {
+        vec![
             Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
-                tags: Default::default(),
-                value: BucketValue::distribution(123.into()),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.into()),
-            },
-            Bucket {
-                // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
-                value: BucketValue::counter(1.into()),
+                value: BucketValue::counter(12.into()),
             },
             Bucket {
-                // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.into()),
+                name: "c:spans/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(34.into()),
             },
             Bucket {
-                // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "c:spans/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.into()),
+                value: BucketValue::distribution(56.into()),
             },
-        ];
-        let quotas = vec![Quota {
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:spans/exclusive_time@millisecond".to_string(),
+                tags: Default::default(),
+                value: BucketValue::distribution(78.into()),
+            },
+            Bucket {
+                // Unrelated metric with has_profile tag
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:custom/something@millisecond".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::distribution(78.into()),
+            },
+        ]
+    }
+
+    fn deny(category: DataCategory) -> Vec<Quota> {
+        vec![Quota {
             id: None,
-            categories: smallvec![DataCategory::Profile],
+            categories: smallvec![category],
             scope: QuotaScope::Organization,
             scope_id: None,
             limit: Some(0),
             window: None,
             reason_code: None,
             namespace: None,
-        }];
+        }]
+    }
+
+    /// Applies rate limits and returns the remaining buckets and generated outcomes.
+    fn run_limiter(
+        metrics: Vec<Bucket>,
+        quotas: Vec<Quota>,
+    ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u32)>) {
         let (outcome_sink, mut rx) = Addr::custom();
 
         let mut limiter = MetricsLimiter::create(
@@ -586,16 +592,6 @@ mod tests {
         limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
         let metrics = limiter.into_buckets();
 
-        // All metrics have been preserved:
-        assert_eq!(metrics.len(), 5);
-
-        // Profile tag has been removed:
-        assert!(metrics[0].tags.is_empty());
-        assert!(metrics[1].tags.is_empty());
-        assert!(metrics[2].tags.is_empty());
-        assert!(metrics[3].tags.is_empty());
-        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
-
         rx.close();
 
         let outcomes: Vec<_> = (0..)
@@ -604,6 +600,17 @@ mod tests {
             .flatten()
             .map(|o| (o.outcome, o.category, o.quantity))
             .collect();
+
+        (metrics, outcomes)
+    }
+
+    #[test]
+    fn span_quota_enforced() {
+        let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
+
+        assert_eq!(metrics.len(), 2);
+        assert_eq!(metrics[0].name, "c:transactions/usage@none");
+        assert_eq!(metrics[1].name, "d:custom/something@millisecond");
 
         assert_eq!(
             outcomes,
