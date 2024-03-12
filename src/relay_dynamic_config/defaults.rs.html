@@ -549,6 +549,14 @@
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -760,6 +768,10 @@
                 Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
                     .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
                     .when(is_resource.clone()),
+                <span class="comment">// HTTP module:
+                </span>Tag::with_key(<span class="string">"span.status_code"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {
@@ -811,6 +823,10 @@
                 Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
                     .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
                     .when(is_resource.clone()),
+                <span class="comment">// HTTP module:
+                </span>Tag::with_key(<span class="string">"span.status_code"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {

@@ -1430,6 +1430,19 @@
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, Options};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1596,6 +1609,19 @@
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "data": {
                         "http.method": "GET"
+                    }
+                },
+                {
+                    "description": "GET /hi/this/is/just/the/path",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET",
+                        "status_code": "500"
                     }
                 },
                 {
