@@ -21,7 +21,16 @@ use sqlparser::dialect::{Dialect, GenericDialect};
 const MAX_EXPRESSION_DEPTH: usize = 64;
 
 /// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)[0-9a-f]{8,}|\d\d+").unwrap());
+static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?ix)
+        [0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12} |
+        [0-9a-f]{8,} |
+        \d\d+
+        ",
+    )
+    .unwrap()
+});
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.

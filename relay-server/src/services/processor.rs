@@ -1349,11 +1349,9 @@ impl EnvelopeProcessorService {
                 if_processing!(self.inner.config, {
                     span::maybe_discard_transaction(state);
                 });
-
                 if state.has_event() {
                     event::serialize(state)?;
                 }
-
                 attachment::scrub(state);
             }
         );
@@ -1431,19 +1429,21 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Processes spans.
-    fn process_spans(
+    /// Processes standalone spans.
+    ///
+    /// This function does *not* run for spans extracted from transactions.
+    fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
             span::process(
                 state,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             );
+            self.enforce_quotas(state)?;
         });
         Ok(())
     }
@@ -1495,7 +1495,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::ClientReport => run!(process_client_reports),
             ProcessingGroup::Replay => run!(process_replays),
             ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => run!(process_spans),
+            ProcessingGroup::Span => run!(process_standalone_spans),
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
