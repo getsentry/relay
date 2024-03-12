@@ -824,7 +824,7 @@ pub fn normalize_performance_score(
                             .value_mut()
                             .get_or_insert_with(Tags::default)
                             .push(Annotated::new(TagEntry(
-                                Annotated::new("score.profile_version".to_string()),
+                                Annotated::new("sentry.score_profile_version".to_string()),
                                 Annotated::new(profile.version.as_ref().unwrap().to_string()),
                             )));
                     }
