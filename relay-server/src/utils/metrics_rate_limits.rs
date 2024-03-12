@@ -238,14 +238,24 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         }
     }
 
-    #[allow(dead_code)]
+    // TODO: docs
     pub fn scoping(&self) -> &Scoping {
         &self.scoping
     }
 
-    #[allow(dead_code)]
+    // TODO: docs
     pub fn quotas(&self) -> &[Quota] {
         self.quotas.as_ref()
+    }
+
+    // TODO: docs
+    pub fn transaction_count(&self) -> usize {
+        self.counts.transactions
+    }
+
+    // TODO: docs
+    pub fn span_count(&self) -> usize {
+        self.counts.spans
     }
 
     fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
@@ -292,8 +302,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 
     fn strip_profiles(&mut self) {
-        for (has_profile, bucket) in self.profile_buckets.iter().zip(self.buckets.iter_mut()) {
-            if *has_profile {
+        for (summary, bucket) in self.summaries.iter().zip(self.buckets.iter_mut()) {
+            if *summary.has_profile {
                 bucket.remove_tag(PROFILE_TAG);
             }
         }
@@ -327,45 +337,47 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     // Returns true if any metrics were dropped.
     pub fn enforce_limits(
         &mut self,
-        transaction_rate_limits: Result<&RateLimits, ()>,
-        span_rate_limits: Result<&RateLimits, ()>,
+        rate_limits: Result<&RateLimits, ()>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> bool {
         let mut dropped_stuff = false;
+
         match rate_limits {
             Ok(rate_limits) => {
-                let item_scoping = ItemScoping {
-                    category: DataCategory::Transaction,
-                    scoping: &self.scoping,
-                    namespace: None,
-                };
-                let active_rate_limits =
-                    rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
-
-                // If a rate limit is active, discard transaction buckets.
-                if let Some(limit) = active_rate_limits.longest() {
-                    self.drop_with_outcome(
-                        Outcome::RateLimited(limit.reason_code.clone()),
-                        outcome_aggregator,
-                    );
-                    dropped_stuff = true;
-                } else {
-                    // Also check profiles:
+                for category in (DataCategory::Transaction, DataCategory::Span) {
                     let item_scoping = ItemScoping {
-                        category: DataCategory::Profile,
+                        category,
                         scoping: &self.scoping,
                         namespace: None,
                     };
                     let active_rate_limits =
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
 
+                    // If a rate limit is active, discard transaction buckets.
                     if let Some(limit) = active_rate_limits.longest() {
-                        self.strip_profiles();
-                        self.report_profiles(
+                        self.drop_with_outcome(
                             Outcome::RateLimited(limit.reason_code.clone()),
-                            UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
                             outcome_aggregator,
-                        )
+                        );
+                        dropped_stuff = true;
+                    } else {
+                        // Also check profiles:
+                        let item_scoping = ItemScoping {
+                            category: DataCategory::Profile,
+                            scoping: &self.scoping,
+                            namespace: None,
+                        };
+                        let active_rate_limits =
+                            rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+
+                        if let Some(limit) = active_rate_limits.longest() {
+                            self.strip_profiles();
+                            self.report_profiles(
+                                Outcome::RateLimited(limit.reason_code.clone()),
+                                UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
+                                outcome_aggregator,
+                            )
+                        }
                     }
                 }
             }
@@ -472,7 +484,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+        limiter.enforce_limits(Ok(&RateLimits::new()), Ok(&RateLimits::new()), outcome_sink);
 
         rx.close();
 
@@ -561,7 +573,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+        limiter.enforce_limits(Ok(&RateLimits::new()), Ok(&RateLimits::new()), outcome_sink);
         let metrics = limiter.into_metrics();
 
         // All metrics have been preserved:

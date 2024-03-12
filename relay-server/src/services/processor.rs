@@ -1935,14 +1935,25 @@ impl EnvelopeProcessorService {
                 over_accept_once,
             );
 
-            let enforced_limits = bucket_limiter.enforce_limits(
+            let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
+
+            }
+
+            // TODO: return enforced limits here instead of boolean
+            let was_enforced = bucket_limiter.enforce_limits(
                 transaction_rate_limits.as_ref().map_err(|_| ()),
                 span_rate_limits.as_ref().map_err(|_| ()),
                 self.inner.outcome_aggregator.clone(),
             );
 
-            for enforced_limit in enforced_limits {
-                if let Ok(limits) = enforced_limit {
+            if was_enforced {
+                if let Ok(limits) = transaction_rate_limits {
+                    // Update the rate limits in the project cache.
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
+                }
+                if let Ok(limits) = span_rate_limits {
                     // Update the rate limits in the project cache.
                     self.inner
                         .project_cache
