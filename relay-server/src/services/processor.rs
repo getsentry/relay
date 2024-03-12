@@ -1908,32 +1908,41 @@ impl EnvelopeProcessorService {
         let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            let item_scoping = relay_quotas::ItemScoping {
-                category: DataCategory::Transaction,
-                scoping: &scoping,
-                namespace: None,
-            };
-
             let global_config = self.inner.global_config.current();
             let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
-            let rate_limits = rate_limiter.is_rate_limited(
+            let transaction_rate_limits = rate_limiter.is_rate_limited(
                 quotas,
-                item_scoping,
+                ItemScoping {
+                    category: DataCategory::Transaction,
+                    scoping: &scoping,
+                    namespace: None,
+                },
                 bucket_limiter.transaction_count(),
                 over_accept_once,
             );
+            let span_rate_limits = rate_limiter.is_rate_limited(
+                quotas,
+                ItemScoping {
+                    category: DataCategory::Span,
+                    scoping: &scoping,
+                    namespace: None,
+                },
+                bucket_limiter.span_count(),
+                over_accept_once,
+            );
 
-            let was_enforced = bucket_limiter.enforce_limits(
-                rate_limits.as_ref().map_err(|_| ()),
+            let enforced_limits = bucket_limiter.enforce_limits(
+                transaction_rate_limits.as_ref().map_err(|_| ()),
+                span_rate_limits.as_ref().map_err(|_| ()),
                 self.inner.outcome_aggregator.clone(),
             );
 
-            if was_enforced {
-                if let Ok(limits) = rate_limits {
+            for enforced_limit in enforced_limits {
+                if let Ok(limits) = enforced_limit {
                     // Update the rate limits in the project cache.
                     self.inner
                         .project_cache
