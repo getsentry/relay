@@ -1935,25 +1935,23 @@ impl EnvelopeProcessorService {
                 over_accept_once,
             );
 
+            // FIXME: split buckets by rate limiting type
             let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
-
-            }
+                (Ok(mut a), Ok(b)) => {
+                    a.merge(b);
+                    Ok(a)
+                }
+                (Err(_), _) | (_, Err(_)) => Err(()),
+            };
 
             // TODO: return enforced limits here instead of boolean
             let was_enforced = bucket_limiter.enforce_limits(
-                transaction_rate_limits.as_ref().map_err(|_| ()),
-                span_rate_limits.as_ref().map_err(|_| ()),
+                merged_rate_limits.as_ref().map_err(|_| ()),
                 self.inner.outcome_aggregator.clone(),
             );
 
             if was_enforced {
-                if let Ok(limits) = transaction_rate_limits {
-                    // Update the rate limits in the project cache.
-                    self.inner
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, limits));
-                }
-                if let Ok(limits) = span_rate_limits {
+                if let Ok(limits) = merged_rate_limits {
                     // Update the rate limits in the project cache.
                     self.inner
                         .project_cache

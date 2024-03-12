@@ -137,7 +137,7 @@ pub enum ExtractionMode {
 /// The return value of [`count_metric_bucket`].
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct BucketSummary {
     /// Number of countable entities.
     pub count: BucketCount,
@@ -147,7 +147,6 @@ struct BucketSummary {
 
 impl BucketSummary {
     fn to_counts(&self) -> BucketCounts {
-        let mut counts = BucketCounts::default();
         let transactions = match self.count {
             BucketCount::Transactions(count) => count,
             _ => 0,
@@ -171,14 +170,14 @@ impl BucketSummary {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct BucketCounts {
     transactions: usize,
     spans: usize,
     profiles: usize,
 }
 
-impl<'a> std::ops::Add for BucketCounts {
+impl std::ops::Add for BucketCounts {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -281,8 +280,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 category: DataCategory::Transaction,
                 quantity: self.counts.transactions as u32,
             });
-
-            self.report_profiles(outcome, timestamp, outcome_aggregator);
         }
 
         // Track outcome for the span metrics we dropped:
@@ -296,14 +293,14 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 category: DataCategory::Span,
                 quantity: self.counts.spans as u32,
             });
-
-            self.report_profiles(outcome, timestamp, outcome_aggregator);
         }
+
+        self.report_profiles(outcome, timestamp, outcome_aggregator);
     }
 
     fn strip_profiles(&mut self) {
         for (summary, bucket) in self.summaries.iter().zip(self.buckets.iter_mut()) {
-            if *summary.has_profile {
+            if summary.has_profile {
                 bucket.remove_tag(PROFILE_TAG);
             }
         }
@@ -344,7 +341,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
         match rate_limits {
             Ok(rate_limits) => {
-                for category in (DataCategory::Transaction, DataCategory::Span) {
+                for category in [DataCategory::Transaction, DataCategory::Span] {
                     let item_scoping = ItemScoping {
                         category,
                         scoping: &self.scoping,
@@ -357,7 +354,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     if let Some(limit) = active_rate_limits.longest() {
                         self.drop_with_outcome(
                             Outcome::RateLimited(limit.reason_code.clone()),
-                            outcome_aggregator,
+                            outcome_aggregator.clone(),
                         );
                         dropped_stuff = true;
                     } else {
@@ -375,7 +372,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                             self.report_profiles(
                                 Outcome::RateLimited(limit.reason_code.clone()),
                                 UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
-                                outcome_aggregator,
+                                outcome_aggregator.clone(),
                             )
                         }
                     }
@@ -484,7 +481,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(Ok(&RateLimits::new()), Ok(&RateLimits::new()), outcome_sink);
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
 
         rx.close();
 
@@ -573,7 +570,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(Ok(&RateLimits::new()), Ok(&RateLimits::new()), outcome_sink);
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
         let metrics = limiter.into_metrics();
 
         // All metrics have been preserved:
