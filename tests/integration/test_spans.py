@@ -1009,14 +1009,18 @@ def test_span_ingestion_with_performance_scores(
     ]
 
 
-def test_rate_limit_indexed_consistent(
-    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+def test_rate_limit_consistent(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
 ):
     """Rate limits for indexed are enforced consistently after metrics extraction.
 
     This test does not cover consistent enforcement of total spans.
     """
-    relay = relay_with_processing()
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -1025,8 +1029,8 @@ def test_rate_limit_indexed_consistent(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span_indexed"],
-            "limit": 4,
+            "categories": ["span_indexed", "span"],
+            "limit": 5,
             "window": 1000,
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
@@ -1034,6 +1038,7 @@ def test_rate_limit_indexed_consistent(
     ]
 
     spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
     start = datetime.utcnow()
@@ -1051,11 +1056,22 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
     assert len(spans) == 4
+    metrics = list(metrics_consumer.get_metrics(max_attempts=4))
+    assert len(metrics) > 0
+    assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
+
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
+    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    assert len(spans) == 0
+    metrics = list(metrics_consumer.get_metrics(max_attempts=4))
+    assert len(metrics) == 0
+    assert summarize_outcomes() == {
+        (16, 2): 4,  # SpanIndexed, RateLimited
+        (9, 2): 4,  # Span, RateLimited
+    }
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()

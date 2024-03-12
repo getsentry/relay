@@ -168,9 +168,6 @@ pub struct EnvelopeSummary {
     /// Whether the envelope contains spans which already had metrics extracted.
     pub span_metrics_extracted: bool,
 
-    /// Whether the envelope contains spans which already had metrics extracted.
-    pub span_metrics_extracted: bool,
-
     /// The payload size of this envelope.
     pub payload_size: usize,
 }
