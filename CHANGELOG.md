@@ -15,7 +15,7 @@
 - Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
 - Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
 - Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
-
+- Track metric bucket metadata for Relay internal usage. ([#3254](https://github.com/getsentry/relay/pull/3254))
 
 **Bug Fixes**:
 
