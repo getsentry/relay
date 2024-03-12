@@ -1147,30 +1147,6 @@ mod tests {
                     "value": 22648,
                     "unit": "millisecond"
                 },
-                "frames_frozen": {
-                    "value": 3,
-                    "unit": "none"
-                },
-                "frames_frozen_rate": {
-                    "value": 0.75,
-                    "unit": "ratio"
-                },
-                "frames_slow": {
-                    "value": 1,
-                    "unit": "none"
-                },
-                "frames_slow_rate": {
-                    "value": 0.25,
-                    "unit": "ratio"
-                },
-                "frames_total": {
-                    "value": 4,
-                    "unit": "none"
-                },
-                "screen_load_count": {
-                    "value": 1,
-                    "unit": "test"
-                },
                 "time_to_full_display": {
                     "value": 22647,
                     "unit": "millisecond"
