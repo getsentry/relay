@@ -20,6 +20,7 @@ pub async fn handle(
 
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
+        relay: body.relay,
         start_time: start_time.into_inner(),
         sent_at: None,
     });

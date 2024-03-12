@@ -18,6 +18,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+use crate::BucketMetadata;
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -311,17 +312,42 @@ impl Default for AggregatorConfig {
 struct QueuedBucket {
     flush_at: Instant,
     value: BucketValue,
+    metadata: BucketMetadata,
 }
 
 impl QueuedBucket {
     /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, value: BucketValue) -> Self {
-        Self { flush_at, value }
+    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -> Self {
+        Self {
+            flush_at,
+            value,
+            metadata,
+        }
     }
 
     /// Returns `true` if the flush time has elapsed.
     fn elapsed(&self) -> bool {
         Instant::now() > self.flush_at
+    }
+
+    /// Merges a bucket into the current queued bucket.
+    ///
+    /// Returns the value cost increase on success,
+    /// otherwise returns an error if the passed bucket value type does not match
+    /// the contained type.
+    fn merge(
+        &mut self,
+        value: BucketValue,
+        metadata: BucketMetadata,
+    ) -> Result<usize, AggregateMetricsErrorKind> {
+        let cost_before = self.value.cost();
+
+        self.value
+            .merge(value)
+            .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
+        self.metadata.merge(metadata);
+
+        Ok(self.value.cost().saturating_sub(cost_before))
     }
 }
 
@@ -497,6 +523,7 @@ impl Aggregator {
                 name: key.metric_name,
                 value: entry.value,
                 tags: key.tags,
+                metadata: entry.metadata,
             })
             .collect()
     }
@@ -530,6 +557,7 @@ impl Aggregator {
                     if force || entry.elapsed() {
                         // Take the value and leave a placeholder behind. It'll be removed right after.
                         let value = mem::replace(&mut entry.value, BucketValue::counter(0.into()));
+                        let metadata = mem::take(&mut entry.metadata);
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
@@ -545,6 +573,7 @@ impl Aggregator {
                             name: key.metric_name.clone(),
                             value,
                             tags: key.tags.clone(),
+                            metadata,
                         };
 
                         buckets
@@ -775,13 +804,8 @@ impl Aggregator {
                     aggregator = &self.name,
                     namespace = entry.key().namespace().as_str(),
                 );
-                let bucket_value = &mut entry.get_mut().value;
-                let cost_before = bucket_value.cost();
-                bucket_value
-                    .merge(bucket.value)
-                    .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
-                let cost_after = bucket_value.cost();
-                added_cost = cost_after.saturating_sub(cost_before);
+
+                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)?;
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
@@ -798,7 +822,7 @@ impl Aggregator {
                 let flush_at = self.config.get_flush_time(entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value));
+                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
             }
         }
 
@@ -889,6 +913,7 @@ mod tests {
             name: "c:transactions/foo".to_owned(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 
@@ -1133,6 +1158,7 @@ mod tests {
             name: "c:transactions/foo@none".to_owned(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
         let bucket_key = BucketKey {
             project_key,
@@ -1388,6 +1414,7 @@ mod tests {
             name: "c:transactions/foo".to_owned(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         let mut aggregator = Aggregator::new(test_config());
@@ -1418,6 +1445,7 @@ mod tests {
             name: "c:transactions/foo".to_owned(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         let mut aggregator = Aggregator::new(config);
@@ -1438,5 +1466,35 @@ mod tests {
         let json = r#"{"shift_key": "bucket"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
+    }
+
+    #[test]
+    fn test_aggregator_merge_metadata() {
+        let mut config = test_config();
+        config.bucket_interval = 10;
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut aggregator = Aggregator::new(config);
+
+        let bucket1 = some_bucket();
+        let bucket2 = some_bucket();
+
+        // Create a bucket with already 3 merges.
+        let mut bucket3 = some_bucket();
+        bucket3.metadata.merge(BucketMetadata::new());
+        bucket3.metadata.merge(BucketMetadata::new());
+
+        aggregator.merge(project_key, bucket1, None).unwrap();
+        aggregator.merge(project_key, bucket2, None).unwrap();
+        aggregator.merge(project_key, bucket3, None).unwrap();
+
+        let buckets: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            BucketMetadata {
+                volume: 5,
+            },
+        ]
+        "###);
     }
 }

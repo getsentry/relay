@@ -685,6 +685,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -710,6 +713,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -727,6 +733,9 @@ mod tests {
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -746,6 +755,9 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -763,6 +775,9 @@ mod tests {
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -788,6 +803,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -797,6 +815,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -821,6 +842,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -834,6 +858,9 @@ mod tests {
                 tags: {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -858,6 +885,9 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -916,6 +946,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -930,6 +963,9 @@ mod tests {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -946,6 +982,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -955,6 +994,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -970,6 +1012,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -982,6 +1027,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1037,6 +1085,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1053,6 +1104,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1062,6 +1116,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1077,6 +1134,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1089,6 +1149,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1214,6 +1277,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1230,6 +1296,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1245,6 +1314,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1254,6 +1326,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1269,6 +1344,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1281,6 +1359,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "foo",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1426,6 +1507,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1441,6 +1525,9 @@ mod tests {
                     "platform": "other",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1452,6 +1539,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -1577,6 +1667,9 @@ mod tests {
                 tags: {
                     "decision": "keep",
                     "transaction": "root_transaction",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1915,6 +2008,9 @@ mod tests {
                     "measurement_rating": "good",
                     "platform": "javascript",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1924,6 +2020,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1938,6 +2037,9 @@ mod tests {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1949,6 +2051,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);

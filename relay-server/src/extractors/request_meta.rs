@@ -12,9 +12,10 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::RequestPartsExt;
 use data_encoding::BASE64;
+use relay_auth::RelayId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
-use relay_config::UpstreamDescriptor;
+use relay_config::{RelayInfo, UpstreamDescriptor};
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ use url::Url;
 
 use crate::extractors::{ForwardedFor, StartTime};
 use crate::service::ServiceState;
+use crate::services::relays::GetRelay;
 use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
 
@@ -228,6 +230,15 @@ pub struct RequestMeta<D = PartialDsn> {
     // NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip, default = "Instant::now")]
     start_time: Instant,
+
+    /// The Relay which sent the request.
+    ///
+    /// The Relay ID is parsed from the `X-Sentry-Relay-Id` header, the request does not need to be
+    /// signed.
+    ///
+    // NOTE: This is internal-only and not exposed to Envelope headers.
+    #[serde(skip)]
+    relay: Option<RelayInfo>,
 }
 
 impl<D> RequestMeta<D> {
@@ -304,6 +315,11 @@ impl<D> RequestMeta<D> {
     pub fn set_start_time(&mut self, start_time: Instant) {
         self.start_time = start_time
     }
+
+    /// The downstream Relay which sent the envelope.
+    pub fn relay(&self) -> Option<&RelayInfo> {
+        self.relay.as_ref()
+    }
 }
 
 impl RequestMeta {
@@ -320,6 +336,7 @@ impl RequestMeta {
             no_cache: false,
             start_time: Instant::now(),
             client_hints: ClientHints::default(),
+            relay: None,
         }
     }
 
@@ -421,6 +438,9 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
+        if self.relay.is_some() {
+            complete.relay = self.relay;
+        }
 
         complete.client_hints.copy_from(self.client_hints);
 
@@ -433,16 +453,33 @@ impl PartialMeta {
 }
 
 #[axum::async_trait]
-impl<S> FromRequestParts<S> for PartialMeta
-where
-    S: Send + Sync,
-{
+impl FromRequestParts<ServiceState> for PartialMeta {
     type Rejection = Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
         let mut ua = RawUserAgentInfo::default();
         for (key, value) in &parts.headers {
             ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
+        let mut relay = None;
+        let relay_id = parts
+            .headers
+            .get("x-sentry-relay-id")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|h| h.parse::<RelayId>().ok());
+
+        if let Some(relay_id) = relay_id {
+            relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id.to_string()));
+
+            relay = state
+                .relay_cache()
+                .send(GetRelay { relay_id })
+                .await
+                .unwrap_or(None);
         }
 
         Ok(RequestMeta {
@@ -464,6 +501,7 @@ where
                 .await?
                 .into_inner(),
             client_hints: ua.client_hints,
+            relay,
         })
     }
 }
@@ -589,7 +627,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             parts.extract().await.map_err(BadEventMeta::BadProject)?;
 
         let auth = auth_from_parts(parts, store_path.sentry_key)?;
-        let partial_meta = parts.extract::<PartialMeta>().await?;
+        let partial_meta: PartialMeta = parts.extract_with_state(state).await?;
         let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let config = state.config();
@@ -626,6 +664,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
+            relay: partial_meta.relay,
         })
     }
 }
@@ -648,6 +687,7 @@ mod tests {
                 no_cache: false,
                 start_time: Instant::now(),
                 client_hints: ClientHints::default(),
+                relay: None,
             }
         }
     }
@@ -692,6 +732,7 @@ mod tests {
                 ),
                 sec_ch_ua_model: None,
             },
+            relay: None,
         };
         deserialized.start_time = reqmeta.start_time;
         assert_eq!(deserialized, reqmeta);
