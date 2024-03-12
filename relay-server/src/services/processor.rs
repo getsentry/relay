@@ -1935,7 +1935,6 @@ impl EnvelopeProcessorService {
                 over_accept_once,
             );
 
-            // FIXME: split buckets by rate limiting type
             let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
                 (Ok(mut a), Ok(b)) => {
                     a.merge(b);

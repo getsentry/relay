@@ -5,6 +5,7 @@
 **Features**:
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+- Implement base64 and zstd metric bucket encodings. ([#3218](https://github.com/getsentry/relay/pull/3218))
 - Implement COGS measurements into Relay. ([#3157](https://github.com/getsentry/relay/pull/3157))
 - Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
 - Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
@@ -14,6 +15,7 @@
 - Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
 - Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
 - Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
+- Enforce rate limits for standalone spans. ([#3238](https://github.com/getsentry/relay/pull/3238))
 
 **Bug Fixes**:
 

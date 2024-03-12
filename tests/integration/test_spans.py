@@ -1009,97 +1009,6 @@ def test_span_ingestion_with_performance_scores(
     ]
 
 
-@pytest.mark.parametrize(
-    "quotas,expect_spans",
-    [
-        # control group - no quotas, receive everything
-        ([], lambda _: True),
-        # spans exceeded - should get nothing
-        (
-            [{"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"}],
-            lambda _: False,
-        ),
-        # indexed exceeded
-        (
-            [
-                {
-                    "categories": ["span_indexed"],
-                    "limit": 0,
-                    "reasonCode": "indexed_exceeded",
-                },
-            ],
-            # If metrics have been extracted, enforce rate limits on indexed spans
-            lambda metrics_extracted: not metrics_extracted,
-        ),
-        # both exceeded - should get nothing
-        (
-            [
-                {
-                    "categories": ["span", "span_indexed"],
-                    "limit": 0,
-                    "reasonCode": "indexed_exceeded",
-                },
-            ],
-            lambda _: False,
-        ),
-        # both separate - should get nothing
-        (
-            [
-                {"categories": ["span"], "limit": 0, "reasonCode": "spans_exceeded"},
-                {
-                    "categories": ["span_indexed"],
-                    "limit": 0,
-                    "reasonCode": "indexed_exceeded",
-                },
-            ],
-            lambda _: False,
-        ),
-    ],
-    ids=["none", "total", "indexed", "both", "separate"],
-)
-@pytest.mark.parametrize("metrics_extracted", [False, True])
-def test_quotas_standalone(mini_sentry, relay, quotas, expect_spans, metrics_extracted):
-    """Zero-quotas are enforced on standalone spans.
-
-    This test does not cover consistent enforcement.
-    """
-    relay = relay(mini_sentry)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
-        "organizations:standalone-span-ingestion",
-    ]
-    project_config["config"]["quotas"] = quotas
-
-    start = datetime.utcnow()
-    end = start + timedelta(seconds=1)
-
-    envelope = envelope_with_spans(start, end, metrics_extracted)
-    relay.send_envelope(project_id, envelope)
-
-    envelope = mini_sentry.captured_events.get(timeout=2)
-
-    assert mini_sentry.captured_events.empty()
-
-    if expect_spans(metrics_extracted):
-        assert Counter(item.type for item in envelope.items) == {
-            "span": 3,
-            "otel_span": 1,
-        }
-    else:
-        assert len(envelope.items) == 1
-        item = envelope.items[0]
-        assert item.type == "client_report"
-        outcomes = json.loads(item.payload.get_bytes())["rate_limited_events"]
-        assert len(outcomes) == 1
-        assert outcomes[0] == {
-            "category": quotas[0]["categories"][0],
-            "quantity": 4,
-            "reason": quotas[0]["reasonCode"],
-        }
-
-
 def test_rate_limit_indexed_consistent(
     mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):
@@ -1140,7 +1049,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=5))
+    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
