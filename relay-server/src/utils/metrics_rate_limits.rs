@@ -46,27 +46,25 @@ fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSu
         }
     };
 
-    let count = if mri.namespace == MetricNamespace::Transactions {
+    if mri.namespace == MetricNamespace::Transactions {
         let usage = matches!(mode, ExtractionMode::Usage);
-        EntityCount::Transactions(match metric.value() {
+        let count = match metric.value() {
             BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
             BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
             _ => 0,
-        })
+        };
+        let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+            && metric.tag(PROFILE_TAG) == Some("true");
+        BucketSummary::Transactions { count, has_profile }
     } else if mri.namespace == MetricNamespace::Spans {
-        EntityCount::Spans(match metric.value() {
+        BucketSummary::Spans(match metric.value() {
             BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
             _ => 0,
         })
     } else {
         // Nothing to count
-        return BucketSummary::default();
-    };
-
-    let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-        && metric.tag(PROFILE_TAG) == Some("true");
-
-    BucketSummary { count, has_profile }
+        BucketSummary::default()
+    }
 }
 
 /// Extracts quota information from a list of metric buckets.
@@ -80,16 +78,16 @@ where
     for bucket in buckets {
         quantities.buckets += 1;
         let summary = count_metric_bucket(bucket.into(), mode);
-        let (count, target) = match summary.count {
-            EntityCount::Transactions(count) => (count, &mut quantities.transactions),
-            EntityCount::Spans(count) => (count, &mut quantities.spans),
-            EntityCount::None => continue,
+        match summary {
+            BucketSummary::Transactions { count, has_profile } => {
+                quantities.transactions += count;
+                if has_profile {
+                    quantities.profiles += count;
+                }
+            }
+            BucketSummary::Spans(count) => quantities.spans += count,
+            BucketSummary::None => continue,
         };
-        *target += count;
-
-        if summary.has_profile {
-            quantities.profiles += count;
-        }
     }
 
     quantities
@@ -137,34 +135,30 @@ pub enum ExtractionMode {
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Default, Clone)]
-struct BucketSummary {
-    /// Number of countable entities.
-    pub count: EntityCount,
-    /// Whether the countable entities have associated profiles.
-    pub has_profile: bool,
+pub enum BucketSummary {
+    Transactions {
+        count: usize,
+        has_profile: bool,
+    },
+    Spans(usize),
+    #[default]
+    None,
 }
 
 impl BucketSummary {
     fn to_counts(&self) -> TotalEntityCounts {
-        let transactions = match self.count {
-            EntityCount::Transactions(count) => count,
-            _ => 0,
-        };
-        let spans = match self.count {
-            EntityCount::Spans(count) => count,
-            _ => 0,
-        };
-        let profiles = match self.count {
-            EntityCount::Transactions(count) | EntityCount::Spans(count) if self.has_profile => {
-                count
-            }
-            _ => 0,
-        };
-
-        TotalEntityCounts {
-            transactions,
-            spans,
-            profiles,
+        match *self {
+            BucketSummary::Transactions { count, has_profile } => TotalEntityCounts {
+                transactions: Some(count),
+                spans: None,
+                profiles: if has_profile { count } else { 0 },
+            },
+            BucketSummary::Spans(count) => TotalEntityCounts {
+                transactions: None,
+                spans: Some(count),
+                profiles: 0,
+            },
+            BucketSummary::None => TotalEntityCounts::default(),
         }
     }
 }
@@ -185,8 +179,8 @@ impl std::ops::Deref for SummarizedBucket {
 
 #[derive(Debug, Default, Clone)]
 struct TotalEntityCounts {
-    transactions: usize,
-    spans: usize,
+    transactions: Option<usize>,
+    spans: Option<usize>,
     profiles: usize,
 }
 
@@ -195,19 +189,22 @@ impl std::ops::Add for TotalEntityCounts {
 
     fn add(self, rhs: TotalEntityCounts) -> Self::Output {
         Self {
-            transactions: self.transactions + rhs.transactions,
-            spans: self.spans + rhs.spans,
+            transactions: add_some(self.transactions, rhs.transactions),
+            spans: add_some(self.spans, rhs.spans),
             profiles: self.profiles + rhs.profiles,
         }
     }
 }
 
-#[derive(Debug, Default, Clone)]
-enum EntityCount {
-    Transactions(usize),
-    Spans(usize),
-    #[default]
-    None,
+fn add_some<T>(a: Option<T>, b: Option<T>) -> Option<T>
+where
+    T: std::ops::Add<Output = T>,
+{
+    match (a, b) {
+        (None, None) => None,
+        (None, Some(c)) | (Some(c), None) => Some(c),
+        (Some(a), Some(b)) => Some(a + b),
+    }
 }
 
 impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
@@ -256,12 +253,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 
     // TODO: docs
-    pub fn transaction_count(&self) -> usize {
+    pub fn transaction_count(&self) -> Option<usize> {
         self.counts.transactions
     }
 
     // TODO: docs
-    pub fn span_count(&self) -> usize {
+    pub fn span_count(&self) -> Option<usize> {
         self.counts.spans
     }
 
@@ -278,46 +275,62 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         // Only keep buckets without counts:
         self.buckets = buckets
             .into_iter()
-            .filter_map(|b| match b.summary.count {
-                EntityCount::Transactions(_) if category == DataCategory::Transaction => None,
-                EntityCount::Spans(_) if category == DataCategory::Span => None,
+            .filter_map(|b| match b.summary {
+                BucketSummary::Transactions { .. } if category == DataCategory::Transaction => None,
+                BucketSummary::Spans(_) if category == DataCategory::Span => None,
                 _ => Some(b),
             })
             .collect();
 
         // Track outcome for the transaction metrics we dropped:
-        if category == DataCategory::Transaction && self.counts.transactions > 0 {
-            outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping: self.scoping,
-                outcome: outcome.clone(),
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Transaction,
-                quantity: self.counts.transactions as u32,
-            });
-        }
+        match (category, &self.counts) {
+            (
+                DataCategory::Transaction,
+                TotalEntityCounts {
+                    transactions: Some(count),
+                    ..
+                },
+            ) => {
+                outcome_aggregator.send(TrackOutcome {
+                    timestamp,
+                    scoping: self.scoping,
+                    outcome: outcome.clone(),
+                    event_id: None,
+                    remote_addr: None,
+                    category: DataCategory::Transaction,
+                    quantity: *count as u32,
+                });
 
-        // Track outcome for the span metrics we dropped:
-        if category == DataCategory::Span && self.counts.spans > 0 {
-            outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping: self.scoping,
-                outcome: outcome.clone(),
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Span,
-                quantity: self.counts.spans as u32,
-            });
-        }
+                self.report_profiles(outcome.clone(), timestamp, outcome_aggregator.clone());
+            }
 
-        self.report_profiles(outcome, timestamp, outcome_aggregator);
+            // Track outcome for the span metrics we dropped:
+            (
+                DataCategory::Span,
+                TotalEntityCounts {
+                    spans: Some(count), ..
+                },
+            ) => {
+                outcome_aggregator.send(TrackOutcome {
+                    timestamp,
+                    scoping: self.scoping,
+                    outcome: outcome.clone(),
+                    event_id: None,
+                    remote_addr: None,
+                    category: DataCategory::Span,
+                    quantity: *count as u32,
+                });
+            }
+            _ => {}
+        }
     }
 
     fn strip_profiles(&mut self) {
         for SummarizedBucket { bucket, summary } in self.buckets.iter_mut() {
-            if summary.has_profile {
-                bucket.remove_tag(PROFILE_TAG);
+            if let BucketSummary::Transactions { has_profile, .. } = summary {
+                if *has_profile {
+                    bucket.remove_tag(PROFILE_TAG);
+                }
             }
         }
     }
