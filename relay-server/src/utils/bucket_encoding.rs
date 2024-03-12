@@ -73,6 +73,8 @@ impl<'a> BucketEncoder<'a> {
         enc: BucketEncoding,
         data: T,
     ) -> io::Result<ArrayEncoding<'_, T>> {
+        // If the buffer is not cleared before encoding more data,
+        // the new data will just be appended to the end.
         self.buffer.clear();
 
         match enc {
