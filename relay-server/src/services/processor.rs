@@ -1961,7 +1961,7 @@ impl EnvelopeProcessorService {
         }
 
         let project_key = bucket_limiter.scoping().project_key;
-        let buckets = bucket_limiter.into_metrics();
+        let buckets = bucket_limiter.into_buckets();
 
         if !buckets.is_empty() {
             MetricStats::new(&buckets).emit(
@@ -2452,7 +2452,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.metrics()).into()
+                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets()).into()
             }
         }
     }

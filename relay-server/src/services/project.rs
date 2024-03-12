@@ -590,7 +590,7 @@ impl Project {
         match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
-                limiter.into_metrics()
+                limiter.into_buckets()
             }
             Err(metrics) => metrics,
         }
@@ -670,7 +670,7 @@ impl Project {
                     return;
                 }
 
-                bucket_limiter.into_metrics()
+                bucket_limiter.into_buckets()
             }
             Err(buckets) => buckets,
         };

@@ -1,4 +1,5 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
+
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
@@ -13,8 +14,8 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
 pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
-    /// A list of aggregated metric buckets.
-    buckets: Vec<Bucket>,
+    /// TODO: docs
+    buckets: Vec<SummarizedBucket>,
 
     /// The quotas set on the current project.
     quotas: Q,
@@ -22,10 +23,8 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// Project information.
     scoping: Scoping,
 
-    summaries: Vec<BucketSummary>,
-
     /// The number of transactions contributing to these metrics.
-    counts: BucketCounts,
+    counts: TotalEntityCounts,
 }
 
 const PROFILE_TAG: &str = "has_profile";
@@ -49,13 +48,13 @@ fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSu
 
     let count = if mri.namespace == MetricNamespace::Transactions {
         let usage = matches!(mode, ExtractionMode::Usage);
-        BucketCount::Transactions(match metric.value() {
+        EntityCount::Transactions(match metric.value() {
             BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
             BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
             _ => 0,
         })
     } else if mri.namespace == MetricNamespace::Spans {
-        BucketCount::Spans(match metric.value() {
+        EntityCount::Spans(match metric.value() {
             BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
             _ => 0,
         })
@@ -82,9 +81,9 @@ where
         quantities.buckets += 1;
         let summary = count_metric_bucket(bucket.into(), mode);
         let (count, target) = match summary.count {
-            BucketCount::Transactions(count) => (count, &mut quantities.transactions),
-            BucketCount::Spans(count) => (count, &mut quantities.spans),
-            BucketCount::None => continue,
+            EntityCount::Transactions(count) => (count, &mut quantities.transactions),
+            EntityCount::Spans(count) => (count, &mut quantities.spans),
+            EntityCount::None => continue,
         };
         *target += count;
 
@@ -140,29 +139,29 @@ pub enum ExtractionMode {
 #[derive(Debug, Default, Clone)]
 struct BucketSummary {
     /// Number of countable entities.
-    pub count: BucketCount,
+    pub count: EntityCount,
     /// Whether the countable entities have associated profiles.
     pub has_profile: bool,
 }
 
 impl BucketSummary {
-    fn to_counts(&self) -> BucketCounts {
+    fn to_counts(&self) -> TotalEntityCounts {
         let transactions = match self.count {
-            BucketCount::Transactions(count) => count,
+            EntityCount::Transactions(count) => count,
             _ => 0,
         };
         let spans = match self.count {
-            BucketCount::Spans(count) => count,
+            EntityCount::Spans(count) => count,
             _ => 0,
         };
         let profiles = match self.count {
-            BucketCount::Transactions(count) | BucketCount::Spans(count) if self.has_profile => {
+            EntityCount::Transactions(count) | EntityCount::Spans(count) if self.has_profile => {
                 count
             }
             _ => 0,
         };
 
-        BucketCounts {
+        TotalEntityCounts {
             transactions,
             spans,
             profiles,
@@ -170,18 +169,32 @@ impl BucketSummary {
     }
 }
 
+#[derive(Debug)]
+struct SummarizedBucket {
+    bucket: Bucket,
+    summary: BucketSummary,
+}
+
+impl std::ops::Deref for SummarizedBucket {
+    type Target = Bucket;
+
+    fn deref(&self) -> &Self::Target {
+        &self.bucket
+    }
+}
+
 #[derive(Debug, Default, Clone)]
-struct BucketCounts {
+struct TotalEntityCounts {
     transactions: usize,
     spans: usize,
     profiles: usize,
 }
 
-impl std::ops::Add for BucketCounts {
+impl std::ops::Add for TotalEntityCounts {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        BucketCounts {
+    fn add(self, rhs: TotalEntityCounts) -> Self::Output {
+        Self {
             transactions: self.transactions + rhs.transactions,
             spans: self.spans + rhs.spans,
             profiles: self.profiles + rhs.profiles,
@@ -189,15 +202,15 @@ impl std::ops::Add for BucketCounts {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-enum BucketCount {
+#[derive(Debug, Default, Clone)]
+enum EntityCount {
     Transactions(usize),
     Spans(usize),
     #[default]
     None,
 }
 
-impl BucketCount {
+impl EntityCount {
     fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
@@ -213,27 +226,28 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         scoping: Scoping,
         mode: ExtractionMode,
     ) -> Result<Self, Vec<Bucket>> {
-        let summaries: Vec<_> = buckets
-            .iter()
-            .map(|metric| count_metric_bucket(BucketView::new(metric), mode))
+        let buckets: Vec<_> = buckets
+            .into_iter()
+            .map(|bucket| {
+                let summary = count_metric_bucket(BucketView::new(&bucket), mode);
+                SummarizedBucket { bucket, summary }
+            })
             .collect();
 
         // Accumulate the total counts
-        let total_counts = summaries
+        let total_counts = buckets
             .iter()
-            .map(BucketSummary::to_counts)
+            .map(|b| b.summary.to_counts())
             .reduce(|a, b| a + b);
-
         if let Some(counts) = total_counts {
             Ok(Self {
                 buckets,
                 quotas,
                 scoping,
-                summaries,
                 counts,
             })
         } else {
-            Err(buckets)
+            Err(buckets.into_iter().map(|s| s.bucket).collect())
         }
     }
 
@@ -265,8 +279,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         // Only keep buckets without counts:
         self.buckets = buckets
             .into_iter()
-            .zip(self.summaries.iter())
-            .filter_map(|(bucket, summary)| summary.count.is_none().then_some(bucket))
+            .filter_map(|b| b.summary.count.is_none().then_some(b))
             .collect();
 
         // Track outcome for the transaction metrics we dropped:
@@ -299,7 +312,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 
     fn strip_profiles(&mut self) {
-        for (summary, bucket) in self.summaries.iter().zip(self.buckets.iter_mut()) {
+        for SummarizedBucket { bucket, summary } in self.buckets.iter_mut() {
             if summary.has_profile {
                 bucket.remove_tag(PROFILE_TAG);
             }
@@ -393,13 +406,13 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
     /// Returns a reference to the contained metrics.
     #[cfg(feature = "processing")]
-    pub fn metrics(&self) -> &[Bucket] {
-        &self.buckets
+    pub fn buckets(&self) -> impl Iterator<Item = &Bucket> {
+        self.buckets.iter().map(|s| &s.bucket)
     }
 
     /// Consume this struct and return the contained metrics.
-    pub fn into_metrics(self) -> Vec<Bucket> {
-        self.buckets
+    pub fn into_buckets(self) -> Vec<Bucket> {
+        self.buckets.into_iter().map(|s| s.bucket).collect()
     }
 }
 
@@ -571,7 +584,7 @@ mod tests {
         .unwrap();
 
         limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
-        let metrics = limiter.into_metrics();
+        let metrics = limiter.into_buckets();
 
         // All metrics have been preserved:
         assert_eq!(metrics.len(), 5);
