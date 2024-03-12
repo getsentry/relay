@@ -196,6 +196,10 @@ impl BucketEncodings {
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
+            // Always force the legacy encoding for sessions,
+            // sessions are not part of the generic metrics platform with different
+            // consumer which are not (yet) updated to support the new data.
+            MetricNamespace::Sessions => BucketEncoding::Legacy,
             _ => BucketEncoding::Legacy,
         }
     }
