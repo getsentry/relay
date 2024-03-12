@@ -358,7 +358,7 @@ impl StoreService {
         let mut error = None;
 
         let global_config = self.global_config.current();
-        let encoder = BucketEncoder::new(&global_config);
+        let mut encoder = BucketEncoder::new(&global_config);
 
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
@@ -370,7 +370,7 @@ impl StoreService {
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
-                    &encoder,
+                    &mut encoder,
                     namespace,
                     &view,
                     retention,
@@ -411,7 +411,7 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
-        encoder: &BucketEncoder,
+        encoder: &'a mut BucketEncoder,
         namespace: MetricNamespace,
         view: &BucketView<'a>,
         retention_days: u16,
@@ -814,14 +814,20 @@ impl StoreService {
         let payload = item.payload();
 
         let global_config = self.global_config.current();
-        let encoder = BucketEncoder::new(&global_config);
+        let mut encoder = BucketEncoder::new(&global_config);
 
         for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
             let namespace = encoder.prepare(&mut bucket);
 
             let view = BucketView::new(&bucket);
-            let message = self
-                .create_metric_message(org_id, project_id, &encoder, namespace, &view, retention);
+            let message = self.create_metric_message(
+                org_id,
+                project_id,
+                &mut encoder,
+                namespace,
+                &view,
+                retention,
+            );
             message.and_then(|message| self.send_metric_message(namespace, message))?;
         }
 
@@ -1438,9 +1444,9 @@ enum MetricValue<'a> {
     #[serde(rename = "c")]
     Counter(FiniteF64),
     #[serde(rename = "d")]
-    Distribution(ArrayEncoding<&'a [FiniteF64]>),
+    Distribution(ArrayEncoding<'a, &'a [FiniteF64]>),
     #[serde(rename = "s")]
-    Set(ArrayEncoding<SetView<'a>>),
+    Set(ArrayEncoding<'a, SetView<'a>>),
     #[serde(rename = "g")]
     Gauge(GaugeValue),
 }
