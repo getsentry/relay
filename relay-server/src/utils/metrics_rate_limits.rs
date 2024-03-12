@@ -9,7 +9,7 @@ use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
@@ -208,12 +208,6 @@ enum EntityCount {
     Spans(usize),
     #[default]
     None,
-}
-
-impl EntityCount {
-    fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
 }
 
 impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
@@ -430,136 +424,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn profiles_limits_are_reported() {
-        let metrics = vec![
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
-                tags: Default::default(),
-                value: BucketValue::distribution(123.into()),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.into()),
-            },
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".to_string(),
-                tags: Default::default(),
-                value: BucketValue::counter(1.into()),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.into()),
-            },
-            Bucket {
-                // unrelated metric
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "something_else".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.into()),
-            },
-        ];
-        let quotas = vec![Quota {
-            id: None,
-            categories: smallvec![DataCategory::Transaction],
-            scope: QuotaScope::Organization,
-            scope_id: None,
-            limit: Some(0),
-            window: None,
-            reason_code: None,
-            namespace: None,
-        }];
-        let (outcome_sink, mut rx) = Addr::custom();
-
-        let mut limiter = MetricsLimiter::create(
-            metrics,
-            quotas,
-            Scoping {
-                organization_id: 1,
-                project_id: ProjectId::new(1),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: None,
-            },
-            ExtractionMode::Usage,
-        )
-        .unwrap();
-
-        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
-
-        rx.close();
-
-        let outcomes: Vec<_> = (0..)
-            .map(|_| rx.blocking_recv())
-            .take_while(|o| o.is_some())
-            .flatten()
-            .map(|o| (o.outcome, o.category, o.quantity))
-            .collect();
-
-        assert_eq!(
-            outcomes,
-            vec![
-                (Outcome::RateLimited(None), DataCategory::Transaction, 2),
-                (Outcome::RateLimited(None), DataCategory::Profile, 1)
-            ]
-        );
-    }
-
-    /// A few different bucket types
-    fn mixed_bag() -> Vec<Bucket> {
-        vec![
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".to_string(),
-                tags: Default::default(),
-                value: BucketValue::counter(12.into()),
-            },
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:spans/usage@none".to_string(),
-                tags: Default::default(),
-                value: BucketValue::counter(34.into()),
-            },
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:spans/usage@none".to_string(),
-                tags: Default::default(),
-                value: BucketValue::counter(56.into()),
-            },
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:spans/exclusive_time@millisecond".to_string(),
-                tags: Default::default(),
-                value: BucketValue::distribution(78.into()),
-            },
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:custom/something@millisecond".to_string(),
-                tags: Default::default(),
-                value: BucketValue::distribution(78.into()),
-            },
-        ]
-    }
-
     fn deny(category: DataCategory) -> Vec<Quota> {
         vec![Quota {
             id: None,
@@ -606,6 +470,105 @@ mod tests {
             .collect();
 
         (metrics, outcomes)
+    }
+
+    #[test]
+    fn profiles_limits_are_reported() {
+        let metrics = vec![
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: Default::default(),
+                value: BucketValue::distribution(123.into()),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::distribution(456.into()),
+            },
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.into()),
+            },
+            Bucket {
+                // unrelated metric
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "something_else".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::distribution(123.into()),
+            },
+        ];
+        let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Transaction));
+
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics[0].name, "something_else");
+
+        assert_eq!(
+            outcomes,
+            vec![
+                (Outcome::RateLimited(None), DataCategory::Transaction, 2),
+                (Outcome::RateLimited(None), DataCategory::Profile, 1)
+            ]
+        )
+    }
+
+    /// A few different bucket types
+    fn mixed_bag() -> Vec<Bucket> {
+        vec![
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(12.into()),
+            },
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:spans/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(34.into()),
+            },
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:spans/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(56.into()),
+            },
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:spans/exclusive_time@millisecond".to_string(),
+                tags: Default::default(),
+                value: BucketValue::distribution(78.into()),
+            },
+            Bucket {
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:custom/something@millisecond".to_string(),
+                tags: Default::default(),
+                value: BucketValue::distribution(78.into()),
+            },
+        ]
     }
 
     #[test]
