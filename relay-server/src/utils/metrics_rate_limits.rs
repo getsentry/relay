@@ -271,7 +271,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         self.counts.spans
     }
 
-    fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
+    fn drop_with_outcome(
+        &mut self,
+        category: DataCategory,
+        outcome: Outcome,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         // Drop transaction buckets:
         let buckets = std::mem::take(&mut self.buckets);
         let timestamp = Utc::now();
@@ -279,11 +284,15 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         // Only keep buckets without counts:
         self.buckets = buckets
             .into_iter()
-            .filter_map(|b| b.summary.count.is_none().then_some(b))
+            .filter_map(|b| match b.summary.count {
+                EntityCount::Transactions(_) if category == DataCategory::Transaction => None,
+                EntityCount::Spans(_) if category == DataCategory::Span => None,
+                _ => Some(b),
+            })
             .collect();
 
         // Track outcome for the transaction metrics we dropped:
-        if self.counts.transactions > 0 {
+        if category == DataCategory::Transaction && self.counts.transactions > 0 {
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: self.scoping,
@@ -296,7 +305,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         }
 
         // Track outcome for the span metrics we dropped:
-        if self.counts.spans > 0 {
+        if category == DataCategory::Span && self.counts.spans > 0 {
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: self.scoping,
@@ -363,9 +372,10 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     let active_rate_limits =
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
 
-                    // If a rate limit is active, discard transaction buckets.
+                    // If a rate limit is active, discard relevant buckets.
                     if let Some(limit) = active_rate_limits.longest() {
                         self.drop_with_outcome(
+                            category,
                             Outcome::RateLimited(limit.reason_code.clone()),
                             outcome_aggregator.clone(),
                         );
@@ -392,12 +402,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 }
             }
             Err(_) => {
-                // Error from rate limiter, drop transaction buckets.
-                self.drop_with_outcome(
-                    Outcome::Invalid(DiscardReason::Internal),
-                    outcome_aggregator,
-                );
-                dropped_stuff = true;
+                // Error from rate limiter, keep everything.
             }
         };
 
@@ -535,8 +540,8 @@ mod tests {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
                 name: "c:spans/usage@none".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(56.into()),
+                tags: Default::default(),
+                value: BucketValue::counter(56.into()),
             },
             Bucket {
                 timestamp: UnixTimestamp::now(),
@@ -546,11 +551,10 @@ mod tests {
                 value: BucketValue::distribution(78.into()),
             },
             Bucket {
-                // Unrelated metric with has_profile tag
                 timestamp: UnixTimestamp::now(),
                 width: 0,
                 name: "d:custom/something@millisecond".to_string(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
             },
         ]
@@ -614,7 +618,7 @@ mod tests {
 
         assert_eq!(
             outcomes,
-            vec![(Outcome::RateLimited(None), DataCategory::Profile, 1)]
+            vec![(Outcome::RateLimited(None), DataCategory::Span, 90)]
         );
     }
 }
