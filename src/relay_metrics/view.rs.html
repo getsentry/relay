@@ -1463,7 +1463,7 @@
     <span class="doccomment">/// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.name
     }
 
@@ -1480,14 +1480,14 @@
     <span class="doccomment">/// Name of the bucket.
     ///
     /// See also: [`Bucket::tags`]
-    </span><span class="kw">pub fn </span>tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt; {
+    </span><span class="kw">pub fn </span>tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, String&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.tags
     }
 
     <span class="doccomment">/// Returns the value of the specified tag if it exists.
     ///
     /// See also: [`Bucket::tag()`]
-    </span><span class="kw">pub fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    </span><span class="kw">pub fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; {
         <span class="self">self</span>.inner.tag(name)
     }
 

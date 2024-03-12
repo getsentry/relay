@@ -1889,40 +1889,8 @@
 <a href="#1888" id="1888">1888</a>
 <a href="#1889" id="1889">1889</a>
 <a href="#1890" id="1890">1890</a>
-<a href="#1891" id="1891">1891</a>
-<a href="#1892" id="1892">1892</a>
-<a href="#1893" id="1893">1893</a>
-<a href="#1894" id="1894">1894</a>
-<a href="#1895" id="1895">1895</a>
-<a href="#1896" id="1896">1896</a>
-<a href="#1897" id="1897">1897</a>
-<a href="#1898" id="1898">1898</a>
-<a href="#1899" id="1899">1899</a>
-<a href="#1900" id="1900">1900</a>
-<a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
-<a href="#1903" id="1903">1903</a>
-<a href="#1904" id="1904">1904</a>
-<a href="#1905" id="1905">1905</a>
-<a href="#1906" id="1906">1906</a>
-<a href="#1907" id="1907">1907</a>
-<a href="#1908" id="1908">1908</a>
-<a href="#1909" id="1909">1909</a>
-<a href="#1910" id="1910">1910</a>
-<a href="#1911" id="1911">1911</a>
-<a href="#1912" id="1912">1912</a>
-<a href="#1913" id="1913">1913</a>
-<a href="#1914" id="1914">1914</a>
-<a href="#1915" id="1915">1915</a>
-<a href="#1916" id="1916">1916</a>
-<a href="#1917" id="1917">1917</a>
-<a href="#1918" id="1918">1918</a>
-<a href="#1919" id="1919">1919</a>
-<a href="#1920" id="1920">1920</a>
-<a href="#1921" id="1921">1921</a>
-<a href="#1922" id="1922">1922</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
-//! The service uses kafka topics to forward data to Sentry
+//! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -1936,7 +1904,6 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::{instant_to_date_time, UnixTimestamp};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_dynamic_config::MetricEncoding;
 <span class="kw">use </span>relay_event_schema::protocol::{
     <span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
 };
@@ -1944,7 +1911,7 @@
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
-    MetricResourceIdentifier, SetView,
+    SetView,
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1959,7 +1926,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, TypedEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
 
 <span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
 </span><span class="kw">const </span>MAX_EXPLODED_SESSIONS: usize = <span class="number">100</span>;
@@ -1971,6 +1938,8 @@
 </span><span class="kw">pub enum </span>StoreError {
     <span class="attr">#[error(<span class="string">"failed to send the message to kafka"</span>)]
     </span>SendFailed(<span class="attr">#[from] </span>ClientError),
+    <span class="attr">#[error(<span class="string">"failed to encode data: {0}"</span>)]
+    </span>EncodingFailed(std::io::Error),
     <span class="attr">#[error(<span class="string">"failed to store event because event id was missing"</span>)]
     </span>NoEventId,
 }
@@ -2279,27 +2248,28 @@
         <span class="kw">let </span><span class="kw-2">mut </span>dropped = SourceQuantities::default();
         <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
 
-        <span class="kw">let </span>encodings = <span class="self">self</span>.global_config.current().options.metric_bucket_encodings;
+        <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
+        <span class="kw">let </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
 
-        <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
+        <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>buckets {
+            <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
+
             <span class="comment">// Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
             </span><span class="kw">for </span>view <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>[bucket]).by_size(batch_size).flatten() {
-                <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(view.name())
-                    .map(|mri| mri.namespace)
-                    .unwrap_or(MetricNamespace::Unsupported);
-                <span class="kw">let </span>encoding = encodings.for_namespace(namespace);
-
                 <span class="kw">let </span>message = <span class="self">self</span>.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
-                    encoding,
+                    <span class="kw-2">&amp;</span>encoder,
+                    namespace,
                     <span class="kw-2">&amp;</span>view,
                     retention,
                 );
 
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.send_metric_message(namespace, message) {
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(e) =
+                    message.and_then(|message| <span class="self">self</span>.send_metric_message(namespace, message))
+                {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
@@ -2332,20 +2302,27 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         organization_id: u64,
         project_id: ProjectId,
-        encoding: MetricEncoding,
-        view: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BucketView&lt;<span class="lifetime">'a</span>&gt;,
+        encoder: <span class="kw-2">&amp;</span>BucketEncoder,
+        namespace: MetricNamespace,
+        view: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'a</span>&gt;,
         retention_days: u16,
-    ) -&gt; MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt;, StoreError&gt; {
         <span class="kw">let </span>value = <span class="kw">match </span>view.value() {
             BucketViewValue::Counter(c) =&gt; MetricValue::Counter(c),
-            BucketViewValue::Distribution(d) =&gt; {
-                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
-            }
-            BucketViewValue::Set(s) =&gt; MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Distribution(data) =&gt; MetricValue::Distribution(
+                encoder
+                    .encode_distribution(namespace, data)
+                    .map_err(StoreError::EncodingFailed)<span class="question-mark">?</span>,
+            ),
+            BucketViewValue::Set(data) =&gt; MetricValue::Set(
+                encoder
+                    .encode_set(namespace, data)
+                    .map_err(StoreError::EncodingFailed)<span class="question-mark">?</span>,
+            ),
             BucketViewValue::Gauge(g) =&gt; MetricValue::Gauge(g),
         };
 
-        MetricKafkaMessage {
+        <span class="prelude-val">Ok</span>(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
             name: view.name(),
@@ -2353,7 +2330,7 @@
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
-        }
+        })
     }
 
     <span class="kw">fn </span>extract_kafka_messages_for_event(
@@ -2726,19 +2703,17 @@
         retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>payload = item.payload();
-        <span class="kw">let </span>encodings = <span class="self">self</span>.global_config.current().options.metric_bucket_encodings;
 
-        <span class="kw">for </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
+        <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
+        <span class="kw">let </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
+
+        <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
+            <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
+
             <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket);
-
-            <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(view.name())
-                .map(|mri| mri.namespace)
-                .unwrap_or(MetricNamespace::Unsupported);
-            <span class="kw">let </span>encoding = encodings.for_namespace(namespace);
-
-            <span class="kw">let </span>message =
-                <span class="self">self</span>.create_metric_message(org_id, project_id, encoding, <span class="kw-2">&amp;</span>view, retention);
-            <span class="self">self</span>.send_metric_message(namespace, message)<span class="question-mark">?</span>;
+            <span class="kw">let </span>message = <span class="self">self
+                </span>.create_metric_message(org_id, project_id, <span class="kw-2">&amp;</span>encoder, namespace, <span class="kw-2">&amp;</span>view, retention);
+            message.and_then(|message| <span class="self">self</span>.send_metric_message(namespace, message))<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -3378,45 +3353,6 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
-}
-
-<span class="attr">#[derive(Clone, Debug, Serialize)]
-#[serde(untagged)]
-</span><span class="kw">enum </span>ArrayEncoding&lt;T&gt; {
-    <span class="doccomment">/// The original, legacy, encoding.
-    ///
-    /// Encodes all values as a JSON array of numbers.
-    </span>Legacy(T),
-    <span class="doccomment">/// Dynamic encoding supporting multiple formats.
-    ///
-    /// Adds metadata and adds support for multiple different encodings.
-    </span>Dynamic(DynamicArrayEncoding&lt;T&gt;),
-}
-
-<span class="kw">impl</span>&lt;T&gt; ArrayEncoding&lt;T&gt; {
-    <span class="doccomment">/// Builds a [`ArrayEncoding`] from the format and the data.
-    </span><span class="kw">fn </span>new(encoding: MetricEncoding, data: T) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span>encoding {
-            MetricEncoding::Legacy =&gt; <span class="self">Self</span>::Legacy(data),
-            MetricEncoding::Array =&gt; <span class="self">Self</span>::Dynamic(DynamicArrayEncoding::Array { data }),
-        }
-    }
-
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Legacy(<span class="kw">_</span>) =&gt; <span class="string">"legacy"</span>,
-            <span class="self">Self</span>::Dynamic(DynamicArrayEncoding::Array { .. }) =&gt; <span class="string">"array"</span>,
-        }
-    }
-}
-
-<span class="attr">#[derive(Clone, Debug, Serialize)]
-#[serde(tag = <span class="string">"format"</span>, rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">enum </span>DynamicArrayEncoding&lt;T&gt; {
-    <span class="doccomment">/// JSON Array encoding.
-    ///
-    /// Encodes all items as a JSON array.
-    </span>Array { data: T },
 }
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
