@@ -1037,7 +1037,7 @@ def test_span_ingestion_with_performance_scores(
                 {
                     "categories": ["span", "span_indexed"],
                     "limit": 0,
-                    "reasonCode": "indexed_exceeded",
+                    "reasonCode": "both_exceeded",
                 },
             ],
             lambda _: False,
@@ -1093,11 +1093,13 @@ def test_quotas_standalone(mini_sentry, relay, quotas, expect_spans, metrics_ext
         assert item.type == "client_report"
         outcomes = json.loads(item.payload.get_bytes())["rate_limited_events"]
         assert len(outcomes) == 1
-        assert outcomes[0] == {
-            "category": quotas[0]["categories"][0],
-            "quantity": 4,
-            "reason": quotas[0]["reasonCode"],
-        }
+        assert outcomes == [
+            {
+                "category": "span_indexed",
+                "quantity": 4,
+                "reason": quotas[0]["reasonCode"],
+            },
+        ]
 
 
 def test_rate_limit_indexed_consistent(
