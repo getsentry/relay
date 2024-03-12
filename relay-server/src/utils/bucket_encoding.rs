@@ -10,12 +10,16 @@ static BASE64: data_encoding::Encoding = data_encoding::BASE64;
 
 pub struct BucketEncoder<'a> {
     global_config: &'a GlobalConfig,
+    buffer: String,
 }
 
 impl<'a> BucketEncoder<'a> {
     /// Creates a new bucket encoder with the provided config.
     pub fn new(global_config: &'a GlobalConfig) -> Self {
-        Self { global_config }
+        Self {
+            global_config,
+            buffer: String::new(),
+        }
     }
 
     /// Prepares the bucket before encoding.
@@ -44,34 +48,42 @@ impl<'a> BucketEncoder<'a> {
 
     /// Encodes a distribution.
     pub fn encode_distribution<'data>(
-        &self,
+        &mut self,
         namespace: MetricNamespace,
         dist: &'data [FiniteF64],
-    ) -> io::Result<ArrayEncoding<&'data [FiniteF64]>> {
+    ) -> io::Result<ArrayEncoding<'_, &'data [FiniteF64]>> {
         let enc = self.global_config.options.metric_bucket_dist_encodings;
         let enc = enc.for_namespace(namespace);
-        Self::do_encode(enc, dist)
+        self.do_encode(enc, dist)
     }
 
     /// Encodes a set.
     pub fn encode_set<'data>(
-        &self,
+        &mut self,
         namespace: MetricNamespace,
         set: SetView<'data>,
-    ) -> io::Result<ArrayEncoding<SetView<'data>>> {
+    ) -> io::Result<ArrayEncoding<'_, SetView<'data>>> {
         let enc = self.global_config.options.metric_bucket_set_encodings;
         let enc = enc.for_namespace(namespace);
-        Self::do_encode(enc, set)
+        self.do_encode(enc, set)
     }
 
-    fn do_encode<T: Encodable>(enc: BucketEncoding, data: T) -> io::Result<ArrayEncoding<T>> {
+    fn do_encode<T: Encodable>(
+        &mut self,
+        enc: BucketEncoding,
+        data: T,
+    ) -> io::Result<ArrayEncoding<'_, T>> {
+        // If the buffer is not cleared before encoding more data,
+        // the new data will just be appended to the end.
+        self.buffer.clear();
+
         match enc {
             BucketEncoding::Legacy => Ok(ArrayEncoding::Legacy(data)),
             BucketEncoding::Array => {
                 Ok(ArrayEncoding::Dynamic(DynamicArrayEncoding::Array { data }))
             }
-            BucketEncoding::Base64 => base64(data),
-            BucketEncoding::Zstd => zstd(data),
+            BucketEncoding::Base64 => base64(data, &mut self.buffer),
+            BucketEncoding::Zstd => zstd(data, &mut self.buffer),
         }
     }
 }
@@ -79,7 +91,7 @@ impl<'a> BucketEncoder<'a> {
 /// Dynamic array encoding intended for distribution and set metric buckets.
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
-pub enum ArrayEncoding<T> {
+pub enum ArrayEncoding<'a, T> {
     /// The original, legacy, encoding.
     ///
     /// Encodes all values as an array of numbers.
@@ -87,10 +99,10 @@ pub enum ArrayEncoding<T> {
     /// Dynamic encoding supporting multiple formats.
     ///
     /// Adds metadata and adds support for multiple different encodings.
-    Dynamic(DynamicArrayEncoding<T>),
+    Dynamic(DynamicArrayEncoding<'a, T>),
 }
 
-impl<T> ArrayEncoding<T> {
+impl<'a, T> ArrayEncoding<'a, T> {
     /// Name of the encoding.
     ///
     /// Should only be used for debugging purposes.
@@ -104,7 +116,7 @@ impl<T> ArrayEncoding<T> {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "format", rename_all = "lowercase")]
-pub enum DynamicArrayEncoding<T> {
+pub enum DynamicArrayEncoding<'a, T> {
     /// Array encoding.
     ///
     /// Encodes all items as an array.
@@ -113,7 +125,7 @@ pub enum DynamicArrayEncoding<T> {
     ///
     /// Converts all items to little endian byte sequences
     /// and Base64 encodes the raw little endian bytes.
-    Base64 { data: String },
+    Base64 { data: &'a str },
     /// Zstd encoding.
     ///
     /// Converts all items to little endian byte sequences,
@@ -121,10 +133,10 @@ pub enum DynamicArrayEncoding<T> {
     /// using Base64 (with padding).
     ///
     /// Items may be sorted to achieve better compression results.
-    Zstd { data: String },
+    Zstd { data: &'a str },
 }
 
-impl<T> DynamicArrayEncoding<T> {
+impl<'a, T> DynamicArrayEncoding<'a, T> {
     /// Returns the serialized format name.
     pub fn format(&self) -> &'static str {
         match self {
@@ -135,22 +147,19 @@ impl<T> DynamicArrayEncoding<T> {
     }
 }
 
-fn base64<T: Encodable>(data: T) -> io::Result<ArrayEncoding<T>> {
-    let mut encoded = String::new();
-
-    let mut writer = EncoderWriteAdapter(BASE64.new_encoder(&mut encoded));
+fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
+    let mut writer = EncoderWriteAdapter(BASE64.new_encoder(buffer));
     data.write_to(&mut writer)?;
     drop(writer);
 
     Ok(ArrayEncoding::Dynamic(DynamicArrayEncoding::Base64 {
-        data: encoded,
+        data: buffer,
     }))
 }
 
-fn zstd<T: Encodable>(data: T) -> io::Result<ArrayEncoding<T>> {
-    let mut encoded = String::new();
+fn zstd<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
     let mut writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64.new_encoder(&mut encoded)),
+        EncoderWriteAdapter(BASE64.new_encoder(buffer)),
         zstd::DEFAULT_COMPRESSION_LEVEL,
     )?;
 
@@ -159,7 +168,7 @@ fn zstd<T: Encodable>(data: T) -> io::Result<ArrayEncoding<T>> {
     writer.finish()?;
 
     Ok(ArrayEncoding::Dynamic(DynamicArrayEncoding::Zstd {
-        data: encoded,
+        data: buffer,
     }))
 }
 
