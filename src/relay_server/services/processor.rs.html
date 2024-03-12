@@ -4569,11 +4569,9 @@
                 <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                     span::maybe_discard_transaction(state);
                 });
-
                 <span class="kw">if </span>state.has_event() {
                     event::serialize(state)<span class="question-mark">?</span>;
                 }
-
                 attachment::scrub(state);
             }
         );
@@ -4651,19 +4649,21 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Processes spans.
-    </span><span class="kw">fn </span>process_spans(
+    <span class="doccomment">/// Processes standalone spans.
+    ///
+    /// This function does *not* run for spans extracted from transactions.
+    </span><span class="kw">fn </span>process_standalone_spans(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         span::filter(state);
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
             span::process(
                 state,
                 <span class="self">self</span>.inner.config.clone(),
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
             );
+            <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -4715,7 +4715,7 @@
             ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(process_client_reports),
             ProcessingGroup::Replay =&gt; <span class="macro">run!</span>(process_replays),
             ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins),
-            ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_spans),
+            ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_standalone_spans),
             <span class="comment">// Currently is not used.
             </span>ProcessingGroup::Metrics =&gt; {
                 <span class="comment">// In proxy mode we simply forward the metrics.

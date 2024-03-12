@@ -882,7 +882,7 @@
     /// if the context needs to be updated in-flight without recomputing the entire summary, this
     /// method can record that metric extraction for the event item has occurred.
     </span><span class="kw">pub fn </span>set_event_metrics_extracted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.context.summary.event_metrics_extracted = <span class="bool-val">true</span>;
+        <span class="self">self</span>.context.summary.transaction_metrics_extracted = <span class="bool-val">true</span>;
         <span class="self">self
     </span>}
 
@@ -939,7 +939,7 @@
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
     </span><span class="kw">fn </span>use_index_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.context.summary.event_metrics_extracted
+        <span class="self">self</span>.context.summary.transaction_metrics_extracted
     }
 
     <span class="doccomment">/// Returns the data category of the event item in the envelope.
