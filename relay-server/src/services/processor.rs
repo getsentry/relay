@@ -1718,6 +1718,7 @@ impl EnvelopeProcessorService {
         let from_internal = relay.map_or(false, |ri| ri.internal);
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            // Reset the bucket metadata when a downstream/non trusted Relay sent the request.
             if !from_internal {
                 bucket.metadata = BucketMetadata::new();
             }
@@ -1753,8 +1754,7 @@ impl EnvelopeProcessorService {
                 for (public_key, mut buckets) in buckets {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                        // Reset the bucket metadata when a downstream/non trusted Relay
-                        // sent the request.
+                        // Reset the bucket metadata when a downstream/non trusted Relay sent the request.
                         if !relay.internal {
                             bucket.metadata = BucketMetadata::new();
                         }

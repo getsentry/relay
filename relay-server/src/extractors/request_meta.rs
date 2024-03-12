@@ -473,7 +473,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             .and_then(|h| h.parse::<RelayId>().ok());
 
         if let Some(relay_id) = relay_id {
-            relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id.to_string()));
+            relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
 
             relay = state
                 .relay_cache()
