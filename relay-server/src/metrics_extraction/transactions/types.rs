@@ -233,6 +233,7 @@ pub enum CommonTag {
     OsName,
     GeoCountryCode,
     DeviceClass,
+    ScoreProfileVersion,
     Custom(String),
 }
 
@@ -252,6 +253,7 @@ impl Display for CommonTag {
             CommonTag::OsName => "os.name",
             CommonTag::GeoCountryCode => "geo.country_code",
             CommonTag::DeviceClass => "device.class",
+            CommonTag::ScoreProfileVersion => "sentry.score_profile_version",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")

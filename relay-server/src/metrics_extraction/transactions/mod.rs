@@ -27,11 +27,12 @@ const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 /// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
 ///
 /// These are a subset of "universal" tags.
-const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
+const PERFORMANCE_SCORE_TAGS: [CommonTag; 7] = [
     CommonTag::BrowserName,
     CommonTag::Environment,
     CommonTag::GeoCountryCode,
     CommonTag::Release,
+    CommonTag::ScoreProfileVersion,
     CommonTag::Transaction,
     CommonTag::TransactionOp,
 ];
@@ -312,13 +313,21 @@ impl TransactionExtractor<'_> {
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value.to_f64()),
                     universal_tags: if is_performance_score {
-                        CommonTags(
+                        let mut measurement_tags = CommonTags(
                             tags.0
                                 .iter()
                                 .filter(|&(key, _)| PERFORMANCE_SCORE_TAGS.contains(key))
                                 .map(|(key, value)| (key.clone(), value.clone()))
                                 .collect::<BTreeMap<_, _>>(),
-                        )
+                        );
+                        if let Some(profile_version) =
+                            event.tag_value(&CommonTag::ScoreProfileVersion.to_string())
+                        {
+                            measurement_tags
+                                .0
+                                .insert(CommonTag::ScoreProfileVersion, profile_version.to_owned());
+                        }
+                        measurement_tags
                     } else {
                         tags.clone()
                     },
@@ -599,7 +608,7 @@ mod tests {
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
-                        version: Some("".into()),
+                        version: Some("alpha".into()),
                     }],
                 }),
                 ..Default::default()
@@ -726,6 +735,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },
@@ -744,6 +754,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },
@@ -762,6 +773,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },

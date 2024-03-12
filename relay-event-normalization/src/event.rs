@@ -2723,7 +2723,7 @@ mod tests {
           "start_timestamp": 1619420400.0,
           "tags": [
             [
-              "score.profile_version",
+              "sentry.score_profile_version",
               "beta",
             ],
           ],
