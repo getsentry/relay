@@ -159,8 +159,8 @@ pub struct EnvelopeSummary {
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 
-    /// Whether the envelope contains an event which already had the metrics extracted.
-    pub event_metrics_extracted: bool,
+    /// Whether the envelope contains a transaction which already had the metrics extracted.
+    pub transaction_metrics_extracted: bool,
 
     /// Whether the envelope contains spans which already had metrics extracted.
     pub span_metrics_extracted: bool,
@@ -188,7 +188,7 @@ impl EnvelopeSummary {
             }
 
             if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
-                summary.event_metrics_extracted = true;
+                summary.transaction_metrics_extracted = true;
             }
 
             if item.is_span() && item.metrics_extracted() {
@@ -478,7 +478,7 @@ where
         let mut summary = EnvelopeSummary::compute(envelope);
         if let Some((event_category, metrics_extracted)) = self.event_category {
             summary.event_category = Some(event_category);
-            summary.event_metrics_extracted = metrics_extracted;
+            summary.transaction_metrics_extracted = metrics_extracted;
         }
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
@@ -526,13 +526,13 @@ where
 
                 // Only enforce and record an outcome if metrics haven't been extracted yet.
                 // Otherwise, the outcome is logged at a different place.
-                if !summary.event_metrics_extracted {
+                if !summary.transaction_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
                 }
 
                 // If the main category is rate limited, we drop both the event and metrics. If
                 // there's no rate limit, check for specific indexing quota and drop just the event.
-                if summary.event_metrics_extracted && longest.is_none() {
+                if summary.transaction_metrics_extracted && longest.is_none() {
                     event_limits = (self.check)(scoping.item(index_category), 1)?;
                     longest = event_limits.longest();
                 }
@@ -554,7 +554,7 @@ where
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
             enforcement.profiles = CategoryLimit::new(
-                if summary.event_metrics_extracted {
+                if summary.transaction_metrics_extracted {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile
@@ -598,7 +598,7 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                if summary.event_metrics_extracted {
+                if summary.transaction_metrics_extracted {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile
