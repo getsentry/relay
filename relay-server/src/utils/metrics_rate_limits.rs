@@ -609,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn span_quota_enforced() {
+    fn mixed_with_span_quota() {
         let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
 
         assert_eq!(metrics.len(), 2);
@@ -619,6 +619,22 @@ mod tests {
         assert_eq!(
             outcomes,
             vec![(Outcome::RateLimited(None), DataCategory::Span, 90)]
+        );
+    }
+
+    #[test]
+    fn mixed_with_transaction_quota() {
+        let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Transaction));
+
+        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics[0].name, "c:spans/usage@none");
+        assert_eq!(metrics[1].name, "c:spans/usage@none");
+        assert_eq!(metrics[2].name, "d:spans/exclusive_time@millisecond");
+        assert_eq!(metrics[3].name, "d:custom/something@millisecond");
+
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Transaction, 12)]
         );
     }
 }
