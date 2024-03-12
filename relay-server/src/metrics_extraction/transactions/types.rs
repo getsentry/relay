@@ -177,6 +177,7 @@ impl From<UsageTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TransactionMeasurementTags {
     pub measurement_rating: Option<String>,
+    pub score_profile_version: Option<String>,
     pub universal_tags: CommonTags,
 }
 
@@ -185,6 +186,12 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
         if let Some(decision) = value.measurement_rating {
             map.insert("measurement_rating".to_string(), decision);
+        }
+        if let Some(score_profile_version) = value.score_profile_version {
+            map.insert(
+                "sentry.score_profile_version".to_string(),
+                score_profile_version,
+            );
         }
         map
     }
@@ -233,7 +240,6 @@ pub enum CommonTag {
     OsName,
     GeoCountryCode,
     DeviceClass,
-    ScoreProfileVersion,
     Custom(String),
 }
 
@@ -253,7 +259,6 @@ impl Display for CommonTag {
             CommonTag::OsName => "os.name",
             CommonTag::GeoCountryCode => "geo.country_code",
             CommonTag::DeviceClass => "device.class",
-            CommonTag::ScoreProfileVersion => "sentry.score_profile_version",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")

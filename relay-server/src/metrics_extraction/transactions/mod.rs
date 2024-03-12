@@ -27,12 +27,11 @@ const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 /// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
 ///
 /// These are a subset of "universal" tags.
-const PERFORMANCE_SCORE_TAGS: [CommonTag; 7] = [
+const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
     CommonTag::BrowserName,
     CommonTag::Environment,
     CommonTag::GeoCountryCode,
     CommonTag::Release,
-    CommonTag::ScoreProfileVersion,
     CommonTag::Transaction,
     CommonTag::TransactionOp,
 ];
@@ -313,23 +312,22 @@ impl TransactionExtractor<'_> {
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value.to_f64()),
                     universal_tags: if is_performance_score {
-                        let mut measurement_tags = CommonTags(
+                        CommonTags(
                             tags.0
                                 .iter()
                                 .filter(|&(key, _)| PERFORMANCE_SCORE_TAGS.contains(key))
                                 .map(|(key, value)| (key.clone(), value.clone()))
                                 .collect::<BTreeMap<_, _>>(),
-                        );
-                        if let Some(profile_version) =
-                            event.tag_value(&CommonTag::ScoreProfileVersion.to_string())
-                        {
-                            measurement_tags
-                                .0
-                                .insert(CommonTag::ScoreProfileVersion, profile_version.to_owned());
-                        }
-                        measurement_tags
+                        )
                     } else {
                         tags.clone()
+                    },
+                    score_profile_version: if is_performance_score {
+                        event
+                            .tag_value("sentry.score_profile_version")
+                            .map(|version| version.to_string())
+                    } else {
+                        None
                     },
                 };
 
