@@ -654,8 +654,6 @@ where
                     summary.span_quantity,
                 )?;
                 longest = span_limits.longest();
-                enforcement.spans =
-                    CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
             }
 
             enforcement.spans =
