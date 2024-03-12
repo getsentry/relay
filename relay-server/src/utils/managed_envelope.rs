@@ -326,7 +326,7 @@ impl ManagedEnvelope {
     /// if the context needs to be updated in-flight without recomputing the entire summary, this
     /// method can record that metric extraction for the event item has occurred.
     pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
-        self.context.summary.event_metrics_extracted = true;
+        self.context.summary.transaction_metrics_extracted = true;
         self
     }
 
@@ -383,7 +383,7 @@ impl ManagedEnvelope {
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
     fn use_index_category(&self) -> bool {
-        self.context.summary.event_metrics_extracted
+        self.context.summary.transaction_metrics_extracted
     }
 
     /// Returns the data category of the event item in the envelope.

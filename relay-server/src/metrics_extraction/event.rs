@@ -167,6 +167,19 @@ mod tests {
                     }
                 },
                 {
+                    "description": "GET /hi/this/is/just/the/path",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET",
+                        "status_code": "500"
+                    }
+                },
+                {
                     "description": "POST http://127.0.0.1:1234/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
