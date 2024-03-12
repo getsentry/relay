@@ -1492,7 +1492,7 @@ mod tests {
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             BucketMetadata {
-                volume: 5,
+                merges: 5,
             },
         ]
         "###);

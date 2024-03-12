@@ -907,7 +907,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -938,7 +938,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -987,7 +987,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -1044,7 +1044,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -1071,7 +1071,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -1092,7 +1092,7 @@ mod tests {
             ),
             tags: {},
             metadata: BucketMetadata {
-                volume: 1,
+                merges: 1,
             },
         }
         "###);
@@ -1273,7 +1273,7 @@ mod tests {
                     "route": "user_index",
                 },
                 metadata: BucketMetadata {
-                    volume: 1,
+                    merges: 1,
                 },
             },
         ]
@@ -1304,7 +1304,7 @@ mod tests {
                 ),
                 tags: {},
                 metadata: BucketMetadata {
-                    volume: 1,
+                    merges: 1,
                 },
             },
         ]
