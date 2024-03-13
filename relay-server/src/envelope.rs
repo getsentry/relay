@@ -586,8 +586,14 @@ pub struct SourceQuantities {
 
 impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
-        self.transactions += other.transactions;
-        self.profiles += other.profiles;
+        let Self {
+            transactions,
+            profiles,
+            buckets,
+        } = self;
+        *transactions += other.transactions;
+        *profiles += other.profiles;
+        *buckets = other.buckets;
     }
 }
 
