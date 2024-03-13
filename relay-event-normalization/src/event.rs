@@ -2870,7 +2870,6 @@ mod tests {
             "timestamp": "2021-04-26T08:00:05+0100",
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "measurements": {
-                "cls": {"value": 0.11},
                 "inp": {"value": 120.0}
             }
         }
@@ -2880,22 +2879,6 @@ mod tests {
 
         let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
             "profiles": [
-                {
-                    "name": "Desktop",
-                    "scoreComponents": [
-                        {
-                            "measurement": "cls",
-                            "weight": 0,
-                            "p10": 0.1,
-                            "p50": 0.25
-                        },
-                    ],
-                    "condition": {
-                        "op":"and",
-                        "inner": []
-                    },
-                    "version": "alpha"
-                },
                 {
                     "name": "Desktop",
                     "scoreComponents": [
