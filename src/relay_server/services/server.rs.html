@@ -144,6 +144,17 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -155,7 +166,8 @@
 <span class="kw">use </span>relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 <span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
 <span class="kw">use </span>tower::ServiceBuilder;
-<span class="kw">use </span>tower_http::compression::CompressionLayer;
+<span class="kw">use </span>tower_http::compression::predicate::SizeAbove;
+<span class="kw">use </span>tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 <span class="kw">use </span>tower_http::set_header::SetResponseHeaderLayer;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants;
@@ -191,6 +203,13 @@
 /// header within this time, the connection is closed.
 </span><span class="kw">const </span>CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(<span class="number">5</span>);
 
+<span class="doccomment">/// Only compress responses above this configured size, in bytes.
+///
+/// Small responses don't benefit from compression,
+/// additionally the envelope endpoint which returns the event id
+/// should not be compressed due to a bug in the Unity SDK.
+</span><span class="kw">const </span>COMPRESSION_MIN_SIZE: u16 = <span class="number">128</span>;
+
 <span class="kw">impl </span>HttpServer {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, service: ServiceState) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
         <span class="comment">// Inform the user about a removed feature.
@@ -210,6 +229,9 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span><span class="self">Self </span>{ config, service } = <span class="self">self</span>;
+
+        <span class="kw">let </span>compression_predicate =
+            SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new());
 
         <span class="comment">// Build the router middleware into a single service which runs _after_ routing. Service
         // builder order defines layers added first will be called first. This means:
@@ -232,7 +254,7 @@
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
             .layer(RequestDecompressionLayer::new())
-            .layer(CompressionLayer::new());
+            .layer(CompressionLayer::new().compress_when(compression_predicate));
 
         <span class="kw">let </span>router = <span class="kw">crate</span>::endpoints::routes(service.config())
             .layer(middleware)
