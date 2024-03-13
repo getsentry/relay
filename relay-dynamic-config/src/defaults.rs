@@ -9,13 +9,7 @@ use crate::project::ProjectConfig;
 use crate::Tag;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &[
-    "*clickhouse*",
-    "*compile*",
-    "*mongodb*",
-    "*redis*",
-    "db.orm",
-];
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
 
 /// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &[
