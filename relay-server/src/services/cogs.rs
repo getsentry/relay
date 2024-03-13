@@ -78,7 +78,7 @@ impl CogsService {
 
         let (amount, unit) = match measurement.value {
             relay_cogs::Value::Time(duration) => (
-                duration.as_millis().try_into().unwrap_or(u64::MAX),
+                duration.as_micros().try_into().unwrap_or(u64::MAX),
                 UsageUnit::Milliseconds,
             ),
         };
