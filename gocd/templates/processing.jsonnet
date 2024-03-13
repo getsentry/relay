@@ -5,7 +5,7 @@ local processing = import './pipelines/processing.libsonnet';
 local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libsonnet';
 
 local pipedream_config = {
-  name: 'relay-processing',
+  name: 'relay',
   auto_deploy: false,
   materials: {
     relay_repo: {
