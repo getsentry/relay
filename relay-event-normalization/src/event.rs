@@ -2913,9 +2913,6 @@ mod tests {
             ],
           ],
           "measurements": {
-            "cls": {
-              "value": 0.11,
-            },
             "inp": {
               "value": 120.0,
             },
