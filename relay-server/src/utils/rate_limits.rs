@@ -214,7 +214,6 @@ impl EnvelopeSummary {
                 summary.secondary_transaction_quantity += source_quantities.transactions;
                 summary.secondary_span_quantity += source_quantities.spans;
                 summary.profile_quantity += source_quantities.profiles;
-                // TODO: span metrics quantity
             }
 
             summary.payload_size += item.len();

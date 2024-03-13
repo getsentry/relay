@@ -14,7 +14,7 @@ use crate::services::outcome::{Outcome, TrackOutcome};
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
 pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
-    /// TODO: docs
+    /// A list of aggregated metric buckets with some counters.
     buckets: Vec<SummarizedBucket>,
 
     /// The quotas set on the current project.
@@ -169,14 +169,6 @@ struct SummarizedBucket {
     summary: BucketSummary,
 }
 
-impl std::ops::Deref for SummarizedBucket {
-    type Target = Bucket;
-
-    fn deref(&self) -> &Self::Target {
-        &self.bucket
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 struct TotalEntityCounts {
     transactions: Option<usize>,
@@ -242,22 +234,32 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         }
     }
 
-    // TODO: docs
+    /// Returns a reference to the scoping information.
     pub fn scoping(&self) -> &Scoping {
         &self.scoping
     }
 
-    // TODO: docs
+    /// Returns a reference to the list of quotas.
     pub fn quotas(&self) -> &[Quota] {
         self.quotas.as_ref()
     }
 
-    // TODO: docs
+    /// Counts the number of transactions represented in this batch.
+    ///
+    /// Returns
+    /// - `None` if the batch does not contain transaction metrics.
+    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
+    /// - `Some(n > 0)` if the batch contains a `usage` count.
     pub fn transaction_count(&self) -> Option<usize> {
         self.counts.transactions
     }
 
-    // TODO: docs
+    /// Counts the number of spans represented in this batch.
+    ///
+    /// Returns
+    /// - `None` if the batch does not contain span metrics.
+    /// - `Some(0)` if the batch contains span metrics, but no `usage` count.
+    /// - `Some(n > 0)` if the batch contains a `usage` count.
     pub fn span_count(&self) -> Option<usize> {
         self.counts.spans
     }
