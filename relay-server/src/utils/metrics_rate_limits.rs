@@ -235,11 +235,13 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 
     /// Returns a reference to the scoping information.
+    #[cfg(feature = "processing")]
     pub fn scoping(&self) -> &Scoping {
         &self.scoping
     }
 
     /// Returns a reference to the list of quotas.
+    #[cfg(feature = "processing")]
     pub fn quotas(&self) -> &[Quota] {
         self.quotas.as_ref()
     }
@@ -250,6 +252,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// - `None` if the batch does not contain transaction metrics.
     /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
     /// - `Some(n > 0)` if the batch contains a `usage` count.
+    #[cfg(feature = "processing")]
     pub fn transaction_count(&self) -> Option<usize> {
         self.counts.transactions
     }
@@ -260,6 +263,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// - `None` if the batch does not contain span metrics.
     /// - `Some(0)` if the batch contains span metrics, but no `usage` count.
     /// - `Some(n > 0)` if the batch contains a `usage` count.
+    #[cfg(feature = "processing")]
     pub fn span_count(&self) -> Option<usize> {
         self.counts.spans
     }
