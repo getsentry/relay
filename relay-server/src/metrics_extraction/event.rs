@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, Options};
+use relay_dynamic_config::MetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -43,18 +43,14 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(
-    event: &Event,
-    config: &MetricExtractionConfig,
-    global_options: Option<&Options>,
-) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config, global_options);
+pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
+    let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config, global_options));
+                    metrics.extend(generic::extract_metrics(span, config));
                 }
             }
         }
@@ -1010,7 +1006,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1145,7 +1141,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1206,7 +1202,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1242,15 +1238,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(
-            event.value().unwrap(),
-            &config,
-            Some(&{
-                let mut o = Options::default();
-                o.span_usage_metric = true;
-                o
-            }),
-        );
+        let metrics = extract_metrics(event.value().unwrap(), &config);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1274,7 +1262,7 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config, None)
+        generic::extract_metrics(span, &extraction_config)
     }
 
     /// Helper function for span metric extraction tests.

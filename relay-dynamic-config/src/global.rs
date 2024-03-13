@@ -130,16 +130,6 @@ pub struct Options {
     )]
     pub cardinality_limiter_error_sample_rate: f32,
 
-    /// Kill switch for disabling the span usage metric.
-    ///
-    /// This metric is converted into outcomes in a sentry-side consumer.
-    #[serde(
-        rename = "relay.span-usage-metric",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub span_usage_metric: bool,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
