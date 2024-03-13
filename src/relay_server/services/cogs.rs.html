@@ -262,7 +262,7 @@
 
         <span class="kw">let </span>(amount, unit) = <span class="kw">match </span>measurement.value {
             relay_cogs::Value::Time(duration) =&gt; (
-                duration.as_millis().try_into().unwrap_or(u64::MAX),
+                duration.as_micros().try_into().unwrap_or(u64::MAX),
                 UsageUnit::Milliseconds,
             ),
         };
