@@ -11,7 +11,9 @@ def test_envelope(mini_sentry, relay_chain):
 
     envelope = Envelope()
     envelope.add_event({"message": "Hello, World!"})
-    response = relay.send_envelope(project_id, envelope, headers={"Accept-Encoding": "gzip"})
+    response = relay.send_envelope(
+        project_id, envelope, headers={"Accept-Encoding": "gzip"}
+    )
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
