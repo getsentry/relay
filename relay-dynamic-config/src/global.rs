@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_global_config_invalid_value_is_default() {
         let options: Options = serde_json::from_str(
-            r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#,
+            r#"{"relay.cardinality-limiter.mode":"passive","profile_metrics_sample_rate":"foo"}"#,
         )
         .unwrap();
 
