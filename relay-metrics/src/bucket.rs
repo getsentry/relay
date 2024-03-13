@@ -749,7 +749,11 @@ impl CardinalityItem for Bucket {
 pub struct BucketMetadata {
     /// How many times the bucket was merged.
     ///
+    /// Creating a new bucket is the first merge.
     /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
     pub merges: NonZeroU64,
 }
 
@@ -765,8 +769,8 @@ impl BucketMetadata {
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
-        let Self { merges: volume } = self;
-        *volume == NonZeroU64::MIN
+        let Self { merges } = self;
+        *merges == NonZeroU64::MIN
     }
 
     /// Merges another metadata object into the current one.
