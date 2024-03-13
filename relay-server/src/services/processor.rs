@@ -1916,57 +1916,55 @@ impl EnvelopeProcessorService {
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
 
-            let transaction_rate_limits =
-                bucket_limiter.transaction_count().map(|transaction_count| {
-                    rate_limiter.is_rate_limited(
+            let transaction_rate_limits = bucket_limiter.transaction_count().and_then(|count| {
+                rate_limiter
+                    .is_rate_limited(
                         quotas,
                         ItemScoping {
                             category: DataCategory::Transaction,
                             scoping: &scoping,
                             namespace: None,
                         },
-                        transaction_count,
+                        count,
                         over_accept_once,
                     )
-                });
+                    .ok() // don't limit if there was a redis error
+            });
 
-            let span_rate_limits = bucket_limiter.span_count().map(|span_count| {
-                rate_limiter.is_rate_limited(
-                    quotas,
-                    ItemScoping {
-                        category: DataCategory::Span,
-                        scoping: &scoping,
-                        namespace: None,
-                    },
-                    span_count,
-                    over_accept_once,
-                )
+            let span_rate_limits = bucket_limiter.span_count().and_then(|count| {
+                rate_limiter
+                    .is_rate_limited(
+                        quotas,
+                        ItemScoping {
+                            category: DataCategory::Span,
+                            scoping: &scoping,
+                            namespace: None,
+                        },
+                        count,
+                        over_accept_once,
+                    )
+                    .ok() // don't limit if there was a redis error
             });
 
             let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
-                (Some(Ok(mut a)), Some(Ok(b))) => {
+                (Some(mut a), Some(b)) => {
                     a.merge(b);
-                    Some(Ok(a))
+                    Some(a)
                 }
-                (Some(Ok(a)), None) | (None, Some(Ok(a))) => Some(Ok(a)),
-                (Some(Err(_)), _) | (_, Some(Err(_))) => Some(Err(())),
+                (Some(a), None) | (None, Some(a)) => Some(a),
                 (None, None) => None,
             };
 
             if let Some(merged_rate_limits) = merged_rate_limits {
-                // TODO: return enforced limits here instead of boolean
-                let was_enforced = bucket_limiter.enforce_limits(
-                    merged_rate_limits.as_ref().map_err(|_| ()),
-                    self.inner.outcome_aggregator.clone(),
-                );
+                let was_enforced = bucket_limiter
+                    .enforce_limits(&merged_rate_limits, self.inner.outcome_aggregator.clone());
 
                 if was_enforced {
-                    if let Ok(limits) = merged_rate_limits {
-                        // Update the rate limits in the project cache.
-                        self.inner
-                            .project_cache
-                            .send(UpdateRateLimits::new(scoping.project_key, limits));
-                    }
+                    // Update the rate limits in the project cache.
+                    self.inner.project_cache.send(UpdateRateLimits::new(
+                        scoping.project_key,
+                        merged_rate_limits,
+                    ));
                 }
             }
         }
