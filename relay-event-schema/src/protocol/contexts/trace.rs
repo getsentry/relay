@@ -1,6 +1,7 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
+use serde::{Deserialize, Serialize};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanStatus};
@@ -39,7 +40,19 @@ impl AsRef<str> for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Eq,
+    Hash,
+    PartialEq,
+    Empty,
+    IntoValue,
+    ProcessValue,
+    Serialize,
+    Deserialize,
+)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 

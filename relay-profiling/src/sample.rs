@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use relay_event_schema::protocol::{Addr, EventId};
+use relay_event_schema::protocol::{Addr, EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
@@ -393,6 +393,12 @@ pub fn parse_sample_profile(
         profile.metadata.environment = environment.to_owned();
     }
 
+    if let Some(segment_id) = transaction_metadata.get("segment_id") {
+        if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = SpanId(segment_id.to_owned());
+        }
+    }
+
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
@@ -401,6 +407,8 @@ pub fn parse_sample_profile(
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::protocol::SpanId;
+
     use super::*;
     use std::time::Duration;
 
@@ -549,6 +557,7 @@ mod tests {
             relative_end_ns: 30,
             relative_start_ns: 10,
             trace_id: EventId::new(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -600,6 +609,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 50,
             trace_id: EventId::new(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -647,6 +657,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -707,6 +718,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
 
         profile.metadata.transaction = Some(transaction);
@@ -820,6 +832,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
 
         profile.metadata.transaction = Some(transaction);
