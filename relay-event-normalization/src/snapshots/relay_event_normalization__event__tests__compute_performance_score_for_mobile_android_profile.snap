@@ -1,0 +1,61 @@
+---
+source: relay-event-normalization/src/event.rs
+expression: "SerializableAnnotated(&Annotated::new(event))"
+---
+{
+  "contexts": {
+    "trace": {
+      "op": "ui.load",
+      "type": "trace",
+    },
+  },
+  "sdk": {
+    "name": "sentry.java.android",
+  },
+  "measurements": {
+    "app_start_cold": {
+      "value": 22648.0,
+      "unit": "millisecond",
+    },
+    "score.app_start_cold": {
+      "value": 0.00000001611009708968325,
+      "unit": "ratio",
+    },
+    "score.time_to_full_display": {
+      "value": 0.00000037958132777700843,
+      "unit": "ratio",
+    },
+    "score.time_to_initial_display": {
+      "value": 0.00000006596433643757393,
+      "unit": "ratio",
+    },
+    "score.total": {
+      "value": 0.0000004616557613042656,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_cold": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_warm": {
+      "value": 0.0,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_full_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_initial_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "time_to_full_display": {
+      "value": 22647.0,
+      "unit": "millisecond",
+    },
+    "time_to_initial_display": {
+      "value": 22647.0,
+      "unit": "millisecond",
+    },
+  },
+}
