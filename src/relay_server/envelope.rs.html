@@ -2043,6 +2043,12 @@
 <a href="#2042" id="2042">2042</a>
 <a href="#2043" id="2043">2043</a>
 <a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2631,8 +2637,14 @@
 
 <span class="kw">impl </span>AddAssign <span class="kw">for </span>SourceQuantities {
     <span class="kw">fn </span>add_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
-        <span class="self">self</span>.transactions += other.transactions;
-        <span class="self">self</span>.profiles += other.profiles;
+        <span class="kw">let </span><span class="self">Self </span>{
+            transactions,
+            profiles,
+            buckets,
+        } = <span class="self">self</span>;
+        <span class="kw-2">*</span>transactions += other.transactions;
+        <span class="kw-2">*</span>profiles += other.profiles;
+        <span class="kw-2">*</span>buckets = other.buckets;
     }
 }
 
