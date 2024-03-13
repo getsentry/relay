@@ -1717,7 +1717,6 @@ impl EnvelopeProcessorService {
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-            // Reset the bucket metadata when a downstream/non trusted Relay sent the request.
             if !keep_metadata {
                 bucket.metadata = BucketMetadata::new();
             }
