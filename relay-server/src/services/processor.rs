@@ -677,8 +677,10 @@ pub struct ProcessMetrics {
     pub items: Vec<Item>,
     /// The target project.
     pub project_key: ProjectKey,
-    /// The Relay which sent the data, if available.
-    pub relay: Option<RelayInfo>,
+    /// Whether the metrics are coming from an internal, trusted source.
+    ///
+    /// Trusted metrics are not stripped of their metadata.
+    pub trusted: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
@@ -1663,7 +1665,7 @@ impl EnvelopeProcessorService {
             project_key: public_key,
             start_time,
             sent_at,
-            relay,
+            trusted,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1715,11 +1717,10 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let from_internal = relay.map_or(false, |ri| ri.internal);
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             // Reset the bucket metadata when a downstream/non trusted Relay sent the request.
-            if !from_internal {
+            if !trusted {
                 bucket.metadata = BucketMetadata::new();
             }
         }

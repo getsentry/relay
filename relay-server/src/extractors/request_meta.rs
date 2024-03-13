@@ -15,7 +15,7 @@ use data_encoding::BASE64;
 use relay_auth::RelayId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
-use relay_config::{RelayInfo, UpstreamDescriptor};
+use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,6 @@ use url::Url;
 
 use crate::extractors::{ForwardedFor, StartTime};
 use crate::service::ServiceState;
-use crate::services::relays::GetRelay;
 use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
 
@@ -226,19 +225,16 @@ pub struct RequestMeta<D = PartialDsn> {
     no_cache: bool,
 
     /// The time at which the request started.
-    //
-    // NOTE: This is internal-only and not exposed to Envelope headers.
+    ///
+    /// NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip, default = "Instant::now")]
     start_time: Instant,
 
-    /// The Relay which sent the request.
+    /// Whether the request is coming from an statically configured internal Relay.
     ///
-    /// The Relay ID is parsed from the `X-Sentry-Relay-Id` header, the request does not need to be
-    /// signed.
-    ///
-    // NOTE: This is internal-only and not exposed to Envelope headers.
+    /// NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip)]
-    relay: Option<RelayInfo>,
+    from_internal_relay: bool,
 }
 
 impl<D> RequestMeta<D> {
@@ -316,9 +312,9 @@ impl<D> RequestMeta<D> {
         self.start_time = start_time
     }
 
-    /// The downstream Relay which sent the envelope.
-    pub fn relay(&self) -> Option<&RelayInfo> {
-        self.relay.as_ref()
+    /// Whether the request is coming from a statically configured internal Relay.
+    pub fn is_from_internal_relay(&self) -> bool {
+        self.from_internal_relay
     }
 }
 
@@ -336,7 +332,7 @@ impl RequestMeta {
             no_cache: false,
             start_time: Instant::now(),
             client_hints: ClientHints::default(),
-            relay: None,
+            from_internal_relay: false,
         }
     }
 
@@ -438,8 +434,8 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
-        if self.relay.is_some() {
-            complete.relay = self.relay;
+        if self.from_internal_relay {
+            complete.from_internal_relay = self.from_internal_relay;
         }
 
         complete.client_hints.copy_from(self.client_hints);
@@ -465,7 +461,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
         }
 
-        let mut relay = None;
+        let mut from_internal_relay = false;
         let relay_id = parts
             .headers
             .get("x-sentry-relay-id")
@@ -474,12 +470,11 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         if let Some(relay_id) = relay_id {
             relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
-
-            relay = state
-                .relay_cache()
-                .send(GetRelay { relay_id })
-                .await
-                .unwrap_or(None);
+            from_internal_relay = state
+                .config()
+                .static_relays()
+                .get(&relay_id)
+                .map_or(false, |ri| ri.internal);
         }
 
         Ok(RequestMeta {
@@ -501,7 +496,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .await?
                 .into_inner(),
             client_hints: ua.client_hints,
-            relay,
+            from_internal_relay,
         })
     }
 }
@@ -664,7 +659,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
-            relay: partial_meta.relay,
+            from_internal_relay: partial_meta.from_internal_relay,
         })
     }
 }
@@ -687,7 +682,7 @@ mod tests {
                 no_cache: false,
                 start_time: Instant::now(),
                 client_hints: ClientHints::default(),
-                relay: None,
+                from_internal_relay: false,
             }
         }
     }
@@ -732,7 +727,7 @@ mod tests {
                 ),
                 sec_ch_ua_model: None,
             },
-            relay: None,
+            from_internal_relay: false,
         };
         deserialized.start_time = reqmeta.start_time;
         assert_eq!(deserialized, reqmeta);
