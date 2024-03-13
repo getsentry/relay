@@ -46,7 +46,7 @@ const KEEPALIVE_RETRIES: u32 = 5;
 /// header within this time, the connection is closed.
 const CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Only compress responses above this configured size.
+/// Only compress responses above this configured size, in bytes.
 ///
 /// Small responses don't benefit from compression,
 /// additionally the envelope endpoint which returns the event id
