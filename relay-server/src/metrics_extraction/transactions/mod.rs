@@ -322,13 +322,9 @@ impl TransactionExtractor<'_> {
                     } else {
                         tags.clone()
                     },
-                    score_profile_version: if is_performance_score {
-                        event
-                            .tag_value("sentry.score_profile_version")
-                            .map(|version| version.to_string())
-                    } else {
-                        None
-                    },
+                    score_profile_version: is_performance_score
+                        .then(|| event.tag_value("sentry.score_profile_version"))
+                        .and_then(|version| version.map(|s| s.to_string())),
                 };
 
                 metrics.project_metrics.push(
