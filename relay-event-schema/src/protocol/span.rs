@@ -228,6 +228,10 @@ pub struct SpanData {
     #[metastructure(field = "environment")]
     pub environment: Annotated<Value>,
 
+    /// The release version of the project.
+    #[metastructure(field = "release")]
+    pub release: Annotated<Value>,
+
     /// The decoded body size of the response (in bytes).
     #[metastructure(field = "http.decoded_response_content_length")]
     pub http_decoded_response_content_length: Annotated<Value>,

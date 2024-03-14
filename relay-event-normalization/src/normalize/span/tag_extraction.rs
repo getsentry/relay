@@ -485,6 +485,9 @@ pub fn extract_tags(
                 {
                     span_tags.insert(SpanTagKey::Environment, environment.into());
                 }
+                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
+                }
             }
         }
     }
