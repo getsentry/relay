@@ -1003,7 +1003,8 @@ mod tests {
                 "active_thread_id": 1,
                 "id":"9789498b-6970-4dda-b2a1-f9cb91d1a445",
                 "name":"blah",
-                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352"
+                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352",
+                "segment_id":"bd2eb23da2beb459"
             },
             "dist":"9999",
             "profile":{
