@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType};
+
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
+};
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
@@ -59,6 +62,7 @@ where
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
+            metadata: BucketMetadata::new(),
         });
     }
 
@@ -190,6 +194,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -229,6 +236,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -270,6 +280,9 @@ mod tests {
                     },
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -325,6 +338,9 @@ mod tests {
                     "id": "4711",
                     "release": "myapp@1.0.0",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -376,6 +392,9 @@ mod tests {
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -432,6 +451,9 @@ mod tests {
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -497,6 +519,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);

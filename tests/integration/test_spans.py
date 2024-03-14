@@ -66,7 +66,7 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     if discard_transaction:
-        transactions_consumer.poll(timeout=2.0) is None
+        assert transactions_consumer.poll(timeout=2.0) is None
 
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
