@@ -1299,7 +1299,6 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1320,7 +1319,6 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1341,7 +1339,6 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1362,7 +1359,6 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]

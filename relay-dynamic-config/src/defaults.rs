@@ -130,6 +130,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_http.clone())
         & duration_condition.clone();
 
+    let exclusive_time_condition =
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+            & duration_condition.clone();
+
     [
         MetricSpec {
             category: DataCategory::Span,
@@ -142,10 +146,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-                    & duration_condition.clone(),
-            ),
+            condition: Some(exclusive_time_condition.clone()),
             tags: vec![
                 // Common tags:
                 Tag::with_key("environment")
@@ -274,7 +275,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: None,
+            condition: Some(!exclusive_time_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
