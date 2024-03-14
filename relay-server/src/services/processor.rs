@@ -18,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, RelayInfo, RelayMode};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -690,8 +690,8 @@ pub struct ProcessMetrics {
 pub struct ProcessBatchedMetrics {
     /// Metrics payload in JSON format.
     pub payload: Bytes,
-    /// The Relay which sent the request.
-    pub relay: RelayInfo,
+    /// Whether to keep or reset the metric metadata.
+    pub keep_metadata: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
     /// The instant at which the request was received.
@@ -1733,7 +1733,7 @@ impl EnvelopeProcessorService {
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
-            relay,
+            keep_metadata,
             start_time,
             sent_at,
         } = message;
@@ -1752,8 +1752,7 @@ impl EnvelopeProcessorService {
                 for (public_key, mut buckets) in buckets {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                        // Reset the bucket metadata when a downstream/non trusted Relay sent the request.
-                        if !relay.internal {
+                        if !keep_metadata {
                             bucket.metadata = BucketMetadata::new();
                         }
                     }

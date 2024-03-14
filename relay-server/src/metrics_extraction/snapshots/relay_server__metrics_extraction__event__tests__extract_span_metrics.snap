@@ -271,6 +271,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -289,6 +292,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "500",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -300,6 +306,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
