@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
+use std::num::NonZeroU64;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -602,6 +603,13 @@ pub struct Bucket {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
+
+    /// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    #[serde(default, skip_serializing_if = "BucketMetadata::is_default")]
+    pub metadata: BucketMetadata,
 }
 
 impl Bucket {
@@ -635,6 +643,7 @@ impl Bucket {
             name: mri.to_string(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         for component in components {
@@ -732,6 +741,47 @@ impl CardinalityItem for Bucket {
         self.name.hash(&mut hasher);
         self.tags.hash(&mut hasher);
         hasher.finish32()
+    }
+}
+
+/// Relay internal metadata for a metric bucket.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct BucketMetadata {
+    /// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    pub merges: NonZeroU64,
+}
+
+impl BucketMetadata {
+    /// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge.
+    pub fn new() -> Self {
+        Self {
+            merges: NonZeroU64::MIN,
+        }
+    }
+
+    /// Whether the metadata does not contain more information than the default.
+    pub fn is_default(&self) -> bool {
+        let Self { merges } = self;
+        *merges == NonZeroU64::MIN
+    }
+
+    /// Merges another metadata object into the current one.
+    pub fn merge(&mut self, other: Self) {
+        self.merges = self.merges.saturating_add(other.merges.get());
+    }
+}
+
+impl Default for BucketMetadata {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -860,6 +910,9 @@ mod tests {
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -888,6 +941,9 @@ mod tests {
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -934,6 +990,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -988,6 +1047,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1012,6 +1074,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1030,6 +1095,9 @@ mod tests {
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1208,6 +1276,9 @@ mod tests {
                 tags: {
                     "route": "user_index",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -1226,7 +1297,7 @@ mod tests {
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -1236,9 +1307,12 @@ mod tests {
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]

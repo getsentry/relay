@@ -593,7 +593,7 @@ impl AddAssign for SourceQuantities {
         } = self;
         *transactions += other.transactions;
         *profiles += other.profiles;
-        *buckets = other.buckets;
+        *buckets += other.buckets;
     }
 }
 

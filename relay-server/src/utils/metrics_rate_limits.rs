@@ -353,6 +353,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -361,6 +362,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction without profile
@@ -369,6 +371,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -377,6 +380,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // unrelated metric
@@ -385,6 +389,7 @@ mod tests {
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
         ];
         let quotas = vec![Quota {
@@ -442,6 +447,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -450,6 +456,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction without profile
@@ -458,6 +465,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -466,6 +474,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // unrelated metric
@@ -474,6 +483,7 @@ mod tests {
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
         ];
         let quotas = vec![Quota {
