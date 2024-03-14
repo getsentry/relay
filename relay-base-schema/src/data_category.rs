@@ -72,8 +72,13 @@ pub enum DataCategory {
     /// ProfileDuration
     ///
     /// This data category is used to count the number of milliseconds we have per profile chunk.
-    /// We will then bill per second.
     ProfileDuration = 17,
+    /// ProfileDurationIndexed
+    ///
+    /// This data category is used to count the number of milliseconds we have per indexed profile chunk.
+    /// We will then bill per second.
+    ProfileDurationIndexed = 18,
+
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -107,6 +112,7 @@ impl DataCategory {
             "metric_bucket" => Self::MetricBucket,
             "span_indexed" => Self::SpanIndexed,
             "profile_duration" => Self::ProfileDuration,
+            "profile_duration_indexed" => Self::ProfileDurationIndexed,
             _ => Self::Unknown,
         }
     }
@@ -133,6 +139,7 @@ impl DataCategory {
             Self::MetricBucket => "metric_bucket",
             Self::SpanIndexed => "span_indexed",
             Self::ProfileDuration => "profile_duration",
+            Self::ProfileDurationIndexed => "profile_duration_indexed",
             Self::Unknown => "unknown",
         }
     }

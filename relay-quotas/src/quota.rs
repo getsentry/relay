@@ -121,7 +121,9 @@ impl CategoryUnit {
             | DataCategory::Monitor
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2 => Some(Self::Count),
-            DataCategory::ProfileDuration => Some(Self::Milliseconds),
+            DataCategory::ProfileDuration | DataCategory::ProfileDurationIndexed => {
+                Some(Self::Milliseconds)
+            }
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
 
