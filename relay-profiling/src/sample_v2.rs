@@ -13,18 +13,19 @@ const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
-    version: Version,
+    chunk_id: String,
     profiler_id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<DebugMeta>,
 
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    environment: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    environment: Option<String>,
     platform: String,
     release: String,
 
     timestamp: DateTime<Utc>,
+    version: Version,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -195,4 +196,26 @@ fn parse_profile(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 pub fn parse(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile = parse_profile(payload)?;
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::sample_v2::{parse, parse_profile};
+
+    #[test]
+    fn test_roundtrip() {
+        let first_payload = include_bytes!("../tests/fixtures/profiles/sample_v2/valid.json");
+        let first_parse = parse_profile(first_payload);
+        assert!(first_parse.is_ok(), "{:#?}", first_parse);
+        let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
+        let second_parse = parse_profile(&second_payload[..]);
+        assert!(second_parse.is_ok(), "{:#?}", second_parse);
+    }
+
+    #[test]
+    fn test_expand() {
+        let payload = include_bytes!("../tests/fixtures/profiles/sample_v2/valid.json");
+        let profile = parse(payload);
+        assert!(profile.is_ok(), "{:#?}", profile);
+    }
 }
