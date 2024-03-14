@@ -1,0 +1,61 @@
+---
+source: relay-event-normalization/src/event.rs
+expression: "SerializableAnnotated(&Annotated::new(event))"
+---
+{
+  "contexts": {
+    "trace": {
+      "op": "ui.load",
+      "type": "trace",
+    },
+  },
+  "sdk": {
+    "name": "sentry.cocoa",
+  },
+  "measurements": {
+    "app_start_warm": {
+      "value": 8049.345970153808,
+      "unit": "millisecond",
+    },
+    "score.app_start_warm": {
+      "value": 0.000016961769767009915,
+      "unit": "ratio",
+    },
+    "score.time_to_full_display": {
+      "value": 0.008124816267980856,
+      "unit": "ratio",
+    },
+    "score.time_to_initial_display": {
+      "value": 0.002213671895176313,
+      "unit": "ratio",
+    },
+    "score.total": {
+      "value": 0.010355449932924178,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_cold": {
+      "value": 0.0,
+      "unit": "ratio",
+    },
+    "score.weight.app_start_warm": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_full_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "score.weight.time_to_initial_display": {
+      "value": 0.3333333333333333,
+      "unit": "ratio",
+    },
+    "time_to_full_display": {
+      "value": 8240.571022033691,
+      "unit": "millisecond",
+    },
+    "time_to_initial_display": {
+      "value": 8049.345970153808,
+      "unit": "millisecond",
+    },
+  },
+}

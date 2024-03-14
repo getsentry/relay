@@ -1109,6 +1109,56 @@ mod tests {
         RawUserAgentInfo,
     };
 
+    const IOS_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.cocoa"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 8240.571022033691,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
+
+    const ANDROID_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.java.android"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 22648,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
+
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
@@ -2648,6 +2698,158 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_ios_profile() {
+        let mut event = Annotated::<Event>::from_json(IOS_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_android_profile() {
+        let mut event = Annotated::<Event>::from_json(ANDROID_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
     }
 
     #[test]
