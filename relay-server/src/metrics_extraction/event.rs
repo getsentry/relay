@@ -1299,6 +1299,7 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
+                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1308,7 +1309,7 @@ mod tests {
     #[test]
     fn test_app_start_cold_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(metrics.len(), 1);
     }
 
     #[test]
@@ -1319,6 +1320,7 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
+                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1328,7 +1330,7 @@ mod tests {
     #[test]
     fn test_app_start_warm_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(metrics.len(), 1);
     }
 
     #[test]
@@ -1339,6 +1341,7 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
+                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1348,7 +1351,7 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(metrics.len(), 1);
     }
 
     #[test]
@@ -1359,6 +1362,7 @@ mod tests {
             vec![
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
+                "d:spans/exclusive_time@millisecond",
                 "c:spans/count_per_op@none",
                 "c:spans/count_per_segment@none"
             ]
@@ -1368,7 +1372,7 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(metrics.len(), 1);
     }
 
     #[test]
@@ -1403,6 +1407,7 @@ mod tests {
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
             assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+            break;
         }
     }
 

@@ -272,6 +272,23 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
+            mri: "d:spans/exclusive_time@millisecond".into(),
+            field: Some("span.exclusive_time".into()),
+            condition: None,
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
             mri: "d:spans/http.response_content_length@byte".into(),
             field: Some("span.data.http\\.response_content_length".into()),
             condition: Some(

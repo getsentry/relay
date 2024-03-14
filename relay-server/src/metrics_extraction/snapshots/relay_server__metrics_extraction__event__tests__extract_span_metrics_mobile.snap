@@ -461,6 +461,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    2000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "app.start.cold",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -521,6 +535,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "ui.load.initial_display",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -586,6 +614,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "app.start.cold",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -624,6 +666,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "Cold Start",
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "custom.op",
                 "transaction": "gEt /api/:version/users/",
             },
         },
@@ -693,6 +749,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "contentprovider.load",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -756,6 +826,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "application.load",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -819,6 +903,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "activity.load",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -873,6 +971,20 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "process.load",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "process.load",
+                "transaction": "gEt /api/:version/users/",
             },
         },
         Bucket {
