@@ -138,13 +138,16 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::protocol::SessionStatus;
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier, MetricUnit,
+    Bucket, BucketMetadata, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier,
+    MetricUnit,
 };
 <span class="kw">use </span>uuid::Uuid;
 
@@ -264,6 +267,7 @@
             name: mri.to_string(),
             value,
             tags,
+            metadata: BucketMetadata::new(),
         }
     }
 }

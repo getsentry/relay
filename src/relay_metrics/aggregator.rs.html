@@ -1441,6 +1441,64 @@
 <a href="#1440" id="1440">1440</a>
 <a href="#1441" id="1441">1441</a>
 <a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1461,6 +1519,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+<span class="kw">use </span><span class="kw">crate</span>::BucketMetadata;
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
@@ -1754,17 +1813,42 @@
 </span><span class="kw">struct </span>QueuedBucket {
     flush_at: Instant,
     value: BucketValue,
+    metadata: BucketMetadata,
 }
 
 <span class="kw">impl </span>QueuedBucket {
     <span class="doccomment">/// Creates a new `QueuedBucket` with a given flush time.
-    </span><span class="kw">fn </span>new(flush_at: Instant, value: BucketValue) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ flush_at, value }
+    </span><span class="kw">fn </span>new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            flush_at,
+            value,
+            metadata,
+        }
     }
 
     <span class="doccomment">/// Returns `true` if the flush time has elapsed.
     </span><span class="kw">fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         Instant::now() &gt; <span class="self">self</span>.flush_at
+    }
+
+    <span class="doccomment">/// Merges a bucket into the current queued bucket.
+    ///
+    /// Returns the value cost increase on success,
+    /// otherwise returns an error if the passed bucket value type does not match
+    /// the contained type.
+    </span><span class="kw">fn </span>merge(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: BucketValue,
+        metadata: BucketMetadata,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;usize, AggregateMetricsErrorKind&gt; {
+        <span class="kw">let </span>cost_before = <span class="self">self</span>.value.cost();
+
+        <span class="self">self</span>.value
+            .merge(value)
+            .map_err(|<span class="kw">_</span>| AggregateMetricsErrorKind::InvalidTypes)<span class="question-mark">?</span>;
+        <span class="self">self</span>.metadata.merge(metadata);
+
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.value.cost().saturating_sub(cost_before))
     }
 }
 
@@ -1940,6 +2024,7 @@
                 name: key.metric_name,
                 value: entry.value,
                 tags: key.tags,
+                metadata: entry.metadata,
             })
             .collect()
     }
@@ -1973,6 +2058,7 @@
                     <span class="kw">if </span>force || entry.elapsed() {
                         <span class="comment">// Take the value and leave a placeholder behind. It'll be removed right after.
                         </span><span class="kw">let </span>value = mem::replace(<span class="kw-2">&amp;mut </span>entry.value, BucketValue::counter(<span class="number">0</span>.into()));
+                        <span class="kw">let </span>metadata = mem::take(<span class="kw-2">&amp;mut </span>entry.metadata);
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
@@ -1988,6 +2074,7 @@
                             name: key.metric_name.clone(),
                             value,
                             tags: key.tags.clone(),
+                            metadata,
                         };
 
                         buckets
@@ -2218,13 +2305,8 @@
                     aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
                     namespace = entry.key().namespace().as_str(),
                 );
-                <span class="kw">let </span>bucket_value = <span class="kw-2">&amp;mut </span>entry.get_mut().value;
-                <span class="kw">let </span>cost_before = bucket_value.cost();
-                bucket_value
-                    .merge(bucket.value)
-                    .map_err(|<span class="kw">_</span>| AggregateMetricsErrorKind::InvalidTypes)<span class="question-mark">?</span>;
-                <span class="kw">let </span>cost_after = bucket_value.cost();
-                added_cost = cost_after.saturating_sub(cost_before);
+
+                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)<span class="question-mark">?</span>;
             }
             Entry::Vacant(entry) =&gt; {
                 <span class="macro">relay_statsd::metric!</span>(
@@ -2241,7 +2323,7 @@
                 <span class="kw">let </span>flush_at = <span class="self">self</span>.config.get_flush_time(entry.key());
                 <span class="kw">let </span>value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value));
+                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
             }
         }
 
@@ -2332,6 +2414,7 @@
             name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 
@@ -2576,6 +2659,7 @@
             name: <span class="string">"c:transactions/foo@none"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
@@ -2831,6 +2915,7 @@
             name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
@@ -2861,6 +2946,7 @@
             name: <span class="string">"c:transactions/foo"</span>.to_owned(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
@@ -2881,6 +2967,36 @@
         <span class="kw">let </span>json = <span class="string">r#"{"shift_key": "bucket"}"#</span>;
         <span class="kw">let </span>parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(parsed.shift_key, ShiftKey::Bucket));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_aggregator_merge_metadata() {
+        <span class="kw">let </span><span class="kw-2">mut </span>config = test_config();
+        config.bucket_interval = <span class="number">10</span>;
+
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
+
+        <span class="kw">let </span>bucket1 = some_bucket();
+        <span class="kw">let </span>bucket2 = some_bucket();
+
+        <span class="comment">// Create a bucket with already 3 merges.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>bucket3 = some_bucket();
+        bucket3.metadata.merge(BucketMetadata::new());
+        bucket3.metadata.merge(BucketMetadata::new());
+
+        aggregator.merge(project_key, bucket1, <span class="prelude-val">None</span>).unwrap();
+        aggregator.merge(project_key, bucket2, <span class="prelude-val">None</span>).unwrap();
+        aggregator.merge(project_key, bucket3, <span class="prelude-val">None</span>).unwrap();
+
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = aggregator.buckets.values().map(|v| <span class="kw-2">&amp;</span>v.metadata).collect();
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
+        [
+            BucketMetadata {
+                merges: 5,
+            },
+        ]
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

@@ -2709,7 +2709,7 @@
 }
 
 <span class="doccomment">/// Information on a downstream Relay.
-</span><span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>RelayInfo {
     <span class="doccomment">/// The public key that this Relay uses to authenticate and sign requests.

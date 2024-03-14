@@ -1726,6 +1726,8 @@
 <a href="#1725" id="1725">1725</a>
 <a href="#1726" id="1726">1726</a>
 <a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -3128,6 +3130,7 @@
             value: BucketValue::counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
+            metadata: Default::default(),
         }
     }
 
@@ -3237,6 +3240,7 @@
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: <span class="number">10</span>,
+            metadata: Default::default(),
         }
     }
 

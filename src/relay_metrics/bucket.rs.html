@@ -1314,9 +1314,84 @@
 <a href="#1313" id="1313">1313</a>
 <a href="#1314" id="1314">1314</a>
 <a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
+<a href="#1331" id="1331">1331</a>
+<a href="#1332" id="1332">1332</a>
+<a href="#1333" id="1333">1333</a>
+<a href="#1334" id="1334">1334</a>
+<a href="#1335" id="1335">1335</a>
+<a href="#1336" id="1336">1336</a>
+<a href="#1337" id="1337">1337</a>
+<a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
+<a href="#1343" id="1343">1343</a>
+<a href="#1344" id="1344">1344</a>
+<a href="#1345" id="1345">1345</a>
+<a href="#1346" id="1346">1346</a>
+<a href="#1347" id="1347">1347</a>
+<a href="#1348" id="1348">1348</a>
+<a href="#1349" id="1349">1349</a>
+<a href="#1350" id="1350">1350</a>
+<a href="#1351" id="1351">1351</a>
+<a href="#1352" id="1352">1352</a>
+<a href="#1353" id="1353">1353</a>
+<a href="#1354" id="1354">1354</a>
+<a href="#1355" id="1355">1355</a>
+<a href="#1356" id="1356">1356</a>
+<a href="#1357" id="1357">1357</a>
+<a href="#1358" id="1358">1358</a>
+<a href="#1359" id="1359">1359</a>
+<a href="#1360" id="1360">1360</a>
+<a href="#1361" id="1361">1361</a>
+<a href="#1362" id="1362">1362</a>
+<a href="#1363" id="1363">1363</a>
+<a href="#1364" id="1364">1364</a>
+<a href="#1365" id="1365">1365</a>
+<a href="#1366" id="1366">1366</a>
+<a href="#1367" id="1367">1367</a>
+<a href="#1368" id="1368">1368</a>
+<a href="#1369" id="1369">1369</a>
+<a href="#1370" id="1370">1370</a>
+<a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
+<span class="kw">use </span>std::num::NonZeroU64;
 <span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
@@ -1918,6 +1993,13 @@
     /// ```
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
     </span><span class="kw">pub </span>tags: BTreeMap&lt;String, String&gt;,
+
+    <span class="doccomment">/// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BucketMetadata::is_default"</span>)]
+    </span><span class="kw">pub </span>metadata: BucketMetadata,
 }
 
 <span class="kw">impl </span>Bucket {
@@ -1951,6 +2033,7 @@
             name: mri.to_string(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         <span class="kw">for </span>component <span class="kw">in </span>components {
@@ -2048,6 +2131,47 @@
         <span class="self">self</span>.name.hash(<span class="kw-2">&amp;mut </span>hasher);
         <span class="self">self</span>.tags.hash(<span class="kw-2">&amp;mut </span>hasher);
         hasher.finish32()
+    }
+}
+
+<span class="doccomment">/// Relay internal metadata for a metric bucket.
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>BucketMetadata {
+    <span class="doccomment">/// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    </span><span class="kw">pub </span>merges: NonZeroU64,
+}
+
+<span class="kw">impl </span>BucketMetadata {
+    <span class="doccomment">/// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            merges: NonZeroU64::MIN,
+        }
+    }
+
+    <span class="doccomment">/// Whether the metadata does not contain more information than the default.
+    </span><span class="kw">pub fn </span>is_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">let </span><span class="self">Self </span>{ merges } = <span class="self">self</span>;
+        <span class="kw-2">*</span>merges == NonZeroU64::MIN
+    }
+
+    <span class="doccomment">/// Merges another metadata object into the current one.
+    </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
+        <span class="self">self</span>.merges = <span class="self">self</span>.merges.saturating_add(other.merges.get());
+    }
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>BucketMetadata {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
     }
 }
 
@@ -2176,6 +2300,9 @@
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2204,6 +2331,9 @@
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2250,6 +2380,9 @@
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2304,6 +2437,9 @@
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2328,6 +2464,9 @@
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2346,6 +2485,9 @@
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###</span>);
     }
@@ -2524,6 +2666,9 @@
                 tags: {
                     "route": "user_index",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###</span>);
@@ -2542,7 +2687,7 @@
         ]"#</span>;
 
         <span class="kw">let </span>buckets = serde_json::from_str::&lt;Vec&lt;Bucket&gt;&gt;(json).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -2552,9 +2697,12 @@
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]

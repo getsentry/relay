@@ -273,14 +273,15 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
-    MetricUnit,
+    Bucket, BucketMetadata, BucketValue, DistributionType, DurationUnit, MetricNamespace,
+    MetricResourceIdentifier, MetricUnit,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
@@ -395,6 +396,7 @@
             name: mri.to_string(),
             value,
             tags,
+            metadata: BucketMetadata::new(),
         }
     }
 }

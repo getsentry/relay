@@ -1091,11 +1091,26 @@
 <a href="#1090" id="1090">1090</a>
 <a href="#1091" id="1091">1091</a>
 <a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use crate</span>::{aggregator, CounterType, DistributionType, GaugeValue, SetType, SetValue};
+<span class="kw">use crate</span>::{
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+};
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::Range;
@@ -1491,6 +1506,13 @@
         <span class="self">self</span>.inner.tag(name)
     }
 
+    <span class="doccomment">/// Returns the metadata for this bucket.
+    ///
+    /// See also: [`Bucket::metadata`].
+    </span><span class="kw">pub fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BucketMetadata {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metadata
+    }
+
     <span class="doccomment">/// Number of raw datapoints in this view.
     ///
     /// See also: [`BucketValue::len()`]
@@ -1607,6 +1629,7 @@
             name,
             value: <span class="kw">_</span>,
             tags,
+            metadata,
         } = <span class="self">self</span>.inner;
 
         <span class="kw">let </span>len = <span class="kw">match </span>tags.is_empty() {
@@ -1631,6 +1654,9 @@
 
         <span class="kw">if </span>!tags.is_empty() {
             state.serialize_entry(<span class="string">"tags"</span>, tags)<span class="question-mark">?</span>;
+        }
+        <span class="kw">if </span>!metadata.is_default() {
+            state.serialize_entry(<span class="string">"metadata"</span>, metadata)<span class="question-mark">?</span>;
         }
 
         state.end()

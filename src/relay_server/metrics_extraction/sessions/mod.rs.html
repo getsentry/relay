@@ -581,6 +581,27 @@
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
@@ -1072,6 +1093,9 @@
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
@@ -1085,6 +1109,9 @@
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -1100,6 +1127,9 @@
                     "sdk": "sentry-test/1.0",
                     "session.status": "abnormal",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
@@ -1113,6 +1143,9 @@
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "crashed",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -1128,6 +1161,9 @@
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
@@ -1141,6 +1177,9 @@
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -1157,6 +1196,9 @@
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]

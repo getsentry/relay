@@ -228,7 +228,7 @@
             });
         }
 
-        <span class="kw">let </span>partial_meta = request.extract_parts::&lt;PartialMeta&gt;().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>partial_meta: PartialMeta = request.extract_parts_with_state(state).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>body: Bytes = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">let </span>line = body

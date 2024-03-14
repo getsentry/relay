@@ -133,7 +133,6 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::rejection::BytesRejection;
 <span class="kw">use </span>axum::extract::FromRequest;
 <span class="kw">use </span>axum::http::{Request, StatusCode};
@@ -224,8 +223,7 @@
             </span>.parse::&lt;RelayId&gt;()
             .map_err(|<span class="kw">_</span>| SignatureError::MalformedHeader(<span class="string">"x-sentry-relay-id"</span>))<span class="question-mark">?</span>;
 
-        <span class="comment">// Track the relay header value even if is not a string.
-        </span>relay_log::configure_scope(|s| s.set_tag(<span class="string">"relay_id"</span>, relay_id.to_string()));
+        relay_log::configure_scope(|s| s.set_tag(<span class="string">"relay_id"</span>, relay_id));
 
         <span class="kw">let </span>signature = get_header(<span class="kw-2">&amp;</span>request, <span class="string">"x-sentry-relay-signature"</span>)<span class="question-mark">?</span>.to_owned();
 

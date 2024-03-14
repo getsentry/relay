@@ -3218,6 +3218,16 @@
 <a href="#3217" id="3217">3217</a>
 <a href="#3218" id="3218">3218</a>
 <a href="#3219" id="3219">3219</a>
+<a href="#3220" id="3220">3220</a>
+<a href="#3221" id="3221">3221</a>
+<a href="#3222" id="3222">3222</a>
+<a href="#3223" id="3223">3223</a>
+<a href="#3224" id="3224">3224</a>
+<a href="#3225" id="3225">3225</a>
+<a href="#3226" id="3226">3226</a>
+<a href="#3227" id="3227">3227</a>
+<a href="#3228" id="3228">3228</a>
+<a href="#3229" id="3229">3229</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3251,7 +3261,9 @@
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
-<span class="kw">use </span>relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
+<span class="kw">use </span>relay_metrics::{
+    Bucket, BucketMetadata, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace,
+};
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
@@ -3893,13 +3905,12 @@
 </span><span class="kw">pub struct </span>ProcessMetrics {
     <span class="doccomment">/// A list of metric items.
     </span><span class="kw">pub </span>items: Vec&lt;Item&gt;,
-
     <span class="doccomment">/// The target project.
     </span><span class="kw">pub </span>project_key: ProjectKey,
-
+    <span class="doccomment">/// Whether to keep or reset the metric metadata.
+    </span><span class="kw">pub </span>keep_metadata: bool,
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>start_time: Instant,
-
     <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
@@ -3909,10 +3920,10 @@
 </span><span class="kw">pub struct </span>ProcessBatchedMetrics {
     <span class="doccomment">/// Metrics payload in JSON format.
     </span><span class="kw">pub </span>payload: Bytes,
-
+    <span class="doccomment">/// Whether to keep or reset the metric metadata.
+    </span><span class="kw">pub </span>keep_metadata: bool,
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>start_time: Instant,
-
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
@@ -4882,6 +4893,7 @@
             project_key: public_key,
             start_time,
             sent_at,
+            keep_metadata,
         } = message;
 
         <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
@@ -4935,6 +4947,9 @@
 
         <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
             clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+            <span class="kw">if </span>!keep_metadata {
+                bucket.metadata = BucketMetadata::new();
+            }
         }
 
         cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
@@ -4948,6 +4963,7 @@
     <span class="kw">fn </span>handle_process_batched_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessBatchedMetrics) {
         <span class="kw">let </span>ProcessBatchedMetrics {
             payload,
+            keep_metadata,
             start_time,
             sent_at,
         } = message;
@@ -4966,6 +4982,9 @@
                 <span class="kw">for </span>(public_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>buckets {
                     <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
                         clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+                        <span class="kw">if </span>!keep_metadata {
+                            bucket.metadata = BucketMetadata::new();
+                        }
                     }
 
                     MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
@@ -6122,6 +6141,7 @@
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: <span class="number">10</span>,
+                    metadata: BucketMetadata::new(),
                 }],
                 project_state,
             };

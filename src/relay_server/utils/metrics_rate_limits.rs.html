@@ -530,6 +530,16 @@
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -885,6 +895,7 @@
                 name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -893,6 +904,7 @@
                 name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">456</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction without profile
@@ -901,6 +913,7 @@
                 name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -909,6 +922,7 @@
                 name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// unrelated metric
@@ -917,6 +931,7 @@
                 name: <span class="string">"something_else"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
+                metadata: Default::default(),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {
@@ -974,6 +989,7 @@
                 name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -982,6 +998,7 @@
                 name: <span class="string">"d:transactions/duration@millisecond"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">456</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction without profile
@@ -990,6 +1007,7 @@
                 name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -998,6 +1016,7 @@
                 name: <span class="string">"c:transactions/usage@none"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::counter(<span class="number">1</span>.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 <span class="comment">// unrelated metric
@@ -1006,6 +1025,7 @@
                 name: <span class="string">"something_else"</span>.to_string(),
                 tags: [(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string())].into(),
                 value: BucketValue::distribution(<span class="number">123</span>.into()),
+                metadata: Default::default(),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {

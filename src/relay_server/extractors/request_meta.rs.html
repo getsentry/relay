@@ -698,6 +698,42 @@
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -712,6 +748,7 @@
 <span class="kw">use </span>axum::response::{IntoResponse, Response};
 <span class="kw">use </span>axum::RequestPartsExt;
 <span class="kw">use </span>data_encoding::BASE64;
+<span class="kw">use </span>relay_auth::RelayId;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 <span class="kw">use </span>relay_config::UpstreamDescriptor;
@@ -924,10 +961,16 @@
     </span>no_cache: bool,
 
     <span class="doccomment">/// The time at which the request started.
-    </span><span class="comment">//
-    // NOTE: This is internal-only and not exposed to Envelope headers.
+    ///
+    /// NOTE: This is internal-only and not exposed to Envelope headers.
     </span><span class="attr">#[serde(skip, default = <span class="string">"Instant::now"</span>)]
     </span>start_time: Instant,
+
+    <span class="doccomment">/// Whether the request is coming from an statically configured internal Relay.
+    ///
+    /// NOTE: This is internal-only and not exposed to Envelope headers.
+    </span><span class="attr">#[serde(skip)]
+    </span>from_internal_relay: bool,
 }
 
 <span class="kw">impl</span>&lt;D&gt; RequestMeta&lt;D&gt; {
@@ -1004,6 +1047,11 @@
     </span><span class="kw">pub fn </span>set_start_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, start_time: Instant) {
         <span class="self">self</span>.start_time = start_time
     }
+
+    <span class="doccomment">/// Whether the request is coming from a statically configured internal Relay.
+    </span><span class="kw">pub fn </span>is_from_internal_relay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.from_internal_relay
+    }
 }
 
 <span class="kw">impl </span>RequestMeta {
@@ -1020,6 +1068,7 @@
             no_cache: <span class="bool-val">false</span>,
             start_time: Instant::now(),
             client_hints: ClientHints::default(),
+            from_internal_relay: <span class="bool-val">false</span>,
         }
     }
 
@@ -1121,6 +1170,9 @@
         <span class="kw">if </span><span class="self">self</span>.user_agent.is_some() {
             complete.user_agent = <span class="self">self</span>.user_agent;
         }
+        <span class="kw">if </span><span class="self">self</span>.from_internal_relay {
+            complete.from_internal_relay = <span class="self">self</span>.from_internal_relay;
+        }
 
         complete.client_hints.copy_from(<span class="self">self</span>.client_hints);
 
@@ -1133,16 +1185,32 @@
 }
 
 <span class="attr">#[axum::async_trait]
-</span><span class="kw">impl</span>&lt;S&gt; FromRequestParts&lt;S&gt; <span class="kw">for </span>PartialMeta
-<span class="kw">where
-    </span>S: Send + Sync,
-{
+</span><span class="kw">impl </span>FromRequestParts&lt;ServiceState&gt; <span class="kw">for </span>PartialMeta {
     <span class="kw">type </span>Rejection = Infallible;
 
-    <span class="kw">async fn </span>from_request_parts(parts: <span class="kw-2">&amp;mut </span>Parts, state: <span class="kw-2">&amp;</span>S) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+    <span class="kw">async fn </span>from_request_parts(
+        parts: <span class="kw-2">&amp;mut </span>Parts,
+        state: <span class="kw-2">&amp;</span>ServiceState,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ua = RawUserAgentInfo::default();
         <span class="kw">for </span>(key, value) <span class="kw">in </span><span class="kw-2">&amp;</span>parts.headers {
             ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>from_internal_relay = <span class="bool-val">false</span>;
+        <span class="kw">let </span>relay_id = parts
+            .headers
+            .get(<span class="string">"x-sentry-relay-id"</span>)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|h| h.parse::&lt;RelayId&gt;().ok());
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(relay_id) = relay_id {
+            relay_log::configure_scope(|s| s.set_tag(<span class="string">"relay_id"</span>, relay_id));
+            from_internal_relay = state
+                .config()
+                .static_relays()
+                .get(<span class="kw-2">&amp;</span>relay_id)
+                .map_or(<span class="bool-val">false</span>, |ri| ri.internal);
         }
 
         <span class="prelude-val">Ok</span>(RequestMeta {
@@ -1164,6 +1232,7 @@
                 .<span class="kw">await</span><span class="question-mark">?
                 </span>.into_inner(),
             client_hints: ua.client_hints,
+            from_internal_relay,
         })
     }
 }
@@ -1289,7 +1358,7 @@
             parts.extract().<span class="kw">await</span>.map_err(BadEventMeta::BadProject)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>auth = auth_from_parts(parts, store_path.sentry_key)<span class="question-mark">?</span>;
-        <span class="kw">let </span>partial_meta = parts.extract::&lt;PartialMeta&gt;().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>partial_meta: PartialMeta = parts.extract_with_state(state).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>(public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())<span class="question-mark">?</span>;
 
         <span class="kw">let </span>config = state.config();
@@ -1326,6 +1395,7 @@
             no_cache: key_flags.contains(<span class="kw-2">&amp;</span><span class="string">"no-cache"</span>),
             start_time: partial_meta.start_time,
             client_hints: partial_meta.client_hints,
+            from_internal_relay: partial_meta.from_internal_relay,
         })
     }
 }
@@ -1348,6 +1418,7 @@
                 no_cache: <span class="bool-val">false</span>,
                 start_time: Instant::now(),
                 client_hints: ClientHints::default(),
+                from_internal_relay: <span class="bool-val">false</span>,
             }
         }
     }
@@ -1392,6 +1463,7 @@
                 ),
                 sec_ch_ua_model: <span class="prelude-val">None</span>,
             },
+            from_internal_relay: <span class="bool-val">false</span>,
         };
         deserialized.start_time = reqmeta.start_time;
         <span class="macro">assert_eq!</span>(deserialized, reqmeta);

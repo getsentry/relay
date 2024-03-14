@@ -27,6 +27,7 @@
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -49,6 +50,7 @@
 
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
+        keep_metadata: body.relay.internal,
         start_time: start_time.into_inner(),
         sent_at: <span class="prelude-val">None</span>,
     });
