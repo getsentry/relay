@@ -1928,7 +1928,11 @@ impl EnvelopeProcessorService {
                         count,
                         over_accept_once,
                     )
-                    .ok() // don't limit if there was a redis error
+                    .map_err(|e| {
+                        relay_log::error!(error = &e as &dyn Error);
+                    })
+                    // don't limit if there was a redis error (keep user data if budget is unknown)
+                    .ok()
             });
 
             let span_rate_limits = bucket_limiter.span_count().and_then(|count| {
@@ -1943,7 +1947,11 @@ impl EnvelopeProcessorService {
                         count,
                         over_accept_once,
                     )
-                    .ok() // don't limit if there was a redis error
+                    .map_err(|e| {
+                        relay_log::error!(error = &e as &dyn Error);
+                    })
+                    // don't limit if there was a redis error (keep user data if budget is unknown)
+                    .ok()
             });
 
             let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
