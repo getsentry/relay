@@ -819,10 +819,11 @@ pub fn normalize_performance_score(
                 }
                 if should_add_total {
                     if let Some(version) = &profile.version {
-                        let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                        let performance_score_context =
-                            contexts.get_or_default::<PerformanceScoreContext>();
-                        performance_score_context.score_profile_version = version.clone().into();
+                        event
+                            .contexts
+                            .get_or_insert_with(Contexts::new)
+                            .get_or_default::<PerformanceScoreContext>()
+                            .score_profile_version = version.clone().into();
                     }
                     measurements.insert(
                         "score.total".to_owned(),
