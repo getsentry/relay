@@ -136,6 +136,7 @@ pub fn expand_profile(
     (profile_id, item_action)
 }
 
+#[cfg(feature = "processing")]
 pub fn expand_profile_chunk(item: &mut Item, config: &Config) -> ItemAction {
     match relay_profiling::expand_profile_chunk(&item.payload()) {
         Ok(payload) => {
