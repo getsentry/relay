@@ -563,6 +563,7 @@ mod tests {
                 "mysql",
             ),
             environment: ~,
+            release: ~,
             http_decoded_response_content_length: ~,
             http_request_method: ~,
             http_response_content_length: ~,
