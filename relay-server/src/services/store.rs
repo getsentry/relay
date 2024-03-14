@@ -300,6 +300,12 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
+                ItemType::ProfileChunk => self.produce_profile_chunk(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    item,
+                )?,
                 _ => {}
             }
         }
@@ -1199,6 +1205,27 @@ impl StoreService {
             }
         }
     }
+
+    fn produce_profile_chunk(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfileChunkKafkaMessage {
+            organization_id,
+            project_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        };
+        self.produce(
+            KafkaTopic::Profiles,
+            organization_id,
+            KafkaMessage::ProfileChunk(message),
+        )?;
+        Ok(())
+    }
 }
 
 impl Service for StoreService {
@@ -1615,6 +1642,14 @@ struct MetricsSummaryKafkaMessage<'a> {
     tags: BTreeMap<&'a str, &'a str>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+struct ProfileChunkKafkaMessage {
+    organization_id: u64,
+    project_id: ProjectId,
+    received: u64,
+    payload: Bytes,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(transparent)]
 struct CogsKafkaMessage(Vec<u8>);
@@ -1642,6 +1677,7 @@ enum KafkaMessage<'a> {
     Span(SpanKafkaMessage<'a>),
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
     Cogs(CogsKafkaMessage),
+    ProfileChunk(ProfileChunkKafkaMessage),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1660,6 +1696,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span(_) => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
             KafkaMessage::Cogs(_) => "cogs",
+            KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
     }
 
@@ -1684,7 +1721,8 @@ impl Message for KafkaMessage<'_> {
             | Self::ReplayRecordingNotChunked(_)
             | Self::Span(_)
             | Self::MetricsSummary(_)
-            | Self::Cogs(_) => Uuid::nil(),
+            | Self::Cogs(_)
+            | Self::ProfileChunk(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),

@@ -75,6 +75,12 @@ pub enum Feature {
     #[serde(rename = "projects:discard-transaction")]
     DiscardTransaction,
 
+    /// Enable continuous profiling.
+    ///
+    /// Serialized as `organizations:continuous-profiling`.
+    #[serde(rename = "organizations:continuous-profiling")]
+    ContinuousProfiling,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

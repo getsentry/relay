@@ -113,6 +113,7 @@ mod measurements;
 mod native_debug_image;
 mod outcomes;
 mod sample;
+mod sample_v2;
 mod transaction_metadata;
 mod utils;
 
@@ -214,7 +215,7 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
         sample::Version::V1 => {
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        sample::Version::Unknown => match profile.platform.as_str() {
+        _ => match profile.platform.as_str() {
             "android" => {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
@@ -251,6 +252,24 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
                 Err(err)
             }
         },
+    }
+}
+
+pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = match minimal_profile_from_json(payload) {
+        Ok(profile) => profile,
+        Err(err) => {
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                from = "minimal",
+                "invalid profile chunk",
+            );
+            return Err(ProfileError::InvalidJson(err));
+        }
+    };
+    match profile.version {
+        sample::Version::V2 => sample_v2::parse(payload),
+        _ => Err(ProfileError::PlatformNotSupported),
     }
 }
 

@@ -114,6 +114,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::CheckIn => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
+        ItemType::ProfileChunk => Some(DataCategory::ProfileDuration),
         ItemType::Unknown(_) => None,
     }
 }

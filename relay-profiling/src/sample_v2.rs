@@ -1,0 +1,198 @@
+use std::collections::{BTreeMap, HashSet};
+use std::ops::Range;
+
+use chrono::{DateTime, Utc};
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+
+use crate::error::ProfileError;
+use crate::measurements::Measurement;
+use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
+
+const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct ProfileMetadata {
+    version: Version,
+    profiler_id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_meta: Option<DebugMeta>,
+
+    architecture: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    environment: String,
+    platform: String,
+    timestamp: DateTime<Utc>,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+struct ProfileData {
+    samples: Vec<Sample>,
+    stacks: Vec<Vec<usize>>,
+    frames: Vec<Frame>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    thread_metadata: Option<BTreeMap<String, ThreadMetadata>>,
+}
+
+impl ProfileData {
+    /// Ensures valid profile chunk or returns an error.
+    ///
+    /// Mutates the profile chunk. Removes invalid samples and threads.
+    /// Throws an error if the profile chunk is malformed.
+    /// Removes extra metadata that are not referenced in the samples.
+    ///
+    /// profile.normalize("cocoa", "arm64e")
+    pub fn normalize(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
+        // Clean samples before running the checks.
+        self.remove_idle_samples_at_the_edge();
+        self.remove_single_samples_per_thread();
+
+        if self.samples.is_empty() {
+            return Err(ProfileError::NotEnoughSamples);
+        }
+
+        if !self.all_stacks_referenced_by_samples_exist() {
+            return Err(ProfileError::MalformedSamples);
+        }
+
+        if !self.all_frames_referenced_by_stacks_exist() {
+            return Err(ProfileError::MalformedStacks);
+        }
+
+        if self.is_above_max_duration() {
+            return Err(ProfileError::DurationIsTooLong);
+        }
+
+        self.strip_pointer_authentication_code(platform, architecture);
+        self.remove_unreferenced_threads();
+
+        Ok(())
+    }
+
+    fn strip_pointer_authentication_code(&mut self, platform: &str, architecture: &str) {
+        let addr = match (platform, architecture) {
+            // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
+            ("cocoa", "arm64") | ("cocoa", "arm64e") => 0x0000000FFFFFFFFF,
+            _ => return,
+        };
+        for frame in &mut self.frames {
+            frame.strip_pointer_authentication_code(addr);
+        }
+    }
+
+    fn remove_idle_samples_at_the_edge(&mut self) {
+        let mut active_ranges: BTreeMap<String, Range<usize>> = BTreeMap::new();
+
+        for (i, sample) in self.samples.iter().enumerate() {
+            if !self
+                .stacks
+                .get(sample.stack_id)
+                .is_some_and(|stack| !stack.is_empty())
+            {
+                continue;
+            }
+
+            active_ranges
+                .entry(sample.thread_id.clone())
+                .and_modify(|range| range.end = i + 1)
+                .or_insert(i..i + 1);
+        }
+
+        self.samples = self
+            .samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                active_ranges
+                    .get(&sample.thread_id)
+                    .is_some_and(|range| range.contains(i))
+            })
+            .map(|(_, sample)| sample)
+            .collect();
+    }
+
+    /// Removes a sample when it's the only sample on its thread
+    fn remove_single_samples_per_thread(&mut self) {
+        let sample_count_by_thread_id = &self
+            .samples
+            .iter()
+            .counts_by(|sample| sample.thread_id.clone())
+            // Only keep data from threads with more than 1 sample so we can calculate a duration
+            .into_iter()
+            .filter(|(_, count)| *count > 1)
+            .collect::<BTreeMap<_, _>>();
+
+        self.samples
+            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
+    }
+
+    /// Checks that all stacks referenced by the samples exist in the stacks.
+    fn all_stacks_referenced_by_samples_exist(&self) -> bool {
+        self.samples
+            .iter()
+            .all(|sample| self.stacks.get(sample.stack_id).is_some())
+    }
+
+    /// Checks that all frames referenced by the stacks exist in the frames.
+    fn all_frames_referenced_by_stacks_exist(&self) -> bool {
+        self.stacks.iter().all(|stack| {
+            stack
+                .iter()
+                .all(|frame_id| self.frames.get(*frame_id).is_some())
+        })
+    }
+
+    /// Checks if the last sample was recorded within the max profile duration.
+    fn is_above_max_duration(&self) -> bool {
+        self.samples.last().map_or(false, |sample| {
+            sample.timestamp_ms > MAX_PROFILE_CHUNK_DURATION_MS
+        })
+    }
+
+    fn remove_unreferenced_threads(&mut self) {
+        if let Some(thread_metadata) = &mut self.thread_metadata {
+            let thread_ids = self
+                .samples
+                .iter()
+                .map(|sample| sample.thread_id.clone())
+                .collect::<HashSet<_>>();
+            thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Sample {
+    timestamp_ms: f64,
+    stack_id: usize,
+    thread_id: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct ProfileChunk {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<BTreeMap<String, Measurement>>,
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+    profile: ProfileData,
+}
+
+fn parse_profile(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
+    let d = &mut serde_json::Deserializer::from_slice(payload);
+    let mut profile: ProfileChunk =
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
+
+    profile.profile.normalize(
+        profile.metadata.platform.as_str(),
+        profile.metadata.architecture.as_str(),
+    )?;
+
+    Ok(profile)
+}
+
+pub fn parse(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = parse_profile(payload)?;
+    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+}

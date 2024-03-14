@@ -16,7 +16,7 @@ use crate::MAX_PROFILE_DURATION;
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct Frame {
+pub struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
     abs_path: Option<String>,
     #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
@@ -38,7 +38,7 @@ struct Frame {
 }
 
 impl Frame {
-    fn strip_pointer_authentication_code(&mut self, pac_code: u64) {
+    pub fn strip_pointer_authentication_code(&mut self, pac_code: u64) {
         if let Some(address) = self.instruction_addr {
             self.instruction_addr = Some(Addr(address.0 & pac_code));
         }
@@ -59,7 +59,7 @@ struct Sample {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct ThreadMetadata {
+pub struct ThreadMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -225,7 +225,7 @@ impl SampleProfile {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
-struct DebugMeta {
+pub struct DebugMeta {
     images: Vec<NativeDebugImage>,
 }
 
@@ -264,6 +264,8 @@ pub enum Version {
     Unknown,
     #[serde(rename = "1")]
     V1,
+    #[serde(rename = "2")]
+    V2,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

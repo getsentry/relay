@@ -124,6 +124,8 @@ pub enum ItemType {
     OtelSpan,
     /// UserReport as an Event
     UserReportV2,
+    /// ProfileChunk is a chunk of a profiling session.
+    ProfileChunk,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -174,6 +176,7 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -229,6 +232,7 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
+            "profile_chunk" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -686,6 +690,7 @@ impl Item {
             } else {
                 DataCategory::Span
             }),
+            ItemType::ProfileChunk => Some(DataCategory::ProfileDuration),
             ItemType::Unknown(_) => None,
         }
     }
@@ -894,7 +899,8 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::OtelSpan => false,
+            | ItemType::OtelSpan
+            | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -930,6 +936,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
+            ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
