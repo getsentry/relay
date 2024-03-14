@@ -11,7 +11,7 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 
 const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     version: Version,
     profiler_id: String,
@@ -19,20 +19,37 @@ pub struct ProfileMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<DebugMeta>,
 
-    architecture: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     environment: String,
     platform: String,
+    release: String,
+
     timestamp: DateTime<Utc>,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
+struct Sample {
+    timestamp_ms: f64,
+    stack_id: usize,
+    thread_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProfileChunk {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    measurements: Option<BTreeMap<String, Measurement>>,
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+    profile: ProfileData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct ProfileData {
     samples: Vec<Sample>,
     stacks: Vec<Vec<usize>>,
     frames: Vec<Frame>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     thread_metadata: Option<BTreeMap<String, ThreadMetadata>>,
 }
 
@@ -65,16 +82,16 @@ impl ProfileData {
             return Err(ProfileError::DurationIsTooLong);
         }
 
-        self.strip_pointer_authentication_code(platform, architecture);
+        self.strip_pointer_authentication_code(platform);
         self.remove_unreferenced_threads();
 
         Ok(())
     }
 
-    fn strip_pointer_authentication_code(&mut self, platform: &str, architecture: &str) {
-        let addr = match (platform, architecture) {
+    fn strip_pointer_authentication_code(&mut self, platform: &str) {
+        let addr = match platform {
             // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-            ("cocoa", "arm64") | ("cocoa", "arm64e") => 0x0000000FFFFFFFFF,
+            "cocoa" => 0x0000000FFFFFFFFF,
             _ => return,
         };
         for frame in &mut self.frames {
@@ -161,22 +178,6 @@ impl ProfileData {
             thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Sample {
-    timestamp_ms: f64,
-    stack_id: usize,
-    thread_id: String,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct ProfileChunk {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<String, Measurement>>,
-    #[serde(flatten)]
-    metadata: ProfileMetadata,
-    profile: ProfileData,
 }
 
 fn parse_profile(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
