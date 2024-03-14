@@ -42,8 +42,12 @@
       }
     ],
     "stacks": [
-      [0],
-      [1]
+      [
+        0
+      ],
+      [
+        1
+      ]
     ],
     "frames": [
       {
@@ -89,7 +93,8 @@
       "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
       "active_thread_id": "259",
       "relative_start_ns": "500500",
-      "relative_end_ns": "50500500"
+      "relative_end_ns": "50500500",
+      "segment_id": "bd2eb23da2beb459"
     }
   ]
 }

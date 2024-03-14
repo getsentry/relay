@@ -1,4 +1,4 @@
-use relay_event_schema::protocol::EventId;
+use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::utils::{deserialize_number_from_string, is_zero};
@@ -8,6 +8,7 @@ pub struct TransactionMetadata {
     pub id: EventId,
     pub name: String,
     pub trace_id: EventId,
+    pub segment_id: SpanId,
 
     #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub active_thread_id: u64,
@@ -65,6 +66,7 @@ mod tests {
             relative_end_ns: 133,
             relative_start_ns: 1,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
         assert!(metadata.valid());
     }
@@ -80,6 +82,7 @@ mod tests {
             relative_end_ns: 133,
             relative_start_ns: 1,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
         assert!(!metadata.valid());
     }
@@ -95,6 +98,7 @@ mod tests {
             relative_end_ns: 0,
             relative_start_ns: 0,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
+            segment_id: SpanId("bd2eb23da2beb459".to_string()),
         };
         assert!(metadata.valid());
     }
