@@ -40,6 +40,7 @@ fn to_app_feature(ns: MetricNamespace) -> AppFeature {
         MetricNamespace::Spans => AppFeature::MetricsSpans,
         MetricNamespace::Profiles => AppFeature::MetricsProfiles,
         MetricNamespace::Custom => AppFeature::MetricsCustom,
+        MetricNamespace::MetricStats => AppFeature::MetricsMetricStats,
         MetricNamespace::Unsupported => AppFeature::MetricsUnsupported,
     }
 }

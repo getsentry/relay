@@ -116,6 +116,10 @@ pub enum MetricNamespace {
     Profiles,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
+    /// Metric stats.
+    ///
+    /// Metrics about metrics.
+    MetricStats,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -129,6 +133,19 @@ pub enum MetricNamespace {
 }
 
 impl MetricNamespace {
+    /// Returns all namespaces/variants of this enum.
+    pub fn all() -> [Self; 7] {
+        [
+            MetricNamespace::Sessions,
+            MetricNamespace::Transactions,
+            MetricNamespace::Spans,
+            MetricNamespace::Profiles,
+            MetricNamespace::Custom,
+            MetricNamespace::MetricStats,
+            MetricNamespace::Unsupported,
+        ]
+    }
+
     /// Returns the string representation for this metric type.
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -137,6 +154,7 @@ impl MetricNamespace {
             MetricNamespace::Spans => "spans",
             MetricNamespace::Profiles => "profiles",
             MetricNamespace::Custom => "custom",
+            MetricNamespace::MetricStats => "metric_stats",
             MetricNamespace::Unsupported => "unsupported",
         }
     }
@@ -152,6 +170,7 @@ impl std::str::FromStr for MetricNamespace {
             "spans" => Ok(Self::Spans),
             "profiles" => Ok(Self::Profiles),
             "custom" => Ok(Self::Custom),
+            "metric_stats" => Ok(Self::MetricStats),
             _ => Ok(Self::Unsupported),
         }
     }
@@ -335,6 +354,16 @@ mod tests {
     fn test_sizeof_unit() {
         assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
         assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
+    }
+
+    #[test]
+    fn test_metric_namespaces_conversion() {
+        for namespace in MetricNamespace::all() {
+            assert_eq!(
+                namespace,
+                namespace.as_str().parse::<MetricNamespace>().unwrap()
+            );
+        }
     }
 
     #[test]
