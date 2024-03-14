@@ -1916,52 +1916,32 @@ impl EnvelopeProcessorService {
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
 
-            let transaction_rate_limits = bucket_limiter.transaction_count().and_then(|count| {
-                rate_limiter
-                    .is_rate_limited(
-                        quotas,
-                        ItemScoping {
-                            category: DataCategory::Transaction,
-                            scoping: &scoping,
-                            namespace: None,
-                        },
-                        count,
-                        over_accept_once,
-                    )
-                    .map_err(|e| {
-                        relay_log::error!(error = &e as &dyn Error);
+            let merged_rate_limits = [DataCategory::Transaction, DataCategory::Span]
+                .into_iter()
+                .flat_map(|category| {
+                    bucket_limiter.count(category).and_then(|count| {
+                        rate_limiter
+                            .is_rate_limited(
+                                quotas,
+                                ItemScoping {
+                                    category,
+                                    scoping: &scoping,
+                                    namespace: None,
+                                },
+                                count,
+                                over_accept_once,
+                            )
+                            .map_err(|e| {
+                                relay_log::error!(error = &e as &dyn Error);
+                            })
+                            // don't limit if there was a redis error (keep user data if budget is unknown)
+                            .ok()
                     })
-                    // don't limit if there was a redis error (keep user data if budget is unknown)
-                    .ok()
-            });
-
-            let span_rate_limits = bucket_limiter.span_count().and_then(|count| {
-                rate_limiter
-                    .is_rate_limited(
-                        quotas,
-                        ItemScoping {
-                            category: DataCategory::Span,
-                            scoping: &scoping,
-                            namespace: None,
-                        },
-                        count,
-                        over_accept_once,
-                    )
-                    .map_err(|e| {
-                        relay_log::error!(error = &e as &dyn Error);
-                    })
-                    // don't limit if there was a redis error (keep user data if budget is unknown)
-                    .ok()
-            });
-
-            let merged_rate_limits = match (transaction_rate_limits, span_rate_limits) {
-                (Some(mut a), Some(b)) => {
+                })
+                .reduce(|mut a, b| {
                     a.merge(b);
-                    Some(a)
-                }
-                (Some(a), None) | (None, Some(a)) => Some(a),
-                (None, None) => None,
-            };
+                    a
+                });
 
             if let Some(merged_rate_limits) = merged_rate_limits {
                 let was_enforced = bucket_limiter

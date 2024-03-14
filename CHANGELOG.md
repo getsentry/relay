@@ -17,6 +17,7 @@
 - Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
 - Enforce rate limits for standalone spans. ([#3238](https://github.com/getsentry/relay/pull/3238))
 - Extract `span.status_code` tag for HTTP spans. ([#3245](https://github.com/getsentry/relay/pull/3245))
+- Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
 
 **Bug Fixes**:
 

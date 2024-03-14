@@ -473,6 +473,18 @@ impl ManagedEnvelope {
             );
         }
 
+        // Track outcomes for attached secondary spans, e.g. extracted from metrics.
+        //
+        // Primary span count is already tracked through `SpanIndexed`.
+        if self.context.summary.secondary_span_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                // Secondary transaction counts are never indexed transactions
+                DataCategory::Span,
+                self.context.summary.secondary_span_quantity,
+            );
+        }
+
         if self.context.summary.replay_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),

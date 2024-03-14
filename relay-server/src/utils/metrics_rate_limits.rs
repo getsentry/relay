@@ -23,8 +23,8 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// Project information.
     scoping: Scoping,
 
-    /// The number of transactions contributing to these metrics.
-    counts: TotalEntityCounts,
+    /// The number of performance items (transactions, spans, profiles) contributing to these metrics.
+    counts: EntityCounts,
 }
 
 const PROFILE_TAG: &str = "has_profile";
@@ -37,7 +37,7 @@ const PROFILE_TAG: &str = "has_profile";
 /// Additionally tracks whether the transactions also contained profiling information.
 ///
 /// Returns `None` if the metric was not extracted from transactions.
-fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSummary {
+fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSummary {
     let mri = match MetricResourceIdentifier::parse(metric.name()) {
         Ok(mri) => mri,
         Err(_) => {
@@ -46,24 +46,26 @@ fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSu
         }
     };
 
-    if mri.namespace == MetricNamespace::Transactions {
-        let usage = matches!(mode, ExtractionMode::Usage);
-        let count = match metric.value() {
-            BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
-            BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
-            _ => 0,
-        };
-        let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-            && metric.tag(PROFILE_TAG) == Some("true");
-        BucketSummary::Transactions { count, has_profile }
-    } else if mri.namespace == MetricNamespace::Spans {
-        BucketSummary::Spans(match metric.value() {
+    match mri.namespace {
+        MetricNamespace::Transactions => {
+            let usage = matches!(mode, ExtractionMode::Usage);
+            let count = match metric.value() {
+                BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
+                BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+                _ => 0,
+            };
+            let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+                && metric.tag(PROFILE_TAG) == Some("true");
+            BucketSummary::Transactions { count, has_profile }
+        }
+        MetricNamespace::Spans => BucketSummary::Spans(match metric.value() {
             BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
             _ => 0,
-        })
-    } else {
-        // Nothing to count
-        BucketSummary::default()
+        }),
+        _ => {
+            // Nothing to count
+            BucketSummary::default()
+        }
     }
 }
 
@@ -77,7 +79,7 @@ where
 
     for bucket in buckets {
         quantities.buckets += 1;
-        let summary = count_metric_bucket(bucket.into(), mode);
+        let summary = summarize_bucket(bucket.into(), mode);
         match summary {
             BucketSummary::Transactions { count, has_profile } => {
                 quantities.transactions += count;
@@ -146,19 +148,19 @@ pub enum BucketSummary {
 }
 
 impl BucketSummary {
-    fn to_counts(&self) -> TotalEntityCounts {
+    fn to_counts(&self) -> EntityCounts {
         match *self {
-            BucketSummary::Transactions { count, has_profile } => TotalEntityCounts {
+            BucketSummary::Transactions { count, has_profile } => EntityCounts {
                 transactions: Some(count),
                 spans: None,
                 profiles: if has_profile { count } else { 0 },
             },
-            BucketSummary::Spans(count) => TotalEntityCounts {
+            BucketSummary::Spans(count) => EntityCounts {
                 transactions: None,
                 spans: Some(count),
                 profiles: 0,
             },
-            BucketSummary::None => TotalEntityCounts::default(),
+            BucketSummary::None => EntityCounts::default(),
         }
     }
 }
@@ -169,17 +171,38 @@ struct SummarizedBucket {
     summary: BucketSummary,
 }
 
+/// Contains the total counts of limitable entities represented by a batch of metrics.
 #[derive(Debug, Default, Clone)]
-struct TotalEntityCounts {
+struct EntityCounts {
+    /// The number of transactions represented in the current batch.
+    ///
+    /// - `None` if the batch does not contain any transaction metrics.
+    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
+    /// - `Some(n > 0)` if the batch contains a `usage` count for transactions.
+    ///
+    /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
+    /// must be checked.
     transactions: Option<usize>,
+    /// The number of spans represented in the current batch.
+    ///
+    /// - `None` if the batch does not contain any transaction metrics.
+    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
+    /// - `Some(n > 0)` if the batch contains a `usage` count for spans.
+    ///
+    /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
+    /// must be checked.
     spans: Option<usize>,
+    /// The number of profiles represented in the current batch.
+    ///
+    /// We do not explicitly check the rate limiter for profiles, so there is no need to
+    /// distinguish between `None` and `Some(0)`.
     profiles: usize,
 }
 
-impl std::ops::Add for TotalEntityCounts {
+impl std::ops::Add for EntityCounts {
     type Output = Self;
 
-    fn add(self, rhs: TotalEntityCounts) -> Self::Output {
+    fn add(self, rhs: EntityCounts) -> Self::Output {
         Self {
             transactions: add_some(self.transactions, rhs.transactions),
             spans: add_some(self.spans, rhs.spans),
@@ -212,7 +235,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         let buckets: Vec<_> = buckets
             .into_iter()
             .map(|bucket| {
-                let summary = count_metric_bucket(BucketView::new(&bucket), mode);
+                let summary = summarize_bucket(BucketView::new(&bucket), mode);
                 SummarizedBucket { bucket, summary }
             })
             .collect();
@@ -246,26 +269,22 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         self.quotas.as_ref()
     }
 
-    /// Counts the number of transactions represented in this batch.
+    /// Counts the number of transactions/spans represented in this batch.
     ///
     /// Returns
-    /// - `None` if the batch does not contain transaction metrics.
-    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
-    /// - `Some(n > 0)` if the batch contains a `usage` count.
-    #[cfg(feature = "processing")]
-    pub fn transaction_count(&self) -> Option<usize> {
-        self.counts.transactions
-    }
-
-    /// Counts the number of spans represented in this batch.
+    /// - `None` if the batch does not contain metrics related to the data category.
+    /// - `Some(0)` if the batch contains metrics related to the data category, but no `usage` count.
+    /// - `Some(n > 0)` if the batch contains a `usage` count for the given data category.
     ///
-    /// Returns
-    /// - `None` if the batch does not contain span metrics.
-    /// - `Some(0)` if the batch contains span metrics, but no `usage` count.
-    /// - `Some(n > 0)` if the batch contains a `usage` count.
+    /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
+    /// must be checked.
     #[cfg(feature = "processing")]
-    pub fn span_count(&self) -> Option<usize> {
-        self.counts.spans
+    pub fn count(&self, category: DataCategory) -> Option<usize> {
+        match category {
+            DataCategory::Transaction => self.counts.transactions,
+            DataCategory::Span => self.counts.spans,
+            _ => None,
+        }
     }
 
     fn drop_with_outcome(
@@ -292,7 +311,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         match (category, &self.counts) {
             (
                 DataCategory::Transaction,
-                TotalEntityCounts {
+                EntityCounts {
                     transactions: Some(count),
                     ..
                 },
@@ -313,7 +332,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
             // Track outcome for the span metrics we dropped:
             (
                 DataCategory::Span,
-                TotalEntityCounts {
+                EntityCounts {
                     spans: Some(count), ..
                 },
             ) => {

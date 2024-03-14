@@ -199,11 +199,6 @@ impl EnvelopeSummary {
                 summary.span_metrics_extracted = true;
             }
 
-            if item.is_span() && item.metrics_extracted() {
-                // This assumes that if one span had metrics extracted, all of them have.
-                summary.span_metrics_extracted = true;
-            }
-
             // If the item has been rate limited before, the quota has been consumed and outcomes
             // emitted. We can skip it here.
             if item.rate_limited() {
