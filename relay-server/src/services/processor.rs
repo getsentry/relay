@@ -31,7 +31,9 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -673,13 +675,12 @@ pub struct ProcessEnvelope {
 pub struct ProcessMetrics {
     /// A list of metric items.
     pub items: Vec<Item>,
-
     /// The target project.
     pub project_key: ProjectKey,
-
+    /// Whether to keep or reset the metric metadata.
+    pub keep_metadata: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
-
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
@@ -689,10 +690,10 @@ pub struct ProcessMetrics {
 pub struct ProcessBatchedMetrics {
     /// Metrics payload in JSON format.
     pub payload: Bytes,
-
+    /// Whether to keep or reset the metric metadata.
+    pub keep_metadata: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
-
     /// The instant at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
 }
@@ -1662,6 +1663,7 @@ impl EnvelopeProcessorService {
             project_key: public_key,
             start_time,
             sent_at,
+            keep_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1715,6 +1717,9 @@ impl EnvelopeProcessorService {
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            if !keep_metadata {
+                bucket.metadata = BucketMetadata::new();
+            }
         }
 
         cogs.update(relay_metrics::cogs::BySize(&buckets));
@@ -1728,6 +1733,7 @@ impl EnvelopeProcessorService {
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
+            keep_metadata,
             start_time,
             sent_at,
         } = message;
@@ -1746,6 +1752,9 @@ impl EnvelopeProcessorService {
                 for (public_key, mut buckets) in buckets {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                        if !keep_metadata {
+                            bucket.metadata = BucketMetadata::new();
+                        }
                     }
 
                     MetricStats::new(&buckets).emit(
@@ -2902,6 +2911,7 @@ mod tests {
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
+                    metadata: BucketMetadata::new(),
                 }],
                 project_state,
             };

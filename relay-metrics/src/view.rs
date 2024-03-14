@@ -2,7 +2,9 @@ use relay_common::time::UnixTimestamp;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
-use crate::{aggregator, CounterType, DistributionType, GaugeValue, SetType, SetValue};
+use crate::{
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
@@ -398,6 +400,13 @@ impl<'a> BucketView<'a> {
         self.inner.tag(name)
     }
 
+    /// Returns the metadata for this bucket.
+    ///
+    /// See also: [`Bucket::metadata`].
+    pub fn metadata(&self) -> &BucketMetadata {
+        &self.inner.metadata
+    }
+
     /// Number of raw datapoints in this view.
     ///
     /// See also: [`BucketValue::len()`]
@@ -514,6 +523,7 @@ impl<'a> Serialize for BucketView<'a> {
             name,
             value: _,
             tags,
+            metadata,
         } = self.inner;
 
         let len = match tags.is_empty() {
@@ -538,6 +548,9 @@ impl<'a> Serialize for BucketView<'a> {
 
         if !tags.is_empty() {
             state.serialize_entry("tags", tags)?;
+        }
+        if !metadata.is_default() {
+            state.serialize_entry("metadata", metadata)?;
         }
 
         state.end()

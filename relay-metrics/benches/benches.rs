@@ -67,6 +67,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         name: "c:transactions/foo@none".to_owned(),
         value: BucketValue::counter(42.into()),
         tags: BTreeMap::new(),
+        metadata: Default::default(),
     };
 
     let inputs = [
