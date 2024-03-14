@@ -3228,6 +3228,16 @@
 <a href="#3227" id="3227">3227</a>
 <a href="#3228" id="3228">3228</a>
 <a href="#3229" id="3229">3229</a>
+<a href="#3230" id="3230">3230</a>
+<a href="#3231" id="3231">3231</a>
+<a href="#3232" id="3232">3232</a>
+<a href="#3233" id="3233">3233</a>
+<a href="#3234" id="3234">3234</a>
+<a href="#3235" id="3235">3235</a>
+<a href="#3236" id="3236">3236</a>
+<a href="#3237" id="3237">3237</a>
+<a href="#3238" id="3238">3238</a>
+<a href="#3239" id="3239">3239</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4977,38 +4987,48 @@
             buckets: HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;,
         }
 
-        <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>payload) {
-            <span class="prelude-val">Ok</span>(Wrapper { buckets }) =&gt; {
-                <span class="kw">for </span>(public_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>buckets {
-                    <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
-                        clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
-                        <span class="kw">if </span>!keep_metadata {
-                            bucket.metadata = BucketMetadata::new();
-                        }
-                    }
-
-                    MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
-                        RelayCounters::ProcessorBatchedMetricsCalls,
-                        RelayCounters::ProcessorBatchedMetricsCount,
-                        RelayCounters::ProcessorBatchedMetricsCost,
-                    );
-
-                    cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
-
-                    <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
-                    <span class="self">self</span>.inner
-                        .project_cache
-                        .send(MergeBuckets::new(public_key, buckets));
-                }
-            }
+        <span class="kw">let </span>buckets = <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>payload) {
+            <span class="prelude-val">Ok</span>(Wrapper { buckets }) =&gt; buckets,
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                     <span class="string">"failed to parse batched metrics"</span>,
                 );
                 <span class="macro">metric!</span>(counter(RelayCounters::MetricBucketsParsingFailed) += <span class="number">1</span>);
+                <span class="kw">return</span>;
             }
         };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>feature_weights = FeatureWeights::none();
+        <span class="kw">for </span>(public_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>buckets {
+            <span class="kw">if </span>buckets.is_empty() {
+                <span class="kw">continue</span>;
+            }
+
+            <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
+                clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+                <span class="kw">if </span>!keep_metadata {
+                    bucket.metadata = BucketMetadata::new();
+                }
+            }
+
+            MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
+                RelayCounters::ProcessorBatchedMetricsCalls,
+                RelayCounters::ProcessorBatchedMetricsCount,
+                RelayCounters::ProcessorBatchedMetricsCost,
+            );
+
+            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets).into());
+
+            <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
+            <span class="self">self</span>.inner
+                .project_cache
+                .send(MergeBuckets::new(public_key, buckets));
+        }
+
+        <span class="kw">if </span>!feature_weights.is_empty() {
+            cogs.update(feature_weights);
+        }
     }
 
     <span class="kw">fn </span>handle_process_metric_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessMetricMeta) {
