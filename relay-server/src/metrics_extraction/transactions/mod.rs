@@ -5,7 +5,8 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
-    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
+    TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
@@ -323,7 +324,13 @@ impl TransactionExtractor<'_> {
                         tags.clone()
                     },
                     score_profile_version: is_performance_score
-                        .then(|| event.tag_value("sentry.score_profile_version"))
+                        .then(|| {
+                            event
+                                .context::<PerformanceScoreContext>()
+                                .unwrap()
+                                .score_profile_version
+                                .value()
+                        })
                         .and_then(|version| version.map(|s| s.to_string())),
                 };
 

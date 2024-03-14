@@ -15,8 +15,8 @@ use relay_base_schema::metrics::{
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
-    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
-    TagEntry, Tags, Timestamp, User,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
+    PerformanceScoreContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -819,14 +819,10 @@ pub fn normalize_performance_score(
                 }
                 if should_add_total {
                     if let Some(version) = &profile.version {
-                        event
-                            .tags
-                            .value_mut()
-                            .get_or_insert_with(Tags::default)
-                            .push(Annotated::new(TagEntry(
-                                Annotated::new("sentry.score_profile_version".to_string()),
-                                Annotated::new(version.clone()),
-                            )));
+                        let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                        let performance_score_context =
+                            contexts.get_or_default::<PerformanceScoreContext>();
+                        performance_score_context.score_profile_version = version.clone().into();
                     }
                     measurements.insert(
                         "score.total".to_owned(),
@@ -2906,12 +2902,12 @@ mod tests {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
-          "tags": [
-            [
-              "sentry.score_profile_version",
-              "beta",
-            ],
-          ],
+          "contexts": {
+            "performance_score": {
+              "score_profile_version": "beta",
+              "type": "performancescore",
+            },
+          },
           "measurements": {
             "inp": {
               "value": 120.0,
