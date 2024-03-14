@@ -335,12 +335,18 @@
 <a href="#334" id="334">334</a>
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
 <span class="kw">use </span>android_trace_log::{AndroidTraceLog, Clock, Vm};
 <span class="kw">use </span>data_encoding::BASE64_NOPAD;
-<span class="kw">use </span>relay_event_schema::protocol::EventId;
+<span class="kw">use </span>relay_event_schema::protocol::{EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
@@ -552,6 +558,12 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">"environment"</span>) {
         profile.metadata.environment = environment.to_owned();
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(segment_id) = transaction_metadata.get(<span class="string">"segment_id"</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = SpanId(segment_id.to_owned());
+        }
     }
 
     profile.metadata.transaction_metadata = transaction_metadata;

@@ -1020,12 +1020,26 @@
 <a href="#1019" id="1019">1019</a>
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 <span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>relay_event_schema::protocol::{Addr, EventId};
+<span class="kw">use </span>relay_event_schema::protocol::{Addr, EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::error::ProfileError;
@@ -1415,6 +1429,12 @@
         profile.metadata.environment = environment.to_owned();
     }
 
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(segment_id) = transaction_metadata.get(<span class="string">"segment_id"</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = SpanId(segment_id.to_owned());
+        }
+    }
+
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
@@ -1423,6 +1443,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_event_schema::protocol::SpanId;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>std::time::Duration;
 
@@ -1571,6 +1593,7 @@
             relative_end_ns: <span class="number">30</span>,
             relative_start_ns: <span class="number">10</span>,
             trace_id: EventId::new(),
+            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
         });
         profile.profile.stacks.push(<span class="macro">vec!</span>[<span class="number">0</span>]);
         profile.profile.samples.extend(<span class="macro">vec!</span>[
@@ -1622,6 +1645,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">50</span>,
             trace_id: EventId::new(),
+            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
         });
         profile.profile.stacks.push(<span class="macro">vec!</span>[<span class="number">0</span>]);
         profile.profile.samples.extend(<span class="macro">vec!</span>[
@@ -1669,6 +1693,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
+            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -1729,6 +1754,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
+            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
         };
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
@@ -1842,6 +1868,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
+            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
         };
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
@@ -2012,7 +2039,8 @@
                 "active_thread_id": 1,
                 "id":"9789498b-6970-4dda-b2a1-f9cb91d1a445",
                 "name":"blah",
-                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352"
+                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352",
+                "segment_id":"bd2eb23da2beb459"
             },
             "dist":"9999",
             "profile":{

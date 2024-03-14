@@ -144,6 +144,10 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>chrono::SecondsFormat;
@@ -173,6 +177,10 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = trace_context.op.value() {
             tags.insert(<span class="string">"transaction.op"</span>.to_owned(), op.to_owned());
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(segment_id) = trace_context.span_id.value() {
+            tags.insert(<span class="string">"segment_id"</span>.to_owned(), segment_id.to_owned().<span class="number">0</span>);
         }
     }
 
