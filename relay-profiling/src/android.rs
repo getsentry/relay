@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
-use crate::sample::SampleProfile;
+use crate::sample_v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};

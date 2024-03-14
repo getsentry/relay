@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
-use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
+use crate::sample_v1::{DebugMeta, Frame, ThreadMetadata, Version};
 
 const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
 
