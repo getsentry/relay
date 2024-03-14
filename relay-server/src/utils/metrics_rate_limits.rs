@@ -442,7 +442,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::{Bucket, BucketValue};
+    use relay_metrics::{Bucket, BucketMetadata, BucketValue};
     use relay_quotas::{Quota, QuotaScope};
     use smallvec::smallvec;
 
@@ -506,6 +506,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -514,6 +515,7 @@ mod tests {
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction without profile
@@ -522,6 +524,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // transaction with profile
@@ -530,6 +533,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
             },
             Bucket {
                 // unrelated metric
@@ -538,6 +542,7 @@ mod tests {
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
             },
         ];
         let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Transaction));
@@ -563,6 +568,7 @@ mod tests {
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(12.into()),
+                metadata: BucketMetadata::default(),
             },
             Bucket {
                 timestamp: UnixTimestamp::now(),
@@ -570,6 +576,7 @@ mod tests {
                 name: "c:spans/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(34.into()),
+                metadata: BucketMetadata::default(),
             },
             Bucket {
                 timestamp: UnixTimestamp::now(),
@@ -577,6 +584,7 @@ mod tests {
                 name: "c:spans/usage@none".to_string(),
                 tags: Default::default(),
                 value: BucketValue::counter(56.into()),
+                metadata: BucketMetadata::default(),
             },
             Bucket {
                 timestamp: UnixTimestamp::now(),
@@ -584,6 +592,7 @@ mod tests {
                 name: "d:spans/exclusive_time@millisecond".to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
+                metadata: BucketMetadata::default(),
             },
             Bucket {
                 timestamp: UnixTimestamp::now(),
@@ -591,6 +600,7 @@ mod tests {
                 name: "d:custom/something@millisecond".to_string(),
                 tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
+                metadata: BucketMetadata::default(),
             },
         ]
     }

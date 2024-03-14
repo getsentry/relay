@@ -45,7 +45,9 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
         can't\saccess\sdead\sobject|
         # Crypocurrency related extension errors
-        Cannot\sredefine\sproperty:\s(solana|ethereum)
+        Cannot\sredefine\sproperty:\s(solana|ethereum)|
+        # Translation service errors in Chrome on iOS
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -264,6 +266,7 @@ mod tests {
             "TypeError: can't access dead object because dead stuff smells bad",
             "Cannot redefine property: solana",
             "Cannot redefine property: ethereum",
+            "undefined is not an object (evaluating 'a.L')",
         ];
 
         for exc_value in &exceptions {

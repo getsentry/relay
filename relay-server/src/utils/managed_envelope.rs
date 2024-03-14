@@ -460,6 +460,17 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.span_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                match self.context.summary.span_metrics_extracted {
+                    true => DataCategory::SpanIndexed,
+                    false => DataCategory::Span,
+                },
+                self.context.summary.span_quantity,
+            );
+        }
+
         // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
         //
         // Primary transaction count is already tracked through the event category
@@ -564,5 +575,47 @@ impl Drop for ManagedEnvelope {
 impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
     fn from(value: TypedEnvelope<G>) -> Self {
         value.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+
+    #[test]
+    fn span_metrics_are_reported() {
+        let bytes =
+            Bytes::from(r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#);
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+
+        let (test_store, _) = Addr::custom();
+        let (outcome_aggregator, mut rx) = Addr::custom();
+        let mut env = ManagedEnvelope::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        );
+        env.context.summary.span_metrics_extracted = true;
+        env.context.summary.span_quantity = 123;
+        env.context.summary.secondary_span_quantity = 456;
+
+        env.reject(Outcome::Abuse);
+
+        rx.close();
+
+        let outcome = rx.blocking_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::SpanIndexed);
+        assert_eq!(outcome.quantity, 123);
+        assert_eq!(outcome.outcome, Outcome::Abuse);
+
+        let outcome = rx.blocking_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Span);
+        assert_eq!(outcome.quantity, 456);
+        assert_eq!(outcome.outcome, Outcome::Abuse);
+
+        assert!(rx.blocking_recv().is_none());
     }
 }

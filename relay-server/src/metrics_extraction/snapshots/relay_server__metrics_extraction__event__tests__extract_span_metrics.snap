@@ -14,6 +14,9 @@ expression: metrics
             "span.category": "ui.react",
             "span.op": "ui.react.render",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -34,6 +37,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -52,6 +58,9 @@ expression: metrics
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -63,6 +72,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -84,6 +96,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -102,6 +117,9 @@ expression: metrics
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -113,6 +131,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -134,6 +155,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -152,6 +176,9 @@ expression: metrics
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -163,6 +190,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -183,6 +213,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -200,6 +233,9 @@ expression: metrics
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -211,6 +247,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -232,6 +271,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -250,6 +292,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "500",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -261,6 +306,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -282,6 +330,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -300,6 +351,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -311,6 +365,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -333,6 +390,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -352,6 +412,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -363,6 +426,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -385,6 +451,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -404,6 +473,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -415,6 +487,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -437,6 +512,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -456,6 +534,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -467,6 +548,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -489,6 +573,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -508,6 +595,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -519,6 +609,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -541,6 +634,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -560,6 +656,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -571,6 +670,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -593,6 +695,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -612,6 +717,9 @@ expression: metrics
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -624,6 +732,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -646,6 +757,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -665,6 +779,9 @@ expression: metrics
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -676,6 +793,9 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -696,6 +816,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -713,6 +836,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -725,6 +851,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -747,6 +876,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -766,6 +898,9 @@ expression: metrics
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -778,6 +913,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -798,6 +936,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -815,6 +956,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -826,6 +970,9 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -848,6 +995,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -867,6 +1017,9 @@ expression: metrics
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -880,6 +1033,9 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -901,6 +1057,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -919,6 +1078,9 @@ expression: metrics
             "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -933,6 +1095,9 @@ expression: metrics
             "span.op": "db",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -952,6 +1117,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -969,6 +1137,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -981,6 +1152,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1001,6 +1175,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1018,6 +1195,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1030,6 +1210,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1051,6 +1234,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1069,6 +1255,9 @@ expression: metrics
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1081,6 +1270,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1094,17 +1286,8 @@ expression: metrics
             "span.category": "cache",
             "span.op": "cache.get_item",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1118,6 +1301,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1129,6 +1315,24 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1150,6 +1354,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1169,6 +1376,9 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1180,6 +1390,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1194,6 +1407,9 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "mongodb",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1213,6 +1429,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1230,6 +1449,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1242,6 +1464,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1255,6 +1480,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.mongodb.find",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1274,6 +1502,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1291,6 +1522,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db.sql.activerecord",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1303,6 +1537,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.activerecord",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1317,6 +1554,9 @@ expression: metrics
             "span.op": "db.redis.command",
             "span.system": "redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1695255152),
@@ -1327,6 +1567,9 @@ expression: metrics
         ),
         tags: {
             "span.op": "ui.load",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1340,6 +1583,9 @@ expression: metrics
             "span.category": "app",
             "span.op": "app.start.cold",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1360,6 +1606,9 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1381,6 +1630,9 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1401,6 +1653,9 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1419,6 +1674,9 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1439,6 +1697,9 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1450,6 +1711,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1472,6 +1736,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1491,6 +1758,9 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1512,6 +1782,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1530,6 +1803,9 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1550,6 +1826,9 @@ expression: metrics
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1561,6 +1840,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1574,6 +1856,9 @@ expression: metrics
             "span.category": "ui.react",
             "span.op": "ui.react.render",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1594,6 +1879,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1612,6 +1900,9 @@ expression: metrics
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1623,6 +1914,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1644,6 +1938,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1662,6 +1959,9 @@ expression: metrics
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1673,6 +1973,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1694,6 +1997,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1712,6 +2018,9 @@ expression: metrics
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1723,6 +2032,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1743,6 +2055,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1760,6 +2075,9 @@ expression: metrics
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1771,6 +2089,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1792,6 +2113,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1810,6 +2134,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1821,6 +2148,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1843,6 +2173,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1862,6 +2195,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1873,6 +2209,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1895,6 +2234,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1914,6 +2256,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1925,6 +2270,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1947,6 +2295,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1966,6 +2317,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -1977,6 +2331,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -1999,6 +2356,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2018,6 +2378,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2029,6 +2392,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2051,6 +2417,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2070,6 +2439,9 @@ expression: metrics
             "span.op": "http.client",
             "span.status_code": "200",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2081,6 +2453,9 @@ expression: metrics
         tags: {
             "span.category": "http",
             "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2103,6 +2478,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2122,6 +2500,9 @@ expression: metrics
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2134,6 +2515,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2156,6 +2540,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2175,6 +2562,9 @@ expression: metrics
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2186,6 +2576,9 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2206,6 +2599,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2223,6 +2619,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2235,6 +2634,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2257,6 +2659,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2276,6 +2681,9 @@ expression: metrics
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2288,6 +2696,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.sql.query",
             "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2308,6 +2719,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2325,6 +2739,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2336,6 +2753,9 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2358,6 +2778,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2377,6 +2800,9 @@ expression: metrics
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2390,6 +2816,9 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2411,6 +2840,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2429,6 +2861,9 @@ expression: metrics
             "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2443,6 +2878,9 @@ expression: metrics
             "span.op": "db",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2462,6 +2900,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2479,6 +2920,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2491,6 +2935,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2511,6 +2958,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2528,6 +2978,9 @@ expression: metrics
             "span.domain": "table",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2540,6 +2993,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2561,6 +3017,9 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2579,6 +3038,9 @@ expression: metrics
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2591,6 +3053,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
             "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2604,17 +3069,8 @@ expression: metrics
             "span.category": "cache",
             "span.op": "cache.get_item",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2628,6 +3084,9 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2639,6 +3098,24 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2659,6 +3136,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2677,6 +3157,9 @@ expression: metrics
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2688,6 +3171,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2709,6 +3195,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2728,6 +3217,9 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -2739,6 +3231,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2761,6 +3256,9 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -2780,6 +3278,9 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2801,6 +3302,9 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -2819,6 +3323,9 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2839,6 +3346,9 @@ expression: metrics
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -2850,6 +3360,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2869,6 +3382,9 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -2886,6 +3402,9 @@ expression: metrics
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -2897,6 +3416,9 @@ expression: metrics
         tags: {
             "span.category": "resource",
             "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -2913,6 +3435,9 @@ expression: metrics
             "span.group": "e674f9eca1d88a4d",
             "span.op": "ui.interaction.click",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1702474613),
@@ -2923,6 +3448,9 @@ expression: metrics
         ),
         tags: {
             "span.op": "ui.interaction.click",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
 ]

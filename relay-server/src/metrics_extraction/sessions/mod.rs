@@ -489,6 +489,9 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
@@ -502,6 +505,9 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -517,6 +523,9 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "abnormal",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
@@ -530,6 +539,9 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "crashed",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -545,6 +557,9 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
@@ -558,6 +573,9 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -574,6 +592,9 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]

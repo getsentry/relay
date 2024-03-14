@@ -1400,6 +1400,7 @@ mod tests {
             value: BucketValue::counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
+            metadata: Default::default(),
         }
     }
 
@@ -1509,6 +1510,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: 10,
+            metadata: Default::default(),
         }
     }
 
