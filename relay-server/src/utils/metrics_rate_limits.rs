@@ -131,7 +131,7 @@ pub enum ExtractionMode {
     Duration,
 }
 
-/// The return value of [`count_metric_bucket`].
+/// The return value of [`summarize_bucket`].
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Default, Clone)]
@@ -403,7 +403,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 );
 
                 return true;
-            } else {
+            } else if category == DataCategory::Transaction {
                 // Also check profiles:
                 let item_scoping = ItemScoping {
                     category: DataCategory::Profile,
