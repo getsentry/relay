@@ -61,7 +61,7 @@ impl ProfileData {
     /// Removes extra metadata that are not referenced in the samples.
     ///
     /// profile.normalize("cocoa", "arm64e")
-    pub fn normalize(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
+    pub fn normalize(&mut self, platform: &str) -> Result<(), ProfileError> {
         // Clean samples before running the checks.
         self.remove_idle_samples_at_the_edge();
         self.remove_single_samples_per_thread();
@@ -185,10 +185,9 @@ fn parse_profile(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
     let mut profile: ProfileChunk =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
-    profile.profile.normalize(
-        profile.metadata.platform.as_str(),
-        profile.metadata.architecture.as_str(),
-    )?;
+    profile
+        .profile
+        .normalize(profile.metadata.platform.as_str())?;
 
     Ok(profile)
 }
