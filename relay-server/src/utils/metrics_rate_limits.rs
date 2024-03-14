@@ -31,12 +31,10 @@ const PROFILE_TAG: &str = "has_profile";
 
 /// Extracts quota information from a metric.
 ///
-/// If the metric was extracted from a or multiple transaction, it returns the amount
+/// If the metric was extracted from one or more transactions or spans, it returns the amount
 /// of datapoints contained in the bucket.
 ///
 /// Additionally tracks whether the transactions also contained profiling information.
-///
-/// Returns `None` if the metric was not extracted from transactions.
 fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSummary {
     let mri = match MetricResourceIdentifier::parse(metric.name()) {
         Ok(mri) => mri,
