@@ -85,41 +85,52 @@ impl KafkaTopic {
 
 /// Configuration for topics.
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct TopicAssignments {
     /// Simple events topic name.
+    #[serde(alias = "ingest-events")]
     pub events: TopicAssignment,
     /// Events with attachments topic name.
+    #[serde(alias = "ingest-attachments")]
     pub attachments: TopicAssignment,
     /// Transaction events topic name.
+    #[serde(alias = "ingest-transactions")]
     pub transactions: TopicAssignment,
     /// Outcomes topic name.
+    #[serde(alias = "outcomes")]
     pub outcomes: TopicAssignment,
     /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
+    #[serde(alias = "outcomes-billing")]
     pub outcomes_billing: Option<TopicAssignment>,
     /// Session health topic name.
+    #[serde(alias = "ingest-sessions")]
     pub sessions: TopicAssignment,
-    /// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
-    pub metrics: TopicAssignment,
-    /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
-    pub metrics_sessions: Option<TopicAssignment>,
+    /// Topic name for metrics extracted from sessions, aka release health.
+    #[serde(alias = "ingest-metrics")]
+    pub metrics_sessions: TopicAssignment,
     /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
     #[serde(alias = "metrics_transactions")]
+    #[serde(alias = "ingest-generic-metrics")]
     pub metrics_generic: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Replay Events topic name.
+    #[serde(alias = "ingest-replay-events")]
     pub replay_events: TopicAssignment,
     /// Recordings topic name.
+    #[serde(alias = "ingest-replay-recordings")]
     pub replay_recordings: TopicAssignment,
     /// Monitor check-ins.
+    #[serde(alias = "ingest-monitors")]
     pub monitors: TopicAssignment,
     /// Standalone spans without a transaction.
+    #[serde(alias = "snuba-spans")]
     pub spans: TopicAssignment,
     /// Summary for metrics collected during a span.
+    #[serde(alias = "snuba-metrics-summaries")]
     pub metrics_summaries: TopicAssignment,
     /// COGS measurements.
+    #[serde(alias = "shared-resources-usage")]
     pub cogs: TopicAssignment,
 }
 
@@ -134,7 +145,7 @@ impl TopicAssignments {
             KafkaTopic::Outcomes => &self.outcomes,
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
-            KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
+            KafkaTopic::MetricsSessions => &self.metrics_sessions,
             KafkaTopic::MetricsGeneric => &self.metrics_generic,
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
@@ -156,8 +167,7 @@ impl Default for TopicAssignments {
             outcomes: "outcomes".to_owned().into(),
             outcomes_billing: None,
             sessions: "ingest-sessions".to_owned().into(),
-            metrics: "ingest-metrics".to_owned().into(),
-            metrics_sessions: None,
+            metrics_sessions: "ingest-metrics".to_owned().into(),
             metrics_generic: "ingest-performance-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
@@ -344,11 +354,11 @@ mod tests {
     #[test]
     fn test_kafka_config() {
         let yaml = r#"
-events: "ingest-events-kafka-topic"
+ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-metrics:
+ingest-metrics:
   shards: 65000
   mapping:
       0:
@@ -398,7 +408,7 @@ metrics:
         let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         let events = topics.events;
         let profiles = topics.profiles;
-        let metrics = topics.metrics;
+        let metrics = topics.metrics_sessions;
 
         assert!(matches!(events, TopicAssignment::Primary(_)));
         assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
