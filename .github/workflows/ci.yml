@@ -212,13 +212,11 @@ jobs:
         with:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: "${{ matrix.target }}"
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}-${{ matrix.arch }}
       - name: Install Cross
-        run: cargo install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
       - name: Install Sentry Cli
         run: curl -sL https://sentry.io/get-cli/ | sh
 
@@ -230,19 +228,14 @@ jobs:
       - name: Split debug info
         run: |
           ls "target/${{ matrix.platform.target }}/release/"
+          cross-util containers list
 
           llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
-          ls "target/${{ matrix.platform.target }}/release/"
-          mv "${RELAY_BIN}" ./relay-bin
-          zip relay-debug.zip "${RELAY_BIN}.debug"
-          sentry-cli --version
-          ls "target/${{ matrix.platform.target }}/release/"
-          ls
-          sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
-          mv "${RELAY_BIN}.src.zip" ./relay.src.zip
+          cross-util -v run --target "${{ matrix.platform.target }}" -- "curl -sL https://sentry.io/get-cli/ | sh"
+          cross-util -v run --target "${{ matrix.platform.target }}" -- "make collect-source-bundle"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
