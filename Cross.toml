@@ -1,7 +1,7 @@
 [build]
 pre-build = [
     # "apt-get update && apt-get --assume-yes install libclang-5.0-dev clang-3.8"
-    "apt-get update && apt-get install --assume-yes --no-install-recommends libclang-10-dev clang-10",
+    "apt-get update && apt-get install --assume-yes --no-install-recommends libclang-10-dev clang-10 zlib1g-dev",
     "dpkg --add-architecture $CROSS_DEB_ARCH", 
-    "apt-get update && apt-get --assume-yes install zlib1g-dev:$CROSS_DEB_ARCH libsasl2-dev:$CROSS_DEB_ARCH"
+    "apt-get update && apt-get --assume-yes install libsasl2-dev:$CROSS_DEB_ARCH"
 ]
