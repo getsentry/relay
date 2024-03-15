@@ -1728,6 +1728,7 @@
 <a href="#1727" id="1727">1727</a>
 <a href="#1728" id="1728">1728</a>
 <a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2978,6 +2979,7 @@
         }
         MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
+        MetricNamespace::Stats =&gt; <span class="bool-val">false</span>,
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
     }
 }

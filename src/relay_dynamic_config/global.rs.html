@@ -460,6 +460,12 @@
 <a href="#459" id="459">459</a>
 <a href="#460" id="460">460</a>
 <a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -648,6 +654,7 @@
     spans: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
+    metric_stats: BucketEncoding,
 }
 
 <span class="kw">impl </span>BucketEncodings {
@@ -658,6 +665,7 @@
             MetricNamespace::Spans =&gt; <span class="self">self</span>.spans,
             MetricNamespace::Profiles =&gt; <span class="self">self</span>.profiles,
             MetricNamespace::Custom =&gt; <span class="self">self</span>.custom,
+            MetricNamespace::Stats =&gt; <span class="self">self</span>.metric_stats,
             <span class="comment">// Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -693,6 +701,7 @@
                 spans: encoding,
                 profiles: encoding,
                 custom: encoding,
+                metric_stats: encoding,
             })
         }
 
@@ -886,7 +895,8 @@
                 transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy
+                custom: BucketEncoding::Legacy,
+                metric_stats: BucketEncoding::Legacy,
             }
         );
         <span class="macro">assert_eq!</span>(
@@ -895,7 +905,8 @@
                 transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd
+                custom: BucketEncoding::Zstd,
+                metric_stats: BucketEncoding::Zstd,
             }
         );
     }
@@ -907,6 +918,7 @@
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
+            metric_stats: BucketEncoding::Base64,
         };
         <span class="kw">let </span>s = serde_json::to_string(<span class="kw-2">&amp;</span>original).unwrap();
         <span class="kw">let </span>s = <span class="macro">format!</span>(

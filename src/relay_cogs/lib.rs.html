@@ -193,6 +193,9 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
 //!
 //! Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
@@ -336,6 +339,8 @@
     </span>MetricsSessions,
     <span class="doccomment">/// Metrics in the custom namespace.
     </span>MetricsCustom,
+    <span class="doccomment">/// Metrics in the `metric_stats` namespace.
+    </span>MetricsStats,
     <span class="doccomment">/// Metrics in the unsupported namespace.
     ///
     /// This is usually not emitted, since metrics in the unsupported
@@ -363,6 +368,7 @@
             <span class="self">Self</span>::MetricsProfiles =&gt; <span class="string">"metrics_profiles"</span>,
             <span class="self">Self</span>::MetricsSessions =&gt; <span class="string">"metrics_sessions"</span>,
             <span class="self">Self</span>::MetricsCustom =&gt; <span class="string">"metrics_custom"</span>,
+            <span class="self">Self</span>::MetricsStats =&gt; <span class="string">"metrics_metric_stats"</span>,
             <span class="self">Self</span>::MetricsUnsupported =&gt; <span class="string">"metrics_unsupported"</span>,
         }
     }
