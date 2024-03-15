@@ -205,6 +205,11 @@ jobs:
           export PATH="/home/runner/.cargo/bin/:$PATH"
           cross build --all-features --release --target "${{ matrix.target }}"
 
+      - name: Archive Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: "relay-${{ matrix.target }}"
+          path: "target/${{ matrix.target }}/release/relay"
 
   # build:
   #   timeout-minutes: 30
