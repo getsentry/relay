@@ -1248,7 +1248,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
         }
         MetricNamespace::Profiles => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
-        MetricNamespace::MetricStats => false,
+        MetricNamespace::Stats => false,
         MetricNamespace::Unsupported => false,
     }
 }

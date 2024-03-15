@@ -119,7 +119,7 @@ pub enum MetricNamespace {
     /// Metric stats.
     ///
     /// Metrics about metrics.
-    MetricStats,
+    Stats,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -141,7 +141,7 @@ impl MetricNamespace {
             MetricNamespace::Spans,
             MetricNamespace::Profiles,
             MetricNamespace::Custom,
-            MetricNamespace::MetricStats,
+            MetricNamespace::Stats,
             MetricNamespace::Unsupported,
         ]
     }
@@ -154,7 +154,7 @@ impl MetricNamespace {
             MetricNamespace::Spans => "spans",
             MetricNamespace::Profiles => "profiles",
             MetricNamespace::Custom => "custom",
-            MetricNamespace::MetricStats => "metric_stats",
+            MetricNamespace::Stats => "metric_stats",
             MetricNamespace::Unsupported => "unsupported",
         }
     }
@@ -170,7 +170,7 @@ impl std::str::FromStr for MetricNamespace {
             "spans" => Ok(Self::Spans),
             "profiles" => Ok(Self::Profiles),
             "custom" => Ok(Self::Custom),
-            "metric_stats" => Ok(Self::MetricStats),
+            "metric_stats" => Ok(Self::Stats),
             _ => Ok(Self::Unsupported),
         }
     }

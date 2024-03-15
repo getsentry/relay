@@ -57,7 +57,7 @@ impl MetricStats {
             MetricNamespace::Spans => &mut self.spans,
             MetricNamespace::Profiles => &mut self.profiles,
             MetricNamespace::Custom => &mut self.custom,
-            MetricNamespace::MetricStats => &mut self.metric_stats,
+            MetricNamespace::Stats => &mut self.metric_stats,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
     }
