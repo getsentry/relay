@@ -632,6 +632,7 @@ def _get_profile_payload(metadata_only=True):
                 "active_thread_id": "259",
                 "relative_start_ns": "500500",
                 "relative_end_ns": "50500500",
+                "segment_id": "bd2eb23da2beb459",
             }
         ],
     }
