@@ -225,7 +225,7 @@ jobs:
       - name: Compile
         run: |
           export PATH="/home/runner/.cargo/bin/:$PATH"
-          cross build --release --features "${{ matrix.image.features }}" --target "${{ matrix.platform.target }}"
+          cross build --release --locked --features "${{ matrix.image.features }}" --target "${{ matrix.platform.target }}"
 
       - name: Split debug info
         run: |
@@ -238,20 +238,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Push to ghcr.io
-        # Do not run this on forks as they do not have access to secrets
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+      - name: Build docker container
         run: |
-          set -euxo pipefail
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-
           make collect-source-bundle
-
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
             --tag "${DOCKER_IMAGE}" \
             --file Dockerfile.release
 
+      - name: Push to ghcr.io
+        # Do not run this on forks as they do not have access to secrets
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+        run: |
+          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
           docker push "${DOCKER_IMAGE}"
 
   # build:
