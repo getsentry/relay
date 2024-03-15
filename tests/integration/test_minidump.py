@@ -466,7 +466,7 @@ def test_minidump_with_processing_invalid(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "content_type": None,
+            "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),
