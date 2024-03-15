@@ -148,18 +148,18 @@ pub fn process(
 /// Copies spans from the state's transaction event to individual span envelope items.
 pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
-    if dbg!(state.event_type()) != Some(EventType::Transaction) {
+    if state.event_type() != Some(EventType::Transaction) {
         return;
     };
 
-    if !dbg!(state
+    if !state
         .project_state
-        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent))
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
         return;
     }
 
-    let Some(event) = dbg!(state.event.value()) else {
+    let Some(event) = state.event.value() else {
         return;
     };
 
@@ -203,7 +203,7 @@ fn add_transaction_span(
     mut transaction_span: Span,
     state: &mut ProcessEnvelopeState<TransactionGroup>,
 ) {
-    let Some(event) = dbg!(state.event.value()) else {
+    let Some(event) = state.event.value() else {
         return;
     };
 
@@ -223,7 +223,7 @@ fn add_transaction_span(
     );
 
     let metrics_extraction_config = match state.project_state.config.metric_extraction {
-        ErrorBoundary::Ok(ref config) if dbg!(config.is_enabled()) => Some(config),
+        ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
 
