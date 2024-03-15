@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, Options};
+use relay_dynamic_config::MetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -43,18 +43,14 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(
-    event: &Event,
-    config: &MetricExtractionConfig,
-    global_options: Option<&Options>,
-) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config, global_options);
+pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
+    let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config, global_options));
+                    metrics.extend(generic::extract_metrics(span, config));
                 }
             }
         }
@@ -1010,7 +1006,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1145,7 +1141,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1206,7 +1202,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1242,15 +1238,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(
-            event.value().unwrap(),
-            &config,
-            Some(&{
-                let mut o = Options::default();
-                o.span_usage_metric = true;
-                o
-            }),
-        );
+        let metrics = extract_metrics(event.value().unwrap(), &config);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1274,7 +1262,7 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config, None)
+        generic::extract_metrics(span, &extraction_config)
     }
 
     /// Helper function for span metric extraction tests.
@@ -1297,6 +1285,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1308,7 +1297,10 @@ mod tests {
     #[test]
     fn test_app_start_cold_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1317,6 +1309,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1328,7 +1321,10 @@ mod tests {
     #[test]
     fn test_app_start_warm_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1337,6 +1333,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1348,7 +1345,10 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1357,6 +1357,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1368,7 +1369,10 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1391,19 +1395,13 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none"
-                || metric.name == "c:spans/count_per_segment@none"
-            {
-                continue;
-            }
-            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+            if metric.name == "d:spans/exclusive_time@millisecond" {
+                assert_eq!(metric.tag("ttid"), Some("ttid"));
+                assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+            } else {
                 assert!(!metric.tags.contains_key("ttid"));
                 assert!(!metric.tags.contains_key("ttfd"));
-                continue;
             }
-            assert_eq!(metric.tag("ttid"), Some("ttid"));
-            assert_eq!(metric.tag("ttfd"), Some("ttfd"));
-            break;
         }
     }
 

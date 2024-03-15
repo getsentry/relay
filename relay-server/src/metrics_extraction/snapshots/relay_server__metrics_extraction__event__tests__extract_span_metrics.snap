@@ -6,6 +6,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -39,6 +51,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -91,6 +115,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -157,6 +193,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -216,6 +264,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -266,6 +326,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -332,6 +404,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -384,6 +468,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -445,6 +541,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -513,6 +621,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -574,6 +694,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -635,6 +767,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -689,6 +833,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -758,6 +914,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -812,6 +980,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -870,6 +1050,18 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -939,6 +1131,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -989,6 +1193,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1058,6 +1274,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1120,6 +1348,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1171,6 +1411,18 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1236,6 +1488,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1289,6 +1553,18 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1329,6 +1605,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1362,6 +1650,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1395,6 +1695,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1421,6 +1733,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1481,6 +1805,18 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1522,6 +1858,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1580,6 +1928,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1606,6 +1966,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.mongodb.find",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1664,6 +2036,18 @@ expression: metrics
             "span.op": "db.sql.activerecord",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1705,6 +2089,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255152),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1730,6 +2126,18 @@ expression: metrics
         tags: {
             "span.op": "ui.load",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255136),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1770,6 +2178,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1899,6 +2319,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2021,6 +2453,18 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2061,6 +2505,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2113,6 +2569,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2179,6 +2647,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2238,6 +2718,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2288,6 +2780,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2354,6 +2858,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2408,6 +2924,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2476,6 +3004,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2537,6 +3077,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2598,6 +3150,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2652,6 +3216,18 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2721,6 +3297,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2775,6 +3363,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2833,6 +3433,18 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2902,6 +3514,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -2952,6 +3576,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3021,6 +3657,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3083,6 +3731,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3134,6 +3794,18 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3199,6 +3871,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3252,6 +3936,18 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3292,6 +3988,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3325,6 +4033,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3358,6 +4078,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3384,6 +4116,18 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3449,6 +4193,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3502,6 +4258,18 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3638,6 +4406,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -3687,6 +4467,18 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
         },
