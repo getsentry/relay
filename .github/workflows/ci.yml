@@ -229,9 +229,20 @@ jobs:
 
       - name: Split debug info
         run: |
+          ls "target/${{ matrix.platform.target }}/release/"
+
           llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
+
+          ls "target/${{ matrix.platform.target }}/release/"
+          mv "${RELAY_BIN}" ./relay-bin
+          zip relay-debug.zip "${RELAY_BIN}.debug"
+          sentry-cli --version
+          ls "target/${{ matrix.platform.target }}/release/"
+          ls
+          sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
+          mv "${RELAY_BIN}.src.zip" ./relay.src.zip
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -240,7 +251,6 @@ jobs:
 
       - name: Build docker container
         run: |
-          make collect-source-bundle
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
             --tag "${DOCKER_IMAGE}" \
