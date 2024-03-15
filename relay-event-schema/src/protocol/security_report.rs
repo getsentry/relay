@@ -551,7 +551,6 @@ pub struct Csp {
 impl Csp {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let variant = serde_json::from_slice::<CspVariant>(data)?;
-
         match variant {
             CspVariant::Csp(value) => Csp::simple_csp(event, value.csp_report)?,
             CspVariant::CspViolation(value) => Csp::simple_csp(event, value.body)?,
@@ -1145,36 +1144,25 @@ impl SecurityReportType {
             expect_ct_report: Option<IgnoredAny>,
         }
 
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum ReportVariant<'a> {
-            #[serde(borrow)]
-            SecurityReport(SecurityReport<'a>),
-            Reports(Vec<IgnoredAny>),
-        }
+        let helper: SecurityReport = serde_json::from_slice(data)?;
 
-        let helper: ReportVariant = serde_json::from_slice(data)?;
-
-        match helper {
-            ReportVariant::Reports(_) => Ok(Some(SecurityReportType::Csp)),
-            ReportVariant::SecurityReport(helper) => Ok(if helper.csp_report.is_some() {
+        Ok(if helper.csp_report.is_some() {
+            Some(SecurityReportType::Csp)
+        } else if let Some(ty) = helper.ty {
+            if ty == "csp-violation" {
                 Some(SecurityReportType::Csp)
-            } else if let Some(ty) = helper.ty {
-                if ty == "csp-violation" {
-                    Some(SecurityReportType::Csp)
-                } else {
-                    None
-                }
-            } else if helper.known_pins.is_some() {
-                Some(SecurityReportType::Hpkp)
-            } else if helper.expect_staple_report.is_some() {
-                Some(SecurityReportType::ExpectStaple)
-            } else if helper.expect_ct_report.is_some() {
-                Some(SecurityReportType::ExpectCt)
             } else {
                 None
-            }),
-        }
+            }
+        } else if helper.known_pins.is_some() {
+            Some(SecurityReportType::Hpkp)
+        } else if helper.expect_staple_report.is_some() {
+            Some(SecurityReportType::ExpectStaple)
+        } else if helper.expect_ct_report.is_some() {
+            Some(SecurityReportType::ExpectCt)
+        } else {
+            None
+        })
     }
 }
 
@@ -1938,30 +1926,6 @@ mod tests {
                 "blocked-uri": "http://evilhackerscripts.com"
             }
         }"#;
-
-        let report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();
-        assert_eq!(report_type, Some(SecurityReportType::Csp));
-    }
-
-    #[test]
-    fn test_security_report_type_deserializer_recognizes_list_csp_violations_reports() {
-        let csp_report_text = r#"[{
-          "age":0,
-          "body":{
-            "blockedURL":"https://example.com/tst/media/7_del.png",
-            "disposition":"enforce",
-            "documentURL":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
-            "effectiveDirective":"img-src",
-            "lineNumber":9,
-            "originalPolicy":"default-src 'none'; report-to endpoint-csp;",
-            "referrer":"https://example.com/test229/",
-            "sourceFile":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
-            "statusCode":0
-            },
-          "type":"csp-violation",
-          "url":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
-          "user_agent":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
-        }]"#;
 
         let report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();
         assert_eq!(report_type, Some(SecurityReportType::Csp));

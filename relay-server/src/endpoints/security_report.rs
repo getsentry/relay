@@ -8,6 +8,7 @@ use bytes::Bytes;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -53,18 +54,20 @@ impl SecurityReportParams {
         }
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-        if let Ok(items) =
-            serde_json::from_slice::<Vec<Bytes>>(&body).map_err(BadStoreRequest::InvalidJson)
-        {
-            // we have a list of the reports here
+        let variant =
+            serde_json::from_slice::<Vec<&RawValue>>(&body).map_err(BadStoreRequest::InvalidJson);
+
+        if let Ok(items) = variant {
             for item in items {
-                let report_item = Self::create_security_item(&query, item);
+                let report_item =
+                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
                 envelope.add_item(report_item);
             }
         } else {
             let report_item = Self::create_security_item(&query, body);
             envelope.add_item(report_item);
         }
+
         Ok(envelope)
     }
 }
