@@ -26,6 +26,7 @@
 - Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
 - Don't run validation on renormalization, and don't normalize spans from librelay calls. ([#3214](https://github.com/getsentry/relay/pull/3214))
 - Extract metrics from transaction spans. ([#3273](https://github.com/getsentry/relay/pull/3273))
+- Set segment_id as optional ([#3275](https://github.com/getsentry/relay/pull/3275))
 
 **Internal**:
 
