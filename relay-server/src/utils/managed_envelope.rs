@@ -208,6 +208,12 @@ impl ManagedEnvelope {
         envelope
     }
 
+    /// Returns an untracked envelope that does not report to outcomes or test store.
+    #[cfg(test)]
+    pub fn silent(envelope: Box<Envelope>, group: ProcessingGroup) -> Self {
+        Self::standalone(envelope, Addr::custom().0, Addr::custom().0, group)
+    }
+
     /// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
     ///
     /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal

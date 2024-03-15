@@ -541,3 +541,33 @@ fn validate(span: Annotated<Span>) -> Result<(Span, Meta), anyhow::Error> {
 
     Ok((inner, meta))
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_base_schema::project::ProjectId;
+    use relay_metrics::Bucket;
+    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+
+    use crate::services::processor::ProcessingGroup;
+    use crate::services::project::ProjectState;
+    use crate::testutils::empty_envelope;
+    use crate::utils::TypedEnvelope;
+
+    use super::*;
+
+    #[test]
+    fn transaction_span_metrics_extracted() {
+        let event = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100"
+        }
+        "#;
+        let mut state = ProcessEnvelopeState::simple(event, ProcessingGroup::Transaction);
+
+        extract_from_event(&mut state);
+
+        // assert_eq!(state.extracted_metrics.project_metrics, vec![]);
+    }
+}

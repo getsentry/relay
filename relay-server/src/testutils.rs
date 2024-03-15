@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use relay_base_schema::project::ProjectId;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
-use relay_protocol::RuleCondition;
+use relay_protocol::{Annotated, RuleCondition};
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
@@ -15,9 +17,10 @@ use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::EnvelopeProcessorService;
+use crate::services::processor::{EnvelopeProcessorService, ProcessingGroup};
 use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
+use crate::utils::{ManagedEnvelope, TypedEnvelope};
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,

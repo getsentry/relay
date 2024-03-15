@@ -577,6 +577,29 @@ struct ProcessEnvelopeState<'a, Group> {
     reservoir: ReservoirEvaluator<'a>,
 }
 
+#[cfg(test)]
+impl<'a, Group: TryFrom<ProcessingGroup>> ProcessEnvelopeState<'a, Group> {
+    fn simple(event_json: &str, group: ProcessingGroup) -> Self {
+        use crate::testutils::empty_envelope;
+
+        let managed_envelope = ManagedEnvelope::silent(empty_envelope(), group);
+        let typed_envelope: TypedEnvelope<Group> = managed_envelope.try_into().unwrap();
+        Self {
+            event: Annotated::from_json(event_json).unwrap(),
+            event_metrics_extracted: Default::default(),
+            metrics: Default::default(),
+            sample_rates: Default::default(),
+            extracted_metrics: Default::default(),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: Default::default(),
+            project_id: ProjectId::new(42),
+            managed_envelope: typed_envelope,
+            profile_id: Default::default(),
+            reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
+        }
+    }
+}
+
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
