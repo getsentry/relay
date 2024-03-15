@@ -593,6 +593,11 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -822,6 +827,10 @@
     <span class="doccomment">/// The sentry environment.
     </span><span class="attr">#[metastructure(field = <span class="string">"environment"</span>)]
     </span><span class="kw">pub </span>environment: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The release version of the project.
+    </span><span class="attr">#[metastructure(field = <span class="string">"release"</span>)]
+    </span><span class="kw">pub </span>release: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The decoded body size of the response (in bytes).
     </span><span class="attr">#[metastructure(field = <span class="string">"http.decoded_response_content_length"</span>)]
@@ -1154,6 +1163,7 @@
                 "mysql",
             ),
             environment: ~,
+            release: ~,
             http_decoded_response_content_length: ~,
             http_request_method: ~,
             http_response_content_length: ~,

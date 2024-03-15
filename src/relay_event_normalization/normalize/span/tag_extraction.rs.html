@@ -1533,6 +1533,14 @@
 <a href="#1532" id="1532">1532</a>
 <a href="#1533" id="1533">1533</a>
 <a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -2014,6 +2022,14 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
                 {
                     span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
+                }
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) =
+                    span.data.value().and_then(|data| data.environment.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                }
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
                 }
             }
         }
