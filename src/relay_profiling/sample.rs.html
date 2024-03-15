@@ -1431,7 +1431,7 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(segment_id) = transaction_metadata.get(<span class="string">"segment_id"</span>) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_metadata) = profile.metadata.transaction.as_mut() {
-            transaction_metadata.segment_id = SpanId(segment_id.to_owned());
+            transaction_metadata.segment_id = <span class="prelude-val">Some</span>(SpanId(segment_id.to_owned()));
         }
     }
 
@@ -1593,7 +1593,7 @@
             relative_end_ns: <span class="number">30</span>,
             relative_start_ns: <span class="number">10</span>,
             trace_id: EventId::new(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         });
         profile.profile.stacks.push(<span class="macro">vec!</span>[<span class="number">0</span>]);
         profile.profile.samples.extend(<span class="macro">vec!</span>[
@@ -1645,7 +1645,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">50</span>,
             trace_id: EventId::new(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         });
         profile.profile.stacks.push(<span class="macro">vec!</span>[<span class="number">0</span>]);
         profile.profile.samples.extend(<span class="macro">vec!</span>[
@@ -1693,7 +1693,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -1754,7 +1754,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
@@ -1868,7 +1868,7 @@
             relative_end_ns: <span class="number">100</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: EventId::new(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);

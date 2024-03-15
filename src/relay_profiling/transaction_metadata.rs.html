@@ -104,6 +104,7 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_event_schema::protocol::{EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -114,7 +115,8 @@
     <span class="kw">pub </span>id: EventId,
     <span class="kw">pub </span>name: String,
     <span class="kw">pub </span>trace_id: EventId,
-    <span class="kw">pub </span>segment_id: SpanId,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="kw">pub </span>segment_id: <span class="prelude-ty">Option</span>&lt;SpanId&gt;,
 
     <span class="attr">#[serde(default, deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
     </span><span class="kw">pub </span>active_thread_id: u64,
@@ -172,7 +174,7 @@
             relative_end_ns: <span class="number">133</span>,
             relative_start_ns: <span class="number">1</span>,
             trace_id: <span class="string">"4705BD13-368A-499A-AA48-439DAFD9CFB0"</span>.parse().unwrap(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
         <span class="macro">assert!</span>(metadata.valid());
     }
@@ -188,7 +190,7 @@
             relative_end_ns: <span class="number">133</span>,
             relative_start_ns: <span class="number">1</span>,
             trace_id: <span class="string">"4705BD13-368A-499A-AA48-439DAFD9CFB0"</span>.parse().unwrap(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
         <span class="macro">assert!</span>(!metadata.valid());
     }
@@ -204,7 +206,7 @@
             relative_end_ns: <span class="number">0</span>,
             relative_start_ns: <span class="number">0</span>,
             trace_id: <span class="string">"4705BD13-368A-499A-AA48-439DAFD9CFB0"</span>.parse().unwrap(),
-            segment_id: SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string()),
+            segment_id: <span class="prelude-val">Some</span>(SpanId(<span class="string">"bd2eb23da2beb459"</span>.to_string())),
         };
         <span class="macro">assert!</span>(metadata.valid());
     }
