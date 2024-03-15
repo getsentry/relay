@@ -5,9 +5,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, GlobalConfig, MetricExtractionConfig, ProjectConfig,
-};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
@@ -16,7 +14,6 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
-use relay_metrics::Bucket;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -149,8 +146,6 @@ pub fn process(
 }
 
 /// Copies spans from the state's transaction event to individual span envelope items.
-///
-/// Also performs span normalization (tag extraction) and metrics extraction.
 pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
@@ -168,13 +163,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     };
 
-    let metrics_extraction_config = match state.project_state.config.metric_extraction {
-        ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
-        _ => None,
-    };
-
     // Extract transaction as a span.
-    let mut transaction_span: Span = event.into();
+    let transaction_span: Span = event.into();
 
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
@@ -196,12 +186,26 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 
             add_span(
                 Annotated::new(new_span),
-                metrics_extraction_config,
                 &mut state.managed_envelope,
-                &mut state.extracted_metrics.project_metrics,
+                // If metrics extraction happened for the event, it also happened for its spans:
+                state.event_metrics_extracted,
             );
         }
     }
+
+    add_transaction_span(transaction_span, state);
+}
+
+/// Adds the span that represents the transaction itself (as opposed to its child spans).
+///
+/// Also performs metrics extraction for the transaction i.e. segment span.
+fn add_transaction_span(
+    mut transaction_span: Span,
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+) {
+    let Some(event) = state.event.value() else {
+        return;
+    };
 
     // Extract tags to add to this span as well
     let mut shared_tags = tag_extraction::extract_shared_tags(event);
@@ -217,24 +221,37 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
             .collect(),
     );
+
+    let metrics_extraction_config = match state.project_state.config.metric_extraction {
+        ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
+        _ => None,
+    };
+
+    let mut metrics_extracted = false;
+
+    if let Some(config) = metrics_extraction_config {
+        relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+            let metrics = extract_metrics(&transaction_span, config);
+            state.extracted_metrics.project_metrics.extend(metrics);
+        });
+        metrics_extracted = true;
+    };
+
     add_span(
         transaction_span.into(),
-        metrics_extraction_config,
         &mut state.managed_envelope,
-        &mut state.extracted_metrics.project_metrics,
+        metrics_extracted,
     );
 }
 
 fn add_span(
     span: Annotated<Span>,
-    metrics_extraction_config: Option<&MetricExtractionConfig>,
     managed_envelope: &mut ManagedEnvelope,
-    project_metrics: &mut Vec<Bucket>,
+    metrics_extracted: bool,
 ) {
-    match into_item(span, metrics_extraction_config) {
-        Ok((item, metrics)) => {
+    match into_item(span, metrics_extracted) {
+        Ok(item) => {
             managed_envelope.envelope_mut().add_item(item);
-            project_metrics.extend(metrics);
         }
         Err(e) => {
             relay_log::error!("Invalid span: {e}");
@@ -248,24 +265,15 @@ fn add_span(
 }
 
 /// Converts the span to an envelope item and extracts metrics for it.
-fn into_item(
-    span: Annotated<Span>,
-    metrics_extraction_config: Option<&MetricExtractionConfig>,
-) -> Result<(Item, Vec<Bucket>), anyhow::Error> {
+fn into_item(span: Annotated<Span>, metrics_extracted: bool) -> Result<Item, anyhow::Error> {
     let (span, meta) = validate(span)?;
-
-    let metrics = metrics_extraction_config.map(|config| {
-        relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-            extract_metrics(&span, config)
-        })
-    });
 
     let span = Annotated(Some(span), meta).to_json()?;
     let mut item = Item::new(ItemType::Span);
     item.set_payload(ContentType::Json, span);
-    item.set_metrics_extracted(metrics.is_some());
+    item.set_metrics_extracted(metrics_extracted);
 
-    Ok((item, metrics.unwrap_or_default()))
+    Ok(item)
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.

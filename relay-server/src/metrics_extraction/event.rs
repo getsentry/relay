@@ -5,6 +5,7 @@ use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::statsd::RelayTimers;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -43,7 +44,19 @@ impl Extractable for Span {
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
-    generic::extract_metrics(event, config)
+    let mut metrics = generic::extract_metrics(event, config);
+
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        if let Some(spans) = event.spans.value() {
+            for annotated_span in spans {
+                if let Some(span) = annotated_span.value() {
+                    metrics.extend(generic::extract_metrics(span, config));
+                }
+            }
+        }
+    });
+
+    metrics
 }
 
 #[cfg(test)]
