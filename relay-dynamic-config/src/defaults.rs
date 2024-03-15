@@ -130,7 +130,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_http.clone())
         & duration_condition.clone();
 
-    let exclusive_time_condition =
+    let know_modules_condition =
         (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
             & duration_condition.clone();
 
@@ -146,14 +146,18 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(exclusive_time_condition.clone()),
+            condition: None,
             tags: vec![
                 // Common tags:
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(
-                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
-                    ),
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
                     .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
@@ -162,22 +166,16 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .when(is_db.clone()),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
                     .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 // Mobile:
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
@@ -269,23 +267,6 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/exclusive_time@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: Some(!exclusive_time_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
             ],
         },
         MetricSpec {
