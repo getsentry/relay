@@ -544,7 +544,6 @@ fn validate(span: Annotated<Span>) -> Result<(Span, Meta), anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
-    use relay_dynamic_config::MetricExtractionConfig;
 
     use super::*;
     use crate::services::processor::ProcessingGroup;

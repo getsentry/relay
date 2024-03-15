@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
@@ -19,7 +19,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{ErrorBoundary, Feature, FeatureSet};
+use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
