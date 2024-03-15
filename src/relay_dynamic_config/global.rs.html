@@ -459,13 +459,6 @@
 <a href="#458" id="458">458</a>
 <a href="#459" id="459">459</a>
 <a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -597,16 +590,6 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>cardinality_limiter_error_sample_rate: f32,
-
-    <span class="doccomment">/// Kill switch for disabling the span usage metric.
-    ///
-    /// This metric is converted into outcomes in a sentry-side consumer.
-    </span><span class="attr">#[serde(
-        rename = <span class="string">"relay.span-usage-metric"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"is_default"
-    </span>)]
-    </span><span class="kw">pub </span>span_usage_metric: bool,
 
     <span class="doccomment">/// Metric bucket encoding configuration for sets by metric namespace.
     </span><span class="attr">#[serde(
@@ -844,7 +827,10 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_global_config_invalid_value_is_default() {
         <span class="kw">let </span>options: Options = serde_json::from_str(
-            <span class="string">r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#</span>,
+            <span class="string">r#"{
+                "relay.cardinality-limiter.mode": "passive",
+                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+            }"#</span>,
         )
         .unwrap();
 

@@ -595,7 +595,7 @@
             <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{
                 <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            <span class="kw">let </span>metrics = extract_metrics(span, config, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>global_config.options));
+            <span class="kw">let </span>metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(<span class="bool-val">true</span>);
         }

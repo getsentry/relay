@@ -528,22 +528,11 @@
 <a href="#527" id="527">527</a>
 <a href="#528" id="528">528</a>
 <a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, Options, TagMapping, TagSource, TagSpec};
+<span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
+
 <span class="kw">use </span>relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
 };
@@ -564,11 +553,7 @@
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-</span><span class="kw">pub fn </span>extract_metrics&lt;T&gt;(
-    instance: <span class="kw-2">&amp;</span>T,
-    config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
-    global_options: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Options&gt;,
-) -&gt; Vec&lt;Bucket&gt;
+</span><span class="kw">pub fn </span>extract_metrics&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Bucket&gt;
 <span class="kw">where
     </span>T: Extractable,
 {
@@ -579,16 +564,7 @@
         <span class="kw">return </span>metrics;
     };
 
-    <span class="comment">// HACK: The killswitch for the usage metric has a different life cycle
-    // than the project config, so we cannot apply it in `ProjectConfig::sanitize`,
-    // which runs when the project config is updated.
-    // This hack can be removed once the usage metric is stable.
-    </span><span class="kw">let </span>allow_span_usage_metric = global_options.map_or(<span class="bool-val">false</span>, |options| options.span_usage_metric);
     <span class="kw">for </span>metric_spec <span class="kw">in </span><span class="kw-2">&amp;</span>config.metrics {
-        <span class="kw">if </span>!allow_span_usage_metric &amp;&amp; metric_spec.mri == <span class="string">"c:spans/usage@none" </span>{
-            <span class="kw">continue</span>;
-        }
-
         <span class="kw">if </span>metric_spec.category != instance.category() {
             <span class="kw">continue</span>;
         }
@@ -737,7 +713,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -777,7 +753,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -821,7 +797,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -877,7 +853,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -934,7 +910,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -993,7 +969,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
@@ -1060,7 +1036,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
             Bucket {
