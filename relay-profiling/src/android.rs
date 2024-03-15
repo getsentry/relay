@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
 use data_encoding::BASE64_NOPAD;
-use relay_event_schema::protocol::EventId;
+use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
@@ -215,6 +215,12 @@ pub fn parse_android_profile(
 
     if let Some(environment) = transaction_metadata.get("environment") {
         profile.metadata.environment = environment.to_owned();
+    }
+
+    if let Some(segment_id) = transaction_metadata.get("segment_id") {
+        if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = Some(SpanId(segment_id.to_owned()));
+        }
     }
 
     profile.metadata.transaction_metadata = transaction_metadata;

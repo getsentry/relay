@@ -1248,6 +1248,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
         }
         MetricNamespace::Profiles => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+        MetricNamespace::Stats => false,
         MetricNamespace::Unsupported => false,
     }
 }
@@ -1400,6 +1401,7 @@ mod tests {
             value: BucketValue::counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
+            metadata: Default::default(),
         }
     }
 
@@ -1509,6 +1511,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: 10,
+            metadata: Default::default(),
         }
     }
 
