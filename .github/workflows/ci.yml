@@ -198,6 +198,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
   
     env:
+      TARGET: "${{ matrix.platform.target }}"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}:${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
@@ -212,6 +213,8 @@ jobs:
           key: ${{ github.job }}-${{ matrix.arch }}
       - name: Install Cross
         run: cargo install cross
+      - name: Install Sentry Cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
 
       - name: Compile
         run: |
@@ -236,7 +239,7 @@ jobs:
           set -euxo pipefail
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
 
-          cp "target/${{ matrix.target }}/release/relay" ./relay-bin
+          make collect-source-bundle
 
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
