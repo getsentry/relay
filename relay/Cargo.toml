@@ -13,6 +13,7 @@ publish = false
 dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
 processing = ["relay-server/processing"]
+crash-handler = ["relay-log/crash-handler"]
 
 # Direct dependencies of the main application in `src/`
 [dependencies]

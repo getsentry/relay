@@ -2,5 +2,5 @@
 	path = relay-ua/uap-core
 	url = https://github.com/ua-parser/uap-core.git
 [submodule "sentry-native"]
-	path = notrelay-crash/sentry-native
+	path = relay-crash/sentry-native
 	url = https://github.com/getsentry/sentry-native.git
