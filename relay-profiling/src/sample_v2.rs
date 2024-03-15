@@ -1,8 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
-use std::ops::Range;
 
 use chrono::{DateTime, Utc};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
@@ -63,10 +61,6 @@ impl ProfileData {
     ///
     /// profile.normalize("cocoa", "arm64e")
     pub fn normalize(&mut self, platform: &str) -> Result<(), ProfileError> {
-        // Clean samples before running the checks.
-        self.remove_idle_samples_at_the_edge();
-        self.remove_single_samples_per_thread();
-
         if self.samples.is_empty() {
             return Err(ProfileError::NotEnoughSamples);
         }
@@ -98,52 +92,6 @@ impl ProfileData {
         for frame in &mut self.frames {
             frame.strip_pointer_authentication_code(addr);
         }
-    }
-
-    fn remove_idle_samples_at_the_edge(&mut self) {
-        let mut active_ranges: BTreeMap<String, Range<usize>> = BTreeMap::new();
-
-        for (i, sample) in self.samples.iter().enumerate() {
-            if !self
-                .stacks
-                .get(sample.stack_id)
-                .is_some_and(|stack| !stack.is_empty())
-            {
-                continue;
-            }
-
-            active_ranges
-                .entry(sample.thread_id.clone())
-                .and_modify(|range| range.end = i + 1)
-                .or_insert(i..i + 1);
-        }
-
-        self.samples = self
-            .samples
-            .drain(..)
-            .enumerate()
-            .filter(|(i, sample)| {
-                active_ranges
-                    .get(&sample.thread_id)
-                    .is_some_and(|range| range.contains(i))
-            })
-            .map(|(_, sample)| sample)
-            .collect();
-    }
-
-    /// Removes a sample when it's the only sample on its thread
-    fn remove_single_samples_per_thread(&mut self) {
-        let sample_count_by_thread_id = &self
-            .samples
-            .iter()
-            .counts_by(|sample| sample.thread_id.clone())
-            // Only keep data from threads with more than 1 sample so we can calculate a duration
-            .into_iter()
-            .filter(|(_, count)| *count > 1)
-            .collect::<BTreeMap<_, _>>();
-
-        self.samples
-            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
     }
 
     /// Checks that all stacks referenced by the samples exist in the stacks.
