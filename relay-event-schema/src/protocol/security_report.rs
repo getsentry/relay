@@ -494,6 +494,13 @@ struct CspViolationRaw {
     other: BTreeMap<String, serde_json::Value>,
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+enum CspVariant {
+    Csp(CspReportRaw),
+    CspViolation(CspViolationRaw),
+}
+
 /// Models the content of a CSP report.
 ///
 /// Note this models the older CSP reports (report-uri policy directive).
@@ -543,9 +550,17 @@ pub struct Csp {
 
 impl Csp {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
-        let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
-        let raw_csp = raw_report.csp_report;
+        let variant = serde_json::from_slice::<CspVariant>(data)?;
 
+        match variant {
+            CspVariant::Csp(value) => Csp::simple_csp(event, value.csp_report)?,
+            CspVariant::CspViolation(value) => Csp::simple_csp(event, value.body)?,
+        }
+
+        Ok(())
+    }
+
+    fn simple_csp(event: &mut Event, raw_csp: CspRaw) -> Result<(), serde_json::Error> {
         let effective_directive = raw_csp
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
