@@ -241,7 +241,7 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
-    /// Time used to extract span metrics from an event.
+    /// Time used to extract metrics from a single span.
     EventProcessingSpanMetricsExtraction,
     /// Time spent on transaction processing after dynamic sampling.
     ///
