@@ -239,6 +239,9 @@ jobs:
           set -euxo pipefail
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
 
+          objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
+          objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
+          objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
           make collect-source-bundle
 
           docker buildx build \
