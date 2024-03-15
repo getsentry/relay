@@ -578,6 +578,7 @@ struct ProcessEnvelopeState<'a, Group> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "processing")]
 impl<'a, Group: TryFrom<ProcessingGroup>> ProcessEnvelopeState<'a, Group> {
     fn simple(event_json: &str, group: ProcessingGroup, project_state: ProjectState) -> Self {
         use crate::testutils::empty_envelope;

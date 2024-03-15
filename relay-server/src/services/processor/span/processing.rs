@@ -575,7 +575,8 @@ mod tests {
         extract_from_event(&mut state);
 
         let metrics = state.extracted_metrics.project_metrics;
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics.len(), 2);
         assert_eq!(metrics[0].name, "c:spans/usage@none");
+        assert_eq!(metrics[0].name, "c:spans/count_per_op@none");
     }
 }
