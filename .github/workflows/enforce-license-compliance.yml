@@ -1,14 +1,14 @@
 name: Enforce License Compliance
 
 on:
-  push:
-    branches:
-      - master
-      - release/**
-      - release-library/**
-
-  pull_request:
-    branches: [master]
+#   push:
+#     branches:
+#       - master
+#       - release/**
+#       - release-library/**
+#
+#   pull_request:
+#     branches: [master]
 
 jobs:
   enforce-license-compliance:

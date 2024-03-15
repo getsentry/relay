@@ -183,7 +183,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        target: [aarch64-unknown-linux-gnu, x86_64-unknown-linux-gnu]
+        target: [aarch64-unknown-linux-gnu]
 
     name: Build Docker Image
     runs-on: ubuntu-latest
@@ -193,13 +193,17 @@ jobs:
         with:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
-        target: ["${{ matrix.target }}"]
+        with:
+          targets: "${{ matrix.target }}"
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}-${{ matrix.arch }}
+      - name: Get Cross
+        run: cargo install cross
       - name: Compile
         run: |
-          cargo build --all-features --release --target "${{ matrix.target }}"
+          export PATH="/home/runner/.cargo/bin/:$PATH"
+          cross build --all-features --release --target "${{ matrix.target }}"
 
 
   # build:
