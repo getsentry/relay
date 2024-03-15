@@ -1285,6 +1285,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1296,7 +1297,10 @@ mod tests {
     #[test]
     fn test_app_start_cold_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1305,6 +1309,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1316,7 +1321,10 @@ mod tests {
     #[test]
     fn test_app_start_warm_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1325,6 +1333,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1336,7 +1345,10 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1345,6 +1357,7 @@ mod tests {
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
@@ -1356,7 +1369,10 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none"]
+        );
     }
 
     #[test]
@@ -1379,18 +1395,13 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none"
-                || metric.name == "c:spans/count_per_segment@none"
-            {
-                continue;
-            }
-            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+            if metric.name == "d:spans/exclusive_time@millisecond" {
+                assert_eq!(metric.tag("ttid"), Some("ttid"));
+                assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+            } else {
                 assert!(!metric.tags.contains_key("ttid"));
                 assert!(!metric.tags.contains_key("ttfd"));
-                continue;
             }
-            assert_eq!(metric.tag("ttid"), Some("ttid"));
-            assert_eq!(metric.tag("ttfd"), Some("ttfd"));
         }
     }
 
