@@ -1299,7 +1299,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1323,7 +1323,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1347,7 +1347,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1371,7 +1371,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
