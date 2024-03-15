@@ -545,6 +545,8 @@ fn validate(span: Annotated<Span>) -> Result<(Span, Meta), anyhow::Error> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeSet;
+
     use super::*;
     use crate::services::processor::ProcessingGroup;
     use crate::services::project::ProjectState;
@@ -575,8 +577,9 @@ mod tests {
         extract_from_event(&mut state);
 
         let metrics = state.extracted_metrics.project_metrics;
-        assert_eq!(metrics.len(), 2);
-        assert_eq!(metrics[0].name, "c:spans/usage@none");
-        assert_eq!(metrics[0].name, "c:spans/count_per_op@none");
+        assert_eq!(
+            BTreeSet::from_iter(metrics.iter().map(|m| m.name.as_str())),
+            BTreeSet::from(["c:spans/usage@none", "c:spans/count_per_op@none"])
+        );
     }
 }
