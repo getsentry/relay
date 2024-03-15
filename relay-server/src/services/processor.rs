@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
@@ -19,7 +19,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{ErrorBoundary, Feature, FeatureSet};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -579,21 +579,22 @@ struct ProcessEnvelopeState<'a, Group> {
 
 #[cfg(test)]
 impl<'a, Group: TryFrom<ProcessingGroup>> ProcessEnvelopeState<'a, Group> {
-    fn simple(event_json: &str, group: ProcessingGroup) -> Self {
+    fn simple(event_json: &str, group: ProcessingGroup, project_state: ProjectState) -> Self {
         use crate::testutils::empty_envelope;
 
-        let managed_envelope = ManagedEnvelope::silent(empty_envelope(), group);
-        let typed_envelope: TypedEnvelope<Group> = managed_envelope.try_into().unwrap();
         Self {
             event: Annotated::from_json(event_json).unwrap(),
             event_metrics_extracted: Default::default(),
             metrics: Default::default(),
             sample_rates: Default::default(),
             extracted_metrics: Default::default(),
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(project_state),
             sampling_project_state: Default::default(),
             project_id: ProjectId::new(42),
-            managed_envelope: typed_envelope,
+            managed_envelope: {
+                let managed_envelope = ManagedEnvelope::silent(empty_envelope(), group);
+                managed_envelope.try_into().unwrap()
+            },
             profile_id: Default::default(),
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
         }
