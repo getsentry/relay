@@ -38,6 +38,7 @@
 - Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
 - Add segment_id to the profile. ([#3265](https://github.com/getsentry/relay/pull/3265))
+- Fix tests as segment_id is not passed as part of the profile payload ([#3276](https://github.com/getsentry/relay/pull/3276))
 
 ## 24.2.0
 
