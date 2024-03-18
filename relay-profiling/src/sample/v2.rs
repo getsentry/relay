@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
-use crate::sample_v1::{DebugMeta, Frame, ThreadMetadata, Version};
+use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 
 const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
 
@@ -148,11 +148,11 @@ pub fn parse(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::sample_v2::{parse, parse_profile};
+    use crate::sample::v2::{parse, parse_profile};
 
     #[test]
     fn test_roundtrip() {
-        let first_payload = include_bytes!("../tests/fixtures/profiles/sample_v2/valid.json");
+        let first_payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
         let first_parse = parse_profile(first_payload);
         assert!(first_parse.is_ok(), "{:#?}", first_parse);
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_expand() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample_v2/valid.json");
+        let payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
         let profile = parse(payload);
         assert!(profile.is_ok(), "{:#?}", profile);
     }

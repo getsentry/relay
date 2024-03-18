@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
-use crate::sample_v1::SampleProfile;
+use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_android() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_react_native() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.rn.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.rn.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -257,23 +257,21 @@ mod tests {
 
     #[test]
     fn test_no_transaction() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
+        let payload = include_bytes!("../tests/fixtures/android/no_transaction.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_remove_invalid_events() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
+        let payload = include_bytes!("../tests/fixtures/android/remove_invalid_events.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_transactions_to_top_level() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
+        let payload = include_bytes!("../tests/fixtures/android/multiple_transactions.json");
 
         let profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {err:?}"),
@@ -302,7 +300,7 @@ mod tests {
             ),
         ]);
 
-        let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
+        let payload = include_bytes!("../tests/fixtures/android/valid.json");
         let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
@@ -324,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_timestamp() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         let profile = parse_profile(payload);
 
         assert!(profile.is_ok());
