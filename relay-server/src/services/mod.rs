@@ -30,6 +30,7 @@
 pub mod cogs;
 pub mod global_config;
 pub mod health_check;
+pub mod metric_stats;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;

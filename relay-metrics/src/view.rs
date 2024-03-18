@@ -8,6 +8,7 @@ use crate::{
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::bucket::Bucket;
 use crate::BucketValue;
@@ -374,6 +375,11 @@ impl<'a> BucketView<'a> {
     /// See also: [`Bucket::name`]
     pub fn name(&self) -> &'a str {
         &self.inner.name
+    }
+
+    /// Returns the name of the bucket.
+    pub fn clone_name(&self) -> Arc<str> {
+        Arc::clone(&self.inner.name)
     }
 
     /// Value of the bucket view.

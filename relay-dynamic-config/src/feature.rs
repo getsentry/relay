@@ -45,6 +45,11 @@ pub enum Feature {
     /// Serialized as `organizations:custom-metrics`.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
+    /// Enables metric stats.
+    ///
+    /// Serialized as `organizations:metric-stats`.
+    #[serde(rename = "organizations:metric-stats")]
+    MetricStats,
 
     /// Enable processing profiles.
     ///
