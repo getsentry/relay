@@ -21,10 +21,6 @@ pub struct ProfileMetadata {
     platform: String,
     release: String,
 
-    /// Unix timestamp in seconds with millisecond precision when the chunk
-    /// was captured.
-    timestamp: f64,
-
     /// Hard-coded string containing "2" to indicate the format version.
     version: Version,
 }
