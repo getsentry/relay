@@ -49,7 +49,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    if segment_id > 720 as u64 {
+    if segment_id > 720 {
         return Err(ReplayError::InvalidPayload(
             "segment_id limit exceeded".to_string(),
         ));
