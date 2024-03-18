@@ -600,18 +600,18 @@ impl Project {
     fn filter_metrics(state: &ProjectState, metrics: &mut Vec<Bucket>) {
         metrics.retain_mut(|bucket| {
             let Ok(mri) = MetricResourceIdentifier::parse(&bucket.name) else {
-                relay_log::trace!(mri = bucket.name, "dropping metrics with invalid MRI");
+                relay_log::trace!(mri = &*bucket.name, "dropping metrics with invalid MRI");
                 return false;
             };
 
             if !is_metric_namespace_valid(state, &mri.namespace) {
-                relay_log::trace!(mri = bucket.name, "dropping metric in disabled namespace");
+                relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
                 return false;
             };
 
             if let ErrorBoundary::Ok(metric_config) = &state.config.metrics {
-                if metric_config.denied_names.is_match(&bucket.name) {
-                    relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                if metric_config.denied_names.is_match(&*bucket.name) {
+                    relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
                     return false;
                 }
 
@@ -1230,7 +1230,7 @@ enum CheckedBuckets {
 /// Removes tags based on user configured deny list.
 fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
     for tag_block in &metric_config.denied_tags {
-        if tag_block.name.is_match(&bucket.name) {
+        if tag_block.name.is_match(&*bucket.name) {
             bucket
                 .tags
                 .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
@@ -1396,7 +1396,7 @@ mod tests {
 
     fn create_transaction_metric() -> Bucket {
         Bucket {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/foo".into(),
             width: 0,
             value: BucketValue::counter(1.into()),
             timestamp: UnixTimestamp::now(),
@@ -1506,7 +1506,7 @@ mod tests {
 
     fn create_transaction_bucket() -> Bucket {
         Bucket {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/foo".into(),
             value: BucketValue::Counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
@@ -1590,7 +1590,7 @@ mod tests {
             ..Default::default()
         };
 
-        buckets.retain(|bucket| !deny_list.denied_names.is_match(&bucket.name));
+        buckets.retain(|bucket| !deny_list.denied_names.is_match(&*bucket.name));
         buckets
     }
 

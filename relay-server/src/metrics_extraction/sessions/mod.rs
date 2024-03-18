@@ -238,7 +238,7 @@ mod tests {
 
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert_eq!(&*session_metric.name, "c:sessions/session@none");
         assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
@@ -315,13 +315,13 @@ mod tests {
 
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "s:sessions/error@none");
+            assert_eq!(&*session_metric.name, "s:sessions/error@none");
             assert!(matches!(session_metric.value, BucketValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(user_metric.timestamp, started());
-            assert_eq!(user_metric.name, "s:sessions/user@none");
+            assert_eq!(&*user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, BucketValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -350,13 +350,13 @@ mod tests {
 
         assert_eq!(metrics.len(), 4);
 
-        assert_eq!(metrics[0].name, "s:sessions/error@none");
-        assert_eq!(metrics[1].name, "s:sessions/user@none");
+        assert_eq!(&*metrics[0].name, "s:sessions/error@none");
+        assert_eq!(&*metrics[1].name, "s:sessions/user@none");
         assert_eq!(metrics[1].tags["session.status"], "errored");
 
         let session_metric = &metrics[2];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert_eq!(&*session_metric.name, "c:sessions/session@none");
         assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "crashed");
 

@@ -1192,10 +1192,13 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            &*duration_metric.name,
+            "d:transactions/duration@millisecond"
+        );
         assert_eq!(
             duration_metric.value,
             BucketValue::distribution(59000.into())
