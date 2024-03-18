@@ -18,6 +18,25 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.react.render",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -60,6 +79,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -131,6 +151,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -202,6 +223,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -272,6 +294,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -342,6 +365,7 @@ expression: metrics
             "span.status_code": "500",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -413,6 +437,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -485,6 +510,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -558,6 +584,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -631,6 +658,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -704,6 +732,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -777,6 +806,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -850,6 +880,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -924,6 +955,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -995,6 +1027,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1067,6 +1100,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1139,6 +1173,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1210,6 +1245,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1284,6 +1320,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1356,6 +1393,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1426,6 +1464,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1497,6 +1536,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1547,6 +1587,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1596,6 +1655,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1667,6 +1727,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1738,6 +1799,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1809,6 +1871,7 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1859,6 +1922,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -1908,6 +1990,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1964,6 +2047,25 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "db.mongodb.find",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -2005,6 +2107,7 @@ expression: metrics
             "span.op": "db.sql.activerecord",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2074,6 +2177,7 @@ expression: metrics
             "span.op": "db.redis.command",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2129,6 +2233,25 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                15833.532095,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.load",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255152),
+        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -2148,6 +2271,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255136),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                1668.516159,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "app.start.cold",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2198,6 +2340,7 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2339,6 +2482,7 @@ expression: metrics
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2457,6 +2601,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.react.render",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -2506,6 +2669,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2577,6 +2741,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2648,6 +2813,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2718,6 +2884,7 @@ expression: metrics
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2788,6 +2955,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2860,6 +3028,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2933,6 +3102,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3006,6 +3176,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3079,6 +3250,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3152,6 +3324,7 @@ expression: metrics
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3225,6 +3398,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3299,6 +3473,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3370,6 +3545,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3442,6 +3618,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3514,6 +3691,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3585,6 +3763,7 @@ expression: metrics
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3659,6 +3838,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3731,6 +3911,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3801,6 +3982,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3872,6 +4054,7 @@ expression: metrics
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3922,6 +4105,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
@@ -3971,6 +4173,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4042,6 +4245,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4113,6 +4317,7 @@ expression: metrics
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4183,6 +4388,7 @@ expression: metrics
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4254,6 +4460,7 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4327,6 +4534,7 @@ expression: metrics
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4465,6 +4673,7 @@ expression: metrics
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4513,6 +4722,25 @@ expression: metrics
             1.0,
         ),
         tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.interaction.click",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
         metadata: BucketMetadata {
             merges: 1,
         },
