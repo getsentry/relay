@@ -350,7 +350,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
@@ -359,7 +359,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
                 metadata: Default::default(),
@@ -368,7 +368,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -377,7 +377,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -386,7 +386,7 @@ mod tests {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "something_else".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
@@ -444,7 +444,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
@@ -453,7 +453,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
                 metadata: Default::default(),
@@ -462,7 +462,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -471,7 +471,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -480,7 +480,7 @@ mod tests {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "something_else".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
