@@ -2743,7 +2743,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.cold"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
         );
     }
 
@@ -2767,7 +2767,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.warm"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
         );
     }
 
@@ -2791,7 +2791,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.initial_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
         );
     }
 
@@ -2815,7 +2815,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.full_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
         );
     }
 
