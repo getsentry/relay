@@ -7,8 +7,6 @@ use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 
-const MAX_PROFILE_CHUNK_DURATION_MS: f64 = 10000f64;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     chunk_id: String,
@@ -73,10 +71,6 @@ impl ProfileData {
             return Err(ProfileError::MalformedStacks);
         }
 
-        if self.is_above_max_duration() {
-            return Err(ProfileError::DurationIsTooLong);
-        }
-
         self.strip_pointer_authentication_code(platform);
         self.remove_unreferenced_threads();
 
@@ -107,13 +101,6 @@ impl ProfileData {
             stack
                 .iter()
                 .all(|frame_id| self.frames.get(*frame_id).is_some())
-        })
-    }
-
-    /// Checks if the last sample was recorded within the max profile duration.
-    fn is_above_max_duration(&self) -> bool {
-        self.samples.last().map_or(false, |sample| {
-            sample.timestamp_ms > MAX_PROFILE_CHUNK_DURATION_MS
         })
     }
 
