@@ -31,7 +31,9 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -673,13 +675,12 @@ pub struct ProcessEnvelope {
 pub struct ProcessMetrics {
     /// A list of metric items.
     pub items: Vec<Item>,
-
     /// The target project.
     pub project_key: ProjectKey,
-
+    /// Whether to keep or reset the metric metadata.
+    pub keep_metadata: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
-
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
@@ -689,10 +690,10 @@ pub struct ProcessMetrics {
 pub struct ProcessBatchedMetrics {
     /// Metrics payload in JSON format.
     pub payload: Bytes,
-
+    /// Whether to keep or reset the metric metadata.
+    pub keep_metadata: bool,
     /// The instant at which the request was received.
     pub start_time: Instant,
-
     /// The instant at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
 }
@@ -1119,12 +1120,7 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let global_config = self.inner.global_config.current();
-                let metrics = crate::metrics_extraction::event::extract_metrics(
-                    event,
-                    config,
-                    Some(&global_config.options),
-                );
+                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -1662,6 +1658,7 @@ impl EnvelopeProcessorService {
             project_key: public_key,
             start_time,
             sent_at,
+            keep_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1715,6 +1712,9 @@ impl EnvelopeProcessorService {
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            if !keep_metadata {
+                bucket.metadata = BucketMetadata::new();
+            }
         }
 
         cogs.update(relay_metrics::cogs::BySize(&buckets));
@@ -1728,6 +1728,7 @@ impl EnvelopeProcessorService {
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
+            keep_metadata,
             start_time,
             sent_at,
         } = message;
@@ -1741,35 +1742,48 @@ impl EnvelopeProcessorService {
             buckets: HashMap<ProjectKey, Vec<Bucket>>,
         }
 
-        match serde_json::from_slice(&payload) {
-            Ok(Wrapper { buckets }) => {
-                for (public_key, mut buckets) in buckets {
-                    for bucket in &mut buckets {
-                        clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                    }
-
-                    MetricStats::new(&buckets).emit(
-                        RelayCounters::ProcessorBatchedMetricsCalls,
-                        RelayCounters::ProcessorBatchedMetricsCount,
-                        RelayCounters::ProcessorBatchedMetricsCost,
-                    );
-
-                    cogs.update(relay_metrics::cogs::BySize(&buckets));
-
-                    relay_log::trace!("merging metric buckets into project cache");
-                    self.inner
-                        .project_cache
-                        .send(MergeBuckets::new(public_key, buckets));
-                }
-            }
+        let buckets = match serde_json::from_slice(&payload) {
+            Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
                 relay_log::debug!(
                     error = &error as &dyn Error,
                     "failed to parse batched metrics",
                 );
                 metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                return;
             }
         };
+
+        let mut feature_weights = FeatureWeights::none();
+        for (public_key, mut buckets) in buckets {
+            if buckets.is_empty() {
+                continue;
+            }
+
+            for bucket in &mut buckets {
+                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                if !keep_metadata {
+                    bucket.metadata = BucketMetadata::new();
+                }
+            }
+
+            MetricStats::new(&buckets).emit(
+                RelayCounters::ProcessorBatchedMetricsCalls,
+                RelayCounters::ProcessorBatchedMetricsCount,
+                RelayCounters::ProcessorBatchedMetricsCost,
+            );
+
+            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
+
+            relay_log::trace!("merging metric buckets into project cache");
+            self.inner
+                .project_cache
+                .send(MergeBuckets::new(public_key, buckets));
+        }
+
+        if !feature_weights.is_empty() {
+            cogs.update(feature_weights);
+        }
     }
 
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
@@ -2897,11 +2911,12 @@ mod tests {
 
             let project_metrics = ProjectMetrics {
                 buckets: vec![Bucket {
-                    name: "d:transactions/bar".to_string(),
+                    name: "d:transactions/bar".into(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
+                    metadata: BucketMetadata::new(),
                 }],
                 project_state,
             };

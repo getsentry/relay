@@ -66,7 +66,7 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     if discard_transaction:
-        transactions_consumer.poll(timeout=2.0) is None
+        assert transactions_consumer.poll(timeout=2.0) is None
 
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
@@ -500,6 +500,26 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "tags": {"span.op": "default"},
             "retention_days": 90,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 3.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp + 1,
+            "type": "c",
+            "value": 3.0,
         },
         {
             "org_id": 1,

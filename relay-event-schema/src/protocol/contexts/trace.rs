@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
@@ -42,6 +45,22 @@ impl AsRef<str> for TraceId {
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
+
+relay_common::impl_str_serde!(SpanId, "a span identifier");
+
+impl FromStr for SpanId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SpanId(s.to_string()))
+    }
+}
+
+impl fmt::Display for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
