@@ -264,7 +264,7 @@ fn add_span(
     }
 }
 
-/// Converts the span to an envelope item and extracts metrics for it.
+/// Converts the span to an envelope item.
 fn into_item(span: Annotated<Span>, metrics_extracted: bool) -> Result<Item, anyhow::Error> {
     let (span, meta) = validate(span)?;
 
