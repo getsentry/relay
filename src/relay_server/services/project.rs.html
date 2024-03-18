@@ -2331,18 +2331,18 @@
     </span><span class="kw">fn </span>filter_metrics(state: <span class="kw-2">&amp;</span>ProjectState, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;) {
         metrics.retain_mut(|bucket| {
             <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>bucket.name) <span class="kw">else </span>{
-                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metrics with invalid MRI"</span>);
+                <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metrics with invalid MRI"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
             <span class="kw">if </span>!is_metric_namespace_valid(state, <span class="kw-2">&amp;</span>mri.namespace) {
-                <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metric in disabled namespace"</span>);
+                <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metric in disabled namespace"</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
             <span class="kw">if let </span>ErrorBoundary::Ok(metric_config) = <span class="kw-2">&amp;</span>state.config.metrics {
-                <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;</span>bucket.name) {
-                    <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">"dropping metrics due to block list"</span>);
+                <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;*</span>bucket.name) {
+                    <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metrics due to block list"</span>);
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
@@ -2961,7 +2961,7 @@
 <span class="doccomment">/// Removes tags based on user configured deny list.
 </span><span class="kw">fn </span>remove_matching_bucket_tags(metric_config: <span class="kw-2">&amp;</span>Metrics, bucket: <span class="kw-2">&amp;mut </span>Bucket) {
     <span class="kw">for </span>tag_block <span class="kw">in </span><span class="kw-2">&amp;</span>metric_config.denied_tags {
-        <span class="kw">if </span>tag_block.name.is_match(<span class="kw-2">&amp;</span>bucket.name) {
+        <span class="kw">if </span>tag_block.name.is_match(<span class="kw-2">&amp;*</span>bucket.name) {
             bucket
                 .tags
                 .retain(|tag_key, <span class="kw">_</span>| !tag_block.tags.is_match(tag_key));
@@ -3127,7 +3127,7 @@
 
     <span class="kw">fn </span>create_transaction_metric() -&gt; Bucket {
         Bucket {
-            name: <span class="string">"d:transactions/foo"</span>.to_string(),
+            name: <span class="string">"d:transactions/foo"</span>.into(),
             width: <span class="number">0</span>,
             value: BucketValue::counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
@@ -3237,7 +3237,7 @@
 
     <span class="kw">fn </span>create_transaction_bucket() -&gt; Bucket {
         Bucket {
-            name: <span class="string">"d:transactions/foo"</span>.to_string(),
+            name: <span class="string">"d:transactions/foo"</span>.into(),
             value: BucketValue::Counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
@@ -3321,7 +3321,7 @@
             ..Default::default()
         };
 
-        buckets.retain(|bucket| !deny_list.denied_names.is_match(<span class="kw-2">&amp;</span>bucket.name));
+        buckets.retain(|bucket| !deny_list.denied_names.is_match(<span class="kw-2">&amp;*</span>bucket.name));
         buckets
     }
 

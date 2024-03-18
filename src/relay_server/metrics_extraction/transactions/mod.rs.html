@@ -2060,6 +2060,9 @@
 <a href="#2059" id="2059">2059</a>
 <a href="#2060" id="2060">2060</a>
 <a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -3254,10 +3257,13 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
+            .find(|m| <span class="kw-2">&amp;*</span>m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
-        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">"d:transactions/duration@millisecond"</span>);
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">&amp;*</span>duration_metric.name,
+            <span class="string">"d:transactions/duration@millisecond"
+        </span>);
         <span class="macro">assert_eq!</span>(
             duration_metric.value,
             BucketValue::distribution(<span class="number">59000</span>.into())
@@ -3455,7 +3461,7 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
+            .find(|m| <span class="kw-2">&amp;*</span>m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -3494,7 +3500,7 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
+            .find(|m| <span class="kw-2">&amp;*</span>m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -3683,7 +3689,7 @@
         <span class="kw">let </span>duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
+            .find(|m| <span class="kw-2">&amp;*</span>m.name == <span class="string">"d:transactions/duration@millisecond"</span>)
             .unwrap();
 
         duration_metric.tags.get(<span class="string">"transaction"</span>).cloned()

@@ -842,7 +842,7 @@
 
         <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
         <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
-        <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">"c:sessions/session@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>session_metric.name, <span class="string">"c:sessions/session@none"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">"session.status"</span>], <span class="string">"init"</span>);
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">"release"</span>], <span class="string">"1.0.0"</span>);
@@ -850,7 +850,7 @@
 
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
         <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
-        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">"s:sessions/user@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>user_metric.name, <span class="string">"s:sessions/user@none"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">"session.status"</span>));
         <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">"release"</span>], <span class="string">"1.0.0"</span>);
@@ -879,7 +879,7 @@
         <span class="comment">// A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">"s:sessions/user@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>user_metric.name, <span class="string">"s:sessions/user@none"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">"session.status"</span>));
     }
@@ -919,13 +919,13 @@
 
             <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">2</span>];
             <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
-            <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">"s:sessions/error@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>session_metric.name, <span class="string">"s:sessions/error@none"</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(session_metric.tags.len(), <span class="number">1</span>); <span class="comment">// Only the release tag
 
             </span><span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">1</span>];
             <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
-            <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">"s:sessions/user@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>user_metric.name, <span class="string">"s:sessions/user@none"</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">"session.status"</span>], <span class="string">"errored"</span>);
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">"release"</span>], <span class="string">"1.0.0"</span>);
@@ -954,19 +954,19 @@
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
 
-        <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">"s:sessions/error@none"</span>);
-        <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].name, <span class="string">"s:sessions/user@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"s:sessions/error@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"s:sessions/user@none"</span>);
         <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].tags[<span class="string">"session.status"</span>], <span class="string">"errored"</span>);
 
         <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
         <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
-        <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">"c:sessions/session@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>session_metric.name, <span class="string">"c:sessions/session@none"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">"session.status"</span>], <span class="string">"crashed"</span>);
 
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
         <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
-        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">"s:sessions/user@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>user_metric.name, <span class="string">"s:sessions/user@none"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">"session.status"</span>], <span class="string">"crashed"</span>);
     }
@@ -1005,13 +1005,13 @@
 
             <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
 
-            <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">"s:sessions/error@none"</span>);
-            <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].name, <span class="string">"s:sessions/user@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"s:sessions/error@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"s:sessions/user@none"</span>);
             <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].tags[<span class="string">"session.status"</span>], <span class="string">"errored"</span>);
 
             <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
             <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
-            <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">"c:sessions/session@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>session_metric.name, <span class="string">"c:sessions/session@none"</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">"session.status"</span>], <span class="string">"abnormal"</span>);
 
@@ -1021,7 +1021,7 @@
 
             <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
             <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
-            <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">"s:sessions/user@none"</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>user_metric.name, <span class="string">"s:sessions/user@none"</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">"session.status"</span>], <span class="string">"abnormal"</span>);
 

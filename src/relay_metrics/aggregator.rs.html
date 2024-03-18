@@ -1498,7 +1498,6 @@
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
-<a href="#1500" id="1500">1500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1506,6 +1505,7 @@
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::iter::FromIterator;
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 <span class="kw">use </span>std::{fmt, mem};
 
@@ -1539,7 +1539,7 @@
 </span><span class="kw">enum </span>AggregateMetricsErrorKind {
     <span class="doccomment">/// A metric bucket had invalid characters in the metric name.
     </span><span class="attr">#[error(<span class="string">"found invalid characters: {0}"</span>)]
-    </span>InvalidCharacters(String),
+    </span>InvalidCharacters(Arc&lt;str&gt;),
     <span class="doccomment">/// A metric bucket had an unknown namespace in the metric name.
     </span><span class="attr">#[error(<span class="string">"found unsupported namespace: {0}"</span>)]
     </span>UnsupportedNamespace(MetricNamespace),
@@ -1551,7 +1551,7 @@
     </span>InvalidTypes,
     <span class="doccomment">/// A metric bucket had a too long string (metric name or a tag key/value).
     </span><span class="attr">#[error(<span class="string">"found invalid string: {0}"</span>)]
-    </span>InvalidStringLength(String),
+    </span>InvalidStringLength(Arc&lt;str&gt;),
     <span class="doccomment">/// A metric bucket is too large for the global bytes limit.
     </span><span class="attr">#[error(<span class="string">"total metrics limit exceeded"</span>)]
     </span>TotalLimitExceeded,
@@ -1564,7 +1564,7 @@
 </span><span class="kw">struct </span>BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: String,
+    metric_name: Arc&lt;str&gt;,
     tags: BTreeMap&lt;String, String&gt;,
 }
 
@@ -1583,7 +1583,7 @@
     /// Note that this does not necessarily match the exact memory footprint of the key,
     /// because data structures have a memory overhead.
     </span><span class="kw">fn </span>cost(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        mem::size_of::&lt;<span class="self">Self</span>&gt;() + <span class="self">self</span>.metric_name.capacity() + tags_cost(<span class="kw-2">&amp;</span><span class="self">self</span>.tags)
+        mem::size_of::&lt;<span class="self">Self</span>&gt;() + <span class="self">self</span>.metric_name.len() + tags_cost(<span class="kw-2">&amp;</span><span class="self">self</span>.tags)
     }
 
     <span class="doccomment">/// Returns the namespace of this bucket.
@@ -2146,7 +2146,7 @@
                     <span class="string">"bucket.project_key"</span>,
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra(<span class="string">"bucket.metric_name"</span>, key.metric_name.into());
+                scope.set_extra(<span class="string">"bucket.metric_name"</span>, key.metric_name.to_string().into());
             });
             <span class="kw">return </span><span class="prelude-val">Err</span>(err);
         }
@@ -2164,16 +2164,14 @@
                     );
                 }
 
-                <span class="kw">let </span><span class="kw-2">mut </span>metric_name = mri.to_string();
-                <span class="comment">// do this so cost tracking still works accurately.
-                </span>metric_name.shrink_to_fit();
-                metric_name
+                mri.to_string().into()
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric name {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(
-                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
-                );
+                <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidCharacters(Arc::clone(
+                    <span class="kw-2">&amp;</span>key.metric_name,
+                ))
+                .into());
             }
         };
 
@@ -2411,7 +2409,7 @@
         Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(),
@@ -2485,11 +2483,11 @@
         <span class="comment">// When this test fails, it means that the cost model has changed.
         // Check dimensionality limits.
         </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span>name = <span class="string">"12345"</span>.to_owned();
+        <span class="kw">let </span>metric_name = <span class="string">"12345"</span>.into();
         <span class="kw">let </span>bucket_key = BucketKey {
-            project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: name,
+            project_key,
+            metric_name,
             tags: BTreeMap::from([
                 (<span class="string">"hello"</span>.to_owned(), <span class="string">"world"</span>.to_owned()),
                 (<span class="string">"answer"</span>.to_owned(), <span class="string">"42"</span>.to_owned()),
@@ -2497,7 +2495,7 @@
         };
         <span class="macro">assert_eq!</span>(
             bucket_key.cost(),
-            <span class="number">88 </span>+ <span class="comment">// BucketKey
+            <span class="number">80 </span>+ <span class="comment">// BucketKey
             </span><span class="number">5 </span>+ <span class="comment">// name
             </span>(<span class="number">5 </span>+ <span class="number">5 </span>+ <span class="number">6 </span>+ <span class="number">2</span>) <span class="comment">// tags
         </span>);
@@ -2656,7 +2654,7 @@
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">"c:transactions/foo@none"</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo@none"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(),
@@ -2664,7 +2662,7 @@
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/foo@none"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/foo@none"</span>.into(),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>fixed_cost = bucket_key.cost() + mem::size_of::&lt;BucketValue&gt;();
@@ -2710,7 +2708,7 @@
         </span>] {
             <span class="kw">let </span><span class="kw-2">mut </span>bucket = bucket.clone();
             bucket.value = metric_value;
-            bucket.name = metric_name.to_string();
+            bucket.name = metric_name.into();
 
             <span class="kw">let </span>current_cost = aggregator.cost_tracker.total_cost;
             aggregator.merge(project_key, bucket, <span class="prelude-val">None</span>).unwrap();
@@ -2804,7 +2802,7 @@
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/hergus.bergus"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/hergus.bergus"</span>.into(),
             tags: {
                 <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
                 <span class="comment">// There are some SDKs which mess up content encodings, and interpret the raw bytes
@@ -2837,7 +2835,7 @@
         );
         <span class="macro">assert_eq!</span>(bucket_key.tags.get(<span class="string">"another\0garbage"</span>), <span class="prelude-val">None</span>);
 
-        bucket_key.metric_name = <span class="string">"hergus\0bergus"</span>.to_owned();
+        bucket_key.metric_name = <span class="string">"hergus\0bergus"</span>.into();
         Aggregator::validate_bucket_key(bucket_key, <span class="kw-2">&amp;</span>test_config()).unwrap_err();
     }
 
@@ -2849,7 +2847,7 @@
         <span class="kw">let </span>short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
             tags: BTreeMap::new(),
         };
         <span class="macro">assert!</span>(Aggregator::validate_bucket_key(short_metric, <span class="kw-2">&amp;</span>test_config()).is_ok());
@@ -2857,7 +2855,7 @@
         <span class="kw">let </span>long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is"</span>.into(),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>validation = Aggregator::validate_bucket_key(long_metric, <span class="kw-2">&amp;</span>test_config());
@@ -2872,7 +2870,7 @@
         <span class="kw">let </span>short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_key"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_key"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into(), <span class="string">"tag_value"</span>.into())]),
         };
         <span class="kw">let </span>validation =
@@ -2882,7 +2880,7 @@
         <span class="kw">let </span>short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_value"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_value"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"tag_key"</span>.into(), <span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into())]),
         };
         <span class="kw">let </span>validation =
@@ -2900,7 +2898,7 @@
         </span><span class="kw">let </span>short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.to_owned(),
+            metric_name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"foo"</span>.into(), tag_value.clone())]),
         };
         <span class="kw">let </span>validated_bucket = Aggregator::validate_metric_tags(short_metric, <span class="kw-2">&amp;</span>test_config());
@@ -2912,7 +2910,7 @@
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(),
@@ -2943,7 +2941,7 @@
         <span class="kw">let </span>bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
-            name: <span class="string">"c:transactions/foo"</span>.to_owned(),
+            name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(),

@@ -6146,7 +6146,7 @@
 
             <span class="kw">let </span>project_metrics = ProjectMetrics {
                 buckets: <span class="macro">vec!</span>[Bucket {
-                    name: <span class="string">"d:transactions/bar"</span>.to_string(),
+                    name: <span class="string">"d:transactions/bar"</span>.into(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(<span class="number">1.0</span>).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),

@@ -1388,10 +1388,12 @@
 <a href="#1387" id="1387">1387</a>
 <a href="#1388" id="1388">1388</a>
 <a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
 <span class="kw">use </span>std::num::NonZeroU64;
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
@@ -1941,7 +1943,7 @@
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    </span><span class="kw">pub </span>name: String,
+    </span><span class="kw">pub </span>name: Arc&lt;str&gt;,
 
     <span class="doccomment">/// The type and aggregated values of this bucket.
     ///
@@ -2030,7 +2032,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = Bucket {
             timestamp,
             width: <span class="number">0</span>,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
             metadata: Default::default(),
@@ -2115,7 +2117,7 @@
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    metric = <span class="self">self</span>.name,
+                    metric = <span class="self">self</span>.name.as_ref(),
                     <span class="string">"rejecting metric with invalid MRI"
                 </span>);
                 <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -2544,7 +2546,7 @@
         <span class="kw">let </span>s = <span class="string">"foo#bar:42|c"</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">assert_eq!</span>(metric.name, <span class="string">"c:custom/foo_bar@none"</span>);
+        <span class="macro">assert_eq!</span>(metric.name.as_ref(), <span class="string">"c:custom/foo_bar@none"</span>);
     }
 
     <span class="attr">#[test]
