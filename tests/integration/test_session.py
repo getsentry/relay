@@ -70,25 +70,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         },
     )
 
-    session = sessions_consumer.get_session()
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 1,
-        # seq is forced to 0 when init is true
-        "seq": 0,
-        "received": timestamp.timestamp(),
-        "started": started.timestamp(),
-        "duration": 1947.49,
-        "status": "exited",
-        "errors": 0,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
+    sessions_consumer.assert_empty()
 
 
 def test_session_with_processing_two_events(
@@ -118,25 +100,8 @@ def test_session_with_processing_two_events(
             },
         },
     )
-    session = sessions_consumer.get_session()
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 1,
-        # seq is forced to 0 when init is true
-        "seq": 0,
-        "received": timestamp.timestamp(),
-        "started": started.timestamp(),
-        "duration": None,
-        "status": "ok",
-        "errors": 0,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
+
+    sessions_consumer.assert_empty()
 
     relay.send_session(
         project_id,
@@ -154,24 +119,7 @@ def test_session_with_processing_two_events(
             },
         },
     )
-    session = sessions_consumer.get_session()
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 1,
-        "seq": 43,
-        "received": timestamp.timestamp(),
-        "started": started.timestamp(),
-        "duration": 1947.49,
-        "status": "exited",
-        "errors": 0,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
+    sessions_consumer.assert_empty()
 
 
 def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consumer):
@@ -206,62 +154,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         },
     )
 
-    session = sessions_consumer.get_session()
-    del session["received"]
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "00000000-0000-0000-0000-000000000000",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 2,
-        "seq": 0,
-        "started": started1.timestamp(),
-        "duration": None,
-        "status": "exited",
-        "errors": 0,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
-
-    session = sessions_consumer.get_session()
-    del session["received"]
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "00000000-0000-0000-0000-000000000000",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 3,
-        "seq": 0,
-        "started": started1.timestamp(),
-        "duration": None,
-        "status": "errored",
-        "errors": 1,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
-
-    session = sessions_consumer.get_session()
-    del session["received"]
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "00000000-0000-0000-0000-000000000000",
-        "distinct_id": "00000000-0000-0000-0000-000000000000",
-        "quantity": 1,
-        "seq": 0,
-        "started": started2.timestamp(),
-        "duration": None,
-        "status": "abnormal",
-        "errors": 1,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
+    sessions_consumer.assert_empty()
 
 
 def test_session_with_custom_retention(
@@ -285,8 +178,7 @@ def test_session_with_custom_retention(
         },
     )
 
-    session = sessions_consumer.get_session()
-    assert session["retention_days"] == 17
+    sessions_consumer.assert_empty()
 
 
 def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):
@@ -371,26 +263,7 @@ def test_session_force_errors_on_crash(
             "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
         },
     )
-
-    session = sessions_consumer.get_session()
-    assert session == {
-        "org_id": 1,
-        "project_id": project_id,
-        "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
-        "quantity": 1,
-        # seq is forced to 0 when init is true
-        "seq": 0,
-        "received": timestamp.timestamp(),
-        "started": started.timestamp(),
-        "duration": None,
-        "status": "crashed",
-        "errors": 1,
-        "release": "sentry-test@1.0.0",
-        "environment": "production",
-        "retention_days": 90,
-        "sdk": "raven-node/2.6.3",
-    }
+    sessions_consumer.assert_empty()
 
 
 def test_session_release_required(
@@ -481,14 +354,13 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
 
     for i in range(5):
         relay.send_session(project_id, session)
-        sessions_consumer.get_session()
+        sessions_consumer.assert_empty()
 
     # Rate limited, but responds with 200 because of deferred processing
     relay.send_session(project_id, session)
     sessions_consumer.assert_empty()
 
-    with pytest.raises(HTTPError):
-        relay.send_session(project_id, session)
+    relay.send_session(project_id, session)
     sessions_consumer.assert_empty()
 
 
@@ -545,8 +417,7 @@ def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
     )
 
     # Can't test ip_address since it's not posted to Kafka. Just test that it is accepted.
-    session = sessions_consumer.get_session()
-    assert session
+    sessions_consumer.assert_empty()
 
 
 def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_consumer):
@@ -598,58 +469,3 @@ def test_session_aggregates_invalid_release(
     )
 
     sessions_consumer.assert_empty()
-
-
-def test_session_invalid_environment(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    PROJECT_ID = 42
-    project_config = mini_sentry.add_full_project_config(PROJECT_ID)
-    project_config["config"]["eventRetention"] = 17
-
-    timestamp = datetime.now(tz=timezone.utc)
-    relay.send_session(
-        PROJECT_ID,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "timestamp": timestamp.isoformat(),
-            "started": timestamp.isoformat(),
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "none"},
-        },
-    )
-
-    session = sessions_consumer.get_session()
-    assert session.get("environment") is None
-
-
-def test_session_aggregates_invalid_environment(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["eventRetention"] = 17
-
-    timestamp = datetime.now(tz=timezone.utc)
-    relay.send_session_aggregates(
-        project_id,
-        {
-            "aggregates": [
-                {
-                    "started": timestamp.isoformat(),
-                    "did": "foobarbaz",
-                    "exited": 2,
-                    "errored": 3,
-                },
-            ],
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "."},
-        },
-    )
-
-    session = sessions_consumer.get_session()
-    assert session.get("environment") is None
