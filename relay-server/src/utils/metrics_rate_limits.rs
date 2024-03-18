@@ -314,15 +314,17 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     ..
                 },
             ) => {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp,
-                    scoping: self.scoping,
-                    outcome: outcome.clone(),
-                    event_id: None,
-                    remote_addr: None,
-                    category: DataCategory::Transaction,
-                    quantity: *count as u32,
-                });
+                if *count > 0 {
+                    outcome_aggregator.send(TrackOutcome {
+                        timestamp,
+                        scoping: self.scoping,
+                        outcome: dbg!(outcome.clone()),
+                        event_id: None,
+                        remote_addr: None,
+                        category: DataCategory::Transaction,
+                        quantity: *count as u32,
+                    });
+                }
 
                 self.report_profiles(outcome.clone(), timestamp, outcome_aggregator.clone());
             }
@@ -333,7 +335,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 EntityCounts {
                     spans: Some(count), ..
                 },
-            ) => {
+            ) if *count > 0 => {
                 outcome_aggregator.send(TrackOutcome {
                     timestamp,
                     scoping: self.scoping,
