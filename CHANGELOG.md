@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-**Internal**
+**Internal**:
 
-- Enable `db.redis` span metrics extraction. ([#3283]https://github.com/getsentry/relay/pull/3283)
+- Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
 
 ## 24.3.0
 
