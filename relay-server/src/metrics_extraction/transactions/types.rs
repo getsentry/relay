@@ -117,7 +117,7 @@ impl IntoMetric for TransactionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags,
             metadata: BucketMetadata::new(),
