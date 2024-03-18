@@ -148,16 +148,20 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.exclusive_time".into()),
             condition: None,
             tags: vec![
-                // Common tags:
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
+                // All modules:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
                     .always(),
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
                     .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                // Know modules:
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
                     .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
@@ -176,10 +180,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .when(know_modules_condition.clone()),
-                // Mobile:
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .when(is_mobile.clone()), // filters by `transaction.op:ui.load`
+                // Mobile module:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
                     .when(is_mobile.clone()),
