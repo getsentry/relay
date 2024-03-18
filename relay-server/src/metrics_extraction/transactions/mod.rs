@@ -1396,7 +1396,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1435,7 +1435,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1624,7 +1624,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         duration_metric.tags.get("transaction").cloned()
