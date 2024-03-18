@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
@@ -9,7 +8,9 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
+    /// Random UUID identifying a chunk
     chunk_id: String,
+    /// Random UUID for each profiler session
     profiler_id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -20,13 +21,19 @@ pub struct ProfileMetadata {
     platform: String,
     release: String,
 
-    timestamp: DateTime<Utc>,
+    /// Unix timestamp in seconds with millisecond precision when the chunk
+    /// was captured.
+    timestamp: f64,
+
+    /// Hard-coded string containing "2" to indicate the format version.
     version: Version,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Sample {
-    timestamp_ms: f64,
+    /// Unix timestamp in seconds with millisecond precision when the sample
+    /// was captured.
+    timestamp: f64,
     stack_id: usize,
     thread_id: String,
 }
