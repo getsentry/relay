@@ -1026,7 +1026,7 @@
                     outcome_aggregator.send(TrackOutcome {
                         timestamp,
                         scoping: <span class="self">self</span>.scoping,
-                        outcome: <span class="macro">dbg!</span>(outcome.clone()),
+                        outcome: outcome.clone(),
                         event_id: <span class="prelude-val">None</span>,
                         remote_addr: <span class="prelude-val">None</span>,
                         category: DataCategory::Transaction,
