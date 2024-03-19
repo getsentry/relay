@@ -395,7 +395,7 @@ pub fn parse_sample_profile(
 
     if let Some(segment_id) = transaction_metadata.get("segment_id") {
         if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
-            transaction_metadata.segment_id = SpanId(segment_id.to_owned());
+            transaction_metadata.segment_id = Some(SpanId(segment_id.to_owned()));
         }
     }
 
@@ -557,7 +557,7 @@ mod tests {
             relative_end_ns: 30,
             relative_start_ns: 10,
             trace_id: EventId::new(),
-            segment_id: SpanId("bd2eb23da2beb459".to_string()),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -609,7 +609,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 50,
             trace_id: EventId::new(),
-            segment_id: SpanId("bd2eb23da2beb459".to_string()),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -657,7 +657,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: SpanId("bd2eb23da2beb459".to_string()),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -718,7 +718,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: SpanId("bd2eb23da2beb459".to_string()),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transaction = Some(transaction);
@@ -832,7 +832,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: SpanId("bd2eb23da2beb459".to_string()),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transaction = Some(transaction);

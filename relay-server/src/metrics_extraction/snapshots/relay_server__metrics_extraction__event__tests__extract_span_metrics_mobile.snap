@@ -311,6 +311,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 db_operation: ~,
                 db_system: ~,
                 environment: ~,
+                release: ~,
                 http_decoded_response_content_length: ~,
                 http_request_method: ~,
                 http_response_content_length: ~,
@@ -383,6 +384,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 db_operation: ~,
                 db_system: ~,
                 environment: ~,
+                release: ~,
                 http_decoded_response_content_length: ~,
                 http_request_method: ~,
                 http_response_content_length: ~,
@@ -710,6 +712,23 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 1.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "custom.op",
+                "transaction": "gEt /api/:version/users/",
+            },
             metadata: BucketMetadata {
                 merges: 1,
             },

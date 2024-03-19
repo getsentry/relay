@@ -57,7 +57,7 @@ where
         };
 
         metrics.push(Bucket {
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             width: 0,
             value,
             timestamp,

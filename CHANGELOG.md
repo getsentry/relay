@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.3.0
 
 **Features**:
 
@@ -37,6 +37,7 @@
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
 - Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
+- Collect exclusive time for all spans. ([#3268](https://github.com/getsentry/relay/pull/3268))
 - Add segment_id to the profile. ([#3265](https://github.com/getsentry/relay/pull/3265))
 
 ## 24.2.0
