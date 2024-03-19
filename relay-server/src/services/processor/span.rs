@@ -35,7 +35,7 @@ pub fn extract_transaction_span(event: &Event) -> Span {
     let mut transaction_span: Span = event.into();
 
     let mut shared_tags = tag_extraction::extract_shared_tags(event);
-    if let Some(span_op) = dbg!(transaction_span.op.value()) {
+    if let Some(span_op) = transaction_span.op.value() {
         shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
     }
 
