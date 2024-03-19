@@ -9,3 +9,6 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 autobenches = false
+
+[lints]
+workspace = true

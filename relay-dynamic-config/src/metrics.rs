@@ -33,7 +33,7 @@ impl Metrics {
     pub fn is_empty(&self) -> bool {
         self.cardinality_limits.is_empty()
             && self.denied_names.is_empty()
-            && self.denied_tags.is_empty()
+            && dbg!(self.denied_tags.is_empty())
     }
 }
 

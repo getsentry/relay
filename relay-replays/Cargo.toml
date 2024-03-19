@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 bytes = { version = "1.4.0" }
 flate2 = "1.0.19"
