@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Kafka topic config supports default topic names as keys ([#3282](https://github.com/getsentry/relay/pull/3282))
+
 **Features**:
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
