@@ -16,12 +16,20 @@ fn volume_metric_mri() -> Arc<str> {
     Arc::clone(VOLUME_METRIC_MRI.get_or_init(|| "c:metric_stats/volume@none".into()))
 }
 
+/// Tracks an [`Outcome`] of a Metric item.
 #[derive(Debug)]
 pub struct TrackMetric {
+    /// The creation timestamp of the track metric.
     pub timestamp: UnixTimestamp,
+    /// Scoping of the metric.
     pub scoping: Scoping,
+    /// The MRI, name of the metric.
     pub mri: Arc<str>,
+    /// The outcome.
     pub outcome: Outcome,
+    /// The amount of individual metric items Relay received for this metric.
+    ///
+    /// See also: [relay_metrics::BucketMetadata::merges].
     pub volume: u32,
 }
 
