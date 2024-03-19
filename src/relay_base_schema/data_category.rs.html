@@ -180,6 +180,13 @@
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -251,6 +258,11 @@
     ///
     /// This is the category for spans we store in full.
     </span>SpanIndexed = <span class="number">16</span>,
+    <span class="doccomment">/// ProfileDuration
+    ///
+    /// This data category is used to count the number of milliseconds we have per indexed profile chunk.
+    /// We will then bill per second.
+    </span>ProfileDuration = <span class="number">17</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -283,6 +295,7 @@
             <span class="string">"feedback" </span>=&gt; <span class="self">Self</span>::UserReportV2,
             <span class="string">"metric_bucket" </span>=&gt; <span class="self">Self</span>::MetricBucket,
             <span class="string">"span_indexed" </span>=&gt; <span class="self">Self</span>::SpanIndexed,
+            <span class="string">"profile_duration" </span>=&gt; <span class="self">Self</span>::ProfileDuration,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -308,6 +321,7 @@
             <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"feedback"</span>,
             <span class="self">Self</span>::MetricBucket =&gt; <span class="string">"metric_bucket"</span>,
             <span class="self">Self</span>::SpanIndexed =&gt; <span class="string">"span_indexed"</span>,
+            <span class="self">Self</span>::ProfileDuration =&gt; <span class="string">"profile_duration"</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
         }
     }
