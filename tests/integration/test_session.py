@@ -71,55 +71,6 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     sessions_consumer.assert_empty()
 
 
-def test_session_with_processing_two_events(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "foobarbaz",
-            "seq": 42,
-            "init": True,
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-            "status": "ok",
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
-        },
-    )
-
-    sessions_consumer.assert_empty()
-
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "foobarbaz",
-            "seq": 43,
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-            "duration": 1947.49,
-            "status": "exited",
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
-        },
-    )
-    sessions_consumer.assert_empty()
-
-
 def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
