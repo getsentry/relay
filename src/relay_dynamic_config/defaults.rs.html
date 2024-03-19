@@ -551,12 +551,6 @@
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
 <a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
-<a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -568,13 +562,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::Tag;
 
 <span class="doccomment">/// A list of `span.op` patterns that indicate databases that should be skipped.
-</span><span class="kw">const </span>DISABLED_DATABASES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
-    <span class="string">"*clickhouse*"</span>,
-    <span class="string">"*compile*"</span>,
-    <span class="string">"*mongodb*"</span>,
-    <span class="string">"*redis*"</span>,
-    <span class="string">"db.orm"</span>,
-];
+</span><span class="kw">const </span>DISABLED_DATABASES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*clickhouse*"</span>, <span class="string">"*compile*"</span>, <span class="string">"*mongodb*"</span>, <span class="string">"db.orm"</span>];
 
 <span class="doccomment">/// A list of `span.op` patterns we want to enable for mobile.
 </span><span class="kw">const </span>MOBILE_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
