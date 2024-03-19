@@ -85,7 +85,7 @@ impl KafkaTopic {
 
 /// Configuration for topics.
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct TopicAssignments {
     /// Simple events topic name.
     #[serde(alias = "ingest-events")]
