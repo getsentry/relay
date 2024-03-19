@@ -23,6 +23,7 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
@@ -191,8 +192,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     };
 
-    // Extract transaction as a span.
-    let mut transaction_span: Span = event.into();
+    let transaction_span = extract_transaction_span(event);
 
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
@@ -216,20 +216,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         }
     }
 
-    // Extract tags to add to this span as well
-    let mut shared_tags = tag_extraction::extract_shared_tags(event);
-
-    if let Some(span_op) = transaction_span.op.value() {
-        shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
-    }
-
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
     add_span(transaction_span.into());
 }
 

@@ -94,6 +94,8 @@ mod replay;
 mod report;
 mod session;
 mod span;
+pub use span::extract_transaction_span;
+
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -575,31 +577,6 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
-}
-
-#[cfg(test)]
-#[cfg(feature = "processing")]
-impl<'a, Group: TryFrom<ProcessingGroup>> ProcessEnvelopeState<'a, Group> {
-    fn simple(event_json: &str, group: ProcessingGroup, project_state: ProjectState) -> Self {
-        use crate::testutils::empty_envelope;
-
-        Self {
-            event: Annotated::from_json(event_json).unwrap(),
-            event_metrics_extracted: Default::default(),
-            metrics: Default::default(),
-            sample_rates: Default::default(),
-            extracted_metrics: Default::default(),
-            project_state: Arc::new(project_state),
-            sampling_project_state: Default::default(),
-            project_id: ProjectId::new(42),
-            managed_envelope: {
-                let managed_envelope = ManagedEnvelope::silent(empty_envelope(), group);
-                managed_envelope.try_into().unwrap()
-            },
-            profile_id: Default::default(),
-            reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
-        }
-    }
 }
 
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
@@ -2839,7 +2816,7 @@ impl<'a> IntoIterator for DynamicQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::BTreeMap;
     use std::env;
 
     use chrono::{DateTime, Utc};
@@ -3254,37 +3231,6 @@ mod tests {
         assert_eq!(
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
-        );
-    }
-
-    #[tokio::test]
-    async fn transaction_span_metrics_extracted() {
-        let event = r#"
-            {
-                "type": "transaction",
-                "timestamp": "2021-04-26T08:00:05+0100",
-                "start_timestamp": "2021-04-26T08:00:00+0100"
-            }
-            "#;
-        let mut project_state = ProjectState::allowed();
-        project_state
-            .config
-            .features
-            .0
-            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
-
-        let processor = create_test_processor(Config::default());
-        let mut state =
-            ProcessEnvelopeState::simple(event, ProcessingGroup::Transaction, project_state);
-
-        processor
-            .extract_metrics(&mut state, &SamplingResult::NoMatch)
-            .unwrap();
-
-        let metrics = state.extracted_metrics.project_metrics;
-        assert_eq!(
-            BTreeSet::from_iter(metrics.iter().map(|m| m.name.as_str())),
-            BTreeSet::from(["c:spans/usage@none", "c:spans/count_per_op@none"])
         );
     }
 }
