@@ -828,7 +828,6 @@ def get_profile_payload(transaction):
             "id": transaction["event_id"],
             "name": "/api/0/organizations/{organization_slug}/broadcasts/",
             "trace_id": transaction["contexts"]["trace"]["trace_id"],
-            "segment_id": "bd2eb23da2beb459",
         },
         "version": "1",
     }
