@@ -502,6 +502,7 @@ enum CspVariant {
 #[serde(rename_all = "kebab-case")]
 enum CspViolationType {
     CspViolation,
+    #[serde(other)]
     Other,
 }
 
@@ -1152,12 +1153,8 @@ impl SecurityReportType {
 
         Ok(if helper.csp_report.is_some() {
             Some(SecurityReportType::Csp)
-        } else if let Some(_ty) = helper.ty {
-            if matches!(CspViolationType::CspViolation, _ty) {
-                Some(SecurityReportType::Csp)
-            } else {
-                None
-            }
+        } else if let Some(CspViolationType::CspViolation) = helper.ty {
+            Some(SecurityReportType::Csp)
         } else if helper.known_pins.is_some() {
             Some(SecurityReportType::Hpkp)
         } else if helper.expect_staple_report.is_some() {
