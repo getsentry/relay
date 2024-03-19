@@ -4,6 +4,51 @@ expression: metrics
 ---
 [
     Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: "c:spans/usage@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                59000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "mYOp",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.op": "mYOp",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: "c:spans/usage@none",
