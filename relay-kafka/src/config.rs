@@ -106,7 +106,7 @@ pub struct TopicAssignments {
     #[serde(alias = "ingest-sessions")]
     pub sessions: TopicAssignment,
     /// Topic name for metrics extracted from sessions, aka release health.
-    #[serde(alias = "metrics", "ingest-metrics")]
+    #[serde(alias = "metrics", alias = "ingest-metrics")]
     pub metrics_sessions: TopicAssignment,
     /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
     #[serde(alias = "metrics_transactions")]
@@ -370,6 +370,7 @@ ingest-metrics:
       45000:
           name: "ingest-metrics-3"
           config: "metrics_3"
+transactions: "ingest-transactions-kafka-topic"
 "#;
 
         let def_config = vec![KafkaConfigParam {
@@ -409,6 +410,7 @@ ingest-metrics:
         let events = topics.events;
         let profiles = topics.profiles;
         let metrics = topics.metrics_sessions;
+        let transactions = topics.transactions;
 
         assert!(matches!(events, TopicAssignment::Primary(_)));
         assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
@@ -422,7 +424,29 @@ ingest-metrics:
         let events_config = events
             .kafka_config(&def_config, &second_config)
             .expect("Kafka config for events topic");
-        assert!(matches!(events_config, KafkaConfig::Single { .. }));
+        assert!(matches!(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-events-kafka-topic",
+                    ..
+                }
+            }
+        ));
+
+        // Legacy keys are still supported
+        let transactions_config = transactions
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for transactions topic");
+        assert!(matches!(
+            transactions_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-transactions-kafka-topic",
+                    ..
+                }
+            }
+        ));
 
         let (shards, mapping) =
             if let TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {
