@@ -137,7 +137,11 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
-        let metric_stats = MetricStats::new(config.clone(), aggregator.clone());
+        let metric_stats = MetricStats::new(
+            config.clone(),
+            global_config_handle.clone(),
+            aggregator.clone(),
+        );
 
         #[cfg(feature = "processing")]
         let store = match runtimes.store {

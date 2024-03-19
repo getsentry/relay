@@ -25,6 +25,8 @@ def metric_stats_by_mri(metrics_consumer, count, timeout=None):
 
 
 def test_metric_stats_simple(mini_sentry, relay_with_processing, metrics_consumer):
+    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
+
     metrics_consumer = metrics_consumer()
     relay = relay_with_processing(options=TEST_CONFIG)
 
