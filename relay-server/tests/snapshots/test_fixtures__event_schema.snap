@@ -932,6 +932,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/NelContext"
         },
         {
+          "$ref": "#/definitions/PerformanceScoreContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -2821,6 +2824,25 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ],
               "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PerformanceScoreContext": {
+      "description": " Performance Score context.\n\n The performance score context contains the version of the\n profile used to calculate the performance score.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "score_profile_version": {
+              "description": " The performance score profile version.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false

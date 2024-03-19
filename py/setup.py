@@ -108,6 +108,7 @@ setup(
     author_email="hello@sentry.io",
     description="A python library to access sentry relay functionality.",
     long_description=readme,
+    long_description_content_type="text/markdown",
     include_package_data=True,
     package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
     zip_safe=False,
