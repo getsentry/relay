@@ -1140,6 +1140,7 @@ impl SecurityReportType {
         #[derive(Deserialize)]
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport {
+            #[serde(rename = "type")]
             ty: Option<CspViolationType>,
             csp_report: Option<IgnoredAny>,
             known_pins: Option<IgnoredAny>,
