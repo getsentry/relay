@@ -1,4 +1,5 @@
 from typing import Any
+import pytest
 from attr import dataclass
 from .test_metrics import TEST_CONFIG
 
@@ -24,11 +25,29 @@ def metric_stats_by_mri(metrics_consumer, count, timeout=None):
     return MetricStatsByMri(volume=volume, other=other)
 
 
-def test_metric_stats_simple(mini_sentry, relay_with_processing, metrics_consumer):
+@pytest.mark.parametrize("mode", ["default", "chain"])
+def test_metric_stats_simple(
+    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+):
     mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
 
     metrics_consumer = metrics_consumer()
-    relay = relay_with_processing(options=TEST_CONFIG)
+
+    if mode == "default":
+        relay = relay_with_processing(options=TEST_CONFIG)
+    elif mode == "chain":
+        credentials = relay_credentials()
+        static_relays = {
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        }
+        relay = relay(
+            relay_with_processing(options=TEST_CONFIG, static_relays=static_relays),
+            options=TEST_CONFIG,
+            credentials=credentials,
+        )
 
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
