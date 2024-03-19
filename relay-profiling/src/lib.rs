@@ -267,7 +267,11 @@ pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
         }
     };
     match profile.version {
-        sample::Version::V2 => sample::v2::parse(payload),
+        sample::Version::V2 => {
+            let mut profile = sample::v2::parse(payload)?;
+            profile.normalize()?;
+            serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+        }
         _ => Err(ProfileError::PlatformNotSupported),
     }
 }

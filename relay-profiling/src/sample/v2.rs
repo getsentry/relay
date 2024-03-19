@@ -43,6 +43,12 @@ pub struct ProfileChunk {
     pub profile: ProfileData,
 }
 
+impl ProfileChunk {
+    pub fn normalize(&mut self) -> Result<(), ProfileError> {
+        self.profile.normalize(self.metadata.platform.as_str())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileData {
     pub samples: Vec<Sample>,
@@ -119,41 +125,22 @@ impl ProfileData {
     }
 }
 
-fn parse_profile(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
+pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
     let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: ProfileChunk =
-        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
-
-    profile
-        .profile
-        .normalize(profile.metadata.platform.as_str())?;
-
-    Ok(profile)
-}
-
-pub fn parse(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile = parse_profile(payload)?;
-    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::sample::v2::{parse, parse_profile};
+    use crate::sample::v2::parse;
 
     #[test]
     fn test_roundtrip() {
         let first_payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
-        let first_parse = parse_profile(first_payload);
+        let first_parse = parse(first_payload);
         assert!(first_parse.is_ok(), "{:#?}", first_parse);
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
-        let second_parse = parse_profile(&second_payload[..]);
+        let second_parse = parse(&second_payload[..]);
         assert!(second_parse.is_ok(), "{:#?}", second_parse);
-    }
-
-    #[test]
-    fn test_expand() {
-        let payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
-        let profile = parse(payload);
-        assert!(profile.is_ok(), "{:#?}", profile);
     }
 }
