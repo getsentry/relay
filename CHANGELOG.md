@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
+
 **Internal**:
 
 - Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
@@ -27,7 +31,7 @@
 - Track metric bucket metadata for Relay internal usage. ([#3254](https://github.com/getsentry/relay/pull/3254))
 - Enforce rate limits for standalone spans. ([#3238](https://github.com/getsentry/relay/pull/3238))
 - Extract `span.status_code` tag for HTTP spans. ([#3245](https://github.com/getsentry/relay/pull/3245))
-- Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
+- Add `version` property and set as event context when a performance profile has calculated data. ([#3249](https://github.com/getsentry/relay/pull/3249))
 
 **Bug Fixes**:
 

@@ -5,7 +5,8 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
-    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
+    TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
@@ -322,6 +323,9 @@ impl TransactionExtractor<'_> {
                     } else {
                         tags.clone()
                     },
+                    score_profile_version: is_performance_score
+                        .then(|| event.context::<PerformanceScoreContext>())
+                        .and_then(|context| context?.score_profile_version.value().cloned()),
                 };
 
                 metrics.project_metrics.push(
@@ -599,6 +603,7 @@ mod tests {
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
+                        version: Some("alpha".into()),
                     }],
                 }),
                 ..Default::default()
@@ -731,6 +736,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },
@@ -752,6 +758,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },
@@ -773,6 +780,7 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                 },

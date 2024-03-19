@@ -7,6 +7,7 @@ mod monitor;
 mod nel;
 mod os;
 mod otel;
+mod performance_score;
 mod profile;
 mod replay;
 mod reprocessing;
@@ -23,6 +24,7 @@ pub use monitor::*;
 pub use nel::*;
 pub use os::*;
 pub use otel::*;
+pub use performance_score::*;
 pub use profile::*;
 pub use replay::*;
 pub use reprocessing::*;
@@ -86,6 +88,8 @@ pub enum Context {
     CloudResource(Box<CloudResourceContext>),
     /// Nel information.
     Nel(Box<NelContext>),
+    /// Performance score information.
+    PerformanceScore(Box<PerformanceScoreContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),

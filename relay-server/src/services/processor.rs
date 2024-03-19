@@ -3207,6 +3207,7 @@ mod tests {
             let tags = TransactionMeasurementTags {
                 measurement_rating: None,
                 universal_tags: CommonTags(BTreeMap::new()),
+                score_profile_version: None,
             };
 
             let measurement = TransactionMetric::Measurement {
