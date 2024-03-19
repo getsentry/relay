@@ -5,7 +5,6 @@ mod buffer;
 mod dynamic_sampling;
 mod garbage;
 mod managed_envelope;
-mod metric_stats;
 mod metrics_rate_limits;
 mod multipart;
 mod param_parser;
@@ -28,7 +27,6 @@ pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
 pub use self::garbage::*;
 pub use self::managed_envelope::*;
-pub use self::metric_stats::*;
 pub use self::metrics_rate_limits::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]

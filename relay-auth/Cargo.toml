@@ -10,6 +10,9 @@ license-file = "../LICENSE.md"
 publish = false
 build = "build.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { workspace = true }
 data-encoding = "2.5.0"

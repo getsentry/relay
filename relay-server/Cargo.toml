@@ -32,6 +32,9 @@ processing = [
     "relay-sampling/redis",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 serde_path_to_error = "0.1.14"
