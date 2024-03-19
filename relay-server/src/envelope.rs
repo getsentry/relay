@@ -694,11 +694,7 @@ impl Item {
             } else {
                 DataCategory::Span
             }),
-            ItemType::ProfileChunk => Some(if indexed {
-                DataCategory::ProfileDurationIndexed
-            } else {
-                DataCategory::ProfileDuration
-            }),
+            ItemType::ProfileChunk => Some(DataCategory::ProfileDuration),
             ItemType::Unknown(_) => None,
         }
     }
