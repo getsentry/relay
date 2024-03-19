@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
-use std::num::NonZeroU64;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::{fmt, mem};
 
@@ -755,7 +755,7 @@ pub struct BucketMetadata {
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    pub merges: NonZeroU64,
+    pub merges: NonZeroU32,
 }
 
 impl BucketMetadata {
@@ -764,14 +764,14 @@ impl BucketMetadata {
     /// The new metadata is initialized with `1` merge.
     pub fn new() -> Self {
         Self {
-            merges: NonZeroU64::MIN,
+            merges: NonZeroU32::MIN,
         }
     }
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
         let Self { merges } = self;
-        *merges == NonZeroU64::MIN
+        *merges == NonZeroU32::MIN
     }
 
     /// Merges another metadata object into the current one.
