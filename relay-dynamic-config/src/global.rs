@@ -145,6 +145,17 @@ pub struct Options {
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
 
+    /// Rollout rate for metric stats.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will have metric stats enabled.
+    #[serde(
+        rename = "relay.metric-stats.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub metric_stats_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

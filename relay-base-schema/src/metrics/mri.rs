@@ -136,26 +136,31 @@ impl MetricNamespace {
     /// Returns all namespaces/variants of this enum.
     pub fn all() -> [Self; 7] {
         [
-            MetricNamespace::Sessions,
-            MetricNamespace::Transactions,
-            MetricNamespace::Spans,
-            MetricNamespace::Profiles,
-            MetricNamespace::Custom,
-            MetricNamespace::Stats,
-            MetricNamespace::Unsupported,
+            Self::Sessions,
+            Self::Transactions,
+            Self::Spans,
+            Self::Profiles,
+            Self::Custom,
+            Self::Stats,
+            Self::Unsupported,
         ]
+    }
+
+    /// Returns `true` if metric stats are enabled for this namespace.
+    pub fn has_metric_stats(&self) -> bool {
+        matches!(self, Self::Custom)
     }
 
     /// Returns the string representation for this metric type.
     pub fn as_str(&self) -> &'static str {
         match self {
-            MetricNamespace::Sessions => "sessions",
-            MetricNamespace::Transactions => "transactions",
-            MetricNamespace::Spans => "spans",
-            MetricNamespace::Profiles => "profiles",
-            MetricNamespace::Custom => "custom",
-            MetricNamespace::Stats => "metric_stats",
-            MetricNamespace::Unsupported => "unsupported",
+            Self::Sessions => "sessions",
+            Self::Transactions => "transactions",
+            Self::Spans => "spans",
+            Self::Profiles => "profiles",
+            Self::Custom => "custom",
+            Self::Stats => "metric_stats",
+            Self::Unsupported => "unsupported",
         }
     }
 }

@@ -31,6 +31,7 @@ use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
@@ -140,6 +141,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
+    metric_stats: MetricStats,
     producer: Producer,
 }
 
@@ -148,12 +150,14 @@ impl StoreService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
             global_config,
             outcome_aggregator,
+            metric_stats,
             producer,
         })
     }
@@ -250,12 +254,7 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => self.produce_metrics(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    item,
-                    retention,
-                )?,
+                ItemType::MetricBuckets => self.produce_metrics(scoping, item, retention)?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -382,11 +381,17 @@ impl StoreService {
                     retention,
                 );
 
-                if let Err(e) =
-                    message.and_then(|message| self.send_metric_message(namespace, message))
-                {
-                    error.get_or_insert(e);
-                    dropped += utils::extract_metric_quantities([view], mode);
+                let result =
+                    message.and_then(|message| self.send_metric_message(namespace, message));
+
+                match result {
+                    Ok(()) => {
+                        self.metric_stats.track(scoping, &view, Outcome::Accepted);
+                    }
+                    Err(e) => {
+                        error.get_or_insert(e);
+                        dropped += utils::extract_metric_quantities([view], mode);
+                    }
                 }
             }
         }
@@ -812,8 +817,7 @@ impl StoreService {
 
     fn produce_metrics(
         &self,
-        org_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
         item: &Item,
         retention: u16,
     ) -> Result<(), StoreError> {
@@ -827,14 +831,16 @@ impl StoreService {
 
             let view = BucketView::new(&bucket);
             let message = self.create_metric_message(
-                org_id,
-                project_id,
+                scoping.organization_id,
+                scoping.project_id,
                 &mut encoder,
                 namespace,
                 &view,
                 retention,
             );
+
             message.and_then(|message| self.send_metric_message(namespace, message))?;
+            self.metric_stats.track(scoping, &view, Outcome::Accepted);
         }
 
         Ok(())

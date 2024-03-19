@@ -126,6 +126,7 @@ impl CategoryUnit {
             }
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+            DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,
         }

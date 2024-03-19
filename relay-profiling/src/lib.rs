@@ -299,6 +299,12 @@ mod tests {
     }
 
     #[test]
+    fn test_expand_profile_with_version_and_segment_id() {
+        let payload = include_bytes!("../tests/fixtures/sample/v1/segment_id.json");
+        assert!(expand_profile(payload, &Event::default()).is_ok());
+    }
+
+    #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         assert!(expand_profile(payload, &Event::default()).is_ok());

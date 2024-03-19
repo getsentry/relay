@@ -12,6 +12,9 @@ publish = false
 [features]
 default = []
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 assert-json-diff = "2.0.2"

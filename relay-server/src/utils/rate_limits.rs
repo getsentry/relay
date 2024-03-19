@@ -154,6 +154,9 @@ pub struct EnvelopeSummary {
     /// marking the envelope data category a [`DataCategory::Transaction`].
     pub secondary_transaction_quantity: usize,
 
+    /// See `secondary_transaction_quantity`.
+    pub secondary_span_quantity: usize,
+
     /// The number of standalone spans.
     pub span_quantity: usize,
 
@@ -205,6 +208,7 @@ impl EnvelopeSummary {
 
             if let Some(source_quantities) = item.source_quantities() {
                 summary.secondary_transaction_quantity += source_quantities.transactions;
+                summary.secondary_span_quantity += source_quantities.spans;
                 summary.profile_quantity += source_quantities.profiles;
             }
 
@@ -1420,6 +1424,7 @@ mod tests {
         let mut item = Item::new(ItemType::MetricBuckets);
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
+            spans: 0,
             profiles: 2,
             buckets: 5,
         });
@@ -1428,6 +1433,7 @@ mod tests {
         let mut item = Item::new(ItemType::MetricBuckets);
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
+            spans: 0,
             profiles: 0,
             buckets: 3,
         });
