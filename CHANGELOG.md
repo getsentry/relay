@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
+
 ## 24.3.0
 
 **Features**:
