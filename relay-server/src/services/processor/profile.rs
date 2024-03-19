@@ -23,7 +23,17 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         .filter(|item| item.ty() == &ItemType::Transaction)
         .count();
     let mut profile_id = None;
+    let continuous_profiling_enabled = state
+        .project_state
+        .has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
+        ItemType::ProfileChunk => {
+            if continuous_profiling_enabled {
+                ItemAction::Keep
+            } else {
+                ItemAction::DropSilently
+            }
+        }
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
             // Drop profile without a transaction in the same envelope.
