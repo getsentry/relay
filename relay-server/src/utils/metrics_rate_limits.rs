@@ -505,7 +505,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
@@ -514,7 +514,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.into()),
                 metadata: Default::default(),
@@ -523,7 +523,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -532,7 +532,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.into()),
                 metadata: Default::default(),
@@ -541,7 +541,7 @@ mod tests {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "something_else".into(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.into()),
                 metadata: Default::default(),
@@ -550,7 +550,7 @@ mod tests {
         let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Transaction));
 
         assert_eq!(metrics.len(), 1);
-        assert_eq!(metrics[0].name, "something_else");
+        assert_eq!(&*metrics[0].name, "something_else");
 
         assert_eq!(
             outcomes,
@@ -561,13 +561,81 @@ mod tests {
         )
     }
 
+    #[test]
+    fn profiles_quota_is_enforced() {
+        let metrics = vec![
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:transactions/duration@millisecond".into(),
+                tags: Default::default(),
+                value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "d:transactions/duration@millisecond".into(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::distribution(456.into()),
+                metadata: Default::default(),
+            },
+            Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".into(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".into(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.into()),
+                metadata: Default::default(),
+            },
+            Bucket {
+                // unrelated metric
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "something_else".into(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::distribution(123.into()),
+                metadata: Default::default(),
+            },
+        ];
+
+        let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Profile));
+
+        // All metrics have been preserved:
+        assert_eq!(metrics.len(), 5);
+
+        // Profile tag has been removed:
+        assert!(metrics[0].tags.is_empty());
+        assert!(metrics[1].tags.is_empty());
+        assert!(metrics[2].tags.is_empty());
+        assert!(metrics[3].tags.is_empty());
+        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
+
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Profile, 1)]
+        );
+    }
+
     /// A few different bucket types
     fn mixed_bag() -> Vec<Bucket> {
         vec![
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(12.into()),
                 metadata: BucketMetadata::default(),
@@ -575,7 +643,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:spans/usage@none".to_string(),
+                name: "c:spans/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(34.into()),
                 metadata: BucketMetadata::default(),
@@ -583,7 +651,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:spans/usage@none".to_string(),
+                name: "c:spans/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(56.into()),
                 metadata: BucketMetadata::default(),
@@ -591,7 +659,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:spans/exclusive_time@millisecond".to_string(),
+                name: "d:spans/exclusive_time@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
                 metadata: BucketMetadata::default(),
@@ -599,7 +667,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:custom/something@millisecond".to_string(),
+                name: "d:custom/something@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
                 metadata: BucketMetadata::default(),
@@ -612,8 +680,8 @@ mod tests {
         let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
 
         assert_eq!(metrics.len(), 2);
-        assert_eq!(metrics[0].name, "c:transactions/usage@none");
-        assert_eq!(metrics[1].name, "d:custom/something@millisecond");
+        assert_eq!(&*metrics[0].name, "c:transactions/usage@none");
+        assert_eq!(&*metrics[1].name, "d:custom/something@millisecond");
 
         assert_eq!(
             outcomes,
@@ -626,10 +694,10 @@ mod tests {
         let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Transaction));
 
         assert_eq!(metrics.len(), 4);
-        assert_eq!(metrics[0].name, "c:spans/usage@none");
-        assert_eq!(metrics[1].name, "c:spans/usage@none");
-        assert_eq!(metrics[2].name, "d:spans/exclusive_time@millisecond");
-        assert_eq!(metrics[3].name, "d:custom/something@millisecond");
+        assert_eq!(&*metrics[0].name, "c:spans/usage@none");
+        assert_eq!(&*metrics[1].name, "c:spans/usage@none");
+        assert_eq!(&*metrics[2].name, "d:spans/exclusive_time@millisecond");
+        assert_eq!(&*metrics[3].name, "d:custom/something@millisecond");
 
         assert_eq!(
             outcomes,

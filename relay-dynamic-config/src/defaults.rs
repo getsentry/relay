@@ -130,6 +130,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_http.clone())
         & duration_condition.clone();
 
+    let know_modules_condition =
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+            & duration_condition.clone();
+
     [
         MetricSpec {
             category: DataCategory::Span,
@@ -142,17 +146,22 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-                    & duration_condition.clone(),
-            ),
+            condition: None,
             tags: vec![
-                // Common tags:
+                // All modules:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(
-                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
-                    ),
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                // Know modules:
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
                     .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
@@ -161,26 +170,17 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .when(is_db.clone()),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
                     .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                // Mobile:
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .when(is_mobile.clone()), // filters by `transaction.op:ui.load`
+                    .when(know_modules_condition.clone()),
+                // Mobile module:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
                     .when(is_mobile.clone()),
