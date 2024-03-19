@@ -1,6 +1,5 @@
 //! Profiles related processor code.
 
-#[cfg(feature = "processing")]
 use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
