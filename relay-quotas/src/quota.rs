@@ -100,6 +100,7 @@ enum CategoryUnit {
     Count,
     Bytes,
     Batched,
+    Milliseconds,
 }
 
 impl CategoryUnit {
@@ -122,6 +123,7 @@ impl CategoryUnit {
             | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+            DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,
         }

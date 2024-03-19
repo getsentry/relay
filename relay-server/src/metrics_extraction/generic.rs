@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, Options, TagMapping, TagSource, TagSpec};
+use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
+
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
 };
@@ -22,11 +23,7 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(
-    instance: &T,
-    config: &MetricExtractionConfig,
-    global_options: Option<&Options>,
-) -> Vec<Bucket>
+pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -37,16 +34,7 @@ where
         return metrics;
     };
 
-    // HACK: The killswitch for the usage metric has a different life cycle
-    // than the project config, so we cannot apply it in `ProjectConfig::sanitize`,
-    // which runs when the project config is updated.
-    // This hack can be removed once the usage metric is stable.
-    let allow_span_usage_metric = global_options.map_or(false, |options| options.span_usage_metric);
     for metric_spec in &config.metrics {
-        if !allow_span_usage_metric && metric_spec.mri == "c:spans/usage@none" {
-            continue;
-        }
-
         if metric_spec.category != instance.category() {
             continue;
         }
@@ -69,7 +57,7 @@ where
         };
 
         metrics.push(Bucket {
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             width: 0,
             value,
             timestamp,
@@ -195,7 +183,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -235,7 +223,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -279,7 +267,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -335,7 +323,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -392,7 +380,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -451,7 +439,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -518,7 +506,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {

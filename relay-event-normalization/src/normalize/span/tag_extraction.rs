@@ -480,6 +480,14 @@ pub fn extract_tags(
                 {
                     span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
                 }
+                if let Some(environment) =
+                    span.data.value().and_then(|data| data.environment.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                }
+                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
+                }
             }
         }
     }

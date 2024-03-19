@@ -4,10 +4,13 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Common utilities and crate re-exports for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 chrono = { workspace = true }

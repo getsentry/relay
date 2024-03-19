@@ -117,7 +117,7 @@ impl IntoMetric for TransactionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags,
             metadata: BucketMetadata::new(),
@@ -178,6 +178,7 @@ impl From<UsageTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TransactionMeasurementTags {
     pub measurement_rating: Option<String>,
+    pub score_profile_version: Option<String>,
     pub universal_tags: CommonTags,
 }
 
@@ -186,6 +187,12 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
         if let Some(decision) = value.measurement_rating {
             map.insert("measurement_rating".to_string(), decision);
+        }
+        if let Some(score_profile_version) = value.score_profile_version {
+            map.insert(
+                "sentry.score_profile_version".to_string(),
+                score_profile_version,
+            );
         }
         map
     }

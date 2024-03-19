@@ -13,7 +13,12 @@ from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
-from .fixtures.relay import relay, get_relay_binary, latest_relay_version  # noqa
+from .fixtures.relay import (  # noqa
+    relay,
+    relay_credentials,
+    get_relay_binary,
+    latest_relay_version,
+)
 from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,

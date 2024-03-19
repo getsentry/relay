@@ -15,8 +15,8 @@ use relay_base_schema::metrics::{
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
-    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
-    Tags, Timestamp, User,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
+    PerformanceScoreContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -818,6 +818,13 @@ pub fn normalize_performance_score(
                     );
                 }
                 if should_add_total {
+                    if let Some(version) = &profile.version {
+                        event
+                            .contexts
+                            .get_or_insert_with(Contexts::new)
+                            .get_or_default::<PerformanceScoreContext>()
+                            .score_profile_version = version.clone().into();
+                    }
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -2850,6 +2857,77 @@ mod tests {
         normalize_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_computes_performance_score_and_tags_with_profile_version() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "performance_score": {
+              "score_profile_version": "beta",
+              "type": "performancescore",
+            },
+          },
+          "measurements": {
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
     }
 
     #[test]
