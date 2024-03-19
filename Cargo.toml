@@ -13,6 +13,9 @@ debug = false
 # panic and error stack traces to Sentry.
 debug = true
 
+[workspace.lints.clippy]
+dbg_macro = "warn"
+
 [workspace.dependencies]
 anyhow = "1.0.66"
 chrono = { version = "0.4.31", default-features = false, features = [

@@ -82,7 +82,7 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
 
@@ -1781,12 +1781,6 @@ impl EnvelopeProcessorService {
                 }
             }
 
-            MetricStats::new(&buckets).emit(
-                RelayCounters::ProcessorBatchedMetricsCalls,
-                RelayCounters::ProcessorBatchedMetricsCount,
-                RelayCounters::ProcessorBatchedMetricsCost,
-            );
-
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
             relay_log::trace!("merging metric buckets into project cache");
@@ -1931,55 +1925,64 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
+        relay_log::trace!("handle_rate_limit_buckets");
         let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            let item_scoping = relay_quotas::ItemScoping {
-                category: DataCategory::Transaction,
-                scoping: &scoping,
-                namespace: None,
-            };
-
             let global_config = self.inner.global_config.current();
             let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
-            let rate_limits = rate_limiter.is_rate_limited(
-                quotas,
-                item_scoping,
-                bucket_limiter.transaction_count(),
-                over_accept_once,
-            );
 
-            let was_enforced = bucket_limiter.enforce_limits(
-                rate_limits.as_ref().map_err(|_| ()),
-                self.inner.outcome_aggregator.clone(),
-            );
+            let merged_rate_limits = [DataCategory::Transaction, DataCategory::Span]
+                .into_iter()
+                .flat_map(|category| {
+                    bucket_limiter.count(category).and_then(|count| {
+                        rate_limiter
+                            .is_rate_limited(
+                                quotas,
+                                ItemScoping {
+                                    category,
+                                    scoping: &scoping,
+                                    namespace: None,
+                                },
+                                count,
+                                over_accept_once,
+                            )
+                            .map_err(|e| {
+                                relay_log::error!(error = &e as &dyn Error);
+                            })
+                            // don't limit if there was a redis error (keep user data if budget is unknown)
+                            .ok()
+                    })
+                })
+                .reduce(|mut a, b| {
+                    a.merge(b);
+                    a
+                });
 
-            if was_enforced {
-                if let Ok(limits) = rate_limits {
+            if let Some(merged_rate_limits) = merged_rate_limits {
+                let was_enforced = bucket_limiter
+                    .enforce_limits(&merged_rate_limits, self.inner.outcome_aggregator.clone());
+
+                if was_enforced {
                     // Update the rate limits in the project cache.
-                    self.inner
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, limits));
+                    self.inner.project_cache.send(UpdateRateLimits::new(
+                        scoping.project_key,
+                        merged_rate_limits,
+                    ));
                 }
             }
         }
 
         let project_key = bucket_limiter.scoping().project_key;
-        let buckets = bucket_limiter.into_metrics();
+        let buckets = bucket_limiter.into_buckets();
 
         if !buckets.is_empty() {
-            MetricStats::new(&buckets).emit(
-                RelayCounters::ProcessorRateLimitBucketsCalls,
-                RelayCounters::ProcessorRateLimitBucketsCount,
-                RelayCounters::ProcessorRateLimitBucketsCost,
-            );
-
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -2337,16 +2340,6 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
-        let mut stats = MetricStats::default();
-        for p in message.scopes.values() {
-            stats.update(&p.buckets);
-        }
-        stats.emit(
-            RelayCounters::ProcessorEncodeMetricsCalls,
-            RelayCounters::ProcessorEncodeMetricsCount,
-            RelayCounters::ProcessorEncodeMetricsCost,
-        );
-
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.store_forwarder {
@@ -2462,7 +2455,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.metrics()).into()
+                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets()).into()
             }
         }
     }

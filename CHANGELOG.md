@@ -6,6 +6,12 @@
 
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 
+**Internal**:
+
+- Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
+- Add a data category for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284))
+- Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
+
 ## 24.3.0
 
 **Features**:
