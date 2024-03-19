@@ -1120,12 +1120,7 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let global_config = self.inner.global_config.current();
-                let metrics = crate::metrics_extraction::event::extract_metrics(
-                    event,
-                    config,
-                    Some(&global_config.options),
-                );
+                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -2916,7 +2911,7 @@ mod tests {
 
             let project_metrics = ProjectMetrics {
                 buckets: vec![Bucket {
-                    name: "d:transactions/bar".to_string(),
+                    name: "d:transactions/bar".into(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),

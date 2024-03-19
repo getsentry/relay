@@ -14,6 +14,7 @@ pub struct MetricStats {
     spans: Stat,
     profiles: Stat,
     transactions: Stat,
+    metric_stats: Stat,
     unsupported: Stat,
 }
 
@@ -38,16 +39,9 @@ impl MetricStats {
     /// - `calls`: incremented by one for each seen namespace.
     /// - `count`: total amount of metric buckets by namespace.
     /// - `cost`: total cost of metric buckets by namespace.
-    pub fn emit(self, calls: RelayCounters, count: RelayCounters, cost: RelayCounters) {
-        let stats = [
-            (MetricNamespace::Custom, self.custom),
-            (MetricNamespace::Sessions, self.sessions),
-            (MetricNamespace::Spans, self.spans),
-            (MetricNamespace::Transactions, self.transactions),
-            (MetricNamespace::Unsupported, self.unsupported),
-        ];
-
-        for (namespace, stat) in stats {
+    pub fn emit(mut self, calls: RelayCounters, count: RelayCounters, cost: RelayCounters) {
+        for namespace in MetricNamespace::all() {
+            let stat = self.stat(namespace);
             if stat.count > 0 {
                 metric!(counter(calls) += 1, namespace = namespace.as_str());
                 metric!(counter(count) += stat.count, namespace = namespace.as_str());
@@ -63,6 +57,7 @@ impl MetricStats {
             MetricNamespace::Spans => &mut self.spans,
             MetricNamespace::Profiles => &mut self.profiles,
             MetricNamespace::Custom => &mut self.custom,
+            MetricNamespace::Stats => &mut self.metric_stats,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
     }

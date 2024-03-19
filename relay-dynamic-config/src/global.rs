@@ -130,16 +130,6 @@ pub struct Options {
     )]
     pub cardinality_limiter_error_sample_rate: f32,
 
-    /// Kill switch for disabling the span usage metric.
-    ///
-    /// This metric is converted into outcomes in a sentry-side consumer.
-    #[serde(
-        rename = "relay.span-usage-metric",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub span_usage_metric: bool,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
@@ -186,6 +176,7 @@ pub struct BucketEncodings {
     spans: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
+    metric_stats: BucketEncoding,
 }
 
 impl BucketEncodings {
@@ -196,6 +187,7 @@ impl BucketEncodings {
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
+            MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -231,6 +223,7 @@ where
                 spans: encoding,
                 profiles: encoding,
                 custom: encoding,
+                metric_stats: encoding,
             })
         }
 
@@ -373,7 +366,10 @@ mod tests {
     #[test]
     fn test_global_config_invalid_value_is_default() {
         let options: Options = serde_json::from_str(
-            r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#,
+            r#"{
+                "relay.cardinality-limiter.mode": "passive",
+                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+            }"#,
         )
         .unwrap();
 
@@ -424,7 +420,8 @@ mod tests {
                 transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy
+                custom: BucketEncoding::Legacy,
+                metric_stats: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
@@ -433,7 +430,8 @@ mod tests {
                 transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd
+                custom: BucketEncoding::Zstd,
+                metric_stats: BucketEncoding::Zstd,
             }
         );
     }
@@ -445,6 +443,7 @@ mod tests {
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
+            metric_stats: BucketEncoding::Base64,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

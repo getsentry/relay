@@ -94,7 +94,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config, Some(&global_config.options));
+            let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
