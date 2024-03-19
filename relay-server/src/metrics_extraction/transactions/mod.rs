@@ -324,14 +324,8 @@ impl TransactionExtractor<'_> {
                         tags.clone()
                     },
                     score_profile_version: is_performance_score
-                        .then(|| {
-                            event
-                                .context::<PerformanceScoreContext>()
-                                .unwrap()
-                                .score_profile_version
-                                .value()
-                        })
-                        .and_then(|version| version.map(|s| s.to_string())),
+                        .then(|| event.context::<PerformanceScoreContext>())
+                        .and_then(|context| context?.score_profile_version.value().cloned()),
                 };
 
                 metrics.project_metrics.push(
