@@ -95,11 +95,6 @@ impl SessionMetricsConfig {
     pub fn should_extract_abnormal_mechanism(&self) -> bool {
         self.version >= EXTRACT_ABNORMAL_MECHANISM_VERSION
     }
-
-    /// Session is dropped after extracting metrics.
-    pub fn should_drop(&self) -> bool {
-        true
-    }
 }
 
 /// Configuration for extracting custom measurements from transaction payloads.

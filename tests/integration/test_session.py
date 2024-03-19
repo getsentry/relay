@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta, timezone
 import json
-import pytest
-from requests.exceptions import HTTPError
 import uuid
 
 
