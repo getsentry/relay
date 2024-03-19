@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
-    MetricUnit,
+    Bucket, BucketMetadata, BucketValue, DistributionType, DurationUnit, MetricNamespace,
+    MetricResourceIdentifier, MetricUnit,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -117,9 +117,10 @@ impl IntoMetric for TransactionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags,
+            metadata: BucketMetadata::new(),
         }
     }
 }

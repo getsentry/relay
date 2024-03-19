@@ -92,7 +92,7 @@ where
             });
         }
 
-        let partial_meta = request.extract_parts::<PartialMeta>().await?;
+        let partial_meta: PartialMeta = request.extract_parts_with_state(state).await?;
         let body: Bytes = request.extract().await?;
 
         let line = body

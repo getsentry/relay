@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics Cardinality Limiter"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -13,6 +13,9 @@ autobenches = false
 [features]
 default = []
 redis = ["relay-redis/impl"]
+
+[lints]
+workspace = true
 
 [dependencies]
 hashbrown = { workspace = true }

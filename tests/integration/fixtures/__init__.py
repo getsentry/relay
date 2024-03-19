@@ -249,6 +249,7 @@ class SentryLike:
         }
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
+        return response
 
     def send_session(self, project_id, payload, item_headers=None):
         envelope = Envelope()

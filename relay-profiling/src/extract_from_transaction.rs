@@ -28,6 +28,10 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         if let Some(op) = trace_context.op.value() {
             tags.insert("transaction.op".to_owned(), op.to_owned());
         }
+
+        if let Some(segment_id) = trace_context.span_id.value() {
+            tags.insert("segment_id".to_owned(), segment_id.to_owned().0);
+        }
     }
 
     if let Some(http_method) = extract_http_method(event) {

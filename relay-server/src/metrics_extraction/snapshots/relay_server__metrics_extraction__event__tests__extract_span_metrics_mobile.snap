@@ -311,6 +311,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 db_operation: ~,
                 db_system: ~,
                 environment: ~,
+                release: ~,
                 http_decoded_response_content_length: ~,
                 http_request_method: ~,
                 http_response_content_length: ~,
@@ -383,6 +384,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 db_operation: ~,
                 db_system: ~,
                 environment: ~,
+                release: ~,
                 http_decoded_response_content_length: ~,
                 http_request_method: ~,
                 http_response_content_length: ~,
@@ -423,6 +425,18 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 [
@@ -439,6 +453,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
                 "ttid": "ttid",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -457,6 +474,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.category": "app",
                 "span.op": "app.start.cold",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976302),
@@ -469,6 +489,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.category": "app",
                 "span.op": "app.start.cold",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976302),
@@ -480,6 +503,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -501,6 +539,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -517,6 +558,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -527,6 +571,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "ui.load.initial_display",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -539,6 +586,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -563,6 +625,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -582,6 +647,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -594,6 +662,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.category": "app",
                 "span.op": "app.start.cold",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -605,6 +676,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -626,6 +700,38 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "custom.op",
+                "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -637,6 +743,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "custom.op",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -648,6 +757,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -671,6 +795,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -689,6 +816,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -699,6 +829,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "contentprovider.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -711,6 +844,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -734,6 +882,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -752,6 +903,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -763,6 +917,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "application.load",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -774,6 +931,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -797,6 +969,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -815,6 +990,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -825,6 +1003,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "activity.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -837,6 +1018,21 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -858,6 +1054,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "ttid": "ttid",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -874,6 +1073,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "process.load",
             },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -884,6 +1086,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "process.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
         Bucket {
@@ -896,6 +1101,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
             },
         },
     ],

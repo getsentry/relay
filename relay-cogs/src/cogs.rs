@@ -204,6 +204,20 @@ impl FeatureWeights {
             Some((*feature, ratio))
         })
     }
+
+    /// Returns `true` if there are no weights contained.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_cogs::{AppFeature, FeatureWeights};
+    ///
+    /// assert!(FeatureWeights::none().is_empty());
+    /// assert!(!FeatureWeights::new(AppFeature::Spans).is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl fmt::Debug for FeatureWeights {

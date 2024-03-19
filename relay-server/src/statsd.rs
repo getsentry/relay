@@ -646,58 +646,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Number of times the batched metrics processing has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCalls,
-    /// Number of buckets processed in the batched metrics handling of the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCount,
-    /// Bucket cost for all buckets processed in the batched metrics handling of the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCost,
-    /// Number of times the metric encoding has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCalls,
-    /// Number of metric buckets encoded in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCount,
-    /// Bucket cost for all buckets encoded in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCost,
-    /// Number of times metric bucket rate limiting has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCalls,
-    /// Number of metric buckets rate limited in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCount,
-    /// Bucket cost for all buckets rate limited envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCost,
-
     /// Counter for dynamic sampling decision.
     ///
     /// This metric is tagged with:
@@ -741,18 +689,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            RelayCounters::ProcessorBatchedMetricsCalls => "processor.batched_metrics.calls",
-            RelayCounters::ProcessorBatchedMetricsCount => "processor.batched_metrics.count",
-            RelayCounters::ProcessorBatchedMetricsCost => "processor.batched_metrics.cost",
-            RelayCounters::ProcessorEncodeMetricsCalls => "processor.encode_metrics.calls",
-            RelayCounters::ProcessorEncodeMetricsCount => "processor.encode_metrics.count",
-            RelayCounters::ProcessorEncodeMetricsCost => "processor.encode_metrics.cost",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCalls => "processor.rate_limit_buckets.calls",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
         }
     }
