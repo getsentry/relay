@@ -287,6 +287,12 @@
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -566,6 +572,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
+        <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_expand_profile_with_version_and_segment_id() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/segment_id.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 
