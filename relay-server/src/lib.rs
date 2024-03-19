@@ -258,6 +258,7 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+#[cfg(feature = "processing")]
 mod metric_stats;
 mod metrics_extraction;
 mod middlewares;

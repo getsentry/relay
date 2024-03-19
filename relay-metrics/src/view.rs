@@ -378,6 +378,8 @@ impl<'a> BucketView<'a> {
     }
 
     /// Returns the name of the bucket.
+    ///
+    /// Caller holds shared ownership of the string.
     pub fn clone_name(&self) -> Arc<str> {
         Arc::clone(&self.inner.name)
     }
