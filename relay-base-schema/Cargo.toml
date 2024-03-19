@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 regex = { workspace = true }
 relay-common = { path = "../relay-common" }

@@ -5,6 +5,7 @@
 **Internal**:
 
 - Add a data category for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284))
+- Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
 
 ## 24.3.0
 
@@ -31,7 +32,6 @@
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 - Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
 - Don't run validation on renormalization, and don't normalize spans from librelay calls. ([#3214](https://github.com/getsentry/relay/pull/3214))
-- Set segment_id as optional ([#3275](https://github.com/getsentry/relay/pull/3275))
 
 **Internal**:
 
@@ -43,6 +43,7 @@
 - Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
 - Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
+- Collect exclusive time for all spans. ([#3268](https://github.com/getsentry/relay/pull/3268))
 - Add segment_id to the profile. ([#3265](https://github.com/getsentry/relay/pull/3265))
 
 ## 24.2.0

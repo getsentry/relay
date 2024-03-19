@@ -589,8 +589,8 @@ impl Project {
         let mode = state.get_extraction_mode();
         match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
-                limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
-                limiter.into_metrics()
+                limiter.enforce_limits(&self.rate_limits, outcome_aggregator);
+                limiter.into_buckets()
             }
             Err(metrics) => metrics,
         }
@@ -660,7 +660,7 @@ impl Project {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
                 let was_rate_limited =
-                    bucket_limiter.enforce_limits(Ok(&cached_rate_limits), outcome_aggregator);
+                    bucket_limiter.enforce_limits(&cached_rate_limits, outcome_aggregator);
 
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && self.config.processing_enabled() {
@@ -670,7 +670,7 @@ impl Project {
                     return;
                 }
 
-                bucket_limiter.into_metrics()
+                bucket_limiter.into_buckets()
             }
             Err(buckets) => buckets,
         };

@@ -12,6 +12,9 @@ publish = false
 [lib]
 proc-macro = true
 
+[lints]
+workspace = true
+
 [dependencies]
 syn = { version = "1.0.39", features = ["fold", "full"] }
 quote = "1.0.6"

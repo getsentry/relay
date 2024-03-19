@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 num-traits = "0.2.12"
 relay-common = { path = "../relay-common" }
