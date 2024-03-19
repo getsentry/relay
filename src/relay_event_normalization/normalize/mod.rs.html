@@ -2220,6 +2220,8 @@
 <a href="#2219" id="2219">2219</a>
 <a href="#2220" id="2220">2220</a>
 <a href="#2221" id="2221">2221</a>
+<a href="#2222" id="2222">2222</a>
+<a href="#2223" id="2223">2223</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2560,6 +2562,8 @@
     </span><span class="kw">pub </span>score_components: Vec&lt;PerformanceScoreWeightedComponent&gt;,
     <span class="doccomment">/// See [`RuleCondition`] for all available options to specify and combine conditions.
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
+    <span class="doccomment">/// The version of the profile, used to isolate changes to score calculations.
+    </span><span class="kw">pub </span>version: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="doccomment">/// Defines the performance configuration for the project.

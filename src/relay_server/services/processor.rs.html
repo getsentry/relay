@@ -3226,6 +3226,7 @@
 <a href="#3225" id="3225">3225</a>
 <a href="#3226" id="3226">3226</a>
 <a href="#3227" id="3227">3227</a>
+<a href="#3228" id="3228">3228</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6435,6 +6436,7 @@
             <span class="kw">let </span>tags = TransactionMeasurementTags {
                 measurement_rating: <span class="prelude-val">None</span>,
                 universal_tags: CommonTags(BTreeMap::new()),
+                score_profile_version: <span class="prelude-val">None</span>,
             };
 
             <span class="kw">let </span>measurement = TransactionMetric::Measurement {
