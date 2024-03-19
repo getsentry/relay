@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stop producing to sessions topic, the feature is now fully migrated to metrics
+
 **Features**:
 
 - Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
