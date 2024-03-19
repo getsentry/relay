@@ -9,13 +9,18 @@ edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 cadence = "0.29.0"
 crossbeam-channel = "0.5.6"
 parking_lot = { workspace = true }
 rand = { workspace = true }
 relay-log = { path = "../relay-log" }
-statsdproxy = { version = "0.1.2", features = ["cadence-adapter"], default-features = false }
+statsdproxy = { version = "0.1.2", features = [
+    "cadence-adapter",
+], default-features = false }
 
 [features]
 default = []

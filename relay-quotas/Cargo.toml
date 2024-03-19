@@ -13,6 +13,9 @@ publish = false
 default = []
 redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 
+[lints]
+workspace = true
+
 [dependencies]
 hashbrown = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }

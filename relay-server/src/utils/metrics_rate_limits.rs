@@ -318,7 +318,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     outcome_aggregator.send(TrackOutcome {
                         timestamp,
                         scoping: self.scoping,
-                        outcome: dbg!(outcome.clone()),
+                        outcome: outcome.clone(),
                         event_id: None,
                         remote_addr: None,
                         category: DataCategory::Transaction,
