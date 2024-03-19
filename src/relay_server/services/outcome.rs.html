@@ -973,6 +973,10 @@
 <a href="#972" id="972">972</a>
 <a href="#973" id="973">973</a>
 <a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1056,6 +1060,10 @@
     <span class="kw">const </span>INVALID: OutcomeId = OutcomeId(<span class="number">3</span>);
     <span class="kw">const </span>ABUSE: OutcomeId = OutcomeId(<span class="number">4</span>);
     <span class="kw">const </span>CLIENT_DISCARD: OutcomeId = OutcomeId(<span class="number">5</span>);
+
+    <span class="kw">pub fn </span>as_u8(<span class="self">self</span>) -&gt; u8 {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
 <span class="kw">trait </span>TrackOutcomeLike {
@@ -1155,7 +1163,7 @@
 
 <span class="kw">impl </span>Outcome {
     <span class="doccomment">/// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    </span><span class="kw">fn </span>to_outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
+    </span><span class="kw">pub fn </span>to_outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
         <span class="kw">match </span><span class="self">self </span>{
             Outcome::Filtered(<span class="kw">_</span>) | Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; OutcomeId::FILTERED,
             Outcome::RateLimited(<span class="kw">_</span>) =&gt; OutcomeId::RATE_LIMITED,
@@ -1169,7 +1177,7 @@
     }
 
     <span class="doccomment">/// Returns the `reason` code field of this outcome.
-    </span><span class="kw">fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+    </span><span class="kw">pub fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(filter_key.clone().name()),

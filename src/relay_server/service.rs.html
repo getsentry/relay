@@ -328,6 +328,16 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -343,6 +353,8 @@
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
 
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
@@ -467,12 +479,20 @@
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>metric_stats = MetricStats::new(
+            config.clone(),
+            global_config_handle.clone(),
+            aggregator.clone(),
+        );
+
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>store = <span class="kw">match </span>runtimes.store {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) =&gt; <span class="prelude-val">Some</span>(
                 StoreService::create(
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
+                    metric_stats,
                 )<span class="question-mark">?
                 </span>.start_in(rt),
             ),

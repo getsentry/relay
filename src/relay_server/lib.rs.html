@@ -313,6 +313,8 @@
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -573,6 +575,8 @@
 <span class="kw">mod </span>envelope;
 <span class="kw">mod </span>extractors;
 <span class="kw">mod </span>http;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">mod </span>metric_stats;
 <span class="kw">mod </span>metrics_extraction;
 <span class="kw">mod </span>middlewares;
 <span class="kw">mod </span>service;

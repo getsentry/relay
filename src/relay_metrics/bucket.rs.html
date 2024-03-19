@@ -1392,7 +1392,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
-<span class="kw">use </span>std::num::NonZeroU64;
+<span class="kw">use </span>std::num::NonZeroU32;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::{fmt, mem};
 
@@ -2146,7 +2146,7 @@
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    </span><span class="kw">pub </span>merges: NonZeroU64,
+    </span><span class="kw">pub </span>merges: NonZeroU32,
 }
 
 <span class="kw">impl </span>BucketMetadata {
@@ -2155,14 +2155,14 @@
     /// The new metadata is initialized with `1` merge.
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            merges: NonZeroU64::MIN,
+            merges: NonZeroU32::MIN,
         }
     }
 
     <span class="doccomment">/// Whether the metadata does not contain more information than the default.
     </span><span class="kw">pub fn </span>is_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">let </span><span class="self">Self </span>{ merges } = <span class="self">self</span>;
-        <span class="kw-2">*</span>merges == NonZeroU64::MIN
+        <span class="kw-2">*</span>merges == NonZeroU32::MIN
     }
 
     <span class="doccomment">/// Merges another metadata object into the current one.
