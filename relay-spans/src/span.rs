@@ -114,7 +114,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                         description = statement;
                     }
                 }
-            } else if key == "http.method" || key == "http.request.method" {
+            } else if key == "http.method" || key == "request.method" {
                 let http_op = match kind {
                     2 => "http.server",
                     3 => "http.client",
@@ -313,5 +313,81 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
+    }
+
+    #[test]
+    fn parse_span_with_db_attributes() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "database query",
+            "kind": 3,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key" : "db.name",
+                    "value": {
+                        "stringValue": "database"
+                    }
+                },
+                {
+                    "key" : "db.type",
+                    "value": {
+                        "stringValue": "sql"
+                    }
+                },
+                {
+                    "key" : "db.statement",
+                    "value": {
+                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.op, Annotated::new("db".into()));
+        assert_eq!(
+            event_span.description,
+            Annotated::new(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
+            )
+        );
+    }
+
+    #[test]
+    fn parse_span_with_http_attributes() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "http client request",
+            "kind": 3,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key" : "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                    }
+                },
+                {
+                    "key" : "url.path",
+                    "value": {
+                        "stringValue": "/api/search?q=foobar"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.op, Annotated::new("http.client".into()));
+        assert_eq!(
+            event_span.description,
+            Annotated::new("GET /api/search?q=foobar".into())
+        );
     }
 }
