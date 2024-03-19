@@ -3226,28 +3226,6 @@
 <a href="#3225" id="3225">3225</a>
 <a href="#3226" id="3226">3226</a>
 <a href="#3227" id="3227">3227</a>
-<a href="#3228" id="3228">3228</a>
-<a href="#3229" id="3229">3229</a>
-<a href="#3230" id="3230">3230</a>
-<a href="#3231" id="3231">3231</a>
-<a href="#3232" id="3232">3232</a>
-<a href="#3233" id="3233">3233</a>
-<a href="#3234" id="3234">3234</a>
-<a href="#3235" id="3235">3235</a>
-<a href="#3236" id="3236">3236</a>
-<a href="#3237" id="3237">3237</a>
-<a href="#3238" id="3238">3238</a>
-<a href="#3239" id="3239">3239</a>
-<a href="#3240" id="3240">3240</a>
-<a href="#3241" id="3241">3241</a>
-<a href="#3242" id="3242">3242</a>
-<a href="#3243" id="3243">3243</a>
-<a href="#3244" id="3244">3244</a>
-<a href="#3245" id="3245">3245</a>
-<a href="#3246" id="3246">3246</a>
-<a href="#3247" id="3247">3247</a>
-<a href="#3248" id="3248">3248</a>
-<a href="#3249" id="3249">3249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3332,7 +3310,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
 
@@ -5017,12 +4995,6 @@
                 }
             }
 
-            MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
-                RelayCounters::ProcessorBatchedMetricsCalls,
-                RelayCounters::ProcessorBatchedMetricsCount,
-                RelayCounters::ProcessorBatchedMetricsCost,
-            );
-
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets).into());
 
             <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
@@ -5225,12 +5197,6 @@
         <span class="kw">let </span>buckets = bucket_limiter.into_buckets();
 
         <span class="kw">if </span>!buckets.is_empty() {
-            MetricStats::new(<span class="kw-2">&amp;</span>buckets).emit(
-                RelayCounters::ProcessorRateLimitBucketsCalls,
-                RelayCounters::ProcessorRateLimitBucketsCount,
-                RelayCounters::ProcessorRateLimitBucketsCost,
-            );
-
             <span class="self">self</span>.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -5588,16 +5554,6 @@
     }
 
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
-        <span class="kw">let </span><span class="kw-2">mut </span>stats = MetricStats::default();
-        <span class="kw">for </span>p <span class="kw">in </span>message.scopes.values() {
-            stats.update(<span class="kw-2">&amp;</span>p.buckets);
-        }
-        stats.emit(
-            RelayCounters::ProcessorEncodeMetricsCalls,
-            RelayCounters::ProcessorEncodeMetricsCount,
-            RelayCounters::ProcessorEncodeMetricsCost,
-        );
-
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.store_forwarder {
