@@ -13,10 +13,10 @@ use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
+use crate::metric_stats::MetricStats;
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
-use crate::services::metric_stats::{MetricStatsService, TrackMetric};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
@@ -51,7 +51,6 @@ pub struct Registry {
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    pub metric_stats: Addr<TrackMetric>,
     pub processor: Addr<EnvelopeProcessor>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
@@ -138,7 +137,7 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
-        let metric_stats = MetricStatsService::new(config.clone(), aggregator.clone()).start();
+        let metric_stats = MetricStats::new(config.clone(), aggregator.clone());
 
         #[cfg(feature = "processing")]
         let store = match runtimes.store {
@@ -219,7 +218,6 @@ impl ServiceState {
             health_check,
             outcome_producer,
             outcome_aggregator,
-            metric_stats,
             test_store,
             relay_cache,
             global_config,

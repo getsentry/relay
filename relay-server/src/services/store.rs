@@ -31,8 +31,8 @@ use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::metric_stats::TrackMetric;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
@@ -141,7 +141,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
-    metric_stats: Addr<TrackMetric>,
+    metric_stats: MetricStats,
     producer: Producer,
 }
 
@@ -150,7 +150,7 @@ impl StoreService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: Addr<TrackMetric>,
+        metric_stats: MetricStats,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
@@ -380,11 +380,7 @@ impl StoreService {
 
                 match result {
                     Ok(()) => {
-                        self.metric_stats.send(TrackMetric::volume(
-                            scoping,
-                            &view,
-                            Outcome::Accepted,
-                        ));
+                        self.metric_stats.track(scoping, &view, Outcome::Accepted);
                     }
                     Err(e) => {
                         error.get_or_insert(e);
@@ -838,9 +834,7 @@ impl StoreService {
             );
 
             message.and_then(|message| self.send_metric_message(namespace, message))?;
-
-            self.metric_stats
-                .send(TrackMetric::volume(scoping, &view, Outcome::Accepted));
+            self.metric_stats.track(scoping, &view, Outcome::Accepted);
         }
 
         Ok(())
