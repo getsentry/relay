@@ -1504,6 +1504,7 @@ def test_span_metrics(
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
                 "type": "trace",
+                "op": "my-transaction-op",
             }
         },
         "spans": [
@@ -1540,13 +1541,18 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 5
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
             continue
-        assert metric["tags"]["span.description"] == expected_description
-        assert metric["tags"]["span.group"] == expected_group
+
+        if metric["tags"]["span.op"] == "my-transaction-op":
+            # This is a transaction span
+            pass
+        else:
+            assert metric["tags"]["span.description"] == expected_description, metric
+            assert metric["tags"]["span.group"] == expected_group, metric
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
