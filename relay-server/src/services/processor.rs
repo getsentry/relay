@@ -82,7 +82,7 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, MetricStats, SamplingResult,
+    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
 
@@ -1767,12 +1767,6 @@ impl EnvelopeProcessorService {
                 }
             }
 
-            MetricStats::new(&buckets).emit(
-                RelayCounters::ProcessorBatchedMetricsCalls,
-                RelayCounters::ProcessorBatchedMetricsCount,
-                RelayCounters::ProcessorBatchedMetricsCost,
-            );
-
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
             relay_log::trace!("merging metric buckets into project cache");
@@ -1975,12 +1969,6 @@ impl EnvelopeProcessorService {
         let buckets = bucket_limiter.into_buckets();
 
         if !buckets.is_empty() {
-            MetricStats::new(&buckets).emit(
-                RelayCounters::ProcessorRateLimitBucketsCalls,
-                RelayCounters::ProcessorRateLimitBucketsCount,
-                RelayCounters::ProcessorRateLimitBucketsCost,
-            );
-
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -2338,16 +2326,6 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
-        let mut stats = MetricStats::default();
-        for p in message.scopes.values() {
-            stats.update(&p.buckets);
-        }
-        stats.emit(
-            RelayCounters::ProcessorEncodeMetricsCalls,
-            RelayCounters::ProcessorEncodeMetricsCount,
-            RelayCounters::ProcessorEncodeMetricsCost,
-        );
-
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.store_forwarder {
