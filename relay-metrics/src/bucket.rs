@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
-use std::num::NonZeroU64;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -551,7 +552,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: Arc<str>,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -640,7 +641,7 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
             metadata: Default::default(),
@@ -725,7 +726,7 @@ impl CardinalityItem for Bucket {
             Err(error) => {
                 relay_log::debug!(
                     error = &error as &dyn std::error::Error,
-                    metric = self.name,
+                    metric = self.name.as_ref(),
                     "rejecting metric with invalid MRI"
                 );
                 return None;
@@ -754,7 +755,7 @@ pub struct BucketMetadata {
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    pub merges: NonZeroU64,
+    pub merges: NonZeroU32,
 }
 
 impl BucketMetadata {
@@ -763,14 +764,14 @@ impl BucketMetadata {
     /// The new metadata is initialized with `1` merge.
     pub fn new() -> Self {
         Self {
-            merges: NonZeroU64::MIN,
+            merges: NonZeroU32::MIN,
         }
     }
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
         let Self { merges } = self;
-        *merges == NonZeroU64::MIN
+        *merges == NonZeroU32::MIN
     }
 
     /// Merges another metadata object into the current one.
@@ -1154,7 +1155,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]

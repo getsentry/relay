@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.52
+
+- Add a data category for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284))
+
+## 0.8.50
+
+### Various fixes & improvements
+
+- release: 0.8.49 (99861e52) by @getsentry-bot
+- release: 0.8.48 (ff3e9662) by @getsentry-bot
+- fix(normalization): Skip validation on renormalization (#3214) by @iker-barriocanal
+- release: 0.8.46 (1292bbdb) by @getsentry-bot
+- fix(normalization): Accept transactions with unfinished spans (#3162) by @iker-barriocanal
+
 ## 0.8.49
 
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))

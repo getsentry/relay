@@ -1425,10 +1425,10 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 3
+    assert len(span_metrics) == 4
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] == "c:spans/count_per_op@none":
+        if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
             continue
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
