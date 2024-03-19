@@ -497,6 +497,14 @@ enum CspVariant {
     CspViolation { body: CspRaw },
 }
 
+/// The type of the CSP report which comes through the Reporting API.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum CspViolationType {
+    CspViolation,
+    Other,
+}
+
 /// Models the content of a CSP report.
 ///
 /// Note this models the older CSP reports (report-uri policy directive).
@@ -1131,9 +1139,8 @@ impl SecurityReportType {
     pub fn from_json(data: &[u8]) -> Result<Option<Self>, serde_json::Error> {
         #[derive(Deserialize)]
         #[serde(rename_all = "kebab-case")]
-        struct SecurityReport<'a> {
-            #[serde(rename = "type", borrow)]
-            ty: Option<Cow<'a, &'a str>>,
+        struct SecurityReport {
+            ty: Option<CspViolationType>,
             csp_report: Option<IgnoredAny>,
             known_pins: Option<IgnoredAny>,
             expect_staple_report: Option<IgnoredAny>,
@@ -1144,8 +1151,8 @@ impl SecurityReportType {
 
         Ok(if helper.csp_report.is_some() {
             Some(SecurityReportType::Csp)
-        } else if let Some(ty) = helper.ty {
-            if *ty == "csp-violation" {
+        } else if let Some(_ty) = helper.ty {
+            if matches!(CspViolationType::CspViolation, _ty) {
                 Some(SecurityReportType::Csp)
             } else {
                 None
