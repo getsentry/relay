@@ -19,23 +19,23 @@ pub enum Version {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abs_path: Option<String>,
+    pub abs_path: Option<String>,
     #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
-    colno: Option<u32>,
+    pub colno: Option<u32>,
     #[serde(alias = "file", skip_serializing_if = "Option::is_none")]
-    filename: Option<String>,
+    pub filename: Option<String>,
     #[serde(alias = "name", skip_serializing_if = "Option::is_none")]
-    function: Option<String>,
+    pub function: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    in_app: Option<bool>,
+    pub in_app: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    instruction_addr: Option<Addr>,
+    pub instruction_addr: Option<Addr>,
     #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
-    lineno: Option<u32>,
+    pub lineno: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    module: Option<String>,
+    pub module: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    platform: Option<String>,
+    pub platform: Option<String>,
 }
 
 impl Frame {
@@ -48,13 +48,13 @@ impl Frame {
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct DebugMeta {
-    images: Vec<NativeDebugImage>,
+    pub images: Vec<NativeDebugImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThreadMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    priority: Option<u32>,
+    pub priority: Option<u32>,
 }

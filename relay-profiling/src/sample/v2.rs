@@ -9,48 +9,48 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
-    chunk_id: String,
+    pub chunk_id: String,
     /// Random UUID for each profiler session
-    profiler_id: String,
+    pub profiler_id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    debug_meta: Option<DebugMeta>,
+    pub debug_meta: Option<DebugMeta>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    environment: Option<String>,
-    platform: String,
-    release: String,
+    pub environment: Option<String>,
+    pub platform: String,
+    pub release: String,
 
     /// Hard-coded string containing "2" to indicate the format version.
-    version: Version,
+    pub version: Version,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Sample {
+pub struct Sample {
     /// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
-    timestamp: f64,
-    stack_id: usize,
-    thread_id: String,
+    pub timestamp: f64,
+    pub stack_id: usize,
+    pub thread_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ProfileChunk {
+pub struct ProfileChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<String, Measurement>>,
+    pub measurements: Option<BTreeMap<String, Measurement>>,
     #[serde(flatten)]
-    metadata: ProfileMetadata,
-    profile: ProfileData,
+    pub metadata: ProfileMetadata,
+    pub profile: ProfileData,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ProfileData {
-    samples: Vec<Sample>,
-    stacks: Vec<Vec<usize>>,
-    frames: Vec<Frame>,
+pub struct ProfileData {
+    pub samples: Vec<Sample>,
+    pub stacks: Vec<Vec<usize>>,
+    pub frames: Vec<Frame>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    thread_metadata: Option<BTreeMap<String, ThreadMetadata>>,
+    pub thread_metadata: Option<BTreeMap<String, ThreadMetadata>>,
 }
 
 impl ProfileData {
