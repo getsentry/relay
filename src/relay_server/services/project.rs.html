@@ -2320,8 +2320,8 @@
         <span class="kw">let </span>mode = state.get_extraction_mode();
         <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping, mode) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
-                limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
-                limiter.into_metrics()
+                limiter.enforce_limits(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits, outcome_aggregator);
+                limiter.into_buckets()
             }
             <span class="prelude-val">Err</span>(metrics) =&gt; metrics,
         }
@@ -2391,7 +2391,7 @@
                 <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
                 <span class="attr">#[allow(unused_variables)]
                 </span><span class="kw">let </span>was_rate_limited =
-                    bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits), outcome_aggregator);
+                    bucket_limiter.enforce_limits(<span class="kw-2">&amp;</span>cached_rate_limits, outcome_aggregator);
 
                 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span><span class="kw">if </span>!was_rate_limited &amp;&amp; <span class="self">self</span>.config.processing_enabled() {
@@ -2401,7 +2401,7 @@
                     <span class="kw">return</span>;
                 }
 
-                bucket_limiter.into_metrics()
+                bucket_limiter.into_buckets()
             }
             <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
         };

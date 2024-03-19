@@ -2049,6 +2049,10 @@
 <a href="#2048" id="2048">2048</a>
 <a href="#2049" id="2049">2049</a>
 <a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2629,6 +2633,8 @@
 </span><span class="kw">pub struct </span>SourceQuantities {
     <span class="doccomment">/// Transaction quantity.
     </span><span class="kw">pub </span>transactions: usize,
+    <span class="doccomment">/// Spans quantity.
+    </span><span class="kw">pub </span>spans: usize,
     <span class="doccomment">/// Profile quantity.
     </span><span class="kw">pub </span>profiles: usize,
     <span class="doccomment">/// Total number of buckets.
@@ -2639,10 +2645,12 @@
     <span class="kw">fn </span>add_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
         <span class="kw">let </span><span class="self">Self </span>{
             transactions,
+            spans,
             profiles,
             buckets,
         } = <span class="self">self</span>;
         <span class="kw-2">*</span>transactions += other.transactions;
+        <span class="kw-2">*</span>spans += other.spans;
         <span class="kw-2">*</span>profiles += other.profiles;
         <span class="kw-2">*</span>buckets += other.buckets;
     }
