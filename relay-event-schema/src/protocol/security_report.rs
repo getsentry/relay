@@ -481,24 +481,20 @@ struct CspReportRaw {
     csp_report: CspRaw,
 }
 
-/// Defines CSP report sent through the [Reporting API](https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API).
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CspViolationRaw {
-    #[serde(rename = "type")]
-    ty: String,
-    body: CspRaw,
-
-    /// For forward compatibility.
-    #[serde(flatten)]
-    other: BTreeMap<String, serde_json::Value>,
-}
-
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(untagged)]
 enum CspVariant {
-    Csp(CspReportRaw),
-    CspViolation(CspViolationRaw),
+    Csp {
+        #[serde(rename = "csp-report")]
+        csp_report: CspRaw,
+    },
+    /// Defines CSP report sent through the [Reporting API](https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API).
+    ///
+    /// This contains the [body](https://developer.mozilla.org/en-US/docs/Web/API/CSPViolationReportBody)
+    /// with actual report. We currently ignore the additional fields.
+    /// Reporting API has [slightly different format](https://csplite.com/csp66/#sample-violation-report) for the CSP report body,
+    /// but the biggest difference that browser sends the CSP reports in batches.
+    CspViolation { body: CspRaw },
 }
 
 /// Models the content of a CSP report.
@@ -552,14 +548,14 @@ impl Csp {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let variant = serde_json::from_slice::<CspVariant>(data)?;
         match variant {
-            CspVariant::Csp(value) => Csp::simple_csp(event, value.csp_report)?,
-            CspVariant::CspViolation(value) => Csp::simple_csp(event, value.body)?,
+            CspVariant::Csp { csp_report } => Csp::extract_report(event, csp_report)?,
+            CspVariant::CspViolation { body } => Csp::extract_report(event, body)?,
         }
 
         Ok(())
     }
 
-    fn simple_csp(event: &mut Event, raw_csp: CspRaw) -> Result<(), serde_json::Error> {
+    fn extract_report(event: &mut Event, raw_csp: CspRaw) -> Result<(), serde_json::Error> {
         let effective_directive = raw_csp
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
@@ -1137,7 +1133,7 @@ impl SecurityReportType {
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport<'a> {
             #[serde(rename = "type", borrow)]
-            ty: Option<&'a str>,
+            ty: Option<Cow<'a, &'a str>>,
             csp_report: Option<IgnoredAny>,
             known_pins: Option<IgnoredAny>,
             expect_staple_report: Option<IgnoredAny>,
@@ -1149,7 +1145,7 @@ impl SecurityReportType {
         Ok(if helper.csp_report.is_some() {
             Some(SecurityReportType::Csp)
         } else if let Some(ty) = helper.ty {
-            if ty == "csp-violation" {
+            if *ty == "csp-violation" {
                 Some(SecurityReportType::Csp)
             } else {
                 None
