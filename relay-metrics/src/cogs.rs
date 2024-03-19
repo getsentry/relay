@@ -15,18 +15,21 @@ impl<'a> From<BySize<'a>> for FeatureWeights {
 }
 
 /// COGS estimator based on the bucket count.
-pub struct ByCount<'a>(pub &'a [Bucket]);
+pub struct ByCount<'a, T: IntoIterator<Item = &'a Bucket>>(pub T);
 
-impl<'a> From<ByCount<'a>> for FeatureWeights {
-    fn from(value: ByCount<'a>) -> Self {
+impl<'a, T: IntoIterator<Item = &'a Bucket>> From<ByCount<'a, T>> for FeatureWeights {
+    fn from(value: ByCount<'a, T>) -> Self {
         metric_app_features(value.0, |_| 1)
     }
 }
 
-fn metric_app_features(buckets: &[Bucket], f: impl Fn(&Bucket) -> usize) -> FeatureWeights {
+fn metric_app_features<'a, T>(buckets: T, f: impl Fn(&Bucket) -> usize) -> FeatureWeights
+where
+    T: IntoIterator<Item = &'a Bucket>,
+{
     let mut b = FeatureWeights::builder();
 
-    for bucket in buckets {
+    for bucket in buckets.into_iter() {
         b.add_weight(to_app_feature(namespace(bucket)), f(bucket));
     }
 

@@ -35,8 +35,7 @@
       "trace_id": "7D6DB784-355E-4D7D-BF98-671C69CBCC77",
       "relative_start_ns": 2000000000,
       "relative_end_ns": 3000000000,
-      "active_thread_id": 12345,
-      "segment_id": "bd2eb23da2beb459"
+      "active_thread_id": 12345
     }
   ]
 }

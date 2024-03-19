@@ -578,6 +578,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
@@ -588,10 +590,12 @@ impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
         let Self {
             transactions,
+            spans,
             profiles,
             buckets,
         } = self;
         *transactions += other.transactions;
+        *spans += other.spans;
         *profiles += other.profiles;
         *buckets += other.buckets;
     }

@@ -1212,10 +1212,10 @@ mod tests {
         // exclusive_time metrics:
         assert!(metrics
             .iter()
-            .any(|b| b.name == "d:spans/exclusive_time@millisecond"));
+            .any(|b| &*b.name == "d:spans/exclusive_time@millisecond"));
         assert!(metrics
             .iter()
-            .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
+            .any(|b| &*b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
     #[test]
@@ -1246,7 +1246,7 @@ mod tests {
 
         let usage_metrics = metrics
             .into_iter()
-            .filter(|b| b.name == "c:spans/usage@none")
+            .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
         let expected_usage = 8; // We count all spans received by Relay
@@ -1287,7 +1287,7 @@ mod tests {
     fn test_app_start_cold_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
@@ -1302,8 +1302,8 @@ mod tests {
     fn test_app_start_cold_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1311,7 +1311,7 @@ mod tests {
     fn test_app_start_warm_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
@@ -1326,8 +1326,8 @@ mod tests {
     fn test_app_start_warm_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1335,7 +1335,7 @@ mod tests {
     fn test_ui_load_initial_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
@@ -1350,8 +1350,8 @@ mod tests {
     fn test_ui_load_initial_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1359,7 +1359,7 @@ mod tests {
     fn test_ui_load_full_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
@@ -1374,8 +1374,8 @@ mod tests {
     fn test_ui_load_full_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none"]
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
         );
     }
 
@@ -1399,7 +1399,7 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "d:spans/exclusive_time@millisecond" {
+            if &*metric.name == "d:spans/exclusive_time@millisecond" {
                 assert_eq!(metric.tag("ttid"), Some("ttid"));
                 assert_eq!(metric.tag("ttfd"), Some("ttfd"));
             } else {
@@ -1441,7 +1441,7 @@ mod tests {
             "d:spans/webvital.score.total@ratio",
             "d:spans/webvital.score.weight.inp@ratio",
         ] {
-            assert!(metrics.iter().any(|b| b.name == mri));
+            assert!(metrics.iter().any(|b| &*b.name == mri));
         }
     }
 
