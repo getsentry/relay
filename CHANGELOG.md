@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
+
 ## 24.3.0
 
 **Features**:
@@ -18,7 +24,6 @@
 - Track metric bucket metadata for Relay internal usage. ([#3254](https://github.com/getsentry/relay/pull/3254))
 - Enforce rate limits for standalone spans. ([#3238](https://github.com/getsentry/relay/pull/3238))
 - Extract `span.status_code` tag for HTTP spans. ([#3245](https://github.com/getsentry/relay/pull/3245))
-- Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 
 **Bug Fixes**:
 
