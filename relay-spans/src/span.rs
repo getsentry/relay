@@ -77,6 +77,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         name,
         attributes,
         status,
+        kind,
         ..
     } = otel_span;
 
@@ -92,6 +93,9 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     };
 
     let mut op = None;
+    let mut description = name;
+    let mut http_method = None;
+    let mut http_route = None;
     let mut http_status_code = None;
     let mut grpc_status_code = None;
     for attribute in attributes.into_iter() {
@@ -103,6 +107,23 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             };
             if key == "sentry.op" {
                 op = otel_value_to_string(value);
+            } else if key.starts_with("db") {
+                op = op.or(Some("db".to_string()));
+                if key == "db.statement" {
+                    if let Some(statement) = otel_value_to_string(value) {
+                        description = statement;
+                    }
+                }
+            } else if key == "http.method" || key == "http.request.method" {
+                let http_op = match kind {
+                    2 => "http.server",
+                    3 => "http.client",
+                    _ => "http",
+                };
+                op = op.or(Some(http_op.to_string()));
+                http_method = otel_value_to_string(value);
+            } else if key == "http.route" || key == "url.path" {
+                http_route = otel_value_to_string(value);
             } else if key.contains("exclusive_time_ns") {
                 let value = match value {
                     OtelValue::IntValue(v) => v as f64,
@@ -148,10 +169,16 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     // TODO: This is wrong, a segment could still have a parent in the trace.
     let is_segment = parent_span_id.is_empty().into();
 
+    if let Some(http_method) = http_method {
+        if let Some(http_route) = http_route {
+            description = format!("{} {}", http_method, http_route);
+        }
+    }
+
     EventSpan {
         op: op.into(),
+        description: description.into(),
         data: SpanData::from_value(Annotated::new(data.into())),
-        description: name.into(),
         exclusive_time: exclusive_time_ms.into(),
         parent_span_id: SpanId(parent_span_id).into(),
         segment_id,
