@@ -2839,7 +2839,7 @@ impl<'a> IntoIterator for DynamicQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     use std::env;
 
     use chrono::{DateTime, Utc};
@@ -3254,6 +3254,37 @@ mod tests {
         assert_eq!(
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_span_metrics_extracted() {
+        let event = r#"
+            {
+                "type": "transaction",
+                "timestamp": "2021-04-26T08:00:05+0100",
+                "start_timestamp": "2021-04-26T08:00:00+0100"
+            }
+            "#;
+        let mut project_state = ProjectState::allowed();
+        project_state
+            .config
+            .features
+            .0
+            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
+
+        let processor = create_test_processor(Config::default());
+        let mut state =
+            ProcessEnvelopeState::simple(event, ProcessingGroup::Transaction, project_state);
+
+        processor
+            .extract_metrics(&mut state, &SamplingResult::NoMatch)
+            .unwrap();
+
+        let metrics = state.extracted_metrics.project_metrics;
+        assert_eq!(
+            BTreeSet::from_iter(metrics.iter().map(|m| m.name.as_str())),
+            BTreeSet::from(["c:spans/usage@none", "c:spans/count_per_op@none"])
         );
     }
 }

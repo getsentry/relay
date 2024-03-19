@@ -1,5 +1,6 @@
 //! Contains the processing-only functionality.
 
+use std::error::Error;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -25,11 +26,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::statsd::RelayTimers;
-use crate::utils::{ItemAction, ManagedEnvelope};
-
-#[cfg(feature = "processing")]
-use relay_protocol::Meta;
+use crate::utils::ItemAction;
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -120,7 +117,7 @@ pub fn process(
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
         let annotated_span = match validate(annotated_span) {
-            Ok((span, meta)) => Annotated(Some(span), meta),
+            Ok(res) => res,
             Err(err) => {
                 relay_log::error!("invalid span: {err}");
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
@@ -145,7 +142,6 @@ pub fn process(
     });
 }
 
-/// Copies spans from the state's transaction event to individual span envelope items.
 pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
@@ -159,12 +155,44 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     }
 
+    let mut add_span = |span: Annotated<Span>| {
+        let span = match validate(span) {
+            Ok(span) => span,
+            Err(e) => {
+                relay_log::error!("Invalid span: {e}");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
+                return;
+            }
+        };
+        let span = match span.to_json() {
+            Ok(span) => span,
+            Err(e) => {
+                relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
+                return;
+            }
+        };
+        let mut item = Item::new(ItemType::Span);
+        item.set_payload(ContentType::Json, span);
+        // If metrics extraction happened for the event, it also happened for its spans:
+        item.set_metrics_extracted(state.event_metrics_extracted);
+        state.managed_envelope.envelope_mut().add_item(item);
+    };
+
     let Some(event) = state.event.value() else {
         return;
     };
 
     // Extract transaction as a span.
-    let transaction_span: Span = event.into();
+    let mut transaction_span: Span = event.into();
 
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
@@ -184,28 +212,9 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
             // child spans.
             new_span.profile_id = transaction_span.profile_id.clone();
 
-            add_span(
-                Annotated::new(new_span),
-                &mut state.managed_envelope,
-                // If metrics extraction happened for the event, it also happened for its spans:
-                state.event_metrics_extracted,
-            );
+            add_span(Annotated::new(new_span));
         }
     }
-
-    add_transaction_span(transaction_span, state);
-}
-
-/// Adds the span that represents the transaction itself (as opposed to its child spans).
-///
-/// Also performs metrics extraction for the transaction i.e. segment span.
-fn add_transaction_span(
-    mut transaction_span: Span,
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
-) {
-    let Some(event) = state.event.value() else {
-        return;
-    };
 
     // Extract tags to add to this span as well
     let mut shared_tags = tag_extraction::extract_shared_tags(event);
@@ -221,59 +230,7 @@ fn add_transaction_span(
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
             .collect(),
     );
-
-    let metrics_extraction_config = match state.project_state.config.metric_extraction {
-        ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
-        _ => None,
-    };
-
-    let mut metrics_extracted = false;
-
-    if let Some(config) = metrics_extraction_config {
-        relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-            let metrics = extract_metrics(&transaction_span, config);
-            state.extracted_metrics.project_metrics.extend(metrics);
-        });
-        metrics_extracted = true;
-    };
-
-    add_span(
-        transaction_span.into(),
-        &mut state.managed_envelope,
-        metrics_extracted,
-    );
-}
-
-fn add_span(
-    span: Annotated<Span>,
-    managed_envelope: &mut ManagedEnvelope,
-    metrics_extracted: bool,
-) {
-    match into_item(span, metrics_extracted) {
-        Ok(item) => {
-            managed_envelope.envelope_mut().add_item(item);
-        }
-        Err(e) => {
-            relay_log::error!("Invalid span: {e}");
-            managed_envelope.track_outcome(
-                Outcome::Invalid(DiscardReason::InvalidSpan),
-                relay_quotas::DataCategory::SpanIndexed,
-                1,
-            );
-        }
-    }
-}
-
-/// Converts the span to an envelope item.
-fn into_item(span: Annotated<Span>, metrics_extracted: bool) -> Result<Item, anyhow::Error> {
-    let (span, meta) = validate(span)?;
-
-    let span = Annotated(Some(span), meta).to_json()?;
-    let mut item = Item::new(ItemType::Span);
-    item.set_payload(ContentType::Json, span);
-    item.set_metrics_extracted(metrics_extracted);
-
-    Ok(item)
+    add_span(transaction_span.into());
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
@@ -475,11 +432,11 @@ fn scrub(
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
 #[cfg(feature = "processing")]
-fn validate(span: Annotated<Span>) -> Result<(Span, Meta), anyhow::Error> {
-    let Annotated(Some(mut inner), meta) = span else {
-        return Err(anyhow::anyhow!("empty span"));
-    };
-
+fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+    let inner = span
+        .value_mut()
+        .as_mut()
+        .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
         ref exclusive_time,
         ref mut tags,
@@ -539,47 +496,5 @@ fn validate(span: Annotated<Span>) -> Result<(Span, Meta), anyhow::Error> {
         tags.retain(|_, value| !value.value().is_empty())
     }
 
-    Ok((inner, meta))
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::collections::BTreeSet;
-
-    use super::*;
-    use crate::services::processor::ProcessingGroup;
-    use crate::services::project::ProjectState;
-
-    #[test]
-    fn transaction_span_metrics_extracted() {
-        let event = r#"
-        {
-            "type": "transaction",
-            "timestamp": "2021-04-26T08:00:05+0100",
-            "start_timestamp": "2021-04-26T08:00:00+0100"
-        }
-        "#;
-
-        let mut project_state = ProjectState::allowed();
-        project_state
-            .config
-            .features
-            .0
-            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
-
-        let mut state = ProcessEnvelopeState::simple(
-            event,
-            ProcessingGroup::Transaction,
-            project_state.sanitize(),
-        );
-
-        extract_from_event(&mut state);
-
-        let metrics = state.extracted_metrics.project_metrics;
-        assert_eq!(
-            BTreeSet::from_iter(metrics.iter().map(|m| m.name.as_str())),
-            BTreeSet::from(["c:spans/usage@none", "c:spans/count_per_op@none"])
-        );
-    }
+    Ok(span)
 }
