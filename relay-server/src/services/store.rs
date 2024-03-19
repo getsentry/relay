@@ -226,9 +226,6 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::Session | ItemType::Sessions => {
-                    // Do nothing
-                }
                 ItemType::MetricBuckets => self.produce_metrics(
                     scoping.organization_id,
                     scoping.project_id,
