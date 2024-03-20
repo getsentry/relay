@@ -169,10 +169,8 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     // TODO: This is wrong, a segment could still have a parent in the trace.
     let is_segment = parent_span_id.is_empty().into();
 
-    if let Some(http_method) = http_method {
-        if let Some(http_route) = http_route {
-            description = format!("{} {}", http_method, http_route);
-        }
+    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
+        description = format!("{} {}", http_method, http_route);
     }
 
     EventSpan {
