@@ -41,6 +41,7 @@ pub struct Sample {
     /// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
     pub timestamp: f64,
+    /// Index of the stack in the `stacks` field of the profile.
     pub stack_id: usize,
     /// Thread or queue identifier
     pub thread_id: String,
@@ -48,8 +49,11 @@ pub struct Sample {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileChunk {
+    // `measurements` contains CPU/memory measurements we do during the capture of the chunk.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub measurements: BTreeMap<String, Measurement>,
+    /// This struct contains all the metadata related to the chunk but all fields are expected to
+    /// be at the top-level of the object.
     #[serde(flatten)]
     pub metadata: ProfileMetadata,
     pub profile: ProfileData,
@@ -63,10 +67,19 @@ impl ProfileChunk {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileData {
+    /// `samples` contains the list of samples referencing a stack and thread identifier.
+    /// If 2 stack of frames captured at 2 different timestamps are identical, you're expected to
+    /// reference the same `stack_id`.
     pub samples: Vec<Sample>,
+    /// `stacks` contains a list of stacks indicating the index of the frame in the `frames` field.
+    /// We do this to not have to repeat frames in different stacks.
     pub stacks: Vec<Vec<usize>>,
+    /// `frames` contains a list of unique frames found in the profile.
     pub frames: Vec<Frame>,
 
+    /// `thread_metadata` contains information about the thread or the queue. The identifier is a
+    /// string and can be any unique identifier for the thread or stack (an integer or an address
+    /// for example).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub thread_metadata: BTreeMap<String, ThreadMetadata>,
 }
@@ -77,8 +90,6 @@ impl ProfileData {
     /// Mutates the profile chunk. Removes invalid samples and threads.
     /// Throws an error if the profile chunk is malformed.
     /// Removes extra metadata that are not referenced in the samples.
-    ///
-    /// profile.normalize("cocoa", "arm64e")
     pub fn normalize(&mut self, platform: &str) -> Result<(), ProfileError> {
         if self.samples.is_empty() {
             return Err(ProfileError::NotEnoughSamples);
