@@ -5,6 +5,7 @@
 **Features**:
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
+- Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 
 **Internal**:
 
