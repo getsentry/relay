@@ -113,6 +113,7 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Endpoints for security reports.
 
 </span><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Query};
@@ -199,6 +200,7 @@
             | (<span class="string">"application"</span>, <span class="string">"expect-ct-report"</span>, <span class="prelude-val">None</span>)
             | (<span class="string">"application"</span>, <span class="string">"expect-ct-report"</span>, <span class="prelude-val">Some</span>(<span class="string">"json"</span>))
             | (<span class="string">"application"</span>, <span class="string">"expect-staple-report"</span>, <span class="prelude-val">None</span>)
+            | (<span class="string">"application"</span>, <span class="string">"reports"</span>, <span class="prelude-val">Some</span>(<span class="string">"json"</span>))
     )
 }
 
