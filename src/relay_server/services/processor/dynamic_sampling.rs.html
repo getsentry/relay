@@ -776,7 +776,7 @@
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ItemAction, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, ItemAction, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -1037,7 +1037,7 @@
             .profile_metrics_allowed_platforms
             .iter()
             .any(|s| s == event_platform)
-        &amp;&amp; rand::random::&lt;f32&gt;() &lt; global_options.profile_metrics_sample_rate
+        &amp;&amp; sample(global_options.profile_metrics_sample_rate)
 }
 
 <span class="attr">#[cfg(test)]

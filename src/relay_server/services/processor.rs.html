@@ -3235,12 +3235,6 @@
 <a href="#3234" id="3234">3234</a>
 <a href="#3235" id="3235">3235</a>
 <a href="#3236" id="3236">3236</a>
-<a href="#3237" id="3237">3237</a>
-<a href="#3238" id="3238">3238</a>
-<a href="#3239" id="3239">3239</a>
-<a href="#3240" id="3240">3240</a>
-<a href="#3241" id="3241">3241</a>
-<a href="#3242" id="3242">3242</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5323,6 +5317,8 @@
         buckets: Vec&lt;Bucket&gt;,
         mode: ExtractionMode,
     ) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">use </span><span class="kw">crate</span>::utils::sample;
+
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
         <span class="kw">let </span>cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
@@ -5843,14 +5839,6 @@
             }
         })
     }
-}
-
-<span class="doccomment">/// Returns `true` if the current item should be sampled.
-///
-/// The passed `rate` is expected to be `0 &lt;= rate &lt;= 1`.
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">fn </span>sample(rate: f32) -&gt; bool {
-    (rate &gt;= <span class="number">1.0</span>) || (rate &gt; <span class="number">0.0 </span>&amp;&amp; rand::random::&lt;f32&gt;() &lt; rate)
 }
 
 <span class="doccomment">/// Computes a stable partitioning key for sharded metric requests.
