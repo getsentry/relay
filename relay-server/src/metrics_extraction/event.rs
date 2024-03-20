@@ -5,6 +5,7 @@ use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
 
 impl Extractable for Event {
@@ -47,6 +48,9 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        let transaction_span = extract_transaction_span(event);
+        metrics.extend(generic::extract_metrics(&transaction_span, config));
+
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
@@ -1245,7 +1249,7 @@ mod tests {
             .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 8; // We count all spans received by Relay
+        let expected_usage = 9; // We count all spans received by Relay, plus one for the transaction
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
@@ -1439,5 +1443,39 @@ mod tests {
         ] {
             assert!(metrics.iter().any(|b| &*b.name == mri));
         }
+    }
+
+    #[test]
+    fn extracts_span_metrics_from_transaction() {
+        let event = r#"
+            {
+                "type": "transaction",
+                "timestamp": "2021-04-26T08:00:05+0100",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "contexts": {
+                    "trace": {
+                        "op": "db.query"
+                    }
+                }
+            }
+            "#;
+        let event = Annotated::<Event>::from_json(event).unwrap();
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+
+        assert_eq!(metrics.len(), 2);
+        assert_eq!(&*metrics[0].name, "c:spans/usage@none");
+        assert_eq!(&*metrics[1].name, "c:spans/count_per_op@none");
+        assert_eq!(&*metrics[1].tags["span.op"], "db.query");
     }
 }

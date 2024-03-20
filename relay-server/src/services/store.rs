@@ -338,10 +338,14 @@ impl StoreService {
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
+            let mut has_success = false;
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
-            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
+            for view in BucketsView::new(std::slice::from_ref(&bucket))
+                .by_size(batch_size)
+                .flatten()
+            {
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
@@ -356,13 +360,25 @@ impl StoreService {
 
                 match result {
                     Ok(()) => {
-                        self.metric_stats.track(scoping, &view, Outcome::Accepted);
+                        has_success = true;
                     }
                     Err(e) => {
                         error.get_or_insert(e);
                         dropped += utils::extract_metric_quantities([view], mode);
                     }
                 }
+            }
+
+            // Tracking the volume here is slightly off, only one of the multiple bucket views can
+            // fail to produce. Since the views are sliced from the original bucket we cannot
+            // correctly attribute the amount of merges (volume) to the amount of slices that
+            // succeeded or not. -> Attribute the entire volume if at least one slice successfully
+            // produced.
+            //
+            // This logic will be improved iterated on and change once we move serialization logic
+            // back into the processor service.
+            if has_success {
+                self.metric_stats.track(scoping, bucket, Outcome::Accepted);
             }
         }
 
@@ -658,7 +674,7 @@ impl StoreService {
             );
 
             message.and_then(|message| self.send_metric_message(namespace, message))?;
-            self.metric_stats.track(scoping, &view, Outcome::Accepted);
+            self.metric_stats.track(scoping, bucket, Outcome::Accepted);
         }
 
         Ok(())

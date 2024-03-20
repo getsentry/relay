@@ -812,6 +812,7 @@ def test_transaction_metrics(
         config["transactionMetrics"] = {
             "version": 1,
         }
+        config.setdefault("features", []).append("projects:span-metrics-extraction")
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -857,7 +858,8 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -869,6 +871,8 @@ def test_transaction_metrics(
             "transaction.status": "unknown",
         },
     }
+
+    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
@@ -1389,6 +1393,7 @@ def test_span_metrics(
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
                 "type": "trace",
+                "op": "my-transaction-op",
             }
         },
         "spans": [
@@ -1425,13 +1430,16 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 4
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
             continue
-        assert metric["tags"]["span.description"] == expected_description
-        assert metric["tags"]["span.group"] == expected_group
+
+        # Ignore transaction spans
+        if metric["tags"]["span.op"] != "my-transaction-op":
+            assert metric["tags"]["span.description"] == expected_description, metric
+            assert metric["tags"]["span.group"] == expected_group, metric
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
@@ -1524,7 +1532,7 @@ def test_span_metrics_secondary_aggregator(
             {
                 "description": "SELECT %s FROM foo",
                 "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
+                "parent_span_id": "FA90FDEAD5F74052",
                 "span_id": "bd429c44b67a3eb4",
                 "start_timestamp": 1597976393.4619668,
                 "timestamp": 1597976393.4718769,
@@ -1537,6 +1545,9 @@ def test_span_metrics_secondary_aggregator(
     transaction["timestamp"] = transaction["spans"][0][
         "timestamp"
     ] = timestamp.isoformat()
+    transaction["start_timestamp"] = (
+        timestamp - timedelta(milliseconds=126)
+    ).isoformat()
     transaction["spans"][0]["start_timestamp"] = (
         timestamp - timedelta(milliseconds=123)
     ).isoformat()
@@ -1577,6 +1588,7 @@ def test_span_metrics_secondary_aggregator(
         for metric, headers in metrics
         if metric["name"] == "d:spans/exclusive_time@millisecond"
     ]
+    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
     assert span_metrics == [
         (
             {
@@ -1594,6 +1606,19 @@ def test_span_metrics_secondary_aggregator(
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
                 "value": [123],
+            },
+            [("namespace", b"spans")],
+        ),
+        (
+            {
+                "name": "d:spans/exclusive_time@millisecond",
+                "org_id": 1,
+                "project_id": 42,
+                "retention_days": 90,
+                "tags": {"span.op": "default"},
+                "timestamp": int(timestamp.timestamp()),
+                "type": "d",
+                "value": [3],
             },
             [("namespace", b"spans")],
         ),
