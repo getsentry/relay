@@ -8,6 +8,7 @@ mod managed_envelope;
 mod metrics_rate_limits;
 mod multipart;
 mod param_parser;
+mod pick;
 mod rate_limits;
 mod retry;
 mod semaphore;
@@ -32,6 +33,7 @@ pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
 pub use self::param_parser::*;
+pub use self::pick::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;
 pub use self::semaphore::*;
