@@ -485,20 +485,6 @@
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -524,6 +510,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
@@ -692,8 +679,7 @@
         <span class="kw">return</span>;
     };
 
-    <span class="comment">// Extract transaction as a span.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>transaction_span: Span = event.into();
+    <span class="kw">let </span>transaction_span = extract_transaction_span(event);
 
     <span class="comment">// Add child spans as envelope items.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
@@ -717,20 +703,6 @@
         }
     }
 
-    <span class="comment">// Extract tags to add to this span as well
-    </span><span class="kw">let </span><span class="kw-2">mut </span>shared_tags = tag_extraction::extract_shared_tags(event);
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(span_op) = transaction_span.op.value() {
-        shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
-    }
-
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
     add_span(transaction_span.into());
 }
 
@@ -747,24 +719,24 @@
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">struct </span>NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The time at which the event was received in this Relay.
-    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
+    </span>received_at: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// Allowed time range for spans.
-    </span><span class="kw">pub </span>timestamp_range: std::ops::Range&lt;UnixTimestamp&gt;,
+    </span>timestamp_range: std::ops::Range&lt;UnixTimestamp&gt;,
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    </span><span class="kw">pub </span>max_tag_value_size: usize,
+    </span>max_tag_value_size: usize,
     <span class="doccomment">/// Configuration for generating performance score measurements for web vitals
-    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>PerformanceScoreConfig&gt;,
+    </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>PerformanceScoreConfig&gt;,
     <span class="doccomment">/// Configuration for measurement normalization in transaction events.
     ///
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="doccomment">/// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    </span><span class="kw">pub </span>max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+    </span>max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
 <span class="kw">fn </span>get_normalize_span_config&lt;<span class="lifetime">'a</span>&gt;(

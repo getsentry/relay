@@ -3235,6 +3235,8 @@
 <a href="#3234" id="3234">3234</a>
 <a href="#3235" id="3235">3235</a>
 <a href="#3236" id="3236">3236</a>
+<a href="#3237" id="3237">3237</a>
+<a href="#3238" id="3238">3238</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3331,6 +3333,8 @@
 <span class="kw">mod </span>report;
 <span class="kw">mod </span>session;
 <span class="kw">mod </span>span;
+<span class="kw">pub use </span>span::extract_transaction_span;
+
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">mod </span>unreal;
 
