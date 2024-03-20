@@ -254,7 +254,6 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => self.produce_metrics(scoping, item, retention)?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -299,7 +298,9 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
-                _ => {}
+                other => {
+                    relay_log::error!("StoreService received unexpected item type: {other}");
+                }
             }
         }
 
@@ -806,37 +807,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Metric { headers, message },
         )?;
-        Ok(())
-    }
-
-    fn produce_metrics(
-        &self,
-        scoping: Scoping,
-        item: &Item,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        let payload = item.payload();
-
-        let global_config = self.global_config.current();
-        let mut encoder = BucketEncoder::new(&global_config);
-
-        for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
-            let namespace = encoder.prepare(&mut bucket);
-
-            let view = BucketView::new(&bucket);
-            let message = self.create_metric_message(
-                scoping.organization_id,
-                scoping.project_id,
-                &mut encoder,
-                namespace,
-                &view,
-                retention,
-            );
-
-            message.and_then(|message| self.send_metric_message(namespace, message))?;
-            self.metric_stats.track(scoping, &view, Outcome::Accepted);
-        }
-
         Ok(())
     }
 
