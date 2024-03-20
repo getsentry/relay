@@ -1,3 +1,14 @@
+//! Sample Format V2
+//!
+//! This version of the sample format expects a collection of samples to be sent with no reference
+//! to the events collected while the profiler was running.
+//!
+//! We collect a profiler ID, meaning to be a random identifier for this specific instance of the
+//! profiler and not a persistent ID. It only needs to be valid from the start of the profiler to
+//! when it stops and will be useful to then group samples on the backend.
+//!
+//! Spans are expected to carry the profiler ID to know which samples are associated with them.
+//!
 use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -31,6 +42,7 @@ pub struct Sample {
     /// was captured.
     pub timestamp: f64,
     pub stack_id: usize,
+    /// Thread or queue identifier
     pub thread_id: String,
 }
 

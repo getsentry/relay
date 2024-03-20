@@ -1,3 +1,11 @@
+//! Android Format
+//!
+//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
+//! containing the raw Android profile.
+//!
+//! `android` has a specific binary representation of its profile and Relay is responsible to
+//! unpack it before it's forwarded down the line.
+//!
 use std::collections::{BTreeMap, HashMap};
 
 use android_trace_log::chrono::{DateTime, Utc};

@@ -1,3 +1,9 @@
+//! Sample Format V1
+//!
+//! This is a way to send samples collected at regular intervals from our SDKs. We are expecting
+//! one profile per transaction at most and as such, we collect transaction metadata and add it to
+//! the profile in Relay.
+//!
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
