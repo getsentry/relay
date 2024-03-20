@@ -94,6 +94,8 @@ mod replay;
 mod report;
 mod session;
 mod span;
+pub use span::extract_transaction_span;
+
 #[cfg(feature = "processing")]
 mod unreal;
 
