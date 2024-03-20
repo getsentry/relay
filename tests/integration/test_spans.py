@@ -1101,6 +1101,68 @@ def test_rate_limit_indexed_consistent(
     outcomes_consumer.assert_empty()
 
 
+def test_rate_limit_indexed_consistent_extracted(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    """Rate limits for indexed spans that are extracted from transactions"""
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span_indexed"],
+            "limit": 3,
+            "window": 1000,
+            "id": uuid.uuid4(),
+            "reasonCode": "indexed_exceeded",
+        },
+    ]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=1)
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    # First send should be accepted.
+    relay.send_event(project_id, event)
+    spans = list(spans_consumer.get_spans(max_attempts=2, timeout=15))
+    assert len(spans) == 2  # one for the transaction, one for the contained span
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+
+    # Second send should be rejected immediately.
+    relay.send_event(project_id, event)
+    assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
 def test_rate_limit_metrics_consistent(
     mini_sentry,
     relay_with_processing,
