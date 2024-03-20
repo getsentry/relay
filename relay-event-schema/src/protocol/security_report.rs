@@ -180,29 +180,68 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
 ///
 /// See `Csp` for meaning of fields.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
 struct CspRaw {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "effective-directive",
+        alias = "effectiveDirective"
+    )]
     effective_directive: Option<String>,
-    #[serde(default = "CspRaw::default_blocked_uri")]
+    #[serde(
+        default = "CspRaw::default_blocked_uri",
+        alias = "blockedUrl",
+        alias = "blocked-uri"
+    )]
     blocked_uri: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "documentUrl",
+        alias = "document-uri"
+    )]
     document_uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "originalPolicy",
+        alias = "original-policy"
+    )]
     original_policy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     referrer: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "statusCode",
+        alias = "status-code"
+    )]
     status_code: Option<u64>,
-    #[serde(default = "String::new")]
+    #[serde(
+        default = "String::new",
+        alias = "violatedDirective",
+        alias = "violated-directive"
+    )]
     violated_directive: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "sourceFile",
+        alias = "source-file"
+    )]
     source_file: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "lineNumber",
+        alias = "line-number"
+    )]
     line_number: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "columnNumber",
+        alias = "column-number"
+    )]
     column_number: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        alias = "scriptSample",
+        alias = "script-sample"
+    )]
     script_sample: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     disposition: Option<String>,
@@ -442,6 +481,31 @@ struct CspReportRaw {
     csp_report: CspRaw,
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+enum CspVariant {
+    Csp {
+        #[serde(rename = "csp-report")]
+        csp_report: CspRaw,
+    },
+    /// Defines CSP report sent through the [Reporting API](https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API).
+    ///
+    /// This contains the [body](https://developer.mozilla.org/en-US/docs/Web/API/CSPViolationReportBody)
+    /// with actual report. We currently ignore the additional fields.
+    /// Reporting API has [slightly different format](https://csplite.com/csp66/#sample-violation-report) for the CSP report body,
+    /// but the biggest difference that browser sends the CSP reports in batches.
+    CspViolation { body: CspRaw },
+}
+
+/// The type of the CSP report which comes through the Reporting API.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum CspViolationType {
+    CspViolation,
+    #[serde(other)]
+    Other,
+}
+
 /// Models the content of a CSP report.
 ///
 /// Note this models the older CSP reports (report-uri policy directive).
@@ -491,9 +555,16 @@ pub struct Csp {
 
 impl Csp {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
-        let raw_report = serde_json::from_slice::<CspReportRaw>(data)?;
-        let raw_csp = raw_report.csp_report;
+        let variant = serde_json::from_slice::<CspVariant>(data)?;
+        match variant {
+            CspVariant::Csp { csp_report } => Csp::extract_report(event, csp_report)?,
+            CspVariant::CspViolation { body } => Csp::extract_report(event, body)?,
+        }
 
+        Ok(())
+    }
+
+    fn extract_report(event: &mut Event, raw_csp: CspRaw) -> Result<(), serde_json::Error> {
         let effective_directive = raw_csp
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
@@ -1070,6 +1141,8 @@ impl SecurityReportType {
         #[derive(Deserialize)]
         #[serde(rename_all = "kebab-case")]
         struct SecurityReport {
+            #[serde(rename = "type")]
+            ty: Option<CspViolationType>,
             csp_report: Option<IgnoredAny>,
             known_pins: Option<IgnoredAny>,
             expect_staple_report: Option<IgnoredAny>,
@@ -1079,6 +1152,8 @@ impl SecurityReportType {
         let helper: SecurityReport = serde_json::from_slice(data)?;
 
         Ok(if helper.csp_report.is_some() {
+            Some(SecurityReportType::Csp)
+        } else if let Some(CspViolationType::CspViolation) = helper.ty {
             Some(SecurityReportType::Csp)
         } else if helper.known_pins.is_some() {
             Some(SecurityReportType::Hpkp)
@@ -1851,6 +1926,30 @@ mod tests {
                 "original-policy": "default-src self; report-uri /csp-hotline.php",
                 "blocked-uri": "http://evilhackerscripts.com"
             }
+        }"#;
+
+        let report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();
+        assert_eq!(report_type, Some(SecurityReportType::Csp));
+    }
+
+    #[test]
+    fn test_security_report_type_deserializer_recognizes_csp_violations_reports() {
+        let csp_report_text = r#"{
+          "age":0,
+          "body":{
+            "blockedURL":"https://example.com/tst/media/7_del.png",
+            "disposition":"enforce",
+            "documentURL":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "effectiveDirective":"img-src",
+            "lineNumber":9,
+            "originalPolicy":"default-src 'none'; report-to endpoint-csp;",
+            "referrer":"https://example.com/test229/",
+            "sourceFile":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "statusCode":0
+            },
+          "type":"csp-violation",
+          "url":"https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+          "user_agent":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
         }"#;
 
         let report_type = SecurityReportType::from_json(csp_report_text.as_bytes()).unwrap();

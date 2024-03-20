@@ -286,6 +286,19 @@ impl ProcessingGroup {
             }
         };
 
+        // Make sure we create separate envelopes for each `RawSecurity` report.
+        let security_reports_items = envelope
+            .take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity))
+            .into_iter()
+            .map(|item| {
+                let headers = headers.clone();
+                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+                let mut envelope = Envelope::from_parts(headers, items);
+                envelope.set_event_id(EventId::new());
+                (ProcessingGroup::Error, envelope)
+            });
+        grouped_envelopes.extend(security_reports_items);
+
         // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
         if !require_event_items.is_empty() {
@@ -297,6 +310,7 @@ impl ProcessingGroup {
             } else {
                 ProcessingGroup::Error
             };
+
             grouped_envelopes.push((
                 group,
                 Envelope::from_parts(headers.clone(), require_event_items),

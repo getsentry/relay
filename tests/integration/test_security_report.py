@@ -95,6 +95,74 @@ def test_security_report_with_processing(
     assert event == expected_evt
 
 
+def test_csp_violation_reports_with_processing(
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+):
+    # UA parsing introduces higher latency in debug mode
+    events_consumer = events_consumer(timeout=10)
+
+    proj_id = 42
+    relay = relay_with_processing()
+    mini_sentry.add_full_project_config(proj_id)
+
+    reports = [
+        {
+            "age": 10,
+            "body": {
+                "blockedURL": "https://example.net/assets/media/7_del.png",
+                "disposition": "enforce",
+                "documentURL": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "effectiveDirective": "img-src",
+                "lineNumber": 9,
+                "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+                "referrer": "https://example.net/test229/",
+                "sourceFile": "https://example.net/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "statusCode": 0,
+            },
+            "type": "csp-violation",
+            "url": "https://example.com/assets/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+        },
+        {
+            "age": 0,
+            "body": {
+                "blockedURL": "https://example.com/tst/media/7_del.png",
+                "disposition": "report",
+                "documentURL": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "effectiveDirective": "img-src",
+                "lineNumber": 9,
+                "originalPolicy": "default-src 'none'; report-to endpoint-csp;",
+                "referrer": "https://example.com/test229/",
+                "sourceFile": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+                "statusCode": 0,
+            },
+            "type": "csp-violation",
+            "url": "https://example.com/tst/test_frame.php?ID=229&hash=da964209653e467d337313e51876e27d",
+            "user_agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
+        },
+    ]
+
+    relay.send_security_report(
+        project_id=proj_id,
+        content_type="application/json; charset=utf-8",
+        payload=reports,
+        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+        environment="production",
+    )
+
+    events = []
+    event, _ = events_consumer.get_event()
+    events.append(event)
+    event, _ = events_consumer.get_event()
+    events.append(event)
+    events_consumer.assert_empty()
+
+    assert any(d for d in events if d["csp"]["disposition"] == "enforce")
+    assert any(d for d in events if d["csp"]["disposition"] == "report")
+
+
 @pytest.mark.parametrize(
     "test_case",
     [
