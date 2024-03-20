@@ -36,17 +36,13 @@ def _session_payload(timestamp: datetime, started: datetime):
     }
 
 
-def metrics_by_name(metrics_consumer, count=None, timeout=None):
+def metrics_by_name(metrics_consumer, count, timeout=None):
     metrics = {"headers": {}}
 
-    attempts = 99 if count is None else count
-    for metric, metric_headers in metrics_consumer.get_metrics(
-        max_attempts=attempts, timeout=timeout
-    ):
+    for _ in range(count):
+        metric, metric_headers = metrics_consumer.get_metric(timeout)
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
-
-    assert count is None or len(metrics) == count
 
     metrics_consumer.assert_empty()
     return metrics
