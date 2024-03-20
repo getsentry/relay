@@ -36,13 +36,17 @@ def _session_payload(timestamp: datetime, started: datetime):
     }
 
 
-def metrics_by_name(metrics_consumer, count, timeout=None):
+def metrics_by_name(metrics_consumer, count=None, timeout=None):
     metrics = {"headers": {}}
 
-    for _ in range(count):
-        metric, metric_headers = metrics_consumer.get_metric(timeout)
+    attempts = 99 if count is None else count
+    for metric, metric_headers in metrics_consumer.get_metrics(
+        max_attempts=attempts, timeout=timeout
+    ):
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
+
+    assert count is None or len(metrics) == count
 
     metrics_consumer.assert_empty()
     return metrics
@@ -927,6 +931,7 @@ def test_transaction_metrics(
         config["transactionMetrics"] = {
             "version": 1,
         }
+        config.setdefault("features", []).append("projects:span-metrics-extraction")
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -972,7 +977,8 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
+
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -984,6 +990,8 @@ def test_transaction_metrics(
             "transaction.status": "unknown",
         },
     }
+
+    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
