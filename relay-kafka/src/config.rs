@@ -97,7 +97,6 @@ pub struct TopicAssignments {
     #[serde(alias = "ingest-transactions")]
     pub transactions: TopicAssignment,
     /// Outcomes topic name.
-    #[serde(alias = "outcomes")]
     pub outcomes: TopicAssignment,
     /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
     #[serde(alias = "outcomes-billing")]

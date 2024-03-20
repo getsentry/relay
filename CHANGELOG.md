@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Kafka topic config supports default topic names as keys ([#3282](https://github.com/getsentry/relay/pull/3282))
+- Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
 
 **Internal**:
 
