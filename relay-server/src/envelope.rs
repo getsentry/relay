@@ -720,9 +720,9 @@ impl Item {
         self.payload.clone()
     }
 
-    /// Sets the truncated payload of this envelope item without specifying a content-type.
+    /// Sets the payload of this envelope item without specifying a content-type.
     /// Use `set_payload` if you want to define a content-type for the payload.
-    pub fn set_truncated_payload<B>(&mut self, payload: B)
+    pub fn set_payload_without_content_type<B>(&mut self, payload: B)
     where
         B: Into<Bytes>,
     {
@@ -735,14 +735,14 @@ impl Item {
         self.payload = payload;
     }
 
-    /// Sets the truncated payload and content-type of this envelope item.
-    /// Use `set_truncated_payload` if you need to set the payload without a content-type.
+    /// Sets the payload and content-type of this envelope item. Use
+    /// `set_payload_without_content_type` if you need to set the payload without a content-type.
     pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
     where
         B: Into<Bytes>,
     {
         self.headers.content_type = Some(content_type);
-        self.set_truncated_payload(payload);
+        self.set_payload_without_content_type(payload);
     }
 
     /// Returns the file name of this item, if it is an attachment.

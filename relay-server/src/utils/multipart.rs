@@ -192,7 +192,7 @@ where
                     field_data(&mut field, item_limit).await?,
                 );
             } else {
-                item.set_truncated_payload(field_data(&mut field, item_limit).await?);
+                item.set_payload_without_content_type(field_data(&mut field, item_limit).await?);
             }
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
