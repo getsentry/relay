@@ -59,9 +59,11 @@ impl SecurityReportParams {
 
         if let Ok(items) = variant {
             for item in items {
-                let report_item =
-                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
-                envelope.add_item(report_item);
+                let data = Bytes::from(item.to_owned().to_string());
+                if is_supported_type(&data) {
+                    let report_item = Self::create_security_item(&query, data);
+                    envelope.add_item(report_item);
+                }
             }
         } else {
             let report_item = Self::create_security_item(&query, body);
@@ -70,6 +72,21 @@ impl SecurityReportParams {
 
         Ok(envelope)
     }
+}
+
+/// Check if the report type is supported.
+///
+/// Note: use only for the reports sent through the Reporting Api.
+fn is_supported_type(data: &[u8]) -> bool {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "kebab-case")]
+    #[serde(tag = "type")]
+    enum SecurityReportVariant {
+        CspViolation,
+    }
+
+    let helper: Option<SecurityReportVariant> = serde_json::from_slice(data).ok();
+    helper.is_some()
 }
 
 fn is_security_mime(mime: Mime) -> bool {
