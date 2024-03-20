@@ -73,7 +73,7 @@ impl MetricStats {
             .options
             .metric_stats_rollout_rate;
 
-        ((organization_id % 100000) as f32 / 100000.0f32) <= rate
+        ((organization_id % 100000) as f32 / 100000.0f32) < rate
     }
 
     fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
