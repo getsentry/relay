@@ -425,6 +425,38 @@
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
 <a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -515,38 +547,47 @@
 #[serde(default)]
 </span><span class="kw">pub struct </span>TopicAssignments {
     <span class="doccomment">/// Simple events topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-events"</span>)]
     </span><span class="kw">pub </span>events: TopicAssignment,
     <span class="doccomment">/// Events with attachments topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-attachments"</span>)]
     </span><span class="kw">pub </span>attachments: TopicAssignment,
     <span class="doccomment">/// Transaction events topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-transactions"</span>)]
     </span><span class="kw">pub </span>transactions: TopicAssignment,
     <span class="doccomment">/// Outcomes topic name.
     </span><span class="kw">pub </span>outcomes: TopicAssignment,
     <span class="doccomment">/// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
+    </span><span class="attr">#[serde(alias = <span class="string">"outcomes-billing"</span>)]
     </span><span class="kw">pub </span>outcomes_billing: <span class="prelude-ty">Option</span>&lt;TopicAssignment&gt;,
     <span class="doccomment">/// Session health topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-sessions"</span>)]
     </span><span class="kw">pub </span>sessions: TopicAssignment,
-    <span class="doccomment">/// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
-    </span><span class="kw">pub </span>metrics: TopicAssignment,
-    <span class="doccomment">/// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
-    </span><span class="kw">pub </span>metrics_sessions: <span class="prelude-ty">Option</span>&lt;TopicAssignment&gt;,
+    <span class="doccomment">/// Topic name for metrics extracted from sessions, aka release health.
+    </span><span class="attr">#[serde(alias = <span class="string">"metrics"</span>, alias = <span class="string">"ingest-metrics"</span>)]
+    </span><span class="kw">pub </span>metrics_sessions: TopicAssignment,
     <span class="doccomment">/// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
-    </span><span class="attr">#[serde(alias = <span class="string">"metrics_transactions"</span>)]
+    </span><span class="attr">#[serde(alias = <span class="string">"metrics_transactions"</span>, alias = <span class="string">"ingest-generic-metrics"</span>)]
     </span><span class="kw">pub </span>metrics_generic: TopicAssignment,
     <span class="doccomment">/// Stacktrace topic name
     </span><span class="kw">pub </span>profiles: TopicAssignment,
     <span class="doccomment">/// Replay Events topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-replay-events"</span>)]
     </span><span class="kw">pub </span>replay_events: TopicAssignment,
     <span class="doccomment">/// Recordings topic name.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-replay-recordings"</span>)]
     </span><span class="kw">pub </span>replay_recordings: TopicAssignment,
     <span class="doccomment">/// Monitor check-ins.
+    </span><span class="attr">#[serde(alias = <span class="string">"ingest-monitors"</span>)]
     </span><span class="kw">pub </span>monitors: TopicAssignment,
     <span class="doccomment">/// Standalone spans without a transaction.
+    </span><span class="attr">#[serde(alias = <span class="string">"snuba-spans"</span>)]
     </span><span class="kw">pub </span>spans: TopicAssignment,
     <span class="doccomment">/// Summary for metrics collected during a span.
+    </span><span class="attr">#[serde(alias = <span class="string">"snuba-metrics-summaries"</span>)]
     </span><span class="kw">pub </span>metrics_summaries: TopicAssignment,
     <span class="doccomment">/// COGS measurements.
+    </span><span class="attr">#[serde(alias = <span class="string">"shared-resources-usage"</span>)]
     </span><span class="kw">pub </span>cogs: TopicAssignment,
 }
 
@@ -561,7 +602,7 @@
             KafkaTopic::Outcomes =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.outcomes,
             KafkaTopic::OutcomesBilling =&gt; <span class="self">self</span>.outcomes_billing.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.outcomes),
             KafkaTopic::Sessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sessions,
-            KafkaTopic::MetricsSessions =&gt; <span class="self">self</span>.metrics_sessions.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.metrics),
+            KafkaTopic::MetricsSessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_sessions,
             KafkaTopic::MetricsGeneric =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_generic,
             KafkaTopic::Profiles =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiles,
             KafkaTopic::ReplayEvents =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_events,
@@ -583,8 +624,7 @@
             outcomes: <span class="string">"outcomes"</span>.to_owned().into(),
             outcomes_billing: <span class="prelude-val">None</span>,
             sessions: <span class="string">"ingest-sessions"</span>.to_owned().into(),
-            metrics: <span class="string">"ingest-metrics"</span>.to_owned().into(),
-            metrics_sessions: <span class="prelude-val">None</span>,
+            metrics_sessions: <span class="string">"ingest-metrics"</span>.to_owned().into(),
             metrics_generic: <span class="string">"ingest-performance-metrics"</span>.to_owned().into(),
             profiles: <span class="string">"profiles"</span>.to_owned().into(),
             replay_events: <span class="string">"ingest-replay-events"</span>.to_owned().into(),
@@ -771,11 +811,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_kafka_config() {
         <span class="kw">let </span>yaml = <span class="string">r#"
-events: "ingest-events-kafka-topic"
+ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-metrics:
+ingest-metrics:
   shards: 65000
   mapping:
       0:
@@ -787,6 +827,7 @@ metrics:
       45000:
           name: "ingest-metrics-3"
           config: "metrics_3"
+transactions: "ingest-transactions-kafka-topic"
 "#</span>;
 
         <span class="kw">let </span>def_config = <span class="macro">vec!</span>[KafkaConfigParam {
@@ -825,7 +866,8 @@ metrics:
         <span class="kw">let </span>topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         <span class="kw">let </span>events = topics.events;
         <span class="kw">let </span>profiles = topics.profiles;
-        <span class="kw">let </span>metrics = topics.metrics;
+        <span class="kw">let </span>metrics = topics.metrics_sessions;
+        <span class="kw">let </span>transactions = topics.transactions;
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(events, TopicAssignment::Primary(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(profiles, TopicAssignment::Secondary { .. }));
@@ -839,7 +881,29 @@ metrics:
         <span class="kw">let </span>events_config = events
             .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
             .expect(<span class="string">"Kafka config for events topic"</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(events_config, KafkaConfig::Single { .. }));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
+                    ..
+                }
+            }
+        ));
+
+        <span class="comment">// Legacy keys are still supported
+        </span><span class="kw">let </span>transactions_config = transactions
+            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+            .expect(<span class="string">"Kafka config for transactions topic"</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            transactions_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: <span class="string">"ingest-transactions-kafka-topic"</span>,
+                    ..
+                }
+            }
+        ));
 
         <span class="kw">let </span>(shards, mapping) =
             <span class="kw">if let </span>TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {
