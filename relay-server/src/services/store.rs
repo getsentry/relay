@@ -200,7 +200,7 @@ impl StoreService {
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by(|item| {
+        let event_item = envelope.take_item_by(|item| {
             matches!(
                 item.ty(),
                 ItemType::Event
