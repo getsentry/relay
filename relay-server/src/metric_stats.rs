@@ -3,8 +3,7 @@ use std::sync::{Arc, OnceLock};
 
 use relay_config::Config;
 use relay_metrics::{
-    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricResourceIdentifier,
-    UnixTimestamp,
+    Aggregator, Bucket, BucketValue, MergeBuckets, MetricResourceIdentifier, UnixTimestamp,
 };
 use relay_quotas::Scoping;
 use relay_system::Addr;
@@ -47,19 +46,19 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track(&self, scoping: Scoping, bucket: &BucketView<'_>, outcome: Outcome) {
+    pub fn track(&self, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
         if !self.config.processing_enabled() || !self.is_rolled_out(scoping.organization_id) {
             return;
         }
 
-        let Some(volume) = self.to_volume_metric(bucket, &outcome) else {
+        let Some(volume) = self.to_volume_metric(&bucket, &outcome) else {
             return;
         };
 
         relay_log::trace!(
             "Tracking volume of {} for mri '{}': {}",
-            bucket.metadata().merges.get(),
-            bucket.name(),
+            bucket.metadata.merges.get(),
+            bucket.name,
             outcome
         );
         self.aggregator
@@ -76,13 +75,13 @@ impl MetricStats {
         ((organization_id % 100000) as f32 / 100000.0f32) <= rate
     }
 
-    fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
-        let volume = bucket.metadata().merges.get();
+    fn to_volume_metric(&self, bucket: &Bucket, outcome: &Outcome) -> Option<Bucket> {
+        let volume = bucket.metadata.merges.get();
         if volume == 0 {
             return None;
         }
 
-        let namespace = MetricResourceIdentifier::parse(bucket.name())
+        let namespace = MetricResourceIdentifier::parse(&bucket.name)
             .ok()?
             .namespace;
         if !namespace.has_metric_stats() {
@@ -90,7 +89,7 @@ impl MetricStats {
         }
 
         let mut tags = BTreeMap::from([
-            ("mri".to_owned(), bucket.name().to_string()),
+            ("mri".to_owned(), bucket.name.to_string()),
             ("mri.namespace".to_owned(), namespace.to_string()),
             (
                 "outcome.id".to_owned(),
@@ -165,12 +164,12 @@ mod tests {
         let scoping = scoping();
         let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
 
-        ms.track(scoping, &BucketView::from(&bucket), Outcome::Accepted);
+        ms.track(scoping, bucket.clone(), Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(41);
         ms.track(
             scoping,
-            &BucketView::from(&bucket),
+            bucket,
             Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
         );
 
@@ -226,7 +225,7 @@ mod tests {
 
         let scoping = scoping();
         let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track(scoping, &BucketView::from(&bucket), Outcome::Accepted);
+        ms.track(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 
@@ -240,7 +239,7 @@ mod tests {
         let scoping = scoping();
         let bucket =
             Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track(scoping, &BucketView::from(&bucket), Outcome::Accepted);
+        ms.track(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 
