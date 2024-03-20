@@ -101,6 +101,8 @@ pub struct TopicAssignments {
     /// Topic name for metrics extracted from sessions, aka release health.
     #[serde(alias = "metrics", alias = "ingest-metrics")]
     pub metrics_sessions: TopicAssignment,
+    /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
+    #[serde(alias = "metrics_transactions", alias = "ingest-generic-metrics")]
     pub metrics_generic: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
