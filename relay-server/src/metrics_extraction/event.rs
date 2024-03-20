@@ -1446,7 +1446,7 @@ mod tests {
     }
 
     #[test]
-    fn extracts_root_span_from_childless_transaction() {
+    fn extracts_span_metrics_from_transaction() {
         let event = r#"
             {
                 "type": "transaction",

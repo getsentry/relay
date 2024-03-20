@@ -1547,10 +1547,8 @@ def test_span_metrics(
         if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
             continue
 
-        if metric["tags"]["span.op"] == "my-transaction-op":
-            # This is a transaction span
-            pass
-        else:
+        # Ignore transaction spans
+        if metric["tags"]["span.op"] != "my-transaction-op":
             assert metric["tags"]["span.description"] == expected_description, metric
             assert metric["tags"]["span.group"] == expected_group, metric
 
