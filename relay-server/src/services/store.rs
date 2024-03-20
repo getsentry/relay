@@ -193,14 +193,14 @@ impl StoreService {
 
     fn store_envelope(
         &self,
-        envelope: Box<Envelope>,
+        mut envelope: Box<Envelope>,
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
-        let event_item = envelope.take_item_by(|item| {
+        let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
                 ItemType::Event
@@ -330,7 +330,7 @@ impl StoreService {
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
         let kafka_messages = Self::extract_kafka_messages_for_event(
-            event_item,
+            event_item.as_ref(),
             event_id.ok_or(StoreError::NoEventId)?,
             scoping,
             start_time,
