@@ -146,7 +146,7 @@ def test_csp_violation_reports_with_processing(
 
     relay.send_security_report(
         project_id=proj_id,
-        content_type="application/json; charset=utf-8",
+        content_type="application/reports+json; charset=utf-8",
         payload=reports,
         release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
         environment="production",
