@@ -198,7 +198,6 @@ impl StoreService {
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
-        let client = envelope.meta().client();
         let event_id = envelope.event_id();
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
@@ -209,10 +208,11 @@ impl StoreService {
                     | ItemType::UserReportV2
             )
         });
+        let client = envelope.meta().client();
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
