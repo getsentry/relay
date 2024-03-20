@@ -96,6 +96,23 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Endpoints for security reports.
 
 </span><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Query};
@@ -106,6 +123,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 <span class="kw">use </span>serde::Deserialize;
+<span class="kw">use </span>serde_json::value::RawValue;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
@@ -128,6 +146,21 @@
 }
 
 <span class="kw">impl </span>SecurityReportParams {
+    <span class="kw">fn </span>create_security_item(query: <span class="kw-2">&amp;</span>SecurityReportQuery, item: Bytes) -&gt; Item {
+        <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
+        report_item.set_payload(ContentType::Json, item);
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = <span class="kw-2">&amp;</span>query.sentry_release {
+            report_item.set_header(<span class="string">"sentry_release"</span>, sentry_release.clone());
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = <span class="kw-2">&amp;</span>query.sentry_environment {
+            report_item.set_header(<span class="string">"sentry_environment"</span>, sentry_environment.clone());
+        }
+
+        report_item
+    }
+
     <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
         <span class="kw">let </span><span class="self">Self </span>{ meta, query, body } = <span class="self">self</span>;
 
@@ -135,19 +168,20 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
-        report_item.set_payload(ContentType::Json, body);
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = query.sentry_release {
-            report_item.set_header(<span class="string">"sentry_release"</span>, sentry_release);
-        }
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = query.sentry_environment {
-            report_item.set_header(<span class="string">"sentry_environment"</span>, sentry_environment);
-        }
-
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-        envelope.add_item(report_item);
+        <span class="kw">let </span>variant =
+            serde_json::from_slice::&lt;Vec&lt;<span class="kw-2">&amp;</span>RawValue&gt;&gt;(<span class="kw-2">&amp;</span>body).map_err(BadStoreRequest::InvalidJson);
+
+        <span class="kw">if let </span><span class="prelude-val">Ok</span>(items) = variant {
+            <span class="kw">for </span>item <span class="kw">in </span>items {
+                <span class="kw">let </span>report_item =
+                    <span class="self">Self</span>::create_security_item(<span class="kw-2">&amp;</span>query, Bytes::from(item.to_owned().to_string()));
+                envelope.add_item(report_item);
+            }
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>report_item = <span class="self">Self</span>::create_security_item(<span class="kw-2">&amp;</span>query, body);
+            envelope.add_item(report_item);
+        }
 
         <span class="prelude-val">Ok</span>(envelope)
     }
