@@ -11,6 +11,7 @@ use relay_system::Addr;
 
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
+use crate::utils::is_rolled_out;
 
 fn volume_metric_mri() -> Arc<str> {
     static VOLUME_METRIC_MRI: OnceLock<Arc<str>> = OnceLock::new();
@@ -73,7 +74,7 @@ impl MetricStats {
             .options
             .metric_stats_rollout_rate;
 
-        ((organization_id % 100000) as f32 / 100000.0f32) <= rate
+        is_rolled_out(organization_id, rate)
     }
 
     fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
