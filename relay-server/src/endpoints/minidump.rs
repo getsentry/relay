@@ -195,7 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_minidump_multipart_attachments() -> anyhow::Result<()> {
-        let _body_data2 : &[u8] =
+        let multipart_body: &[u8] =
             b"-----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
             Content-Disposition: form-data; name=\"guid\"\x0d\x0a\x0d\x0add46bb04-bb27-448c-aad0-0deb0c134bdb\x0d\x0a\
             -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
@@ -222,7 +222,7 @@ mod tests {
                 "content-type",
                 "multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---",
             )
-            .body(Full::new(_body_data2))
+            .body(Full::new(multipart_body))
             .unwrap();
 
         let multipart = Multipart::from_request(request, &()).await?;
@@ -235,10 +235,10 @@ mod tests {
         .await?;
 
         // we expect the multipart body to contain
-        // * form-data (as single item)
+        // * one arbitrary attachment from the user (a `config.json`)
         // * two breadcrumb files
         // * one event file
-        // * one arbitrary attachment from the user (a `config.json`)
+        // * one form-data item
         assert_eq!(5, items.len());
 
         // `config.json` has no content-type. MIME-detection in later processing will assign this.
