@@ -1,5 +1,5 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
-//! The service uses kafka topics to forward data to Sentry
+//! The service uses Kafka topics to forward data to Sentry
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -13,7 +13,6 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_dynamic_config::MetricEncoding;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
 };
@@ -21,7 +20,7 @@ use relay_event_schema::protocol::{
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
-    MetricResourceIdentifier, SetView,
+    SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -32,11 +31,12 @@ use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode, TypedEnvelope};
+use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -48,6 +48,8 @@ const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 pub enum StoreError {
     #[error("failed to send the message to kafka")]
     SendFailed(#[from] ClientError),
+    #[error("failed to encode data: {0}")]
+    EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
 }
@@ -139,6 +141,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
+    metric_stats: MetricStats,
     producer: Producer,
 }
 
@@ -147,12 +150,14 @@ impl StoreService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
             global_config,
             outcome_aggregator,
+            metric_stats,
             producer,
         })
     }
@@ -249,12 +254,7 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => self.produce_metrics(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    item,
-                    retention,
-                )?,
+                ItemType::MetricBuckets => self.produce_metrics(scoping, item, retention)?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -356,29 +356,36 @@ impl StoreService {
         let mut dropped = SourceQuantities::default();
         let mut error = None;
 
-        let encodings = self.global_config.current().options.metric_bucket_encodings;
+        let global_config = self.global_config.current();
+        let mut encoder = BucketEncoder::new(&global_config);
 
-        for bucket in buckets {
+        for mut bucket in buckets {
+            let namespace = encoder.prepare(&mut bucket);
+
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
             for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
-                let namespace = MetricResourceIdentifier::parse(view.name())
-                    .map(|mri| mri.namespace)
-                    .unwrap_or(MetricNamespace::Unsupported);
-                let encoding = encodings.for_namespace(namespace);
-
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
-                    encoding,
+                    &mut encoder,
+                    namespace,
                     &view,
                     retention,
                 );
 
-                if let Err(e) = self.send_metric_message(namespace, message) {
-                    error.get_or_insert(e);
-                    dropped += utils::extract_metric_quantities([view], mode);
+                let result =
+                    message.and_then(|message| self.send_metric_message(namespace, message));
+
+                match result {
+                    Ok(()) => {
+                        self.metric_stats.track(scoping, &view, Outcome::Accepted);
+                    }
+                    Err(e) => {
+                        error.get_or_insert(e);
+                        dropped += utils::extract_metric_quantities([view], mode);
+                    }
                 }
             }
         }
@@ -409,20 +416,27 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
-        encoding: MetricEncoding,
-        view: &'a BucketView<'a>,
+        encoder: &'a mut BucketEncoder,
+        namespace: MetricNamespace,
+        view: &BucketView<'a>,
         retention_days: u16,
-    ) -> MetricKafkaMessage<'a> {
+    ) -> Result<MetricKafkaMessage<'a>, StoreError> {
         let value = match view.value() {
             BucketViewValue::Counter(c) => MetricValue::Counter(c),
-            BucketViewValue::Distribution(d) => {
-                MetricValue::Distribution(ArrayEncoding::new(encoding, d))
-            }
-            BucketViewValue::Set(s) => MetricValue::Set(ArrayEncoding::new(encoding, s)),
+            BucketViewValue::Distribution(data) => MetricValue::Distribution(
+                encoder
+                    .encode_distribution(namespace, data)
+                    .map_err(StoreError::EncodingFailed)?,
+            ),
+            BucketViewValue::Set(data) => MetricValue::Set(
+                encoder
+                    .encode_set(namespace, data)
+                    .map_err(StoreError::EncodingFailed)?,
+            ),
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
-        MetricKafkaMessage {
+        Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
             name: view.name(),
@@ -430,7 +444,7 @@ impl StoreService {
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
-        }
+        })
     }
 
     fn extract_kafka_messages_for_event(
@@ -797,25 +811,30 @@ impl StoreService {
 
     fn produce_metrics(
         &self,
-        org_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
         item: &Item,
         retention: u16,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
-        let encodings = self.global_config.current().options.metric_bucket_encodings;
 
-        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
+        let global_config = self.global_config.current();
+        let mut encoder = BucketEncoder::new(&global_config);
+
+        for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
+            let namespace = encoder.prepare(&mut bucket);
+
             let view = BucketView::new(&bucket);
+            let message = self.create_metric_message(
+                scoping.organization_id,
+                scoping.project_id,
+                &mut encoder,
+                namespace,
+                &view,
+                retention,
+            );
 
-            let namespace = MetricResourceIdentifier::parse(view.name())
-                .map(|mri| mri.namespace)
-                .unwrap_or(MetricNamespace::Unsupported);
-            let encoding = encodings.for_namespace(namespace);
-
-            let message =
-                self.create_metric_message(org_id, project_id, encoding, &view, retention);
-            self.send_metric_message(namespace, message)?;
+            message.and_then(|message| self.send_metric_message(namespace, message))?;
+            self.metric_stats.track(scoping, &view, Outcome::Accepted);
         }
 
         Ok(())
@@ -1431,9 +1450,9 @@ enum MetricValue<'a> {
     #[serde(rename = "c")]
     Counter(FiniteF64),
     #[serde(rename = "d")]
-    Distribution(ArrayEncoding<&'a [FiniteF64]>),
+    Distribution(ArrayEncoding<'a, &'a [FiniteF64]>),
     #[serde(rename = "s")]
-    Set(ArrayEncoding<SetView<'a>>),
+    Set(ArrayEncoding<'a, SetView<'a>>),
     #[serde(rename = "g")]
     Gauge(GaugeValue),
 }
@@ -1455,45 +1474,6 @@ impl<'a> MetricValue<'a> {
             _ => None,
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(untagged)]
-enum ArrayEncoding<T> {
-    /// The original, legacy, encoding.
-    ///
-    /// Encodes all values as a JSON array of numbers.
-    Legacy(T),
-    /// Dynamic encoding supporting multiple formats.
-    ///
-    /// Adds metadata and adds support for multiple different encodings.
-    Dynamic(DynamicArrayEncoding<T>),
-}
-
-impl<T> ArrayEncoding<T> {
-    /// Builds a [`ArrayEncoding`] from the format and the data.
-    fn new(encoding: MetricEncoding, data: T) -> Self {
-        match encoding {
-            MetricEncoding::Legacy => Self::Legacy(data),
-            MetricEncoding::Array => Self::Dynamic(DynamicArrayEncoding::Array { data }),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Legacy(_) => "legacy",
-            Self::Dynamic(DynamicArrayEncoding::Array { .. }) => "array",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "format", rename_all = "lowercase")]
-enum DynamicArrayEncoding<T> {
-    /// JSON Array encoding.
-    ///
-    /// Encodes all items as a JSON array.
-    Array { data: T },
 }
 
 #[derive(Clone, Debug, Serialize)]

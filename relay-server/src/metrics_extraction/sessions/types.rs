@@ -4,7 +4,8 @@ use std::fmt::{self, Display};
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::SessionStatus;
 use relay_metrics::{
-    Bucket, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier, MetricUnit,
+    Bucket, BucketMetadata, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier,
+    MetricUnit,
 };
 use uuid::Uuid;
 
@@ -121,9 +122,10 @@ impl IntoMetric for SessionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags,
+            metadata: BucketMetadata::new(),
         }
     }
 }

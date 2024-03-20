@@ -293,7 +293,7 @@ impl ConfigObject for Credentials {
 }
 
 /// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.

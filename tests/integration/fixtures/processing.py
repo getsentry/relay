@@ -80,9 +80,9 @@ def relay_with_processing(relay, mini_sentry, processing_config):
     requests to the test ingestion topics
     """
 
-    def inner(options=None):
+    def inner(options=None, **kwargs):
         options = processing_config(options)
-        return relay(mini_sentry, options=options)
+        return relay(mini_sentry, options=options, **kwargs)
 
     return inner
 

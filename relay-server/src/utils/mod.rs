@@ -1,9 +1,10 @@
 mod api;
+#[cfg(feature = "processing")]
+mod bucket_encoding;
 mod buffer;
 mod dynamic_sampling;
 mod garbage;
 mod managed_envelope;
-mod metric_stats;
 mod metrics_rate_limits;
 mod multipart;
 mod param_parser;
@@ -20,11 +21,12 @@ mod native;
 mod unreal;
 
 pub use self::api::*;
+#[cfg(feature = "processing")]
+pub use self::bucket_encoding::*;
 pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
 pub use self::garbage::*;
 pub use self::managed_envelope::*;
-pub use self::metric_stats::*;
 pub use self::metrics_rate_limits::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]

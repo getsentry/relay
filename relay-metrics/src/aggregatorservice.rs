@@ -417,7 +417,7 @@ mod tests {
     use relay_common::time::UnixTimestamp;
     use relay_system::{FromMessage, Interface};
 
-    use crate::{BucketCountInquiry, BucketValue};
+    use crate::{BucketCountInquiry, BucketMetadata, BucketValue};
 
     use super::*;
 
@@ -475,9 +475,10 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
+            name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 

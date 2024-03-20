@@ -7,7 +7,7 @@ use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::MeasurementsConfig;
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ErrorBoundary;
@@ -130,23 +130,31 @@ pub struct Options {
     )]
     pub cardinality_limiter_error_sample_rate: f32,
 
-    /// Kill switch for disabling the span usage metric.
-    ///
-    /// This metric is converted into outcomes in a sentry-side consumer.
+    /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
-        rename = "relay.span-usage-metric",
-        deserialize_with = "default_on_error",
+        rename = "relay.metric-bucket-set-encodings",
+        deserialize_with = "de_metric_bucket_encodings",
         skip_serializing_if = "is_default"
     )]
-    pub span_usage_metric: bool,
+    pub metric_bucket_set_encodings: BucketEncodings,
+    /// Metric bucket encoding configuration for distributions by metric namespace.
+    #[serde(
+        rename = "relay.metric-bucket-distribution-encodings",
+        deserialize_with = "de_metric_bucket_encodings",
+        skip_serializing_if = "is_default"
+    )]
+    pub metric_bucket_dist_encodings: BucketEncodings,
 
-    /// Metric bucket encoding configuration by metric namespace.
+    /// Rollout rate for metric stats.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will have metric stats enabled.
     #[serde(
-        rename = "relay.metric-bucket-encodings",
+        rename = "relay.metric-stats.rollout-rate",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub metric_bucket_encodings: MetricBucketEncodings,
+    pub metric_stats_rollout_rate: f32,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -170,29 +178,82 @@ pub enum CardinalityLimiterMode {
     Disabled,
 }
 
-/// Configuration container to control [`MetricEncoding`] per namespace.
+/// Configuration container to control [`BucketEncoding`] per namespace.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(default)]
-pub struct MetricBucketEncodings {
-    sessions: MetricEncoding,
-    transactions: MetricEncoding,
-    spans: MetricEncoding,
-    profiles: MetricEncoding,
-    custom: MetricEncoding,
-    unsupported: MetricEncoding,
+pub struct BucketEncodings {
+    transactions: BucketEncoding,
+    spans: BucketEncoding,
+    profiles: BucketEncoding,
+    custom: BucketEncoding,
+    metric_stats: BucketEncoding,
 }
 
-impl MetricBucketEncodings {
+impl BucketEncodings {
     /// Returns the configured encoding for a specific namespace.
-    pub fn for_namespace(&self, namespace: MetricNamespace) -> MetricEncoding {
+    pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
-            MetricNamespace::Sessions => self.sessions,
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
-            MetricNamespace::Unsupported => self.unsupported,
+            MetricNamespace::Stats => self.metric_stats,
+            // Always force the legacy encoding for sessions,
+            // sessions are not part of the generic metrics platform with different
+            // consumer which are not (yet) updated to support the new data.
+            MetricNamespace::Sessions => BucketEncoding::Legacy,
+            _ => BucketEncoding::Legacy,
+        }
+    }
+}
+
+/// Deserializes individual metric encodings or all from a string.
+///
+/// Returns a default when failing to deserialize.
+fn de_metric_bucket_encodings<'de, D>(deserializer: D) -> Result<BucketEncodings, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    struct Visitor;
+
+    impl<'de> de::Visitor<'de> for Visitor {
+        type Value = BucketEncodings;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("metric bucket encodings")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
+            Ok(BucketEncodings {
+                transactions: encoding,
+                spans: encoding,
+                profiles: encoding,
+                custom: encoding,
+                metric_stats: encoding,
+            })
+        }
+
+        fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::MapAccess<'de>,
+        {
+            BucketEncodings::deserialize(de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    match deserializer.deserialize_any(Visitor) {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            relay_log::error!(
+                error = %error,
+                "Error deserializing metric bucket encodings",
+            );
+            Ok(BucketEncodings::default())
         }
     }
 }
@@ -200,7 +261,7 @@ impl MetricBucketEncodings {
 /// All supported metric bucket encodings.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum MetricEncoding {
+pub enum BucketEncoding {
     /// The default legacy encoding.
     ///
     /// A simple JSON array of numbers.
@@ -211,6 +272,14 @@ pub enum MetricEncoding {
     /// Uses already the dynamic value format but still encodes
     /// all values as a JSON number array.
     Array,
+    /// Base64 encoding.
+    ///
+    /// Encodes all values as Base64.
+    Base64,
+    /// Zstd.
+    ///
+    /// Compresses all values with zstd.
+    Zstd,
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.
@@ -308,7 +377,10 @@ mod tests {
     #[test]
     fn test_global_config_invalid_value_is_default() {
         let options: Options = serde_json::from_str(
-            r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#,
+            r#"{
+                "relay.cardinality-limiter.mode": "passive",
+                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+            }"#,
         )
         .unwrap();
 
@@ -341,5 +413,59 @@ mod tests {
         let deserialized: GlobalConfig = serde_json::from_str(config).unwrap();
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(config, &serialized);
+    }
+
+    #[test]
+    fn test_metric_bucket_encodings_de_from_str() {
+        let o: Options = serde_json::from_str(
+            r#"{
+                "relay.metric-bucket-set-encodings": "legacy",
+                "relay.metric-bucket-distribution-encodings": "zstd"
+        }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            o.metric_bucket_set_encodings,
+            BucketEncodings {
+                transactions: BucketEncoding::Legacy,
+                spans: BucketEncoding::Legacy,
+                profiles: BucketEncoding::Legacy,
+                custom: BucketEncoding::Legacy,
+                metric_stats: BucketEncoding::Legacy,
+            }
+        );
+        assert_eq!(
+            o.metric_bucket_dist_encodings,
+            BucketEncodings {
+                transactions: BucketEncoding::Zstd,
+                spans: BucketEncoding::Zstd,
+                profiles: BucketEncoding::Zstd,
+                custom: BucketEncoding::Zstd,
+                metric_stats: BucketEncoding::Zstd,
+            }
+        );
+    }
+
+    #[test]
+    fn test_metric_bucket_encodings_de_from_obj() {
+        let original = BucketEncodings {
+            transactions: BucketEncoding::Base64,
+            spans: BucketEncoding::Zstd,
+            profiles: BucketEncoding::Base64,
+            custom: BucketEncoding::Zstd,
+            metric_stats: BucketEncoding::Base64,
+        };
+        let s = serde_json::to_string(&original).unwrap();
+        let s = format!(
+            r#"{{
+            "relay.metric-bucket-set-encodings": {s},
+            "relay.metric-bucket-distribution-encodings": {s}
+        }}"#
+        );
+
+        let o: Options = serde_json::from_str(&s).unwrap();
+        assert_eq!(o.metric_bucket_set_encodings, original);
+        assert_eq!(o.metric_bucket_dist_encodings, original);
     }
 }

@@ -1,5 +1,7 @@
+from collections import Counter
 import json
 from datetime import datetime, timedelta, timezone
+import uuid
 
 from opentelemetry.proto.trace.v1.trace_pb2 import (
     Span,
@@ -64,7 +66,7 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     if discard_transaction:
-        transactions_consumer.poll(timeout=2.0) is None
+        assert transactions_consumer.poll(timeout=2.0) is None
 
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
@@ -143,42 +145,14 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
 
-def test_span_ingestion(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-):
-    spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "max_secs_in_past": 2**64 - 1,
-            }
-        }
-    )
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
-    ]
-
-    duration = timedelta(milliseconds=500)
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
-    start = end - duration
-
-    # 1 - Send OTel span and sentry span via envelope
+def envelope_with_spans(
+    start: datetime, end: datetime, metrics_extracted: bool = False
+) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="otel_span",
+            headers={"metrics_extracted": metrics_extracted},
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
@@ -197,7 +171,9 @@ def test_span_ingestion(
                             {
                                 "key": "sentry.exclusive_time_ns",
                                 "value": {
-                                    "intValue": int(duration.total_seconds() * 1e9),
+                                    "intValue": int(
+                                        (end - start).total_seconds() * 1e9
+                                    ),
                                 },
                             },
                         ],
@@ -262,6 +238,43 @@ def test_span_ingestion(
             ),
         )
     )
+
+    return envelope
+
+
+def test_span_ingestion(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    # 1 - Send OTel span and sentry span via envelope
+    envelope = envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
     # 2 - Send OTel json span via endpoint
@@ -489,6 +502,26 @@ def test_span_ingestion(
             "retention_days": 90,
         },
         {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 3.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp + 1,
+            "type": "c",
+            "value": 3.0,
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
@@ -514,6 +547,26 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0, 500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
+            "timestamp": expected_timestamp + 1,
+            "type": "d",
+            "value": [345.0, 345.0],
         },
         {
             "org_id": 1,
@@ -994,3 +1047,121 @@ def test_span_ingestion_with_performance_scores(
             },
         },
     ]
+
+
+def test_rate_limit_indexed_consistent(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span_indexed"],
+            "limit": 4,
+            "window": 1000,
+            "id": uuid.uuid4(),
+            "reasonCode": "indexed_exceeded",
+        },
+    ]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_spans(start, end)
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    assert len(spans) == 4
+    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+
+    # Second batch is limited
+    relay.send_envelope(project_id, envelope)
+    assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
+def test_rate_limit_metrics_consistent(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
+):
+    """Rate limits for total spans (i.e. metrics) are enforced consistently after metrics extraction."""
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span"],
+            "limit": 3,
+            "window": 1000,
+            "id": uuid.uuid4(),
+            "reasonCode": "total_exceeded",
+        },
+    ]
+
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.utcnow()
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_spans(start, end)
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    # First batch passes (we over-accept once)
+    relay.send_envelope(project_id, envelope)
+    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    assert len(spans) == 4
+    metrics = list(metrics_consumer.get_metrics())
+    assert len(metrics) > 0
+    assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
+
+    # Accepted outcomes for main category are logged in sentry.
+    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+
+    # Second batch is limited
+    relay.send_envelope(project_id, envelope)
+    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    assert len(spans) == 0
+    metrics = list(metrics_consumer.get_metrics())
+    assert len(metrics) == 0
+    assert summarize_outcomes() == {
+        (16, 2): 4,  # SpanIndexed, RateLimited
+        (12, 2): 4,  # Span, RateLimited
+    }
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()

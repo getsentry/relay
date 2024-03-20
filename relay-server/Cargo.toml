@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.3.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -32,6 +32,9 @@ processing = [
     "relay-sampling/redis",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 serde_path_to_error = "0.1.14"
@@ -48,7 +51,7 @@ brotli = "3.3.4"
 bytecount = "0.6.0"
 bytes = { version = "1.4.0", features = ["serde"] }
 chrono = { workspace = true, features = ["clock"] }
-data-encoding = "2.3.3"
+data-encoding = "2.5.0"
 flate2 = "1.0.19"
 fnv = "1.0.7"
 futures = { workspace = true }

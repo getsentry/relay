@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic sampling functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -12,6 +12,9 @@ publish = false
 [features]
 default = []
 redis = ["dep:anyhow", "relay-redis/impl"]
+
+[lints]
+workspace = true
 
 [dependencies]
 anyhow = { workspace = true, optional = true }

@@ -578,6 +578,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
@@ -586,8 +588,16 @@ pub struct SourceQuantities {
 
 impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
-        self.transactions += other.transactions;
-        self.profiles += other.profiles;
+        let Self {
+            transactions,
+            spans,
+            profiles,
+            buckets,
+        } = self;
+        *transactions += other.transactions;
+        *spans += other.spans;
+        *profiles += other.profiles;
+        *buckets += other.buckets;
     }
 }
 
@@ -638,6 +648,11 @@ impl Item {
             ItemType::Attachment => self.len().max(1),
             _ => 1,
         }
+    }
+
+    /// True if the item represents any kind of span.
+    pub fn is_span(&self) -> bool {
+        matches!(self.ty(), ItemType::OtelSpan | ItemType::Span)
     }
 
     /// Returns the data category used for generating outcomes.

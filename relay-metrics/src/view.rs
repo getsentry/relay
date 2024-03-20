@@ -2,10 +2,13 @@ use relay_common::time::UnixTimestamp;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
-use crate::{aggregator, CounterType, DistributionType, GaugeValue, SetType, SetValue};
+use crate::{
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::bucket::Bucket;
 use crate::BucketValue;
@@ -370,8 +373,15 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'a str {
         &self.inner.name
+    }
+
+    /// Returns the name of the bucket.
+    ///
+    /// Caller holds shared ownership of the string.
+    pub fn clone_name(&self) -> Arc<str> {
+        Arc::clone(&self.inner.name)
     }
 
     /// Value of the bucket view.
@@ -387,15 +397,22 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::tags`]
-    pub fn tags(&self) -> &BTreeMap<String, String> {
+    pub fn tags(&self) -> &'a BTreeMap<String, String> {
         &self.inner.tags
     }
 
     /// Returns the value of the specified tag if it exists.
     ///
     /// See also: [`Bucket::tag()`]
-    pub fn tag(&self, name: &str) -> Option<&str> {
+    pub fn tag(&self, name: &str) -> Option<&'a str> {
         self.inner.tag(name)
+    }
+
+    /// Returns the metadata for this bucket.
+    ///
+    /// See also: [`Bucket::metadata`].
+    pub fn metadata(&self) -> &BucketMetadata {
+        &self.inner.metadata
     }
 
     /// Number of raw datapoints in this view.
@@ -514,6 +531,7 @@ impl<'a> Serialize for BucketView<'a> {
             name,
             value: _,
             tags,
+            metadata,
         } = self.inner;
 
         let len = match tags.is_empty() {
@@ -538,6 +556,9 @@ impl<'a> Serialize for BucketView<'a> {
 
         if !tags.is_empty() {
             state.serialize_entry("tags", tags)?;
+        }
+        if !metadata.is_default() {
+            state.serialize_entry("metadata", metadata)?;
         }
 
         state.end()
