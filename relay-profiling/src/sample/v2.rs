@@ -24,8 +24,8 @@ pub struct ProfileMetadata {
     /// Random UUID for each profiler session
     pub profiler_id: String,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub debug_meta: Option<DebugMeta>,
+    #[serde(default, skip_serializing_if = "DebugMeta::is_empty")]
+    pub debug_meta: DebugMeta,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
@@ -48,8 +48,8 @@ pub struct Sample {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileChunk {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub measurements: Option<BTreeMap<String, Measurement>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub measurements: BTreeMap<String, Measurement>,
     #[serde(flatten)]
     pub metadata: ProfileMetadata,
     pub profile: ProfileData,
@@ -67,8 +67,8 @@ pub struct ProfileData {
     pub stacks: Vec<Vec<usize>>,
     pub frames: Vec<Frame>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_metadata: Option<BTreeMap<String, ThreadMetadata>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub thread_metadata: BTreeMap<String, ThreadMetadata>,
 }
 
 impl ProfileData {
@@ -126,14 +126,13 @@ impl ProfileData {
     }
 
     fn remove_unreferenced_threads(&mut self) {
-        if let Some(thread_metadata) = &mut self.thread_metadata {
-            let thread_ids = self
-                .samples
-                .iter()
-                .map(|sample| sample.thread_id.clone())
-                .collect::<HashSet<_>>();
-            thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
-        }
+        let thread_ids = self
+            .samples
+            .iter()
+            .map(|sample| sample.thread_id.clone())
+            .collect::<HashSet<_>>();
+        self.thread_metadata
+            .retain(|thread_id, _| thread_ids.contains(thread_id));
     }
 }
 
