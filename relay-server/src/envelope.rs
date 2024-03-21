@@ -694,7 +694,7 @@ impl Item {
             } else {
                 DataCategory::Span
             }),
-            ItemType::ProfileChunk => Some(DataCategory::ProfileDuration),
+            ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
     }
