@@ -22,17 +22,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         .filter(|item| item.ty() == &ItemType::Transaction)
         .count();
     let mut profile_id = None;
-    let continuous_profiling_enabled = state
-        .project_state
-        .has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::ProfileChunk => {
-            if continuous_profiling_enabled {
-                ItemAction::Keep
-            } else {
-                ItemAction::DropSilently
-            }
-        }
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
             // Drop profile without a transaction in the same envelope.
@@ -81,18 +71,8 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 #[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-    let continuous_profiling_enabled = state
-        .project_state
-        .has_feature(Feature::ContinuousProfiling);
     let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::ProfileChunk => {
-            if !continuous_profiling_enabled {
-                return ItemAction::DropSilently;
-            }
-            expand_profile_chunk(item, config);
-            ItemAction::Keep
-        }
         ItemType::Profile => {
             if !profiling_enabled {
                 return ItemAction::DropSilently;
@@ -143,25 +123,6 @@ pub fn expand_profile(
         ))),
     };
     (profile_id, item_action)
-}
-
-#[cfg(feature = "processing")]
-pub fn expand_profile_chunk(item: &mut Item, config: &Config) -> ItemAction {
-    match relay_profiling::expand_profile_chunk(&item.payload()) {
-        Ok(payload) => {
-            if payload.len() <= config.max_profile_size() {
-                item.set_payload(ContentType::Json, payload);
-                ItemAction::Keep
-            } else {
-                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
-                )))
-            }
-        }
-        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(err),
-        ))),
-    }
 }
 
 #[cfg(test)]

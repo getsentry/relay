@@ -171,6 +171,9 @@ pub struct EnvelopeSummary {
 
     /// The payload size of this envelope.
     pub payload_size: usize,
+
+    /// The number of profile chunks in this envelope.
+    pub profile_chunk_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -230,6 +233,7 @@ impl EnvelopeSummary {
             ItemType::CheckIn => &mut self.checkin_quantity,
             ItemType::OtelSpan => &mut self.span_quantity,
             ItemType::Span => &mut self.span_quantity,
+            ItemType::ProfileChunk => &mut self.profile_chunk_quantity,
             _ => return,
         };
         *target_quantity += item.quantity();
@@ -318,6 +322,8 @@ pub struct Enforcement {
     spans: CategoryLimit,
     /// The combined rate limit for metrics extracted from spans.
     span_metrics: CategoryLimit,
+    /// The combined profile chunk item rate limit.
+    profile_chunks: CategoryLimit,
 }
 
 impl Enforcement {
@@ -348,6 +354,7 @@ impl Enforcement {
             event_metrics,
             spans,
             span_metrics,
+            profile_chunks,
         } = self;
 
         let limits = [
@@ -359,6 +366,7 @@ impl Enforcement {
             event_metrics,
             spans,
             span_metrics,
+            profile_chunks,
         ];
 
         limits
@@ -665,6 +673,17 @@ where
                 CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
 
             rate_limits.merge(span_limits);
+        }
+
+        if summary.profile_chunk_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::ProfileChunk);
+            let profile_chunk_limits = (self.check)(item_scoping, summary.profile_chunk_quantity)?;
+            enforcement.profile_chunks = CategoryLimit::new(
+                DataCategory::ProfileChunk,
+                summary.profile_chunk_quantity,
+                profile_chunk_limits.longest(),
+            );
+            rate_limits.merge(profile_chunk_limits);
         }
 
         Ok((enforcement, rate_limits))

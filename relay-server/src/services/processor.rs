@@ -90,6 +90,7 @@ mod attachment;
 mod dynamic_sampling;
 mod event;
 mod profile;
+mod profile_chunk;
 mod replay;
 mod report;
 mod session;
@@ -165,6 +166,7 @@ processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
+processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
 processing_group!(ForwardUnknownGroup, ForwardUnknown);
 processing_group!(Ungrouped, Ungrouped);
@@ -202,6 +204,8 @@ pub enum ProcessingGroup {
     Span,
     /// Metrics.
     Metrics,
+    /// ProfileChunk.
+    ProfileChunk,
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     ForwardUnknown,
@@ -271,6 +275,16 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Metrics,
                 Envelope::from_parts(headers.clone(), metric_items),
+            ))
+        }
+
+        // Extract profile chunks.
+        let profile_chunk_items =
+            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::ProfileChunk));
+        if !profile_chunk_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::ProfileChunk,
+                Envelope::from_parts(headers.clone(), profile_chunk_items),
             ))
         }
 
@@ -355,6 +369,7 @@ impl ProcessingGroup {
             ProcessingGroup::CheckIn => "check_in",
             ProcessingGroup::Span => "span",
             ProcessingGroup::Metrics => "metrics",
+            ProcessingGroup::ProfileChunk => "profile_chunk",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
             ProcessingGroup::Ungrouped => "ungrouped",
         }
@@ -373,6 +388,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
+            ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
             ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
         }
@@ -1375,6 +1391,17 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    fn process_profile_chunks(
+        &self,
+        state: &mut ProcessEnvelopeState<ProfileChunkGroup>,
+    ) -> Result<(), ProcessingError> {
+        profile_chunk::filter(state);
+        if_processing!(self.inner.config, {
+            profile_chunk::process(state, &self.inner.config);
+        });
+        Ok(())
+    }
+
     /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
     fn process_standalone(
         &self,
@@ -1512,6 +1539,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => run!(process_replays),
             ProcessingGroup::CheckIn => run!(process_checkins),
             ProcessingGroup::Span => run!(process_standalone_spans),
+            ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
