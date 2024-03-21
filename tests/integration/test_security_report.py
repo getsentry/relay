@@ -210,17 +210,27 @@ def test_deprication_reports_with_processing(
         },
     ]
 
-    relay.send_security_report(
-        project_id=proj_id,
-        content_type="application/reports+json; charset=utf-8",
-        payload=reports,
-        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
-        environment="production",
-    )
+    try:
+        relay.send_security_report(
+            project_id=proj_id,
+            content_type="application/reports+json; charset=utf-8",
+            payload=reports,
+            release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+            environment="production",
+        )
 
-    events = []
-    event, _ = events_consumer.get_event()
-    events.append(event)
+        events = []
+        event, _ = events_consumer.get_event()
+        events.append(event)
+
+        # We will discard the unsupported "deprecation" report type.
+        assert len(mini_sentry.test_failures) > 0
+        assert {str(e) for _, e in mini_sentry.test_failures} == {
+            "Relay sent us event: failed to extract security report: event filtered with reason: InvalidCsp",
+            "Relay sent us event: dropped envelope: internal error",
+        }
+    finally:
+        mini_sentry.test_failures.clear()
 
     events_consumer.assert_empty()
     assert len(events), 1
