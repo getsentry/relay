@@ -27,6 +27,7 @@ class DataCategory(IntEnum):
     METRIC_BUCKET = 15
     SPAN_INDEXED = 16
     PROFILE_DURATION = 17
+    PROFILE_CHUNK = 18
     UNKNOWN = -1
     # end generated
 

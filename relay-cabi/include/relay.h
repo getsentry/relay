@@ -114,6 +114,13 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_PROFILE_DURATION = 17,
   /**
+   * ProfileChunk
+   *
+   * This is a count of profile chunks received. It will not be used for billing but will be
+   * useful for customers to track what's being dropped.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_CHUNK = 18,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
