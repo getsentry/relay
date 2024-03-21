@@ -193,14 +193,13 @@ impl StoreService {
 
     fn store_envelope(
         &self,
-        envelope: Box<Envelope>,
+        mut envelope: Box<Envelope>,
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
-        let client = envelope.meta().client();
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by(|item| {
+        let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
                 ItemType::Event
@@ -209,10 +208,11 @@ impl StoreService {
                     | ItemType::UserReportV2
             )
         });
+        let client = envelope.meta().client();
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
@@ -254,7 +254,6 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => self.produce_metrics(scoping, item, retention)?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -299,7 +298,9 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
-                _ => {}
+                other => {
+                    relay_log::error!("StoreService received unexpected item type: {other}");
+                }
             }
         }
 
@@ -329,7 +330,7 @@ impl StoreService {
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
         let kafka_messages = Self::extract_kafka_messages_for_event(
-            event_item,
+            event_item.as_ref(),
             event_id.ok_or(StoreError::NoEventId)?,
             scoping,
             start_time,
@@ -822,37 +823,6 @@ impl StoreService {
             organization_id,
             KafkaMessage::Metric { headers, message },
         )?;
-        Ok(())
-    }
-
-    fn produce_metrics(
-        &self,
-        scoping: Scoping,
-        item: &Item,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        let payload = item.payload();
-
-        let global_config = self.global_config.current();
-        let mut encoder = BucketEncoder::new(&global_config);
-
-        for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
-            let namespace = encoder.prepare(&mut bucket);
-
-            let view = BucketView::new(&bucket);
-            let message = self.create_metric_message(
-                scoping.organization_id,
-                scoping.project_id,
-                &mut encoder,
-                namespace,
-                &view,
-                retention,
-            );
-
-            message.and_then(|message| self.send_metric_message(namespace, message))?;
-            self.metric_stats.track(scoping, bucket, Outcome::Accepted);
-        }
-
         Ok(())
     }
 
