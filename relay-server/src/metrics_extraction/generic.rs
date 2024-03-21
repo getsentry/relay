@@ -189,7 +189,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -229,7 +231,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "d:transactions/duration@none",
+                name: MetricName(
+                    "d:transactions/duration@none",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -273,7 +277,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "s:transactions/users@none",
+                name: MetricName(
+                    "s:transactions/users@none",
+                ),
                 value: Set(
                     {
                         943162418,
@@ -329,7 +335,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -386,7 +394,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -445,7 +455,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -512,7 +524,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "d:transactions/measurements.valid@none",
+                name: MetricName(
+                    "d:transactions/measurements.valid@none",
+                ),
                 value: Distribution(
                     [
                         1.0,

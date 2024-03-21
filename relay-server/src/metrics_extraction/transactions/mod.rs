@@ -670,7 +670,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.foo@none",
+                name: MetricName(
+                    "d:transactions/measurements.foo@none",
+                ),
                 value: Distribution(
                     [
                         420.69,
@@ -697,7 +699,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.lcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         3000.0,
@@ -725,7 +729,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.lcp@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.lcp@ratio",
+                ),
                 value: Distribution(
                     [
                         0.0,
@@ -747,7 +753,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.total@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.total@ratio",
+                ),
                 value: Distribution(
                     [
                         0.0,
@@ -769,7 +777,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.weight.lcp@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.weight.lcp@ratio",
+                ),
                 value: Distribution(
                     [
                         1.0,
@@ -791,7 +801,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                name: MetricName(
+                    "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -818,7 +830,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -830,7 +844,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -857,7 +873,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -874,7 +892,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "s:transactions/user@none",
+                name: MetricName(
+                    "s:transactions/user@none",
+                ),
                 value: Set(
                     {
                         933084975,
@@ -942,7 +962,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.fcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         1.1,
@@ -961,7 +983,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.foo@none",
+                name: MetricName(
+                    "d:transactions/measurements.foo@none",
+                ),
                 value: Distribution(
                     [
                         8.8,
@@ -979,7 +1003,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.stall_count@none",
+                name: MetricName(
+                    "d:transactions/measurements.stall_count@none",
+                ),
                 value: Distribution(
                     [
                         3.3,
@@ -997,7 +1023,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -1009,7 +1037,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1027,7 +1057,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1081,7 +1113,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.fcp@second",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@second",
+                ),
                 value: Distribution(
                     [
                         1.1,
@@ -1100,7 +1134,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.lcp@none",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@none",
+                ),
                 value: Distribution(
                     [
                         2.2,
@@ -1119,7 +1155,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -1131,7 +1169,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1149,7 +1189,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1277,7 +1319,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.a_custom1@none",
+                name: MetricName(
+                    "d:transactions/measurements.a_custom1@none",
+                ),
                 value: Distribution(
                     [
                         41.0,
@@ -1295,7 +1339,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.fcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         0.123,
@@ -1314,7 +1360,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.g_custom2@second",
+                name: MetricName(
+                    "d:transactions/measurements.g_custom2@second",
+                ),
                 value: Distribution(
                     [
                         42.0,
@@ -1332,7 +1380,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -1344,7 +1394,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -1362,7 +1414,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -1513,7 +1567,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -1525,7 +1581,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1543,7 +1601,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1671,7 +1731,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/count_per_root_project@none",
+                name: MetricName(
+                    "c:transactions/count_per_root_project@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -1938,16 +2000,36 @@ mod tests {
 
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
-            "d:transactions/measurements.frames_frozen@none",
-            "d:transactions/measurements.frames_frozen_rate@ratio",
-            "d:transactions/measurements.frames_slow@none",
-            "d:transactions/measurements.frames_slow_rate@ratio",
-            "d:transactions/measurements.frames_total@none",
-            "d:transactions/measurements.stall_percentage@ratio",
-            "d:transactions/measurements.stall_total_time@millisecond",
-            "c:transactions/usage@none",
-            "d:transactions/duration@millisecond",
-            "d:transactions/duration_light@millisecond",
+            MetricName(
+                "d:transactions/measurements.frames_frozen@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_frozen_rate@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_slow@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_slow_rate@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_total@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.stall_percentage@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.stall_total_time@millisecond",
+            ),
+            MetricName(
+                "c:transactions/usage@none",
+            ),
+            MetricName(
+                "d:transactions/duration@millisecond",
+            ),
+            MetricName(
+                "d:transactions/duration_light@millisecond",
+            ),
         ]
         "###);
     }
@@ -2009,7 +2091,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.lcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         41.0,
@@ -2026,7 +2110,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -2038,7 +2124,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -2055,7 +2143,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
