@@ -35,7 +35,7 @@ impl HistogramMetric for KafkaHistograms {
 }
 
 pub enum KafkaGauges {
-    /// The number of messages waiting to be acknowledged.
+    /// The number of messages waiting to be sent to, or acknowledged by, the broker.
     ///
     /// See <https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7>.
     ///
