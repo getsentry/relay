@@ -81,34 +81,10 @@
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::BTreeMap;
-<span class="kw">use </span>std::fmt::Write;
 
-<span class="kw">use </span>jsonschema::JSONSchema;
+<span class="kw">use </span>sentry_kafka_schemas::{Schema <span class="kw">as </span>SentrySchema, SchemaError <span class="kw">as </span>SentrySchemaError};
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{KafkaTopic, TopicAssignment, TopicAssignments};
@@ -131,30 +107,22 @@
     </span><span class="attr">#[error(<span class="string">"failed to determine logical topic"</span>)]
     </span>LogicalTopic,
 
-    <span class="doccomment">/// Failed to deserialize message, potentially because it isn't JSON?
-    </span><span class="attr">#[error(<span class="string">"failed to deserialize message"</span>)]
-    </span>MessageJson(<span class="attr">#[source] </span>serde_json::Error),
-
-    <span class="doccomment">/// Failed to deserialize schema as JSON
-    </span><span class="attr">#[error(<span class="string">"failed to deserialize schema"</span>)]
-    </span>SchemaJson(<span class="attr">#[source] </span>serde_json::Error),
-
     <span class="doccomment">/// Failed to compile schema
     </span><span class="comment">// We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
     </span><span class="attr">#[error(<span class="string">"failed to compile schema: {0}"</span>)]
-    </span>SchemaCompiled(String),
+    </span>SchemaCompiled(SentrySchemaError),
 
     <span class="doccomment">/// Failed to validate message JSON against schema
     </span><span class="comment">// We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
     </span><span class="attr">#[error(<span class="string">"message violates schema: {0}"</span>)]
-    </span>Message(String),
+    </span>Validation(SentrySchemaError),
 }
 
 <span class="doccomment">/// Validates payloads for their given topic's schema.
 </span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>Validator {
     <span class="doccomment">/// Caches the schema for given topics.
-    </span>schemas: BTreeMap&lt;KafkaTopic, <span class="prelude-ty">Option</span>&lt;JSONSchema&gt;&gt;,
+    </span>schemas: BTreeMap&lt;KafkaTopic, <span class="prelude-ty">Option</span>&lt;SentrySchema&gt;&gt;,
 }
 
 <span class="kw">impl </span>Validator {
@@ -167,42 +135,28 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(schema) = <span class="self">self</span>.get_schema(topic)<span class="question-mark">? </span><span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         };
-        <span class="kw">let </span>message_value = serde_json::from_slice(message).map_err(SchemaError::MessageJson)<span class="question-mark">?</span>;
 
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = schema.validate(<span class="kw-2">&amp;</span>message_value) {
-            <span class="kw">let </span><span class="kw-2">mut </span>result = String::new();
-            <span class="kw">for </span>error <span class="kw">in </span>e {
-                <span class="macro">writeln!</span>(result, <span class="string">"{error}"</span>).unwrap();
-            }
-
-            <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::Message(result));
-        }
-
-        <span class="prelude-val">Ok</span>(())
+        schema
+            .validate_json(message)
+            .map_err(SchemaError::Validation)
+            .map(drop)
     }
 
-    <span class="kw">fn </span>get_schema(<span class="kw-2">&amp;mut </span><span class="self">self</span>, topic: KafkaTopic) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>JSONSchema&gt;, SchemaError&gt; {
+    <span class="kw">fn </span>get_schema(<span class="kw-2">&amp;mut </span><span class="self">self</span>, topic: KafkaTopic) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SentrySchema&gt;, SchemaError&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw">match </span><span class="self">self</span>.schemas.entry(topic) {
-            Entry::Vacant(entry) =&gt; {
-                entry.insert({
-                    <span class="kw">let </span>default_assignments = TopicAssignments::default();
-                    <span class="kw">let </span>logical_topic_name = <span class="kw">match </span>default_assignments.get(topic) {
-                        TopicAssignment::Primary(logical_topic_name) =&gt; logical_topic_name,
-                        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::LogicalTopic),
-                    };
+            Entry::Vacant(entry) =&gt; entry.insert({
+                <span class="kw">let </span>default_assignments = TopicAssignments::default();
+                <span class="kw">let </span>logical_topic_name = <span class="kw">match </span>default_assignments.get(topic) {
+                    TopicAssignment::Primary(logical_topic_name) =&gt; logical_topic_name,
+                    <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::LogicalTopic),
+                };
 
-                    <span class="kw">let </span>schema = <span class="kw">match </span>sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>) {
-                        <span class="prelude-val">Ok</span>(schema) =&gt; schema,
-                        <span class="comment">// No topic found
-                        </span><span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
-                    };
-                    <span class="kw">let </span>schema =
-                        serde_json::from_str(<span class="kw-2">&amp;</span>schema.schema).map_err(SchemaError::SchemaJson)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>schema = JSONSchema::compile(<span class="kw-2">&amp;</span>schema)
-                        .map_err(|e| SchemaError::SchemaCompiled(e.to_string()))<span class="question-mark">?</span>;
-                    <span class="prelude-val">Some</span>(schema)
-                })
-            }
+                <span class="kw">match </span>sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>) {
+                    <span class="prelude-val">Ok</span>(schema) =&gt; <span class="prelude-val">Some</span>(schema),
+                    <span class="prelude-val">Err</span>(SentrySchemaError::TopicNotFound) =&gt; <span class="prelude-val">None</span>,
+                    <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::SchemaCompiled(err)),
+                }
+            }),
             Entry::Occupied(entry) =&gt; entry.into_mut(),
         }
         .as_ref())
