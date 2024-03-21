@@ -1894,6 +1894,9 @@
 <a href="#1893" id="1893">1893</a>
 <a href="#1894" id="1894">1894</a>
 <a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2304,7 +2307,10 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = error {
-            <span class="macro">relay_log::error!</span>(<span class="string">"failed to produce metric buckets: {error}"</span>);
+            <span class="macro">relay_log::error!</span>(
+                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                <span class="string">"failed to produce metric buckets: {error}"
+            </span>);
 
             utils::reject_metrics(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
