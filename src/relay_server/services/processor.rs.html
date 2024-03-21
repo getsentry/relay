@@ -4586,7 +4586,6 @@
             {
                 <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                     event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
                     profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
                 });
 
@@ -4598,6 +4597,7 @@
                 }
 
                 <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                    <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
                     span::maybe_discard_transaction(state);
                 });
                 <span class="kw">if </span>state.has_event() {

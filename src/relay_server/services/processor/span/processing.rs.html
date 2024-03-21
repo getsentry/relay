@@ -485,6 +485,8 @@
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -672,6 +674,8 @@
         item.set_payload(ContentType::Json, span);
         <span class="comment">// If metrics extraction happened for the event, it also happened for its spans:
         </span>item.set_metrics_extracted(state.event_metrics_extracted);
+
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Adding span to envelope"</span>);
         state.managed_envelope.envelope_mut().add_item(item);
     };
 

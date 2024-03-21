@@ -1893,6 +1893,7 @@
 <a href="#1892" id="1892">1892</a>
 <a href="#1893" id="1893">1893</a>
 <a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2934,6 +2935,7 @@
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Producing span"</span>);
         <span class="kw">let </span>payload = item.payload();
         <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(<span class="kw-2">&amp;</span>payload);
         <span class="kw">let </span><span class="kw-2">mut </span>span: SpanKafkaMessage = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
