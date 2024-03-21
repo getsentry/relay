@@ -188,6 +188,13 @@
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -264,6 +271,11 @@
     /// This data category is used to count the number of milliseconds we have per indexed profile chunk.
     /// We will then bill per second.
     </span>ProfileDuration = <span class="number">17</span>,
+    <span class="doccomment">/// ProfileChunk
+    ///
+    /// This is a count of profile chunks received. It will not be used for billing but will be
+    /// useful for customers to track what's being dropped.
+    </span>ProfileChunk = <span class="number">18</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -297,6 +309,7 @@
             <span class="string">"metric_bucket" </span>=&gt; <span class="self">Self</span>::MetricBucket,
             <span class="string">"span_indexed" </span>=&gt; <span class="self">Self</span>::SpanIndexed,
             <span class="string">"profile_duration" </span>=&gt; <span class="self">Self</span>::ProfileDuration,
+            <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -323,6 +336,7 @@
             <span class="self">Self</span>::MetricBucket =&gt; <span class="string">"metric_bucket"</span>,
             <span class="self">Self</span>::SpanIndexed =&gt; <span class="string">"span_indexed"</span>,
             <span class="self">Self</span>::ProfileDuration =&gt; <span class="string">"profile_duration"</span>,
+            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
         }
     }
