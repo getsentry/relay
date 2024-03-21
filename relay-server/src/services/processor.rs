@@ -413,6 +413,9 @@ pub enum ProcessingError {
     #[error("invalid security report type: {0:?}")]
     InvalidSecurityType(Bytes),
 
+    #[error("unsupported security report type")]
+    UnsupportedSecurityType,
+
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
@@ -453,6 +456,7 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),

@@ -226,8 +226,7 @@ def test_deprication_reports_with_processing(
         # We will discard the unsupported "deprecation" report type.
         assert len(mini_sentry.test_failures) > 0
         assert {str(e) for _, e in mini_sentry.test_failures} == {
-            "Relay sent us event: failed to extract security report: event filtered with reason: InvalidCsp",
-            "Relay sent us event: dropped envelope: internal error",
+            "Relay sent us event: failed to extract security report: unsupported security report type",
         }
     finally:
         mini_sentry.test_failures.clear()

@@ -558,11 +558,7 @@ fn event_from_security_report(
             EventType::ExpectStaple,
         ),
         SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
-        SecurityReportType::Unsupported => {
-            return Err(ProcessingError::EventFiltered(
-                relay_filter::FilterStatKey::InvalidCsp,
-            ))
-        }
+        SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {

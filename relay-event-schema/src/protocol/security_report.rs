@@ -189,13 +189,13 @@ struct CspRaw {
     effective_directive: Option<String>,
     #[serde(
         default = "CspRaw::default_blocked_uri",
-        alias = "blockedUrl",
+        alias = "blockedURL",
         alias = "blocked-uri"
     )]
     blocked_uri: String,
     #[serde(
         skip_serializing_if = "Option::is_none",
-        alias = "documentUrl",
+        alias = "documentURL",
         alias = "document-uri"
     )]
     document_uri: Option<String>,
