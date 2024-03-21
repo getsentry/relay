@@ -1347,7 +1347,6 @@ impl EnvelopeProcessorService {
             {
                 if_processing!(self.inner.config, {
                     event::store(state, &self.inner.config)?;
-                    self.enforce_quotas(state)?;
                     profile::process(state, &self.inner.config);
                 });
 
@@ -1359,6 +1358,7 @@ impl EnvelopeProcessorService {
                 }
 
                 if_processing!(self.inner.config, {
+                    self.enforce_quotas(state)?;
                     span::maybe_discard_transaction(state);
                 });
                 if state.has_event() {
