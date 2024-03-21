@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 import json
-import uuid
 
 
 def test_sessions(mini_sentry, relay_chain):
