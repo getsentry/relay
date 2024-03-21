@@ -46,7 +46,7 @@ const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
-    #[error("failed to send the message to kafka")]
+    #[error("failed to send the message to kafka: {0}")]
     SendFailed(#[from] ClientError),
     #[error("failed to encode data: {0}")]
     EncodingFailed(std::io::Error),
