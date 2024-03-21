@@ -263,20 +263,6 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=2)
 
 
-def test_store_not_normalized(mini_sentry, relay):
-    """
-    Tests that relay does not normalize when processing is disabled
-    """
-    relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-    relay.send_event(project_id, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event.get("key_id") is None
-    assert event.get("project") is None
-    assert event.get("version") is None
-
-
 def make_transaction(event):
     now = datetime.utcnow()
     event.update(

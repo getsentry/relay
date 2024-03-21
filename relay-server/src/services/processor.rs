@@ -1213,7 +1213,10 @@ impl EnvelopeProcessorService {
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
-            if key_id.is_none() {
+            // TODO(iker): log the missing key_id error in all internal relays
+            // that do processing. The field should be available in all
+            // internal/authenticated relays, not just processing.
+            if self.inner.config.processing_enabled() && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
                     state.managed_envelope.envelope().meta().public_key()
