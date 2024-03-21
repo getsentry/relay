@@ -1151,12 +1151,14 @@ def test_rate_limit_indexed_consistent_extracted(
 
     # First send should be accepted.
     relay.send_event(project_id, event)
-    spans = list(spans_consumer.get_spans(max_attempts=2, timeout=15))
+    spans = list(spans_consumer.get_spans(max_attempts=2, timeout=10))
     assert len(spans) == 2  # one for the transaction, one for the contained span
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
+    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    assert len(spans) == 0  # all rejected
     assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
