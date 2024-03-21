@@ -349,13 +349,13 @@ impl BucketValue {
     }
 }
 
-/// The name of a metric.
+/// Optimized string represenation of a metric name
 ///
-/// Optimized string represenation of a metric name, the contained name
-/// does not need to be valid MRI, but usually is.
+/// The contained name does not need to be valid MRI, but it usually is.
 ///
 /// The metric name can be efficiently cloned.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
 pub struct MetricName(Arc<str>);
 
 impl MetricName {
@@ -369,6 +369,8 @@ impl MetricName {
     /// use relay_metrics::{MetricName, MetricNamespace};
     ///
     /// let name = MetricName::from("foo");
+    /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
+    /// let name = MetricName::from("c:custom_oops/foo@none");
     /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
     ///
     /// let name = MetricName::from("c:custom/foo@none");
@@ -389,9 +391,12 @@ impl MetricName {
     ///
     /// let name = MetricName::from("foo");
     /// assert!(name.try_namespace().is_none());
+    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// assert!(name.try_namespace().is_none());
     ///
     /// let name = MetricName::from("c:custom/foo@none");
     /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
+    ///
     /// ```
     pub fn try_namespace(&self) -> Option<MetricNamespace> {
         // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`,
@@ -453,24 +458,6 @@ impl AsRef<str> for MetricName {
 impl std::borrow::Borrow<str> for MetricName {
     fn borrow(&self) -> &str {
         self.0.borrow()
-    }
-}
-
-impl Serialize for MetricName {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for MetricName {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Deserialize::deserialize(deserializer).map(Self)
     }
 }
 
