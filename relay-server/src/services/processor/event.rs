@@ -103,10 +103,12 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
+            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to extract security report"
+                );
+            }
             error
         })?
     } else if let Some(item) = nel_item {
