@@ -1,11 +1,11 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The Sentry relay server application."><title>relay_server - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2><a href="../relay_server/index.html">relay_server</a><span class="version">24.3.0</span></h2></div><div class="sidebar-elems"><ul class="block">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The Sentry relay server application."><title>relay_server - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-4c98445ec4002617.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2><a href="../relay_server/index.html">relay_server</a><span class="version">24.3.0</span></h2></div><div class="sidebar-elems"><ul class="block">
             <li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#functions">Functions</a></li></ul></section></div></nav><div class="sidebar-resizer"></div>
     <main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../relay_server/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">relay_server</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/relay_server/lib.rs.html#1-316">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The Sentry relay server application.</p>
 <p>This module contains the <a href="fn.run.html" title="fn relay_server::run"><code>run</code></a> function which starts the relay server. It responds on
 multiple supported endpoints, serves queries to downstream relays and send received events to
 the upstream.</p>
 <p>See the <a href="../relay_config/config/struct.Config.html" title="struct relay_config::config::Config"><code>Config</code></a> documentation for more information on configuration options.</p>
-<h2 id="path-of-an-event-through-relay"><a href="#path-of-an-event-through-relay">Path of an Event through Relay</a></h2><h3 id="overview"><a href="#overview">Overview</a></h3>
+<h2 id="path-of-an-event-through-relay"><a class="doc-anchor" href="#path-of-an-event-through-relay">§</a>Path of an Event through Relay</h2><h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
 <p>Simplified overview of event ingestion (ignores snuba/postprocessing):</p>
 <div class="example-wrap"><pre class="language-mermaid"><code>graph LR
 
@@ -27,7 +27,7 @@ preprocess--&gt;process
 preprocess--&gt;save
 process--&gt;save
 
-</code></pre></div><h3 id="processing-enabled-vs-not"><a href="#processing-enabled-vs-not">Processing enabled vs not?</a></h3>
+</code></pre></div><h3 id="processing-enabled-vs-not"><a class="doc-anchor" href="#processing-enabled-vs-not">§</a>Processing enabled vs not?</h3>
 <p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>’s
 infrastructure, or next to the application as a forwarding proxy. A lot of
 steps described here are skipped or run in a limited form when Relay is <em>not</em>
@@ -51,7 +51,7 @@ from previously mentioned endpoint.</p>
 <p>Filters are not applied at all.</p>
 </li>
 </ul>
-<h3 id="inside-the-endpoint"><a href="#inside-the-endpoint">Inside the endpoint</a></h3>
+<h3 id="inside-the-endpoint"><a class="doc-anchor" href="#inside-the-endpoint">§</a>Inside the endpoint</h3>
 <p>When an SDK hits <code>/api/X/store</code> on Relay, the code in
 <code>server/src/endpoints/store.rs</code> is called before returning a HTTP response.</p>
 <p>That code looks into an in-memory cache to answer basic information about a project such as:</p>
@@ -102,7 +102,7 @@ events should quickly result in eventually consistent and correct status codes.<
 external services) is deferred into a background task. Except for responding to
 the HTTP request, there’s no I/O done in the endpoint in any form. We didn’t
 even hit Redis to calculate rate limits.</p>
-<h4 id="summary"><a href="#summary">Summary</a></h4>
+<h4 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h4>
 <p>The HTTP response returned is just a best-effort guess at what the actual
 outcome of the event is going to be. We only return a <code>4xx</code> code if we know that
 the response will fail (based on cached information), if we don’t we return a
@@ -113,7 +113,7 @@ processing used to happen synchronously in the Python implementation of
 we might return 200 for events that will ultimately not be accepted.</p>
 <p>Generally Relay will return a 200 in many more situations than the old
 <code>StoreView</code>.</p>
-<h3 id="the-background-task"><a href="#the-background-task">The background task</a></h3>
+<h3 id="the-background-task"><a class="doc-anchor" href="#the-background-task">§</a>The background task</h3>
 <p>The HTTP response is out by now. The rest of what used to happen synchronously in the
 Python <code>StoreView</code> is done asynchronously, but still in the same process.</p>
 <p>So, now to the real work:</p>
@@ -170,24 +170,24 @@ part of the project config fetched from Sentry.</p>
 </ol>
 <p><strong>Note:</strong> If we discard an event at any point, an outcome is written to Kafka
 if Relay is configured to do so.</p>
-<h4 id="summary-1"><a href="#summary-1">Summary</a></h4>
+<h4 id="summary-1"><a class="doc-anchor" href="#summary-1">§</a>Summary</h4>
 <p>For events that returned a <code>200</code> we spawn an in-process background task
 that does the rest of what the old <code>StoreView</code> did.</p>
 <p>This task updates in-memory state for rate limits and disabled
 projects/keys.</p>
-<h3 id="the-outcomes-consumer"><a href="#the-outcomes-consumer">The outcomes consumer</a></h3>
+<h3 id="the-outcomes-consumer"><a class="doc-anchor" href="#the-outcomes-consumer">§</a>The outcomes consumer</h3>
 <p>Outcomes are small messages in Kafka that contain an event ID and information
 about whether that event was rejected, and if so, why.</p>
 <p>The outcomes consumer is mostly responsible for updating (user-visible)
 counters in Sentry (buffers/counters and tsdb, which are two separate systems).</p>
-<h3 id="the-ingest-consumer"><a href="#the-ingest-consumer">The ingest consumer</a></h3>
+<h3 id="the-ingest-consumer"><a class="doc-anchor" href="#the-ingest-consumer">§</a>The ingest consumer</h3>
 <p>The ingest consumer reads accepted events from Kafka, and also updates some
 stats. Some of <em>those</em> stats are billing-relevant.</p>
 <p>Its main purpose is to do what <code>insert_data_to_database</code> in Python store did:
 Call <code>preprocess_event</code>, after which comes sourcemap processing, native
 symbolication, grouping, snuba and all that other stuff that is of no concern
 to Relay.</p>
-<h3 id="sequence-diagram-of-components-inside-relay"><a href="#sequence-diagram-of-components-inside-relay">Sequence diagram of components inside Relay</a></h3><div class="example-wrap"><pre class="language-mermaid"><code>sequenceDiagram
+<h3 id="sequence-diagram-of-components-inside-relay"><a class="doc-anchor" href="#sequence-diagram-of-components-inside-relay">§</a>Sequence diagram of components inside Relay</h3><div class="example-wrap"><pre class="language-mermaid"><code>sequenceDiagram
 participant sdk as SDK
 participant endpoint as Endpoint
 participant projectcache as ProjectCache
@@ -228,4 +228,4 @@ deactivate envelopemanager
 mermaid.init({}, ".language-mermaid code");
 // Could not get dark mode in mermaid to work
 Array.from(document.getElementsByTagName('svg')).map(x => x.style.background = "white")
-</script></div></details><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="spool_utils/index.html" title="mod relay_server::spool_utils">spool_utils</a></div><div class="desc docblock-short">Contains helper utils which help to manage the spooler and spooled data.</div></li></ul><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.run.html" title="fn relay_server::run">run</a></div><div class="desc docblock-short">Runs a relay web server and spawns all internal worker threads.</div></li></ul></section></div></main></body></html>
+</script></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="spool_utils/index.html" title="mod relay_server::spool_utils">spool_utils</a></div><div class="desc docblock-short">Contains helper utils which help to manage the spooler and spooled data.</div></li></ul><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.run.html" title="fn relay_server::run">run</a></div><div class="desc docblock-short">Runs a relay web server and spawns all internal worker threads.</div></li></ul></section></div></main></body></html>
