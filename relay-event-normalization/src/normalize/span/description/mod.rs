@@ -312,6 +312,7 @@ fn split_string_with_quotes(string: &str) -> Vec<String> {
             }
         } else if c == '\'' || c == '"' {
             in_quotes = !in_quotes;
+            current.push(c);
         } else {
             current.push(c);
         }
@@ -327,7 +328,13 @@ fn split_string_with_quotes(string: &str) -> Vec<String> {
 fn parameterize_redis_key(key: &str) -> String {
     if let Some(index) = key.find(':').or(key.find('.')) {
         let (first_part, _) = key.split_at(index);
-        return format!("{first_part}:*");
+        let mut formatted_key = format!("{first_part}:*");
+        if let Some(last_char) = key.chars().last() {
+            if last_char == '\'' || last_char == '"' {
+                formatted_key.push(last_char);
+            }
+        }
+        return formatted_key;
     }
     "*".to_owned()
 }
@@ -659,7 +666,7 @@ mod tests {
         redis_whitespace_key,
         "GET 'my namespace:id123'",
         "db.redis",
-        "GET my namespace:*"
+        "GET 'my namespace:*'"
     );
 
     span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
