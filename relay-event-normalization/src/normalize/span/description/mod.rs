@@ -268,10 +268,6 @@ fn get_scrubbed_redis_args(command: &str, args: &str) -> Vec<String> {
     let split_args = split_string_with_quotes(args);
     let mut scrubed_keys = get_scrubbed_redis_keys(command, &split_args);
 
-    println!("{:?}", command);
-    println!("{:?}", split_args);
-    println!("{:?}", scrubed_keys);
-
     // If there are other aruguments other than keys (For example the SET command), then add a wildcard to represent the rest of the arguments
     if split_args.len() > scrubed_keys.len() {
         scrubed_keys.push("*".to_owned());
