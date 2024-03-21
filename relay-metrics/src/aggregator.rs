@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
 use std::iter::FromIterator;
-use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -19,7 +18,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::BucketMetadata;
+use crate::{BucketMetadata, MetricName};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -39,7 +38,7 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[error("found invalid characters: {0}")]
-    InvalidCharacters(Arc<str>),
+    InvalidCharacters(MetricName),
     /// A metric bucket had an unknown namespace in the metric name.
     #[error("found unsupported namespace: {0}")]
     UnsupportedNamespace(MetricNamespace),
@@ -51,7 +50,7 @@ enum AggregateMetricsErrorKind {
     InvalidTypes,
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[error("found invalid string: {0}")]
-    InvalidStringLength(Arc<str>),
+    InvalidStringLength(MetricName),
     /// A metric bucket is too large for the global bytes limit.
     #[error("total metrics limit exceeded")]
     TotalLimitExceeded,
@@ -64,7 +63,7 @@ enum AggregateMetricsErrorKind {
 struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: Arc<str>,
+    metric_name: MetricName,
     tags: BTreeMap<String, String>,
 }
 
@@ -88,10 +87,7 @@ impl BucketKey {
 
     /// Returns the namespace of this bucket.
     fn namespace(&self) -> MetricNamespace {
-        match MetricResourceIdentifier::parse(&self.metric_name) {
-            Ok(mri) => mri.namespace,
-            Err(_) => MetricNamespace::Unsupported,
-        }
+        self.metric_name.namespace()
     }
 }
 
@@ -668,10 +664,9 @@ impl Aggregator {
             }
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", &key.metric_name);
-                return Err(AggregateMetricsErrorKind::InvalidCharacters(Arc::clone(
-                    &key.metric_name,
-                ))
-                .into());
+                return Err(
+                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+                );
             }
         };
 
@@ -935,13 +930,15 @@ mod tests {
             .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
             .collect();
 
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -949,7 +946,7 @@ mod tests {
                 ),
             ),
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1028,13 +1025,15 @@ mod tests {
             .collect();
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -1045,7 +1044,9 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -1053,7 +1054,7 @@ mod tests {
                 ),
             ),
         ]
-        "#);
+        "###);
     }
 
     #[test]
