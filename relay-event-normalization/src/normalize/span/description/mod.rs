@@ -297,6 +297,8 @@ fn get_scrubbed_redis_keys(command: &str, split_args: &Vec<String>) -> Vec<Strin
     scrubed_keys
 }
 // Splits a string on whitespace but ignores spaces between single and double quotes.
+// There are edge cases with this implementation for example if the quote was escaped, or if there is a double quote within single quotes.
+// This should be fine for auditing purposes
 fn split_string_with_quotes(string: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();
@@ -310,7 +312,6 @@ fn split_string_with_quotes(string: &str) -> Vec<String> {
             }
         } else if c == '\'' || c == '"' {
             in_quotes = !in_quotes;
-            current.push(c);
         } else {
             current.push(c);
         }
@@ -645,6 +646,13 @@ mod tests {
         "MGET namespace1:id12 namespace2:id34",
         "db.redis",
         "MGET namespace1:* namespace2:*"
+    );
+
+    span_description_test!(
+        redis_whitespace_key,
+        "GET 'my namespace:id123'",
+        "db.redis",
+        "GET my namespace:*"
     );
 
     span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
