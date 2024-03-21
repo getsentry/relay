@@ -6,13 +6,17 @@
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
+- Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
 
 **Internal**:
 
 - Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
 - Add a data category for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284))
 - Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
+- Extract metrics from transaction spans. ([#3273](https://github.com/getsentry/relay/pull/3273))
 - Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
+- Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
+- Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
 
 ## 24.3.0
 

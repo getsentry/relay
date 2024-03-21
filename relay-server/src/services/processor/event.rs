@@ -103,10 +103,12 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
+            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to extract security report"
+                );
+            }
             error
         })?
     } else if let Some(item) = nel_item {
@@ -548,11 +550,18 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityType(bytes));
     };
 
-    let apply_result = match report_type {
-        SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
-        SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+    let (apply_result, event_type) = match report_type {
+        SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::ExpectCt => (
+            ExpectCt::apply_to_event(data, &mut event),
+            EventType::ExpectCt,
+        ),
+        SecurityReportType::ExpectStaple => (
+            ExpectStaple::apply_to_event(data, &mut event),
+            EventType::ExpectStaple,
+        ),
+        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
+        SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
@@ -586,12 +595,7 @@ fn event_from_security_report(
 
     // Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
-    event.ty = Annotated::new(match report_type {
-        SecurityReportType::Csp => EventType::Csp,
-        SecurityReportType::ExpectCt => EventType::ExpectCt,
-        SecurityReportType::ExpectStaple => EventType::ExpectStaple,
-        SecurityReportType::Hpkp => EventType::Hpkp,
-    });
+    event.ty = Annotated::new(event_type);
 
     Ok((Annotated::new(event), len))
 }

@@ -94,6 +94,8 @@ mod replay;
 mod report;
 mod session;
 mod span;
+pub use span::extract_transaction_span;
+
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -411,6 +413,9 @@ pub enum ProcessingError {
     #[error("invalid security report type: {0:?}")]
     InvalidSecurityType(Bytes),
 
+    #[error("unsupported security report type")]
+    UnsupportedSecurityType,
+
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
@@ -451,6 +456,7 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
@@ -1345,7 +1351,6 @@ impl EnvelopeProcessorService {
             {
                 if_processing!(self.inner.config, {
                     event::store(state, &self.inner.config)?;
-                    self.enforce_quotas(state)?;
                     profile::process(state, &self.inner.config);
                 });
 
@@ -1357,6 +1362,7 @@ impl EnvelopeProcessorService {
                 }
 
                 if_processing!(self.inner.config, {
+                    self.enforce_quotas(state)?;
                     span::maybe_discard_transaction(state);
                 });
                 if state.has_event() {
@@ -2003,7 +2009,7 @@ impl EnvelopeProcessorService {
 
         let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
             .into_iter()
-            .filter_map(|bucket| Some((bucket.parse_namespace().ok()?, bucket)))
+            .filter_map(|bucket| Some((bucket.name.try_namespace()?, bucket)))
             .into_group_map();
 
         buckets_by_ns
@@ -2080,6 +2086,8 @@ impl EnvelopeProcessorService {
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
+        use crate::utils::sample;
+
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
@@ -2600,14 +2608,6 @@ impl UpstreamRequest for SendEnvelope {
             }
         })
     }
-}
-
-/// Returns `true` if the current item should be sampled.
-///
-/// The passed `rate` is expected to be `0 <= rate <= 1`.
-#[cfg(feature = "processing")]
-fn sample(rate: f32) -> bool {
-    (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() < rate)
 }
 
 /// Computes a stable partitioning key for sharded metric requests.

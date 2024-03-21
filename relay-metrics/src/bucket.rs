@@ -349,6 +349,118 @@ impl BucketValue {
     }
 }
 
+/// Optimized string represenation of a metric name
+///
+/// The contained name does not need to be valid MRI, but it usually is.
+///
+/// The metric name can be efficiently cloned.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct MetricName(Arc<str>);
+
+impl MetricName {
+    /// Extracts the namespace from a well formed MRI.
+    ///
+    /// Returns [`MetricNamespace::Unsupported`] if the metric name is not a well formed MRI.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::{MetricName, MetricNamespace};
+    ///
+    /// let name = MetricName::from("foo");
+    /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
+    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
+    ///
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.namespace(), MetricNamespace::Custom);
+    /// ```
+    pub fn namespace(&self) -> MetricNamespace {
+        self.try_namespace().unwrap_or(MetricNamespace::Unsupported)
+    }
+
+    /// Extracts the namespace from a well formed MRI.
+    ///
+    /// If the contained metric name is not a well formed MRI this function returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::{MetricName, MetricNamespace};
+    ///
+    /// let name = MetricName::from("foo");
+    /// assert!(name.try_namespace().is_none());
+    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// assert!(name.try_namespace().is_none());
+    ///
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
+    ///
+    /// ```
+    pub fn try_namespace(&self) -> Option<MetricNamespace> {
+        // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`,
+        // `<type>` is always a single ascii character.
+        //
+        // Skip the first two ascii characters and extract the namespace.
+        let maybe_namespace = self.0.get(2..)?.split('/').next()?;
+
+        MetricNamespace::all()
+            .into_iter()
+            .find(|namespace| maybe_namespace == namespace.as_str())
+    }
+}
+
+impl PartialEq<str> for MetricName {
+    fn eq(&self, other: &str) -> bool {
+        self.0.as_ref() == other
+    }
+}
+
+impl fmt::Display for MetricName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<String> for MetricName {
+    fn from(value: String) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Arc<str>> for MetricName {
+    fn from(value: Arc<str>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<&str> for MetricName {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
+impl std::ops::Deref for MetricName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl AsRef<str> for MetricName {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl std::borrow::Borrow<str> for MetricName {
+    fn borrow(&self) -> &str {
+        self.0.borrow()
+    }
+}
+
 /// Parses a list of counter values separated by colons and sums them up.
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
@@ -552,7 +664,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: Arc<str>,
+    pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -614,11 +726,6 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Returns the [`MetricNamespace`] of the bucket.
-    pub fn parse_namespace(&self) -> Result<MetricNamespace, ParseMetricError> {
-        MetricResourceIdentifier::parse(&self.name).map(|mri| mri.namespace)
-    }
-
     /// Parses a statsd-compatible payload.
     ///
     /// ```text
@@ -722,19 +829,7 @@ impl Bucket {
 
 impl CardinalityItem for Bucket {
     fn namespace(&self) -> Option<MetricNamespace> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name.as_ref(),
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
-
-        Some(mri.namespace)
+        self.name.try_namespace()
     }
 
     fn to_hash(&self) -> u32 {
@@ -906,7 +1001,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:transactions/foo@none",
+            name: MetricName(
+                "c:transactions/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
@@ -935,7 +1032,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "d:transactions/foo@none",
+            name: MetricName(
+                "d:transactions/foo@none",
+            ),
             value: Distribution(
                 [
                     17.5,
@@ -984,7 +1083,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "s:transactions/foo@none",
+            name: MetricName(
+                "s:transactions/foo@none",
+            ),
             value: Set(
                 {
                     4267882815,
@@ -1037,7 +1138,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 42.0,
@@ -1064,7 +1167,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 25.0,
@@ -1091,7 +1196,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:custom/foo@none",
+            name: MetricName(
+                "c:custom/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
@@ -1265,7 +1372,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -1303,7 +1412,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                name: MetricName(
+                    "endpoint.hits",
+                ),
                 value: Counter(
                     4.0,
                 ),

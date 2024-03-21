@@ -193,14 +193,13 @@ impl StoreService {
 
     fn store_envelope(
         &self,
-        envelope: Box<Envelope>,
+        mut envelope: Box<Envelope>,
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
-        let client = envelope.meta().client();
         let event_id = envelope.event_id();
-        let event_item = envelope.get_item_by(|item| {
+        let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
                 ItemType::Event
@@ -209,10 +208,11 @@ impl StoreService {
                     | ItemType::UserReportV2
             )
         });
+        let client = envelope.meta().client();
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else {
             KafkaTopic::Events
@@ -254,7 +254,6 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::MetricBuckets => self.produce_metrics(scoping, item, retention)?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -306,6 +305,9 @@ impl StoreService {
                     item,
                 )?,
                 _ => {}
+                other => {
+                    relay_log::error!("StoreService received unexpected item type: {other}");
+                }
             }
         }
 
@@ -335,7 +337,7 @@ impl StoreService {
         let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
         let kafka_messages = Self::extract_kafka_messages_for_event(
-            event_item,
+            event_item.as_ref(),
             event_id.ok_or(StoreError::NoEventId)?,
             scoping,
             start_time,
@@ -368,10 +370,14 @@ impl StoreService {
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
+            let mut has_success = false;
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
-            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
+            for view in BucketsView::new(std::slice::from_ref(&bucket))
+                .by_size(batch_size)
+                .flatten()
+            {
                 let message = self.create_metric_message(
                     scoping.organization_id,
                     scoping.project_id,
@@ -386,13 +392,25 @@ impl StoreService {
 
                 match result {
                     Ok(()) => {
-                        self.metric_stats.track(scoping, &view, Outcome::Accepted);
+                        has_success = true;
                     }
                     Err(e) => {
                         error.get_or_insert(e);
                         dropped += utils::extract_metric_quantities([view], mode);
                     }
                 }
+            }
+
+            // Tracking the volume here is slightly off, only one of the multiple bucket views can
+            // fail to produce. Since the views are sliced from the original bucket we cannot
+            // correctly attribute the amount of merges (volume) to the amount of slices that
+            // succeeded or not. -> Attribute the entire volume if at least one slice successfully
+            // produced.
+            //
+            // This logic will be improved iterated on and change once we move serialization logic
+            // back into the processor service.
+            if has_success {
+                self.metric_stats.track(scoping, bucket, Outcome::Accepted);
             }
         }
 
@@ -509,7 +527,8 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        self.producer
+        let topic_name = self
+            .producer
             .client
             .send_message(topic, organization_id, &message)?;
 
@@ -520,6 +539,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     metric_type = metric.value.variant(),
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
@@ -532,9 +552,11 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     platform = platform.unwrap_or(&""),
                     is_segment = bool_to_str(is_segment),
                     has_parent = bool_to_str(has_parent),
+                    topic = topic_name,
                 );
             }
             KafkaMessage::ReplayRecordingNotChunked(replay) => {
@@ -543,6 +565,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     has_video = bool_to_str(has_video),
                 );
             }
@@ -550,6 +573,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                 );
             }
         }
@@ -815,37 +839,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_metrics(
-        &self,
-        scoping: Scoping,
-        item: &Item,
-        retention: u16,
-    ) -> Result<(), StoreError> {
-        let payload = item.payload();
-
-        let global_config = self.global_config.current();
-        let mut encoder = BucketEncoder::new(&global_config);
-
-        for mut bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
-            let namespace = encoder.prepare(&mut bucket);
-
-            let view = BucketView::new(&bucket);
-            let message = self.create_metric_message(
-                scoping.organization_id,
-                scoping.project_id,
-                &mut encoder,
-                namespace,
-                &view,
-                retention,
-            );
-
-            message.and_then(|message| self.send_metric_message(namespace, message))?;
-            self.metric_stats.track(scoping, &view, Outcome::Accepted);
-        }
-
-        Ok(())
-    }
-
     fn send_session_message(
         &self,
         organization_id: u64,
@@ -1053,6 +1046,7 @@ impl StoreService {
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
+        relay_log::trace!("Producing span");
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
         let mut span: SpanKafkaMessage = match serde_path_to_error::deserialize(d) {
