@@ -637,6 +637,13 @@ mod tests {
 
     span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
 
+    span_description_test!(
+        redis_set_quoted,
+        r#"SET mykey 'multi: part, value'"#,
+        "db.redis",
+        "SET *"
+    );
+
     span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET * *");
 
     span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET asdf:*");
