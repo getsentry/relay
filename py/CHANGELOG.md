@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.55
 
 - Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
 
