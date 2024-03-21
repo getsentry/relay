@@ -2075,6 +2075,9 @@
 <a href="#2074" id="2074">2074</a>
 <a href="#2075" id="2075">2075</a>
 <a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
@@ -2266,13 +2269,13 @@
     </span>effective_directive: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(
         default = <span class="string">"CspRaw::default_blocked_uri"</span>,
-        alias = <span class="string">"blockedUrl"</span>,
+        alias = <span class="string">"blockedURL"</span>,
         alias = <span class="string">"blocked-uri"
     </span>)]
     </span>blocked_uri: String,
     <span class="attr">#[serde(
         skip_serializing_if = <span class="string">"Option::is_none"</span>,
-        alias = <span class="string">"documentUrl"</span>,
+        alias = <span class="string">"documentURL"</span>,
         alias = <span class="string">"document-uri"
     </span>)]
     </span>document_uri: <span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -3207,6 +3210,7 @@
     ExpectCt,
     ExpectStaple,
     Hpkp,
+    Unsupported,
 }
 
 <span class="kw">impl </span>SecurityReportType {
@@ -3232,6 +3236,8 @@
             <span class="prelude-val">Some</span>(SecurityReportType::Csp)
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(CspViolationType::CspViolation) = helper.ty {
             <span class="prelude-val">Some</span>(SecurityReportType::Csp)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(CspViolationType::Other) = helper.ty {
+            <span class="prelude-val">Some</span>(SecurityReportType::Unsupported)
         } <span class="kw">else if </span>helper.known_pins.is_some() {
             <span class="prelude-val">Some</span>(SecurityReportType::Hpkp)
         } <span class="kw">else if </span>helper.expect_staple_report.is_some() {

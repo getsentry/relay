@@ -929,6 +929,10 @@
 <a href="#928" id="928">928</a>
 <a href="#929" id="929">929</a>
 <a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1034,10 +1038,12 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing security report"</span>);
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            <span class="macro">relay_log::error!</span>(
-                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                <span class="string">"failed to extract security report"
-            </span>);
+            <span class="kw">if </span>!<span class="macro">matches!</span>(error, ProcessingError::UnsupportedSecurityType) {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">"failed to extract security report"
+                </span>);
+            }
             error
         })<span class="question-mark">?
     </span>} <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = nel_item {
@@ -1478,11 +1484,18 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidSecurityType(bytes));
     };
 
-    <span class="kw">let </span>apply_result = <span class="kw">match </span>report_type {
-        SecurityReportType::Csp =&gt; Csp::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
-        SecurityReportType::ExpectCt =&gt; ExpectCt::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
-        SecurityReportType::ExpectStaple =&gt; ExpectStaple::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
-        SecurityReportType::Hpkp =&gt; Hpkp::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
+    <span class="kw">let </span>(apply_result, event_type) = <span class="kw">match </span>report_type {
+        SecurityReportType::Csp =&gt; (Csp::apply_to_event(data, <span class="kw-2">&amp;mut </span>event), EventType::Csp),
+        SecurityReportType::ExpectCt =&gt; (
+            ExpectCt::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
+            EventType::ExpectCt,
+        ),
+        SecurityReportType::ExpectStaple =&gt; (
+            ExpectStaple::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
+            EventType::ExpectStaple,
+        ),
+        SecurityReportType::Hpkp =&gt; (Hpkp::apply_to_event(data, <span class="kw-2">&amp;mut </span>event), EventType::Hpkp),
+        SecurityReportType::Unsupported =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::UnsupportedSecurityType),
     };
 
     <span class="kw">if let </span><span class="prelude-val">Err</span>(json_error) = apply_result {
@@ -1516,12 +1529,7 @@
 
     <span class="comment">// Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
-    </span>event.ty = Annotated::new(<span class="kw">match </span>report_type {
-        SecurityReportType::Csp =&gt; EventType::Csp,
-        SecurityReportType::ExpectCt =&gt; EventType::ExpectCt,
-        SecurityReportType::ExpectStaple =&gt; EventType::ExpectStaple,
-        SecurityReportType::Hpkp =&gt; EventType::Hpkp,
-    });
+    </span>event.ty = Annotated::new(event_type);
 
     <span class="prelude-val">Ok</span>((Annotated::new(event), len))
 }

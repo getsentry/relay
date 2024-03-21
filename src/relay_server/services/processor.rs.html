@@ -3237,6 +3237,10 @@
 <a href="#3236" id="3236">3236</a>
 <a href="#3237" id="3237">3237</a>
 <a href="#3238" id="3238">3238</a>
+<a href="#3239" id="3239">3239</a>
+<a href="#3240" id="3240">3240</a>
+<a href="#3241" id="3241">3241</a>
+<a href="#3242" id="3242">3242</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3652,6 +3656,9 @@
     <span class="attr">#[error(<span class="string">"invalid security report type: {0:?}"</span>)]
     </span>InvalidSecurityType(Bytes),
 
+    <span class="attr">#[error(<span class="string">"unsupported security report type"</span>)]
+    </span>UnsupportedSecurityType,
+
     <span class="attr">#[error(<span class="string">"invalid security report"</span>)]
     </span>InvalidSecurityReport(<span class="attr">#[source] </span>serde_json::Error),
 
@@ -3692,6 +3699,7 @@
                 <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             <span class="self">Self</span>::InvalidSecurityReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReport)),
+            <span class="self">Self</span>::UnsupportedSecurityType =&gt; <span class="prelude-val">Some</span>(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             <span class="self">Self</span>::InvalidNelReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
             <span class="self">Self</span>::InvalidTransaction =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             <span class="self">Self</span>::InvalidTimestamp =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Timestamp)),
