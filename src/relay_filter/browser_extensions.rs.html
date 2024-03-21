@@ -299,6 +299,8 @@
 <a href="#297" id="297">297</a>
 <a href="#298" id="298">298</a>
 <a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -345,8 +347,9 @@
         # Firefox message when an extension tries to modify a no-longer-existing DOM node
         # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
         can't\saccess\sdead\sobject|
-        # Crypocurrency related extension errors
-        Cannot\sredefine\sproperty:\s(solana|ethereum)|
+        # Cryptocurrency related extension errors solana|ethereum
+        # Googletag is also very similar, caused by adblockers
+        Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
         # Translation service errors in Chrome on iOS
         undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)
     "#</span>,
@@ -567,6 +570,7 @@
             <span class="string">"TypeError: can't access dead object because dead stuff smells bad"</span>,
             <span class="string">"Cannot redefine property: solana"</span>,
             <span class="string">"Cannot redefine property: ethereum"</span>,
+            <span class="string">"Cannot redefine property: googletag"</span>,
             <span class="string">"undefined is not an object (evaluating 'a.L')"</span>,
         ];
 
