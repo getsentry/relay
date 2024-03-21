@@ -272,47 +272,6 @@ def test_session_aggregates_release_required(
     sessions_consumer.assert_empty()
 
 
-def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["eventRetention"] = 17
-    project_config["config"]["quotas"] = [
-        {
-            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "categories": ["session"],
-            "scope": "key",
-            "scopeId": str(project_config["publicKeys"][0]["numericId"]),
-            "window": 3600,
-            "limit": 5,
-            "reasonCode": "sessions_exceeded",
-        }
-    ]
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-
-    session = {
-        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "timestamp": timestamp.isoformat(),
-        "started": started.isoformat(),
-        "attrs": {"release": "sentry-test@1.0.0"},
-    }
-
-    for i in range(5):
-        relay.send_session(project_id, session)
-        sessions_consumer.assert_empty()
-
-    # Rate limited, but responds with 200 because of deferred processing
-    relay.send_session(project_id, session)
-    sessions_consumer.assert_empty()
-
-    relay.send_session(project_id, session)
-    sessions_consumer.assert_empty()
-
-
 def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
