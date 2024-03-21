@@ -189,13 +189,13 @@ struct CspRaw {
     effective_directive: Option<String>,
     #[serde(
         default = "CspRaw::default_blocked_uri",
-        alias = "blockedUrl",
+        alias = "blockedURL",
         alias = "blocked-uri"
     )]
     blocked_uri: String,
     #[serde(
         skip_serializing_if = "Option::is_none",
-        alias = "documentUrl",
+        alias = "documentURL",
         alias = "document-uri"
     )]
     document_uri: Option<String>,
@@ -1130,6 +1130,7 @@ pub enum SecurityReportType {
     ExpectCt,
     ExpectStaple,
     Hpkp,
+    Unsupported,
 }
 
 impl SecurityReportType {
@@ -1155,6 +1156,8 @@ impl SecurityReportType {
             Some(SecurityReportType::Csp)
         } else if let Some(CspViolationType::CspViolation) = helper.ty {
             Some(SecurityReportType::Csp)
+        } else if let Some(CspViolationType::Other) = helper.ty {
+            Some(SecurityReportType::Unsupported)
         } else if helper.known_pins.is_some() {
             Some(SecurityReportType::Hpkp)
         } else if helper.expect_staple_report.is_some() {
