@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.8.55
+
+- Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
+
 ## 0.8.52
 
-- Add a data category for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284))
+- Add a data category for profile duration. ([#3284](https://github.com/getsentry/relay/pull/3284))
 
 ## 0.8.50
 

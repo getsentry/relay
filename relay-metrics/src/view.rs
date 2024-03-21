@@ -3,12 +3,12 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
 use crate::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
+    SetValue,
 };
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
-use std::sync::Arc;
 
 use crate::bucket::Bucket;
 use crate::BucketValue;
@@ -373,15 +373,8 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &'a MetricName {
         &self.inner.name
-    }
-
-    /// Returns the name of the bucket.
-    ///
-    /// Caller holds shared ownership of the string.
-    pub fn clone_name(&self) -> Arc<str> {
-        Arc::clone(&self.inner.name)
     }
 
     /// Value of the bucket view.

@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
 use relay_config::Config;
-use relay_metrics::{
-    Aggregator, Bucket, BucketValue, MergeBuckets, MetricResourceIdentifier, UnixTimestamp,
-};
+use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
@@ -12,10 +10,12 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
 
-fn volume_metric_mri() -> Arc<str> {
-    static VOLUME_METRIC_MRI: OnceLock<Arc<str>> = OnceLock::new();
+fn volume_metric_mri() -> MetricName {
+    static VOLUME_METRIC_MRI: OnceLock<MetricName> = OnceLock::new();
 
-    Arc::clone(VOLUME_METRIC_MRI.get_or_init(|| "c:metric_stats/volume@none".into()))
+    VOLUME_METRIC_MRI
+        .get_or_init(|| "c:metric_stats/volume@none".into())
+        .clone()
 }
 
 /// Tracks stats about metrics.
@@ -82,9 +82,7 @@ impl MetricStats {
             return None;
         }
 
-        let namespace = MetricResourceIdentifier::parse(&bucket.name)
-            .ok()?
-            .namespace;
+        let namespace = bucket.name.namespace();
         if !namespace.has_metric_stats() {
             return None;
         }
