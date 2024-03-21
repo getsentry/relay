@@ -158,12 +158,14 @@ impl KafkaClient {
     }
 
     /// Sends message to the provided kafka topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     pub fn send_message(
         &self,
         topic: KafkaTopic,
         organization_id: u64,
         message: &impl Message,
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
         #[cfg(feature = "schemas")]
         self.schema_validator
@@ -182,6 +184,8 @@ impl KafkaClient {
     }
 
     /// Sends the payload to the correct producer for the current topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     pub fn send(
         &self,
         topic: KafkaTopic,
@@ -190,7 +194,7 @@ impl KafkaClient {
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
                 "attempted to send message to {topic:?} using an unconfigured kafka producer",
@@ -342,7 +346,7 @@ impl Producer {
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant
@@ -369,13 +373,16 @@ impl Producer {
             record = record.headers(kafka_headers);
         }
 
-        producer.send(record).map_err(|(error, _message)| {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                tags.variant = variant,
-                "error sending kafka message"
-            );
-            ClientError::SendFailed(error)
-        })
+        producer
+            .send(record)
+            .map(|_| topic_name)
+            .map_err(|(error, _message)| {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    tags.variant = variant,
+                    "error sending kafka message"
+                );
+                ClientError::SendFailed(error)
+            })
     }
 }

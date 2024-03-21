@@ -520,7 +520,8 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        self.producer
+        let topic_name = self
+            .producer
             .client
             .send_message(topic, organization_id, &message)?;
 
@@ -531,6 +532,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     metric_type = metric.value.variant(),
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
@@ -543,9 +545,11 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     platform = platform.unwrap_or(&""),
                     is_segment = bool_to_str(is_segment),
                     has_parent = bool_to_str(has_parent),
+                    topic = topic_name,
                 );
             }
             KafkaMessage::ReplayRecordingNotChunked(replay) => {
@@ -554,6 +558,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                     has_video = bool_to_str(has_video),
                 );
             }
@@ -561,6 +566,7 @@ impl StoreService {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
+                    topic = topic_name,
                 );
             }
         }
