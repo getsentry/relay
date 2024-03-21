@@ -84,6 +84,7 @@ fn is_security_mime(mime: Mime) -> bool {
             | ("application", "expect-ct-report", None)
             | ("application", "expect-ct-report", Some("json"))
             | ("application", "expect-staple-report", None)
+            | ("application", "reports", Some("json"))
     )
 }
 

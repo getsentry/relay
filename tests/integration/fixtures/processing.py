@@ -174,7 +174,8 @@ class ConsumerBase:
         test message ends up in the same partition as the message we are checking).
         """
         # First, give Relay a bit of time to process
-        assert self.poll(timeout=0.2) is None
+        rv = self.poll(timeout=0.2)
+        assert rv is None, f"not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
