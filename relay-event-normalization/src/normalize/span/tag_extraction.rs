@@ -15,6 +15,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
+use crate::regexes::REDIS_COMMAND_REGEX;
 use crate::span::description::{normalize_domain, scrub_span_description};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
@@ -303,12 +304,12 @@ pub fn extract_tags(
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
-                // This only works as long as redis span descriptions contain the command + " *"
-                let command = desc.replace(" *", "");
-                if command.is_empty() {
-                    None
+                if let Some(captures) = REDIS_COMMAND_REGEX.captures(desc) {
+                    captures
+                        .name("command")
+                        .map(|command| command.as_str().to_uppercase())
                 } else {
-                    Some(command)
+                    None
                 }
             }
             (Some("db"), _, _) => {
