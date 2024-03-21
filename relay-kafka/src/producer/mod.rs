@@ -7,7 +7,7 @@
 //! producer for the this exact shard.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -330,7 +330,7 @@ enum ProducerInner {
 
 #[derive(Debug)]
 struct Producer {
-    last_report: RefCell<Instant>,
+    last_report: Cell<Instant>,
     inner: ProducerInner,
 }
 
@@ -387,8 +387,8 @@ impl Producer {
             record = record.headers(kafka_headers);
         }
 
-        if self.last_report.borrow().elapsed() > REPORT_FREQUENCY {
-            *self.last_report.borrow_mut() = Instant::now();
+        if self.last_report.get().elapsed() > REPORT_FREQUENCY {
+            self.last_report.replace(Instant::now());
             metric!(
                 gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
                 topic = topic_name
