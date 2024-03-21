@@ -1942,7 +1942,7 @@
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>StoreError {
-    <span class="attr">#[error(<span class="string">"failed to send the message to kafka"</span>)]
+    <span class="attr">#[error(<span class="string">"failed to send the message to kafka: {0}"</span>)]
     </span>SendFailed(<span class="attr">#[from] </span>ClientError),
     <span class="attr">#[error(<span class="string">"failed to encode data: {0}"</span>)]
     </span>EncodingFailed(std::io::Error),

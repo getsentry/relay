@@ -387,6 +387,28 @@
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 //!
 //! There are two different producers that are supported in Relay right now:
@@ -396,24 +418,28 @@
 //! producer for the this exact shard.
 
 </span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::cell::Cell;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::{Duration, Instant};
 
 <span class="kw">use </span>rdkafka::message::{Header, OwnedHeaders};
-<span class="kw">use </span>rdkafka::producer::BaseRecord;
+<span class="kw">use </span>rdkafka::producer::{BaseRecord, Producer <span class="kw">as _</span>};
 <span class="kw">use </span>rdkafka::ClientConfig;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{KafkaConfig, KafkaParams, KafkaTopic};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::KafkaHistograms;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{KafkaGauges, KafkaHistograms};
 
 <span class="kw">mod </span>utils;
 <span class="kw">use </span>utils::{CaptureErrorContext, ThreadedProducer};
 
 <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
 </span><span class="kw">mod </span>schemas;
+
+<span class="kw">const </span>REPORT_FREQUENCY: Duration = Duration::from_secs(<span class="number">1</span>);
 
 <span class="doccomment">/// Kafka producer errors.
 </span><span class="attr">#[derive(Error, Debug)]
@@ -632,10 +658,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
                     <span class="self">self</span>.producers.insert(
                         topic,
-                        Producer::Single(SingleProducer {
-                            topic_name: (<span class="kw-2">*</span>topic_name).to_string(),
-                            producer: Arc::clone(producer),
-                        }),
+                        Producer::single((<span class="kw-2">*</span>topic_name).to_string(), Arc::clone(producer)),
                     );
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>);
                 }
@@ -652,13 +675,8 @@
 
                 <span class="self">self</span>.reused_producers
                     .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
-                <span class="self">self</span>.producers.insert(
-                    topic,
-                    Producer::Single(SingleProducer {
-                        topic_name: (<span class="kw-2">*</span>topic_name).to_string(),
-                        producer,
-                    }),
-                );
+                <span class="self">self</span>.producers
+                    .insert(topic, Producer::single((<span class="kw-2">*</span>topic_name).to_string(), producer));
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>)
             }
             KafkaConfig::Sharded { shards, configs } =&gt; {
@@ -685,13 +703,8 @@
                         .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
                     producers.insert(<span class="kw-2">*</span>shard, (kafka_params.topic_name.to_string(), producer));
                 }
-                <span class="self">self</span>.producers.insert(
-                    topic,
-                    Producer::Sharded(ShardedProducer {
-                        shards: <span class="kw-2">*</span>shards,
-                        producers,
-                    }),
-                );
+                <span class="self">self</span>.producers
+                    .insert(topic, Producer::sharded(<span class="kw-2">*</span>shards, producers));
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>)
             }
         }
@@ -718,7 +731,7 @@
 
 <span class="doccomment">/// This object contains the Kafka producer variants for single and sharded configurations.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>Producer {
+</span><span class="kw">enum </span>ProducerInner {
     <span class="doccomment">/// Configuration variant for the single kafka producer.
     </span>Single(SingleProducer),
     <span class="doccomment">/// Configuration variant for sharded kafka producer, when one topic has different producers
@@ -726,7 +739,30 @@
     </span>Sharded(ShardedProducer),
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>Producer {
+    last_report: Cell&lt;Instant&gt;,
+    inner: ProducerInner,
+}
+
 <span class="kw">impl </span>Producer {
+    <span class="kw">fn </span>single(topic_name: String, producer: Arc&lt;ThreadedProducer&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            last_report: Instant::now().into(),
+            inner: ProducerInner::Single(SingleProducer {
+                topic_name,
+                producer,
+            }),
+        }
+    }
+
+    <span class="kw">fn </span>sharded(shards: u64, producers: BTreeMap&lt;u64, (String, Arc&lt;ThreadedProducer&gt;)&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            last_report: Instant::now().into(),
+            inner: ProducerInner::Sharded(ShardedProducer { shards, producers }),
+        }
+    }
+
     <span class="doccomment">/// Sends the payload to the correct producer for the current topic.
     </span><span class="kw">fn </span>send(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -740,13 +776,13 @@
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() <span class="kw">as </span>u64,
             variant = variant
         );
-        <span class="kw">let </span>(topic_name, producer) = <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Single(SingleProducer {
+        <span class="kw">let </span>(topic_name, producer) = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.inner {
+            ProducerInner::Single(SingleProducer {
                 topic_name,
                 producer,
             }) =&gt; (topic_name.as_str(), producer.as_ref()),
 
-            <span class="self">Self</span>::Sharded(sharded) =&gt; sharded.get_producer(organization_id)<span class="question-mark">?</span>,
+            ProducerInner::Sharded(sharded) =&gt; sharded.get_producer(organization_id)<span class="question-mark">?</span>,
         };
         <span class="kw">let </span><span class="kw-2">mut </span>record = BaseRecord::to(topic_name).key(key).payload(payload);
 
@@ -760,6 +796,14 @@
                 });
             }
             record = record.headers(kafka_headers);
+        }
+
+        <span class="kw">if </span><span class="self">self</span>.last_report.get().elapsed() &gt; REPORT_FREQUENCY {
+            <span class="self">self</span>.last_report.replace(Instant::now());
+            <span class="macro">metric!</span>(
+                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() <span class="kw">as </span>u64,
+                topic = topic_name
+            );
         }
 
         producer
