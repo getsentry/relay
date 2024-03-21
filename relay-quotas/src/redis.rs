@@ -140,10 +140,11 @@ impl<'a> RedisQuota<'a> {
         let org = self.scoping.organization_id;
 
         format!(
-            "quota:{id}{{{org}}}{subscope}:{slot}",
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
             id = self.prefix,
             org = org,
             subscope = OptionalDisplay(subscope),
+            namespace = OptionalDisplay(self.namespace),
             slot = self.slot(),
         )
     }
@@ -211,9 +212,9 @@ impl RedisRateLimiter {
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
-    pub fn is_rate_limited(
+    pub fn is_rate_limited<'a>(
         &self,
-        quotas: &[Quota],
+        quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
         over_accept_once: bool,
@@ -309,6 +310,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
@@ -381,6 +383,76 @@ mod tests {
                 namespace: None,
             }]
         );
+    }
+
+    /// Tests that a quota with and without namespace are counted separately.
+    #[test]
+    fn test_non_global_namespace_quota() {
+        let quota_limit = 5;
+        let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
+            Quota {
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(quota_limit),
+                window: Some(600),
+                reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
+                namespace,
+            }
+        };
+
+        let quotas = &[get_quota(None)];
+        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: Some(MetricNamespace::Transactions),
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // First confirm normal behaviour without namespace.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: None"))
+                );
+            }
+        }
+
+        // Then, send identical quota with namespace and confirm it counts separately.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: Some(Transactions)"))
+                );
+            }
+        }
     }
 
     #[test]

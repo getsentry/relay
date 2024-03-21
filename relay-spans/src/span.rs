@@ -3,8 +3,10 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
-use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
-use relay_protocol::{Annotated, Object, Value};
+use relay_event_schema::protocol::{
+    Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+};
+use relay_protocol::{Annotated, FromValue, Object};
 
 use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
@@ -65,7 +67,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
-    let mut data: Object<Value> = Object::new();
+    let mut data = Object::new();
     let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {
@@ -75,6 +77,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         name,
         attributes,
         status,
+        kind,
         ..
     } = otel_span;
 
@@ -82,6 +85,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let trace_id = hex::encode(trace_id);
     let parent_span_id = hex::encode(parent_span_id);
 
+    // TODO: This is wrong, a segment could still have a parent in the trace.
     let segment_id = if parent_span_id.is_empty() {
         Annotated::new(SpanId(span_id.clone()))
     } else {
@@ -89,6 +93,9 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     };
 
     let mut op = None;
+    let mut description = name;
+    let mut http_method = None;
+    let mut http_route = None;
     let mut http_status_code = None;
     let mut grpc_status_code = None;
     for attribute in attributes.into_iter() {
@@ -100,6 +107,23 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             };
             if key == "sentry.op" {
                 op = otel_value_to_string(value);
+            } else if key.starts_with("db") {
+                op = op.or(Some("db".to_string()));
+                if key == "db.statement" {
+                    if let Some(statement) = otel_value_to_string(value) {
+                        description = statement;
+                    }
+                }
+            } else if key == "http.method" || key == "request.method" {
+                let http_op = match kind {
+                    2 => "http.server",
+                    3 => "http.client",
+                    _ => "http",
+                };
+                op = op.or(Some(http_op.to_string()));
+                http_method = otel_value_to_string(value);
+            } else if key == "http.route" || key == "url.path" {
+                http_route = otel_value_to_string(value);
             } else if key.contains("exclusive_time_ns") {
                 let value = match value {
                     OtelValue::IntValue(v) => v as f64,
@@ -142,12 +166,17 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) as f64 / 1e6f64;
     }
 
+    // TODO: This is wrong, a segment could still have a parent in the trace.
     let is_segment = parent_span_id.is_empty().into();
+
+    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
+        description = format!("{} {}", http_method, http_route);
+    }
 
     EventSpan {
         op: op.into(),
-        data: data.into(),
-        description: name.into(),
+        description: description.into(),
+        data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
         parent_span_id: SpanId(parent_span_id).into(),
         segment_id,
@@ -239,7 +268,7 @@ mod tests {
         assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
-            get_path!(annotated_span.data["environment"]),
+            get_path!(annotated_span.data.environment),
             Some(&Annotated::new("test".into()))
         );
     }
@@ -282,5 +311,81 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
+    }
+
+    #[test]
+    fn parse_span_with_db_attributes() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "database query",
+            "kind": 3,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key" : "db.name",
+                    "value": {
+                        "stringValue": "database"
+                    }
+                },
+                {
+                    "key" : "db.type",
+                    "value": {
+                        "stringValue": "sql"
+                    }
+                },
+                {
+                    "key" : "db.statement",
+                    "value": {
+                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.op, Annotated::new("db".into()));
+        assert_eq!(
+            event_span.description,
+            Annotated::new(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
+            )
+        );
+    }
+
+    #[test]
+    fn parse_span_with_http_attributes() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "http client request",
+            "kind": 3,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key" : "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                    }
+                },
+                {
+                    "key" : "url.path",
+                    "value": {
+                        "stringValue": "/api/search?q=foobar"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.op, Annotated::new("http.client".into()));
+        assert_eq!(
+            event_span.description,
+            Annotated::new("GET /api/search?q=foobar".into())
+        );
     }
 }

@@ -932,6 +932,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/NelContext"
         },
         {
+          "$ref": "#/definitions/PerformanceScoreContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -2827,6 +2830,25 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "PerformanceScoreContext": {
+      "description": " Performance Score context.\n\n The performance score context contains the version of the\n profile used to calculate the performance score.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "score_profile_version": {
+              "description": " The performance score profile version.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "PosixSignal": {
       "description": " POSIX signal with optional extended data.\n\n On Apple systems, signals also carry a code in addition to the signal number describing the\n signal in more detail. On Linux, this code does not exist.",
       "anyOf": [
@@ -3255,6 +3277,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "name": {
+              "description": " The name of the route.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "params": {
               "description": " Parameters assigned to this route.",
               "default": null,
@@ -3920,6 +3950,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "segment": {
               "description": " The user segment, for apps that divide users in user segments.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sentry_user": {
+              "description": " The user string representation as handled in Sentry.\n\n This field is computed by concatenating the name of specific fields of the `User`\n struct with their value. For example, if `id` is set, `sentry_user` will be equal to\n `\"id:id-of-the-user\".",
               "default": null,
               "type": [
                 "string",

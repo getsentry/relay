@@ -6,6 +6,7 @@
 //! the shard number the different messages will be sent to different topics using the configured
 //! producer for the this exact shard.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -74,7 +75,7 @@ pub trait Message {
     /// # Errors
     /// Returns the [`ClientError::InvalidMsgPack`] or [`ClientError::InvalidJson`] if the
     /// serialization failed.
-    fn serialize(&self) -> Result<Vec<u8>, ClientError>;
+    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError>;
 }
 
 /// Single kafka producer config with assigned topic.

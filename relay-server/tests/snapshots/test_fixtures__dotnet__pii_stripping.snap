@@ -180,7 +180,8 @@ expression: SerializableAnnotated(&event)
   "release": "e386dfd",
   "environment": "Production",
   "user": {
-    "ip_address": null
+    "ip_address": null,
+    "sentry_user": "ip:::1"
   },
   "request": {
     "url": "/Home/PostIndex",

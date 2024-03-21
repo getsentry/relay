@@ -258,12 +258,16 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+#[cfg(feature = "processing")]
+mod metric_stats;
 mod metrics_extraction;
 mod middlewares;
 mod service;
 mod services;
 mod statsd;
 mod utils;
+
+pub use self::services::spooler::spool_utils;
 
 #[cfg(test)]
 mod testutils;

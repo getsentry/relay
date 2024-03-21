@@ -37,7 +37,6 @@ use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
 use hashbrown::HashSet;
-use itertools::Itertools;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
@@ -60,7 +59,11 @@ use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
+pub mod spool_utils;
 mod sql;
+
+/// The number of keys to take from the [`ProjectCache`] index in one unspool operation.
+pub const BATCH_KEY_COUNT: usize = 2000;
 
 /// The predefined batch size for the SQL queries, when fetching anything from the on-disk spool.
 const BATCH_SIZE: i64 = 200;
@@ -131,6 +134,15 @@ impl QueueKey {
     }
 }
 
+/// The envelope with its key sent to project cache for processing.
+///
+/// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
+#[derive(Debug)]
+pub struct UnspooledEnvelope {
+    pub key: QueueKey,
+    pub managed_envelope: ManagedEnvelope,
+}
+
 /// Adds the envelope and the managed envelope to the internal buffer.
 #[derive(Debug)]
 pub struct Enqueue {
@@ -148,11 +160,11 @@ impl Enqueue {
 #[derive(Debug)]
 pub struct DequeueMany {
     keys: HashSet<QueueKey>,
-    sender: mpsc::UnboundedSender<ManagedEnvelope>,
+    sender: mpsc::UnboundedSender<UnspooledEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
+    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<UnspooledEnvelope>) -> Self {
         Self { keys, sender }
     }
 }
@@ -335,12 +347,21 @@ impl InMemory {
     }
 
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    fn dequeue(&mut self, keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
+    fn dequeue(
+        &mut self,
+        keys: HashSet<QueueKey>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
+    ) {
         for key in keys {
             for envelope in self.buffer.remove(&key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
                 self.envelope_count = self.envelope_count.saturating_sub(1);
-                sender.send(envelope).ok();
+                sender
+                    .send(UnspooledEnvelope {
+                        managed_envelope: envelope,
+                        key,
+                    })
+                    .ok();
             }
         }
         relay_statsd::metric!(
@@ -499,7 +520,7 @@ impl OnDisk {
     async fn delete_and_fetch(
         &mut self,
         mut keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
     ) -> Result<(), Vec<QueueKey>> {
         loop {
@@ -546,9 +567,14 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((_, managed_envelopes)) => {
+                    Ok((key, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender.send(managed_envelope).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -632,7 +658,7 @@ impl OnDisk {
     async fn dequeue(
         &mut self,
         mut keys: HashSet<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
     ) {
         if keys.is_empty() {
@@ -640,20 +666,22 @@ impl OnDisk {
         }
 
         let mut unused_keys = HashSet::new();
-        // Chunk up the incoming keys in batches of size `BATCH_SIZE`.
-        let chunks: Vec<Vec<_>> = keys
-            .drain()
-            .chunks(BATCH_SIZE as usize)
-            .into_iter()
-            .map(|chunk| chunk.collect::<Vec<_>>())
-            .collect();
+        loop {
+            if keys.is_empty() {
+                break;
+            }
 
-        for chunk in chunks.into_iter() {
+            let chunk = keys
+                .extract_if(|_| true)
+                .take(BATCH_SIZE as usize)
+                .collect();
+
             // If the error with a key is returned we must save it for the next iteration.
             if let Err(failed_keys) = self.delete_and_fetch(chunk, sender.clone(), services).await {
                 unused_keys.extend(failed_keys);
             };
         }
+
         if !unused_keys.is_empty() {
             services
                 .project_cache
@@ -1240,16 +1268,16 @@ impl Drop for BufferService {
 mod tests {
     use std::str::FromStr;
     use std::sync::Mutex;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use insta::assert_debug_snapshot;
+    use rand::Rng;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
     use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::ConnectOptions;
     use uuid::Uuid;
 
-    use crate::services::processor::Ungrouped;
     use crate::services::project_cache::SpoolHealth;
     use crate::testutils::empty_envelope;
 
@@ -1321,38 +1349,50 @@ mod tests {
 
         // Test cases:
         let test_cases = [
-            // The difference between the `Instant::now` and start_time is 2 seconds,
-            // that the start time is restored to the correct point in time.
-            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
-            // There is no delay, and the `Instant::now` must be within the same second.
-            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+            "a94ae32be2584e0bbd7a4cbb95971fee",
+            "aaaae32be2584e0bbd7a4cbb95971fff",
         ];
-        for (result, pub_key) in test_cases {
+        for pub_key in test_cases {
             let project_key = ProjectKey::parse(pub_key).unwrap();
             let key = QueueKey {
                 own_key: project_key,
                 sampling_key: project_key,
             };
 
+            let envelope = empty_managed_envelope();
+            let start_time_sent = envelope.start_time();
             addr.send(Enqueue {
                 key,
-                value: empty_managed_envelope(),
+                value: envelope,
             });
 
             // How long to wait to dequeue the message from the spool.
             // This will also ensure that the start time will have to be restored to the time
             // when the request first came in.
-            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+            tokio::time::sleep(Duration::from_millis(
+                1000 * rand::thread_rng().gen_range(1..3),
+            ))
+            .await;
 
             addr.send(DequeueMany {
                 keys: [key].into(),
                 sender: tx.clone(),
             });
 
-            let managed_envelope = rx.recv().await.unwrap();
-            let start_time = managed_envelope.envelope().meta().start_time();
+            let UnspooledEnvelope {
+                key: _,
+                managed_envelope,
+            } = rx.recv().await.unwrap();
+            let start_time_received = managed_envelope.envelope().meta().start_time();
 
-            assert_eq!((Instant::now() - start_time).as_secs(), result);
+            // Check if the original start time elapsed to the same second as the restored one.
+            //
+            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
+            // similar number of seconds if one of the instants runs forward a bit.
+            assert_eq!(
+                start_time_received.elapsed().as_secs_f64().round(),
+                start_time_sent.elapsed().as_secs_f64().round()
+            );
         }
     }
 
@@ -1412,7 +1452,7 @@ mod tests {
                 empty_envelope(),
                 services.outcome_aggregator,
                 services.test_store,
-                ProcessingGroup::Ungrouped(Ungrouped),
+                ProcessingGroup::Ungrouped,
             )
             .unwrap();
 

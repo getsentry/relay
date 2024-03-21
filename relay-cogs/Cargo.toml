@@ -1,0 +1,14 @@
+[package]
+name = "relay-cogs"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Break down the cost of Relay by its features"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "24.3.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+autobenches = false
+
+[lints]
+workspace = true

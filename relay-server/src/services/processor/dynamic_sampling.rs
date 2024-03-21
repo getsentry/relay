@@ -11,11 +11,15 @@ use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
+use relay_statsd::metric;
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::{profile, ProcessEnvelopeState, TransactionGroup};
-use crate::utils::{self, ItemAction, SamplingResult};
+use crate::services::processor::{
+    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+};
+use crate::statsd::RelayCounters;
+use crate::utils::{self, sample, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -58,18 +62,19 @@ pub fn normalize(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) -> SamplingResult {
     // Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
     match state.event_type().unwrap_or_default() {
         EventType::Default | EventType::Error => {
             tag_error_with_sampling_decision(state, config);
+            SamplingResult::Pending
         }
         EventType::Transaction => {
             match state.project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
-                _ => return,
+                _ => return SamplingResult::Pending,
             }
 
             let sampling_config = match state.project_state.config.sampling {
@@ -83,31 +88,38 @@ pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) 
                 _ => None,
             };
 
-            state.sampling_result = compute_sampling_decision(
+            compute_sampling_decision(
                 config.processing_enabled(),
                 &state.reservoir,
                 sampling_config,
                 state.event.value(),
                 root_config,
                 state.envelope().dsc(),
-            );
+            )
         }
-        _ => {}
+        _ => SamplingResult::Pending,
     }
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
 pub fn sample_envelope_items(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
+    sampling_result: SamplingResult,
     config: &Config,
     global_config: &GlobalConfig,
 ) {
-    if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
+    if let SamplingResult::Match(sampling_match) = sampling_result {
         // We assume that sampling is only supposed to work on transactions.
         let Some(event) = state.event.value() else {
             return;
         };
-        if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
+        let should_drop =
+            event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop();
+        metric!(
+            counter(RelayCounters::DynamicSamplingDecision) += 1,
+            decision = if should_drop { "drop" } else { "keep" }
+        );
+        if should_drop {
             let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
@@ -200,7 +212,10 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision<G>(state: &mut ProcessEnvelopeState<G>, config: &Config) {
+pub fn tag_error_with_sampling_decision<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) {
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -265,14 +280,13 @@ fn forward_unsampled_profiles(
             .profile_metrics_allowed_platforms
             .iter()
             .any(|s| s == event_platform)
-        && rand::random::<f32>() < global_options.profile_metrics_sample_rate
+        && sample(global_options.profile_metrics_sample_rate)
 }
 
 #[cfg(test)]
 mod tests {
 
     use std::collections::BTreeMap;
-    use std::marker::PhantomData;
     use std::sync::Arc;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -286,7 +300,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, TransactionGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -331,7 +345,7 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction(TransactionGroup),
+                ProcessingGroup::Transaction,
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -467,7 +481,6 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Pending,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -477,29 +490,30 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Transaction(TransactionGroup),
-                ),
+                    ProcessingGroup::Transaction,
+                )
+                .try_into()
+                .unwrap(),
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
-                _group: PhantomData::<TransactionGroup> {},
             }
         };
 
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
-        run(&mut state, &config);
-        assert!(state.sampling_result.should_keep());
+        let sampling_result = run(&mut state, &config);
+        assert!(sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
-        run(&mut state, &config);
-        assert!(state.sampling_result.should_keep());
+        let sampling_result = run(&mut state, &config);
+        assert!(sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
-        run(&mut state, &config);
-        assert!(state.sampling_result.should_drop());
+        let sampling_result = run(&mut state, &config);
+        assert!(sampling_result.should_drop());
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {

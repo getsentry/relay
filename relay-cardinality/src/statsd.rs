@@ -5,25 +5,29 @@ pub enum CardinalityLimiterCounters {
     /// Incremented for every accepted item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     Accepted,
     /// Incremented for every rejected item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     Rejected,
     /// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     RedisCacheHit,
     /// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     RedisCacheMiss,
     /// Amount of entries removed from the cache via periodic cleanups.

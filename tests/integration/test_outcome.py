@@ -1648,25 +1648,26 @@ def test_global_rate_limit(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
+    now = datetime.utcnow().timestamp()
+
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting" + str(uuid.uuid4()),
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": 1000,
+            # Ensures we begin at the start of a slot so we don't go to next slot in the middle of the test
+            "window": int(now),
             "reasonCode": "global rate limit hit",
         }
     ]
-
-    ts = datetime.utcnow().timestamp()
 
     def send_buckets(n):
         buckets = [
             {
                 "org_id": 1,
                 "project_id": project_id,
-                "timestamp": ts,
+                "timestamp": now,
                 "name": "d:transactions/measurements.lcp@millisecond",
                 "type": "d",
                 "value": [1.0],
@@ -2040,3 +2041,69 @@ def test_global_rate_limit_by_namespace(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == global_reason_code
+
+
+def test_replay_outcomes_item_failed(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_consumer,
+):
+    """
+    Assert Relay records a single outcome even though both envelope items fail.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(
+        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    def make_envelope():
+        envelope = Envelope(headers=[["event_id", "515539018c9b4260a6f999572f1661ee"]])
+        envelope.add_item(
+            Item(payload=PayloadRef(bytes=b"not valid"), type="replay_event")
+        )
+        envelope.add_item(
+            Item(payload=PayloadRef(bytes=b"still not valid"), type="replay_recording")
+        )
+
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+
+    assert len(outcomes) == 1
+
+    expected = {
+        "category": 7,
+        "event_id": "515539018c9b4260a6f999572f1661ee",
+        "key_id": 123,
+        "outcome": 3,
+        "project_id": 42,
+        "quantity": 2,
+        "reason": "invalid_replay",
+        "remote_addr": "127.0.0.1",
+        "source": "pop-relay",
+    }
+    expected["timestamp"] = outcomes[0]["timestamp"]
+    assert outcomes[0] == expected

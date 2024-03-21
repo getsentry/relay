@@ -100,6 +100,7 @@ enum CategoryUnit {
     Count,
     Bytes,
     Batched,
+    Milliseconds,
 }
 
 impl CategoryUnit {
@@ -122,6 +123,7 @@ impl CategoryUnit {
             | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+            DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,
         }
@@ -234,7 +236,7 @@ impl fmt::Display for ReasonCode {
 /// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
 /// configured by the customer. Each piece of data (such as event, attachment) will be counted
 /// against all quotas that it matches with based on the `category`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
     /// The unique identifier for counting this quota. Required, except for quotas with a `limit` of

@@ -4,12 +4,16 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Session replay functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
+bytes = { version = "1.4.0" }
 flate2 = "1.0.19"
 once_cell = { workspace = true }
 relay-common = { path = "../relay-common" }

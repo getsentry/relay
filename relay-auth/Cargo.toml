@@ -4,15 +4,18 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Authentication and crypto for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 build = "build.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { workspace = true }
-data-encoding = "2.3.3"
+data-encoding = "2.5.0"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
 hmac = "0.12.1"
 rand = { workspace = true }

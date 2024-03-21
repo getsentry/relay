@@ -109,6 +109,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Profile => None,
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
+        ItemType::ReplayVideo => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
         ItemType::Span => None,
@@ -152,11 +153,20 @@ pub struct EnvelopeSummary {
     /// marking the envelope data category a [`DataCategory::Transaction`].
     pub secondary_transaction_quantity: usize,
 
+    /// See `secondary_transaction_quantity`.
+    pub secondary_span_quantity: usize,
+
+    /// The number of standalone spans.
+    pub span_quantity: usize,
+
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 
-    /// Whether the envelope contains an event which already had the metrics extracted.
-    pub event_metrics_extracted: bool,
+    /// Whether the envelope contains a transaction which already had the metrics extracted.
+    pub transaction_metrics_extracted: bool,
+
+    /// Whether the envelope contains spans which already had metrics extracted.
+    pub span_metrics_extracted: bool,
 
     /// The payload size of this envelope.
     pub payload_size: usize,
@@ -181,7 +191,12 @@ impl EnvelopeSummary {
             }
 
             if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
-                summary.event_metrics_extracted = true;
+                summary.transaction_metrics_extracted = true;
+            }
+
+            if item.is_span() && item.metrics_extracted() {
+                // This assumes that if one span had metrics extracted, all of them have.
+                summary.span_metrics_extracted = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -192,6 +207,7 @@ impl EnvelopeSummary {
 
             if let Some(source_quantities) = item.source_quantities() {
                 summary.secondary_transaction_quantity += source_quantities.transactions;
+                summary.secondary_span_quantity += source_quantities.spans;
                 summary.profile_quantity += source_quantities.profiles;
             }
 
@@ -209,7 +225,10 @@ impl EnvelopeSummary {
             ItemType::Profile => &mut self.profile_quantity,
             ItemType::ReplayEvent => &mut self.replay_quantity,
             ItemType::ReplayRecording => &mut self.replay_quantity,
+            ItemType::ReplayVideo => &mut self.replay_quantity,
             ItemType::CheckIn => &mut self.checkin_quantity,
+            ItemType::OtelSpan => &mut self.span_quantity,
+            ItemType::Span => &mut self.span_quantity,
             _ => return,
         };
         *target_quantity += item.quantity();
@@ -292,8 +311,12 @@ pub struct Enforcement {
     replays: CategoryLimit,
     /// The combined check-in item rate limit.
     check_ins: CategoryLimit,
-    /// Metrics extraction from a transaction is rate limited.
+    /// The combined rate limit for metrics extracted from transactions.
     event_metrics: CategoryLimit,
+    /// The combined spans rate limit.
+    spans: CategoryLimit,
+    /// The combined rate limit for metrics extracted from spans.
+    span_metrics: CategoryLimit,
 }
 
 impl Enforcement {
@@ -322,6 +345,8 @@ impl Enforcement {
             replays,
             check_ins,
             event_metrics,
+            spans,
+            span_metrics,
         } = self;
 
         let limits = [
@@ -331,6 +356,8 @@ impl Enforcement {
             replays,
             check_ins,
             event_metrics,
+            spans,
+            span_metrics,
         ];
 
         limits
@@ -455,7 +482,7 @@ where
         let mut summary = EnvelopeSummary::compute(envelope);
         if let Some((event_category, metrics_extracted)) = self.event_category {
             summary.event_category = Some(event_category);
-            summary.event_metrics_extracted = metrics_extracted;
+            summary.transaction_metrics_extracted = metrics_extracted;
         }
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
@@ -472,7 +499,7 @@ where
     ///    are exhausted, both the event and metrics are dropped.
     ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
     ///    category are exhausted, just the event payload is dropped, but metrics are kept.
-    fn index_category(&self, category: DataCategory) -> Option<DataCategory> {
+    fn transaction_index_category(&self, category: DataCategory) -> Option<DataCategory> {
         if category != DataCategory::Transaction {
             return None;
         }
@@ -495,7 +522,7 @@ where
             let mut longest;
             let mut event_limits;
 
-            if let Some(index_category) = self.index_category(category) {
+            if let Some(index_category) = self.transaction_index_category(category) {
                 // Check for rate limits on the main category (e.g. transaction) but do not consume
                 // quota. Quota will be consumed by metrics in the metrics aggregator instead.
                 event_limits = (self.check)(scoping.item(category), 0)?;
@@ -503,13 +530,13 @@ where
 
                 // Only enforce and record an outcome if metrics haven't been extracted yet.
                 // Otherwise, the outcome is logged at a different place.
-                if !summary.event_metrics_extracted {
+                if !summary.transaction_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
                 }
 
                 // If the main category is rate limited, we drop both the event and metrics. If
                 // there's no rate limit, check for specific indexing quota and drop just the event.
-                if summary.event_metrics_extracted && longest.is_none() {
+                if summary.transaction_metrics_extracted && longest.is_none() {
                     event_limits = (self.check)(scoping.item(index_category), 1)?;
                     longest = event_limits.longest();
                 }
@@ -531,7 +558,7 @@ where
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
             enforcement.profiles = CategoryLimit::new(
-                if summary.event_metrics_extracted {
+                if summary.transaction_metrics_extracted {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile
@@ -575,7 +602,7 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                if summary.event_metrics_extracted {
+                if summary.transaction_metrics_extracted {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile
@@ -606,6 +633,37 @@ where
                 checkin_limits.longest(),
             );
             rate_limits.merge(checkin_limits);
+        }
+
+        if summary.span_quantity > 0 {
+            // Check for rate limits on the main category but do not consume
+            // quota. Quota will be consumed by the metrics rate limiter instead.
+            let mut span_limits = (self.check)(scoping.item(DataCategory::Span), 0)?;
+            let mut longest = span_limits.longest();
+
+            // Only enforce and record an outcome if metrics haven't been extracted yet.
+            // Otherwise, the outcome is logged by the metrics rate limiter.
+            if !summary.span_metrics_extracted {
+                enforcement.span_metrics =
+                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+            }
+
+            // If the main category is rate limited, we drop both the spans and metrics. If
+            // there's no rate limit, check for specific indexing quota and drop just the event.
+            if summary.span_metrics_extracted && longest.is_none() {
+                // Metrics were extracted and aren't rate limited. Check if there
+                // is a separate rate limit for indexed spans:
+                span_limits = (self.check)(
+                    scoping.item(DataCategory::SpanIndexed),
+                    summary.span_quantity,
+                )?;
+                longest = span_limits.longest();
+            }
+
+            enforcement.spans =
+                CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
+
+            rate_limits.merge(span_limits);
         }
 
         Ok((enforcement, rate_limits))
@@ -645,6 +703,11 @@ where
         }
 
         if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
+            return false;
+        }
+
+        if (enforcement.spans.is_active() || enforcement.span_metrics.is_active()) && item.is_span()
+        {
             return false;
         }
 
@@ -962,11 +1025,10 @@ mod tests {
         assert_eq!(envelope.len(), 0);
         assert_eq!(mock.called, BTreeMap::from([(DataCategory::Profile, 2)]));
 
-        let outcomes = enforcement
-            .get_outcomes(&envelope, &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
-        assert_eq!(outcomes, vec![(DataCategory::Profile, 2),]);
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::Profile, 2),]
+        );
     }
 
     /// Limit replays.
@@ -984,11 +1046,10 @@ mod tests {
         assert_eq!(envelope.len(), 0);
         assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
 
-        let outcomes = enforcement
-            .get_outcomes(&envelope, &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
-        assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::Replay, 2),]
+        );
     }
 
     /// Limit monitor checkins.
@@ -1217,6 +1278,13 @@ mod tests {
         mock.assert_call(DataCategory::Attachment, None);
     }
 
+    fn get_outcomes(envelope: &Envelope, enforcement: Enforcement) -> Vec<(DataCategory, u32)> {
+        enforcement
+            .get_outcomes(envelope, &scoping())
+            .map(|outcome| (outcome.category, outcome.quantity))
+            .collect::<Vec<_>>()
+    }
+
     #[test]
     fn test_enforce_transaction_profile_enforced() {
         let mut envelope = envelope![Transaction, Profile];
@@ -1232,13 +1300,8 @@ mod tests {
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::Profile, None);
 
-        let outcomes = enforcement
-            .get_outcomes(&envelope, &scoping())
-            .map(|outcome| (outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
-
         assert_eq!(
-            outcomes,
+            get_outcomes(&envelope, enforcement),
             vec![
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Profile, 1),
@@ -1266,6 +1329,89 @@ mod tests {
     }
 
     #[test]
+    fn test_enforce_span_no_metrics_extracted() {
+        let mut envelope = envelope![Span, Span];
+        let config = config_with_tx_metrics();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Span);
+        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(enforcement.span_metrics.is_active());
+        assert!(enforcement.spans.is_active());
+        mock.assert_call(DataCategory::Span, Some(0));
+
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::SpanIndexed, 2), (DataCategory::Span, 2),]
+        );
+    }
+
+    #[test]
+    fn test_enforce_span_metrics_extracted() {
+        let mut envelope = envelope![Span];
+        set_extracted(&mut envelope, ItemType::Span);
+        let config = config_with_tx_metrics();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Span);
+        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(!enforcement.span_metrics.is_active());
+        assert!(enforcement.spans.is_active());
+
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::SpanIndexed, 1)]
+        );
+    }
+
+    #[test]
+    fn test_enforce_span_no_indexing_quota() {
+        let mut envelope = envelope![OtelSpan];
+        let config = config_with_tx_metrics();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
+        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
+        // quota. Basic processing quota is not denied, so the item must pass rate limiting. The
+        // indexing quota will be checked again after metrics extraction.
+
+        assert!(!limits.is_limited());
+        assert!(!enforcement.span_metrics.is_active());
+        assert!(!enforcement.spans.is_active());
+        mock.assert_call(DataCategory::Span, Some(0));
+
+        assert_eq!(get_outcomes(&envelope, enforcement), vec![]);
+    }
+
+    #[test]
+    fn test_enforce_span_metrics_extracted_no_indexing_quota() {
+        let mut envelope = envelope![Span, OtelSpan];
+        set_extracted(&mut envelope, ItemType::Span);
+        let config = config_with_tx_metrics();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
+        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(!enforcement.span_metrics.is_active());
+        assert!(enforcement.spans.is_active());
+        mock.assert_call(DataCategory::Span, Some(0));
+        mock.assert_call(DataCategory::SpanIndexed, Some(2));
+
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::SpanIndexed, 2)]
+        );
+    }
+
+    #[test]
     fn test_source_quantity_for_total_quantity() {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -1277,6 +1423,7 @@ mod tests {
         let mut item = Item::new(ItemType::MetricBuckets);
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
+            spans: 0,
             profiles: 2,
             buckets: 5,
         });
@@ -1285,6 +1432,7 @@ mod tests {
         let mut item = Item::new(ItemType::MetricBuckets);
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
+            spans: 0,
             profiles: 0,
             buckets: 3,
         });

@@ -51,6 +51,10 @@ pub enum KafkaTopic {
     Monitors,
     /// Standalone spans without a transaction.
     Spans,
+    /// Summary for metrics collected during a span.
+    MetricsSummaries,
+    /// COGS measurements topic.
+    Cogs,
 }
 
 impl KafkaTopic {
@@ -58,7 +62,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 13] = [
+        static TOPICS: [KafkaTopic; 15] = [
             Events,
             Attachments,
             Transactions,
@@ -72,6 +76,8 @@ impl KafkaTopic {
             ReplayRecordings,
             Monitors,
             Spans,
+            MetricsSummaries,
+            Cogs,
         ];
         TOPICS.iter()
     }
@@ -111,6 +117,10 @@ pub struct TopicAssignments {
     pub monitors: TopicAssignment,
     /// Standalone spans without a transaction.
     pub spans: TopicAssignment,
+    /// Summary for metrics collected during a span.
+    pub metrics_summaries: TopicAssignment,
+    /// COGS measurements.
+    pub cogs: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -131,6 +141,8 @@ impl TopicAssignments {
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
             KafkaTopic::Monitors => &self.monitors,
             KafkaTopic::Spans => &self.spans,
+            KafkaTopic::MetricsSummaries => &self.metrics_summaries,
+            KafkaTopic::Cogs => &self.cogs,
         }
     }
 }
@@ -152,6 +164,8 @@ impl Default for TopicAssignments {
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
             monitors: "ingest-monitors".to_owned().into(),
             spans: "snuba-spans".to_owned().into(),
+            metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
+            cogs: "shared-resources-usage".to_owned().into(),
         }
     }
 }

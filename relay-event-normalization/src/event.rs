@@ -17,8 +17,8 @@ use relay_event_schema::processor::{self, MaxChars, ProcessingAction, Processing
 use relay_event_schema::protocol::{
     AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
     EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    MetricSummaryMapping, NelContext, ReplayContext, Request, SpanStatus, Tags, Timestamp,
-    TraceContext, User, VALID_PLATFORMS,
+    MetricSummaryMapping, NelContext, PerformanceScoreContext, ReplayContext, Request, SpanStatus,
+    Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
@@ -29,7 +29,7 @@ use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
@@ -101,14 +101,12 @@ pub struct NormalizationConfig<'a> {
     /// Configuration to apply to transaction names, especially around sanitizing.
     pub transaction_name_config: TransactionNameConfig<'a>,
 
-    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    /// When `true`, it is assumed that the event has been normalized before.
     ///
     /// This disables certain normalizations, especially all that are not idempotent. The
     /// renormalize mode is intended for the use in the processing pipeline, so an event modified
     /// during ingestion can be validated against the schema and large data can be trimmed. However,
     /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
-    ///
-    /// `None` equals to `false`.
     pub is_renormalize: bool,
 
     /// When `true`, infers the device class from CPU and model.
@@ -135,6 +133,11 @@ pub struct NormalizationConfig<'a> {
     ///
     /// See the event schema for size declarations.
     pub enable_trimming: bool,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans, `is_renormalize` must be disabled _and_ `normalize_spans` enabled.
+    pub normalize_spans: bool,
 
     /// The identifier of the Replay running while this event was created.
     ///
@@ -166,6 +169,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
+            normalize_spans: true,
             replay_id: Default::default(),
         }
     }
@@ -248,7 +252,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
-    normalize_user(&mut event.user);
+    normalize_user(event);
     normalize_logentry(&mut event.logentry, meta);
     normalize_debug_meta(event);
     normalize_breadcrumbs(event);
@@ -280,7 +284,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if event.ty.value() == Some(&EventType::Transaction) {
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
         normalize_all_metrics_summaries(event);
@@ -475,14 +479,20 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_user(user: &mut Annotated<User>) {
-    let Annotated(Some(user), _) = user else {
+fn normalize_user(event: &mut Event) {
+    let Annotated(Some(user), _) = &mut event.user else {
         return;
     };
+
     if !user.other.is_empty() {
         let data = user.data.value_mut().get_or_insert_with(Object::new);
         data.extend(std::mem::take(&mut user.other));
     }
+
+    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    let event_user_tag = get_event_user_tag(user);
+    user.sentry_user.set_value(event_user_tag);
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
@@ -857,9 +867,9 @@ pub fn normalize_performance_score(
                         && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
-                    break;
+                    continue;
                 }
                 let mut score_total = 0.0f64;
                 let mut weight_total = 0.0f64;
@@ -875,7 +885,7 @@ pub fn normalize_performance_score(
                 if weight_total.abs() < f64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    break;
+                    continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -909,8 +919,14 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-
                 if should_add_total {
+                    if let Some(version) = &profile.version {
+                        event
+                            .contexts
+                            .get_or_insert_with(Contexts::new)
+                            .get_or_default::<PerformanceScoreContext>()
+                            .score_profile_version = version.clone().into();
+                    }
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -920,7 +936,6 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
@@ -1406,6 +1421,56 @@ mod tests {
         ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
         RawUserAgentInfo,
     };
+
+    const IOS_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.cocoa"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 8240.571022033691,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
+
+    const ANDROID_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.java.android"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 22648,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
 
     #[test]
     fn test_normalize_dist_none() {
@@ -2866,6 +2931,312 @@ mod tests {
     }
 
     #[test]
+    fn test_computed_performance_score_multiple_profiles() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_ios_profile() {
+        let mut event = Annotated::<Event>::from_json(IOS_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_android_profile() {
+        let mut event = Annotated::<Event>::from_json(ANDROID_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_computes_performance_score_and_tags_with_profile_version() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "performance_score": {
+              "score_profile_version": "beta",
+              "type": "performancescore",
+            },
+          },
+          "measurements": {
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_normalization_removes_reprocessing_context() {
         let json = r#"{
             "contexts": {
@@ -2898,23 +3269,18 @@ mod tests {
     }
 
     #[test]
-    fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
+    fn test_normalize_user() {
+        let json = r#"{
+            "user": {
+                "id": "123456",
+                "username": "john",
+                "other": "value"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
 
-        normalize_user(&mut user);
-
-        let user = user.value().unwrap();
-
+        let user = event.value().unwrap().user.value().unwrap();
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
@@ -2923,8 +3289,9 @@ mod tests {
             );
             Annotated::new(map)
         });
-
         assert_eq!(user.other, Object::new());
+        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 
     #[test]
@@ -3290,5 +3657,50 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_skip_span_normalization_when_configured() {
+        let json = r#"{
+            "type": "transaction",
+            "start_timestamp": 1,
+            "timestamp": 2,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            },
+            "spans": [
+                {
+                    "op": "db",
+                    "description": "SELECT * FROM table;",
+                    "start_timestamp": 1,
+                    "timestamp": 2,
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa"
+                }
+            ]
+        }"#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: false,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_some());
     }
 }

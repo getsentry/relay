@@ -37,7 +37,7 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
 struct NoopRejections;
 
 impl<'a> Rejections<'a> for NoopRejections {
-    fn reject(&mut self, _limit_id: &'a str, _entry_id: EntryId) {}
+    fn reject(&mut self, _limit_id: &'a CardinalityLimit, _entry_id: EntryId) {}
 }
 
 #[derive(Debug)]
@@ -54,6 +54,7 @@ impl Params {
         Self {
             limits: vec![CardinalityLimit {
                 id: "limit".to_owned(),
+                passive: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,

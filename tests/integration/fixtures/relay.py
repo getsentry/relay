@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import uuid
 import signal
 import stat
 import requests
@@ -9,6 +10,7 @@ import subprocess
 import yaml
 import pytest
 
+from sentry_relay.auth import generate_key_pair
 from . import SentryLike
 
 RELAY_BIN = [os.path.abspath(os.environ.get("RELAY_BIN") or "target/debug/relay")]
@@ -91,6 +93,15 @@ def get_relay_binary():
 
 
 @pytest.fixture
+def relay_credentials():
+    def inner():
+        sk, pk = generate_key_pair()
+        return {"public_key": str(pk), "secret_key": str(sk), "id": str(uuid.uuid4())}
+
+    return inner
+
+
+@pytest.fixture
 def relay(mini_sentry, random_port, background_process, config_dir, get_relay_binary):
     def inner(
         upstream,
@@ -99,6 +110,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         external=None,
         wait_health_check=True,
         static_relays=None,
+        credentials=None,
         version="latest",
     ):
         relay_bin = get_relay_binary(version)
@@ -146,11 +158,16 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         dir = config_dir("relay")
         dir.join("config.yml").write(yaml.dump(default_opts))
 
-        subprocess.check_output(relay_bin + ["-c", str(dir), "credentials", "generate"])
+        if credentials is None:
+            subprocess.check_output(
+                relay_bin + ["-c", str(dir), "credentials", "generate"]
+            )
+            with open(dir.join("credentials.json")) as f:
+                credentials = json.load(f)
+        else:
+            with open(dir.join("credentials.json"), "w") as f:
+                f.write(json.dumps(credentials))
 
-        # now that we have generated a credentials file get the details
-        with open(dir.join("credentials.json")) as f:
-            credentials = json.load(f)
         public_key = credentials.get("public_key")
         assert public_key is not None
         secret_key = credentials.get("secret_key")
@@ -185,6 +202,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 
         if wait_health_check:
             relay.wait_relay_health_check()
+            # Filter out health check failures, which can happen during startup
+            mini_sentry.test_failures = [
+                f
+                for f in mini_sentry.test_failures
+                if "Health check probe" not in str(f)
+            ]
 
         return relay
 

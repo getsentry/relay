@@ -4,10 +4,13 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
+
+[lints]
+workspace = true
 
 [features]
 redis = ["relay-redis/impl"]
@@ -21,6 +24,7 @@ hashbrown = { workspace = true }
 itertools = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-cardinality = { path = "../relay-cardinality" }
+relay-cogs = { path = "../relay-cogs" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis", optional = true }

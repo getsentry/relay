@@ -4,14 +4,18 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Inbound data filters for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 ipnetwork = "0.20.0"
 once_cell = { workspace = true }
+indexmap = { workspace = true }
 regex = { workspace = true }
 relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }

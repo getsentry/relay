@@ -199,6 +199,8 @@ pub struct PerformanceScoreProfile {
     pub score_components: Vec<PerformanceScoreWeightedComponent>,
     /// See [`RuleCondition`] for all available options to specify and combine conditions.
     pub condition: Option<RuleCondition>,
+    /// The version of the profile, used to isolate changes to score calculations.
+    pub version: Option<String>,
 }
 
 /// Defines the performance configuration for the project.
@@ -1105,16 +1107,18 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         validate_event_timestamps(
             &mut event,
             &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_validated: false,
             },
         )
         .unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1164,6 +1168,7 @@ mod tests {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_validated: false,
             },
         )
         .unwrap();
@@ -1439,7 +1444,7 @@ mod tests {
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
             let res =
-                validate_transaction(&modified_event, &TransactionValidationConfig::default());
+                validate_transaction(&mut modified_event, &TransactionValidationConfig::default());
 
             assert!(res.is_err(), "{span:?}");
         }
@@ -1573,6 +1578,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -1616,6 +1622,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -1659,6 +1666,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]

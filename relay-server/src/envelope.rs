@@ -30,6 +30,7 @@
 //!
 //! ```
 
+use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -42,7 +43,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_protocol::Value;
+use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
@@ -113,6 +114,8 @@ pub enum ItemType {
     ReplayEvent,
     /// Replay Recording data.
     ReplayRecording,
+    /// Replay Video data.
+    ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
     /// A standalone span.
@@ -142,35 +145,59 @@ impl ItemType {
             }
         }
     }
+
+    /// Returns the variant name of the item type.
+    ///
+    /// Unlike [`Self::as_str`] this returns an unknown value as `unknown`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::Transaction => "transaction",
+            Self::Security => "security",
+            Self::Attachment => "attachment",
+            Self::FormData => "form_data",
+            Self::RawSecurity => "raw_security",
+            Self::Nel => "nel",
+            Self::UnrealReport => "unreal_report",
+            Self::UserReport => "user_report",
+            Self::UserReportV2 => "feedback",
+            Self::Session => "session",
+            Self::Sessions => "sessions",
+            Self::Statsd => "statsd",
+            Self::MetricBuckets => "metric_buckets",
+            Self::MetricMeta => "metric_meta",
+            Self::ClientReport => "client_report",
+            Self::Profile => "profile",
+            Self::ReplayEvent => "replay_event",
+            Self::ReplayRecording => "replay_recording",
+            Self::ReplayVideo => "replay_video",
+            Self::CheckIn => "check_in",
+            Self::Span => "span",
+            Self::OtelSpan => "otel_span",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    /// Returns the item type as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown(ref s) => s,
+            _ => self.name(),
+        }
+    }
+
+    /// Returns `true` if the item is a metric type.
+    pub fn is_metrics(&self) -> bool {
+        matches!(
+            self,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
+        )
+    }
 }
 
 impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Event => write!(f, "event"),
-            Self::Transaction => write!(f, "transaction"),
-            Self::Security => write!(f, "security"),
-            Self::Attachment => write!(f, "attachment"),
-            Self::FormData => write!(f, "form_data"),
-            Self::RawSecurity => write!(f, "raw_security"),
-            Self::Nel => write!(f, "nel"),
-            Self::UnrealReport => write!(f, "unreal_report"),
-            Self::UserReport => write!(f, "user_report"),
-            Self::UserReportV2 => write!(f, "feedback"),
-            Self::Session => write!(f, "session"),
-            Self::Sessions => write!(f, "sessions"),
-            Self::Statsd => write!(f, "statsd"),
-            Self::MetricBuckets => write!(f, "metric_buckets"),
-            Self::MetricMeta => write!(f, "metric_meta"),
-            Self::ClientReport => write!(f, "client_report"),
-            Self::Profile => write!(f, "profile"),
-            Self::ReplayEvent => write!(f, "replay_event"),
-            Self::ReplayRecording => write!(f, "replay_recording"),
-            Self::CheckIn => write!(f, "check_in"),
-            Self::Span => write!(f, "span"),
-            Self::OtelSpan => write!(f, "otel_span"),
-            Self::Unknown(s) => s.fmt(f),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -198,6 +225,7 @@ impl std::str::FromStr for ItemType {
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
+            "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
@@ -489,6 +517,11 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Indicates that this item should be combined into one payload with other replay item.
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    replay_combined_payload: bool,
+
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -545,6 +578,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
@@ -553,8 +588,16 @@ pub struct SourceQuantities {
 
 impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
-        self.transactions += other.transactions;
-        self.profiles += other.profiles;
+        let Self {
+            transactions,
+            spans,
+            profiles,
+            buckets,
+        } = self;
+        *transactions += other.transactions;
+        *spans += other.spans;
+        *profiles += other.profiles;
+        *buckets += other.buckets;
     }
 }
 
@@ -576,6 +619,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                replay_combined_payload: false,
                 source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -606,6 +650,11 @@ impl Item {
         }
     }
 
+    /// True if the item represents any kind of span.
+    pub fn is_span(&self) -> bool {
+        matches!(self.ty(), ItemType::OtelSpan | ItemType::Span)
+    }
+
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
@@ -631,7 +680,9 @@ impl Item {
             } else {
                 DataCategory::Profile
             }),
-            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                Some(DataCategory::Replay)
+            }
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan => Some(if indexed {
@@ -739,6 +790,17 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
+    /// Returns if the payload's replay items should be combined into one kafka message.
+    #[cfg(feature = "processing")]
+    pub fn replay_combined_payload(&self) -> bool {
+        self.headers.replay_combined_payload
+    }
+
+    /// Sets the replay_combined_payload for this item.
+    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
+        self.headers.replay_combined_payload = combined_payload;
+    }
+
     /// Sets sample rates for this item.
     pub fn set_sample_rates(&mut self, sample_rates: Value) {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
@@ -832,6 +894,7 @@ impl Item {
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
+            | ItemType::ReplayVideo
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
@@ -858,7 +921,6 @@ impl Item {
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
-
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
@@ -867,6 +929,7 @@ impl Item {
             ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
+            ItemType::ReplayVideo => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,
@@ -1105,6 +1168,29 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
+    /// Runs transaction parametrization on the DSC trace transaction.
+    ///
+    /// The purpose is for trace rules to match on the parametrized version of the transaction.
+    pub fn parametrize_dsc_transaction(&mut self, rules: &[TransactionNameRule]) {
+        let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
+            return;
+        };
+
+        let parametrized_transaction = match &dsc.transaction {
+            Some(transaction) if transaction.contains('/') => {
+                // Ideally we would only apply transaction rules to transactions with source `url`,
+                // but the DSC does not contain this information. The chance of a transaction rename rule
+                // accidentially matching a non-URL transaction should be very low.
+                let mut annotated = Annotated::new(transaction.clone());
+                normalize_transaction_name(&mut annotated, rules);
+                annotated.into_value()
+            }
+            _ => return,
+        };
+
+        dsc.transaction = parametrized_transaction;
+    }
+
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
@@ -1248,6 +1334,11 @@ impl Envelope {
         self.items.retain(f)
     }
 
+    /// Drops every item in the envelope.
+    pub fn drop_items_silently(&mut self) {
+        self.items.clear()
+    }
+
     /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
@@ -1365,7 +1456,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::ProjectId;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
 
     use super::*;
 
@@ -1436,6 +1527,16 @@ mod tests {
         item.set_source_quantities(source_quantities);
 
         assert_eq!(item.source_quantities(), Some(source_quantities));
+    }
+
+    #[test]
+    fn test_item_type_names() {
+        assert_eq!(ItemType::Span.name(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).name(), "unknown");
+        assert_eq!(ItemType::Span.as_str(), "span");
+        assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
+        assert_eq!(&ItemType::Span.to_string(), "span");
+        assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
     }
 
     #[test]
@@ -1693,6 +1794,22 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_replay_video() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_video\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::ReplayVideo);
+    }
+
+    #[test]
     fn test_deserialize_envelope_view_hierarchy() {
         let bytes = Bytes::from(
             "\
@@ -1884,5 +2001,54 @@ mod tests {
         for item in envelope.items() {
             assert_eq!(item.ty(), &ItemType::Attachment);
         }
+    }
+
+    #[test]
+    fn test_parametrize_root_transaction() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("/auth/login/test/".into()), // the only important bit for this test
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule: TransactionNameRule = {
+            // here you see the pattern that'll transform the transaction name.
+            let json = r#"{
+                "pattern": "/auth/login/*/**",
+                "expiry": "3022-11-30T00:00:00.000000Z",
+                "redaction": {
+                    "method": "replace",
+                    "substitution": "*"
+                    }
+                }"#;
+
+            serde_json::from_str(json).unwrap()
+        };
+
+        // Envelope only created in order to run the parametrize dsc method.
+        let mut envelope = {
+            let bytes = bytes::Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
+            *Envelope::parse_bytes(bytes).unwrap()
+        };
+        envelope.set_dsc(dsc.clone());
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/test/"
+        );
+        // parametrize the transaciton name in the dsc.
+        envelope.parametrize_dsc_transaction(&[rule]);
+
+        assert_eq!(
+            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            "/auth/login/*/"
+        );
     }
 }

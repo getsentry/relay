@@ -4,11 +4,14 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Native crash reporting for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 

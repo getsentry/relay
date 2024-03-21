@@ -112,8 +112,14 @@ pub enum MetricNamespace {
     Transactions,
     /// Metrics extracted from spans.
     Spans,
+    /// Metrics extracted from profile functions.
+    Profiles,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
+    /// Metric stats.
+    ///
+    /// Metrics about metrics.
+    Stats,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -127,14 +133,34 @@ pub enum MetricNamespace {
 }
 
 impl MetricNamespace {
+    /// Returns all namespaces/variants of this enum.
+    pub fn all() -> [Self; 7] {
+        [
+            Self::Sessions,
+            Self::Transactions,
+            Self::Spans,
+            Self::Profiles,
+            Self::Custom,
+            Self::Stats,
+            Self::Unsupported,
+        ]
+    }
+
+    /// Returns `true` if metric stats are enabled for this namespace.
+    pub fn has_metric_stats(&self) -> bool {
+        matches!(self, Self::Custom)
+    }
+
     /// Returns the string representation for this metric type.
     pub fn as_str(&self) -> &'static str {
         match self {
-            MetricNamespace::Sessions => "sessions",
-            MetricNamespace::Transactions => "transactions",
-            MetricNamespace::Spans => "spans",
-            MetricNamespace::Custom => "custom",
-            MetricNamespace::Unsupported => "unsupported",
+            Self::Sessions => "sessions",
+            Self::Transactions => "transactions",
+            Self::Spans => "spans",
+            Self::Profiles => "profiles",
+            Self::Custom => "custom",
+            Self::Stats => "metric_stats",
+            Self::Unsupported => "unsupported",
         }
     }
 }
@@ -147,7 +173,9 @@ impl std::str::FromStr for MetricNamespace {
             "sessions" => Ok(Self::Sessions),
             "transactions" => Ok(Self::Transactions),
             "spans" => Ok(Self::Spans),
+            "profiles" => Ok(Self::Profiles),
             "custom" => Ok(Self::Custom),
+            "metric_stats" => Ok(Self::Stats),
             _ => Ok(Self::Unsupported),
         }
     }
@@ -331,6 +359,16 @@ mod tests {
     fn test_sizeof_unit() {
         assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
         assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
+    }
+
+    #[test]
+    fn test_metric_namespaces_conversion() {
+        for namespace in MetricNamespace::all() {
+            assert_eq!(
+                namespace,
+                namespace.as_str().parse::<MetricNamespace>().unwrap()
+            );
+        }
     }
 
     #[test]

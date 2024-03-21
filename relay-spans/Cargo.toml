@@ -4,16 +4,23 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event normalization and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.2"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 chrono.workspace = true
 enumset = "1.0.4"
 once_cell.workspace = true
-opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14", features = ["gen-tonic", "with-serde", "trace"] }
+opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14", features = [
+    "gen-tonic",
+    "with-serde",
+    "trace",
+] }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-protocol = { path = "../relay-protocol" }
 serde.workspace = true

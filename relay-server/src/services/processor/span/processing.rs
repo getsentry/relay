@@ -7,21 +7,23 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty, Object};
+use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
@@ -83,6 +85,7 @@ pub fn process(
             &mut annotated_span,
             normalize_span_config.clone(),
             Annotated::new(contexts.clone()),
+            state.project_state.config(),
         ) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
@@ -92,7 +95,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config, Some(&global_config.options));
+            let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
@@ -146,6 +149,13 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     };
 
+    if !state
+        .project_state
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+    {
+        return;
+    }
+
     let mut add_span = |span: Annotated<Span>| {
         let span = match validate(span) {
             Ok(span) => span,
@@ -178,81 +188,68 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
-    let span_metrics_extraction_enabled = state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtraction);
-    let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
-
     let Some(event) = state.event.value() else {
         return;
     };
 
-    let extract_transaction_span = span_metrics_extraction_enabled
-        || (custom_metrics_enabled && !event._metrics_summary.is_empty());
-    let extract_child_spans = span_metrics_extraction_enabled;
+    let transaction_span = extract_transaction_span(event);
 
-    // Extract transaction as a span.
-    let mut transaction_span: Span = event.into();
+    // Add child spans as envelope items.
+    if let Some(child_spans) = event.spans.value() {
+        for span in child_spans {
+            let Some(inner_span) = span.value() else {
+                continue;
+            };
+            // HACK: clone the span to set the segment_id. This should happen
+            // as part of normalization once standalone spans reach wider adoption.
+            let mut new_span = inner_span.clone();
+            new_span.is_segment = Annotated::new(false);
+            new_span.received = transaction_span.received.clone();
+            new_span.segment_id = transaction_span.segment_id.clone();
+            new_span.platform = transaction_span.platform.clone();
 
-    if extract_child_spans {
-        // Add child spans as envelope items.
-        if let Some(child_spans) = event.spans.value() {
-            for span in child_spans {
-                let Some(inner_span) = span.value() else {
-                    continue;
-                };
-                // HACK: clone the span to set the segment_id. This should happen
-                // as part of normalization once standalone spans reach wider adoption.
-                let mut new_span = inner_span.clone();
-                new_span.is_segment = Annotated::new(false);
-                new_span.received = transaction_span.received.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
+            // If a profile is associated with the transaction, also associate it with its
+            // child spans.
+            new_span.profile_id = transaction_span.profile_id.clone();
 
-                // If a profile is associated with the transaction, also associate it with its
-                // child spans.
-                new_span.profile_id = transaction_span.profile_id.clone();
-
-                add_span(Annotated::new(new_span));
-            }
+            add_span(Annotated::new(new_span));
         }
     }
 
-    if extract_transaction_span {
-        // Extract tags to add to this span as well
-        let shared_tags = tag_extraction::extract_shared_tags(event);
-        transaction_span.sentry_tags = Annotated::new(
-            shared_tags
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                .collect(),
-        );
-        add_span(transaction_span.into());
-    }
+    add_span(transaction_span.into());
 }
 
+/// Removes the transaction in case the project has made the transition to spans-only.
+pub fn maybe_discard_transaction(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+    if state.event_type() == Some(EventType::Transaction)
+        && state.project_state.has_feature(Feature::DiscardTransaction)
+    {
+        state.remove_event();
+        state.managed_envelope.update();
+    }
+}
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
 struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
-    pub received_at: DateTime<Utc>,
+    received_at: DateTime<Utc>,
     /// Allowed time range for spans.
-    pub timestamp_range: std::ops::Range<UnixTimestamp>,
+    timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_size: usize,
+    max_tag_value_size: usize,
     /// Configuration for generating performance score measurements for web vitals
-    pub performance_score: Option<&'a PerformanceScoreConfig>,
+    performance_score: Option<&'a PerformanceScoreConfig>,
     /// Configuration for measurement normalization in transaction events.
     ///
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+    measurements: Option<DynamicMeasurementsConfig<'a>>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    pub max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: Option<usize>,
 }
 
 fn get_normalize_span_config<'a>(
@@ -289,12 +286,13 @@ fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
     contexts: Annotated<Contexts>,
+    project_config: &ProjectConfig,
 ) -> Result<(), ProcessingError> {
     use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range: timestmap_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -318,7 +316,7 @@ fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(&timestmap_range))?;
+        validate_span(span, Some(&timestamp_range))?;
     }
     process_value(
         annotated_span,
@@ -335,11 +333,8 @@ fn normalize(
         .and_then(|contexts| contexts.get::<BrowserContext>())
         .and_then(|v| v.name.value())
     {
-        let data = span.data.value_mut().get_or_insert_with(Object::new);
-        data.insert(
-            "browser.name".into(),
-            Annotated::new(browser_name.to_owned().into()),
-        );
+        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
+        data.browser_name = Annotated::new(browser_name.to_owned().into());
     }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
@@ -359,6 +354,15 @@ fn normalize(
 
     if is_segment {
         span.segment_id = span.span_id.clone();
+    }
+
+    if let Some(transaction) = span
+        .data
+        .value_mut()
+        .as_mut()
+        .map(|data| &mut data.transaction)
+    {
+        normalize_transaction_name(transaction, &project_config.tx_name_rules);
     }
 
     // Tag extraction:

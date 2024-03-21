@@ -461,5 +461,6 @@ GLOBAL_CONFIG = {
         ],
         "maxCustomMeasurements": 10,
     },
-    "options": {},
+    "filters": {"version": 1, "filters": []},
+    "options": {"relay.span-usage-metric": True},
 }

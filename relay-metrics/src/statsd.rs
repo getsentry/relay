@@ -83,12 +83,18 @@ pub enum MetricTimers {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsScanDuration,
+    /// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    AggregatorServiceDuration,
 }
 
 impl TimerMetric for MetricTimers {
     fn name(&self) -> &'static str {
         match *self {
             Self::BucketsScanDuration => "metrics.buckets.scan_duration",
+            Self::AggregatorServiceDuration => "metrics.aggregator.message.duration",
         }
     }
 }

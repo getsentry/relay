@@ -293,7 +293,7 @@ impl ConfigObject for Credentials {
 }
 
 /// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.
@@ -493,10 +493,6 @@ struct Metrics {
     default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
-    /// Emitted metrics will be buffered to optimize performance.
-    ///
-    /// Defaults to `true`.
-    buffering: bool,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
@@ -511,7 +507,6 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            buffering: true,
             sample_rate: 1.0,
         }
     }
@@ -818,12 +813,12 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
 
 /// Default for min connections to keep open in the pool.
 fn spool_envelopes_min_connections() -> u32 {
-    10
+    1
 }
 
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
-    20
+    1
 }
 
 /// Default interval to unspool buffered envelopes, 100ms.
@@ -904,8 +899,10 @@ struct Cache {
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The buffer timeout for batched queries before sending them upstream in ms.
+    /// The buffer timeout for batched project config queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
+    downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
@@ -927,8 +924,9 @@ impl Default for Cache {
             relay_expiry: 3600,   // 1 hour
             envelope_expiry: 600, // 10 minutes
             envelope_buffer_size: 1000,
-            miss_expiry: 60,     // 1 minute
-            batch_interval: 100, // 100ms
+            miss_expiry: 60,                       // 1 minute
+            batch_interval: 100,                   // 100ms
+            downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
             eviction_interval: 60,            // 60 seconds
@@ -1301,6 +1299,81 @@ impl Default for CardinalityLimiter {
     }
 }
 
+/// Settings to control Relay's health checks.
+///
+/// After breaching one of the configured thresholds, Relay will
+/// return an `unhealthy` status from its health endpoint.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Health {
+    /// Interval in which Relay will refresh system information, like current memory usage.
+    ///
+    /// Defaults to 3 seconds.
+    pub sys_info_refresh_interval_secs: u64,
+    /// Maximum memory watermark in bytes.
+    ///
+    /// By default there is no absolute limit set and the watermark
+    /// is only controlled by setting [`Self::max_memory_percent`].
+    pub max_memory_bytes: Option<ByteSize>,
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    ///
+    /// Defaults to `0.95` (95%).
+    pub max_memory_percent: f32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self {
+            sys_info_refresh_interval_secs: 3,
+            max_memory_bytes: None,
+            max_memory_percent: 0.95,
+        }
+    }
+}
+
+/// COGS configuration.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Cogs {
+    /// Whether COGS measurements are enabled.
+    ///
+    /// Defaults to `false`.
+    enabled: bool,
+    /// Granularity of the COGS measurements.
+    ///
+    /// Measurements are aggregated based on the granularity in seconds.
+    ///
+    /// Aggregated measurements are always flushed at the end of their
+    /// aggregation window, which means the granularity also controls the flush
+    /// interval.
+    ///
+    /// Defaults to `60` (1 minute).
+    granularity_secs: u64,
+    /// Maximium amount of COGS measurements allowed to backlog.
+    ///
+    /// Any additional COGS measurements recorded will be dropped.
+    ///
+    /// Defaults to `10_000`.
+    max_queue_size: u64,
+    /// Relay COGS resource id.
+    ///
+    /// All Relay related COGS measurements are emitted with this resource id.
+    ///
+    /// Defaults to `relay_service`.
+    relay_resource_id: String,
+}
+
+impl Default for Cogs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            granularity_secs: 60,
+            max_queue_size: 10_000,
+            relay_resource_id: "relay_service".to_owned(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1339,6 +1412,10 @@ struct ConfigValues {
     geoip: GeoIpConfig,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
+    #[serde(default)]
+    health: Health,
+    #[serde(default)]
+    cogs: Cogs,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1815,11 +1892,6 @@ impl Config {
         self.values.metrics.hostname_tag.as_deref()
     }
 
-    /// Returns true if metrics buffering is enabled, false otherwise.
-    pub fn metrics_buffering(&self) -> bool {
-        self.values.metrics.buffering
-    }
-
     /// Returns the global sample rate for all metrics.
     pub fn metrics_sample_rate(&self) -> f32 {
         self.values.metrics.sample_rate
@@ -1884,10 +1956,15 @@ impl Config {
         Duration::from_secs(self.values.cache.project_grace_period.into())
     }
 
-    /// Returns the number of seconds during which batchable queries are collected before sending
-    /// them in a single request.
+    /// Returns the duration in which batchable project config queries are
+    /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
         Duration::from_millis(self.values.cache.batch_interval.into())
+    }
+
+    /// Returns the duration in which downstream relays are requested from upstream.
+    pub fn downstream_relays_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
@@ -2157,6 +2234,45 @@ impl Config {
     /// The cache will scan for expired values based on this interval.
     pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
+    }
+
+    /// Interval to refresh system information.
+    pub fn health_sys_info_refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    }
+
+    /// Maximum memory watermark in bytes.
+    pub fn health_max_memory_watermark_bytes(&self) -> u64 {
+        self.values
+            .health
+            .max_memory_bytes
+            .as_ref()
+            .map_or(u64::MAX, |b| b.as_bytes() as u64)
+    }
+
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    pub fn health_max_memory_watermark_percent(&self) -> f32 {
+        self.values.health.max_memory_percent
+    }
+
+    /// Whether COGS measurements are enabled.
+    pub fn cogs_enabled(&self) -> bool {
+        self.values.cogs.enabled
+    }
+
+    /// Granularity for COGS measurements.
+    pub fn cogs_granularity(&self) -> Duration {
+        Duration::from_secs(self.values.cogs.granularity_secs)
+    }
+
+    /// Maximum amount of COGS measurements buffered in memory.
+    pub fn cogs_max_queue_size(&self) -> u64 {
+        self.values.cogs.max_queue_size
+    }
+
+    /// Resource ID to use for Relay COGS measurements.
+    pub fn cogs_relay_resource_id(&self) -> &str {
+        &self.values.cogs.relay_resource_id
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

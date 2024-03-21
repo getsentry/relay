@@ -1,6 +1,9 @@
 //! Envelope context type and helpers to ensure outcomes.
 
+use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 use std::mem::size_of;
+use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -10,7 +13,7 @@ use relay_system::Addr;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::ProcessingGroup;
+use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -63,6 +66,79 @@ struct EnvelopeContext {
     partition_key: Option<u64>,
     done: bool,
     group: ProcessingGroup,
+}
+
+#[derive(Debug)]
+pub struct InvalidProcessingGroupType(pub ManagedEnvelope);
+
+impl Display for InvalidProcessingGroupType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "failed to convert to the processing group {} based on the provided type",
+            self.0.group().variant()
+        ))
+    }
+}
+
+impl std::error::Error for InvalidProcessingGroupType {}
+
+/// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
+pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
+
+impl<G> TypedEnvelope<G> {
+    /// Changes the typed of the current envelope to processed.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self.0, Processed)
+    }
+
+    /// Accepts the envelope and drops the internal managed envelope with its context.
+    ///
+    /// This should be called if the envelope has been accepted by the upstream, which means that
+    /// the responsibility for logging outcomes has been moved. This function will not log any
+    /// outcomes.
+    pub fn accept(self) {
+        self.0.accept()
+    }
+
+    /// Creates a new typed envelope.
+    ///
+    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
+    /// requires the check for the error if conversion is failing.
+    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
+    }
+}
+
+impl<G: TryFrom<ProcessingGroup>> TryFrom<ManagedEnvelope> for TypedEnvelope<G> {
+    type Error = InvalidProcessingGroupType;
+    fn try_from(value: ManagedEnvelope) -> Result<Self, Self::Error> {
+        match value.group().try_into() {
+            Ok(group) => Ok(TypedEnvelope::new(value, group)),
+            Err(_) => Err(InvalidProcessingGroupType(value)),
+        }
+    }
+}
+
+impl<G> Debug for TypedEnvelope<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
+    }
+}
+
+impl<G> Deref for TypedEnvelope<G> {
+    type Target = ManagedEnvelope;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<G> DerefMut for TypedEnvelope<G> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -121,14 +197,12 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        use crate::services::processor::Ungrouped;
-
         let mut envelope = Self::new_internal(
             envelope,
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Ungrouped(Ungrouped),
+            ProcessingGroup::Ungrouped,
         );
         envelope.context.done = true;
         envelope
@@ -188,6 +262,13 @@ impl ManagedEnvelope {
         Box::new(self.envelope.take_items())
     }
 
+    /// Converts current managed envelope into processed envelope.
+    ///
+    /// Once it's marked processed it can be submitted to upstream.
+    pub fn into_processed(self) -> TypedEnvelope<Processed> {
+        TypedEnvelope::new(self, Processed)
+    }
+
     /// Take the envelope out of the context and replace it with a dummy.
     ///
     /// Note that after taking out the envelope, the envelope summary is incorrect.
@@ -234,13 +315,18 @@ impl ManagedEnvelope {
         // TODO: once `update` is private, it should be called here.
     }
 
+    /// Drops every item in the envelope.
+    pub fn drop_items_silently(&mut self) {
+        self.envelope.drop_items_silently();
+    }
+
     /// Record that event metrics have been extracted.
     ///
     /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
     /// if the context needs to be updated in-flight without recomputing the entire summary, this
     /// method can record that metric extraction for the event item has occurred.
     pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
-        self.context.summary.event_metrics_extracted = true;
+        self.context.summary.transaction_metrics_extracted = true;
         self
     }
 
@@ -250,7 +336,7 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Removes event item(s) and log an outcome.
+    /// Removes event item(s) and logs an outcome.
     ///
     /// Note: This function relies on the envelope summary being correct.
     pub fn reject_event(&mut self, outcome: Outcome) {
@@ -297,7 +383,7 @@ impl ManagedEnvelope {
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
     fn use_index_category(&self) -> bool {
-        self.context.summary.event_metrics_extracted
+        self.context.summary.transaction_metrics_extracted
     }
 
     /// Returns the data category of the event item in the envelope.
@@ -335,6 +421,7 @@ impl ManagedEnvelope {
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
+                    tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,
@@ -373,16 +460,47 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.span_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                match self.context.summary.span_metrics_extracted {
+                    true => DataCategory::SpanIndexed,
+                    false => DataCategory::Span,
+                },
+                self.context.summary.span_quantity,
+            );
+        }
+
         // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
         //
         // Primary transaction count is already tracked through the event category
         // (see: `Self::event_category()`).
         if self.context.summary.secondary_transaction_quantity > 0 {
             self.track_outcome(
-                outcome,
+                outcome.clone(),
                 // Secondary transaction counts are never indexed transactions
                 DataCategory::Transaction,
                 self.context.summary.secondary_transaction_quantity,
+            );
+        }
+
+        // Track outcomes for attached secondary spans, e.g. extracted from metrics.
+        //
+        // Primary span count is already tracked through `SpanIndexed`.
+        if self.context.summary.secondary_span_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                // Secondary transaction counts are never indexed transactions
+                DataCategory::Span,
+                self.context.summary.secondary_span_quantity,
+            );
+        }
+
+        if self.context.summary.replay_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::Replay,
+                self.context.summary.replay_quantity,
             );
         }
 
@@ -451,5 +569,53 @@ impl ManagedEnvelope {
 impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
+    }
+}
+
+impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
+    fn from(value: TypedEnvelope<G>) -> Self {
+        value.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+
+    #[test]
+    fn span_metrics_are_reported() {
+        let bytes =
+            Bytes::from(r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#);
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+
+        let (test_store, _) = Addr::custom();
+        let (outcome_aggregator, mut rx) = Addr::custom();
+        let mut env = ManagedEnvelope::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        );
+        env.context.summary.span_metrics_extracted = true;
+        env.context.summary.span_quantity = 123;
+        env.context.summary.secondary_span_quantity = 456;
+
+        env.reject(Outcome::Abuse);
+
+        rx.close();
+
+        let outcome = rx.blocking_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::SpanIndexed);
+        assert_eq!(outcome.quantity, 123);
+        assert_eq!(outcome.outcome, Outcome::Abuse);
+
+        let outcome = rx.blocking_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Span);
+        assert_eq!(outcome.quantity, 456);
+        assert_eq!(outcome.outcome, Outcome::Abuse);
+
+        assert!(rx.blocking_recv().is_none());
     }
 }

@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -448,7 +450,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # Submission Protocol
 ///
 /// ```text
-/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>|T<timestamp>
+/// <name>[@unit]:<value>[:<value>...]|<type>[|#<tag_key>:<tag_value>,<tag>][|T<timestamp>]
 /// ```
 ///
 /// See the [field documentation](Bucket#fields) for more information on the components. An example
@@ -550,7 +552,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: Arc<str>,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -593,7 +595,7 @@ pub struct Bucket {
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
     /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d_:/@.{}\[\]$-]+/`.
+    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
     ///
     /// # Example
     ///
@@ -602,6 +604,13 @@ pub struct Bucket {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
+
+    /// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    #[serde(default, skip_serializing_if = "BucketMetadata::is_default")]
+    pub metadata: BucketMetadata,
 }
 
 impl Bucket {
@@ -632,9 +641,10 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         for component in components {
@@ -716,7 +726,7 @@ impl CardinalityItem for Bucket {
             Err(error) => {
                 relay_log::debug!(
                     error = &error as &dyn std::error::Error,
-                    metric = self.name,
+                    metric = self.name.as_ref(),
                     "rejecting metric with invalid MRI"
                 );
                 return None;
@@ -732,6 +742,47 @@ impl CardinalityItem for Bucket {
         self.name.hash(&mut hasher);
         self.tags.hash(&mut hasher);
         hasher.finish32()
+    }
+}
+
+/// Relay internal metadata for a metric bucket.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct BucketMetadata {
+    /// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    pub merges: NonZeroU32,
+}
+
+impl BucketMetadata {
+    /// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge.
+    pub fn new() -> Self {
+        Self {
+            merges: NonZeroU32::MIN,
+        }
+    }
+
+    /// Whether the metadata does not contain more information than the default.
+    pub fn is_default(&self) -> bool {
+        let Self { merges } = self;
+        *merges == NonZeroU32::MIN
+    }
+
+    /// Merges another metadata object into the current one.
+    pub fn merge(&mut self, other: Self) {
+        self.merges = self.merges.saturating_add(other.merges.get());
+    }
+}
+
+impl Default for BucketMetadata {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -860,6 +911,9 @@ mod tests {
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -888,6 +942,9 @@ mod tests {
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -934,6 +991,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -988,6 +1048,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1012,6 +1075,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1030,6 +1096,9 @@ mod tests {
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1086,7 +1155,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]
@@ -1208,6 +1277,9 @@ mod tests {
                 tags: {
                     "route": "user_index",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -1226,7 +1298,7 @@ mod tests {
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -1236,9 +1308,12 @@ mod tests {
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]

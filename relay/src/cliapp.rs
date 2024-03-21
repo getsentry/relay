@@ -306,4 +306,36 @@ pub fn make_app() -> Command {
                         ),
                 ),
         )
+        .subcommand(
+            Command::new("spool")
+                .about("Manage the spool file")
+                .after_help(
+                    "This comand provides basic spool management. \
+                    It can be used for checking spooled data, cleaning up the spool file."
+                )
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new("clear")
+                        .about("Remove the spooled data from the spool file")
+                        .after_help(
+                            "This deletes all the spooled on-disk data."
+                        )
+                        .arg(
+                            Arg::new("path")
+                            .short('p')
+                            .long("path")
+                            .help(
+                                "Path to the spool file. \
+                                This option overwrites the value from the config file."
+                            )
+                        )
+                        .arg(
+                            Arg::new("force")
+                            .short('f')
+                            .long("force")
+                            .help("Run without confirmation")
+                            .action(clap::ArgAction::SetTrue)
+                        )
+                )
+        )
 }

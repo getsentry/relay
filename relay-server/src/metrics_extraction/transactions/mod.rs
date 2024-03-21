@@ -5,7 +5,8 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
-    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
+    TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
@@ -322,6 +323,9 @@ impl TransactionExtractor<'_> {
                     } else {
                         tags.clone()
                     },
+                    score_profile_version: is_performance_score
+                        .then(|| event.context::<PerformanceScoreContext>())
+                        .and_then(|context| context?.score_profile_version.value().cloned()),
                 };
 
                 metrics.project_metrics.push(
@@ -452,10 +456,14 @@ impl TransactionExtractor<'_> {
 
         // User
         if let Some(user) = event.user.value() {
-            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
-                metrics
-                    .project_metrics
-                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+            if let Some(value) = user.sentry_user.value() {
+                metrics.project_metrics.push(
+                    TransactionMetric::User {
+                        value: value.clone(),
+                        tags,
+                    }
+                    .into_metric(timestamp),
+                );
             }
         }
 
@@ -499,7 +507,6 @@ mod tests {
         MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
         PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
-    use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
 
@@ -577,8 +584,8 @@ mod tests {
         .unwrap();
 
         // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
         validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
 
         normalize_event(
             &mut event,
@@ -596,6 +603,7 @@ mod tests {
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
+                        version: Some("alpha".into()),
                     }],
                 }),
                 ..Default::default()
@@ -651,6 +659,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -681,6 +690,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -706,6 +718,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -721,8 +736,12 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -739,8 +758,12 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -757,8 +780,12 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -784,6 +811,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -793,6 +823,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -817,6 +850,9 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -830,6 +866,9 @@ mod tests {
                 tags: {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -854,6 +893,9 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -912,6 +954,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -926,6 +971,9 @@ mod tests {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
@@ -942,6 +990,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -951,6 +1002,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -966,6 +1020,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -978,6 +1035,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1033,6 +1093,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1049,6 +1112,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1058,6 +1124,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1073,6 +1142,9 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1085,6 +1157,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1125,10 +1200,13 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            &*duration_metric.name,
+            "d:transactions/duration@millisecond"
+        );
         assert_eq!(
             duration_metric.value,
             BucketValue::distribution(59000.into())
@@ -1210,6 +1288,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1226,6 +1307,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1241,6 +1325,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1250,6 +1337,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1265,6 +1355,9 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1277,6 +1370,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "foo",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1308,7 +1404,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1347,7 +1443,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1422,6 +1518,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1437,6 +1536,9 @@ mod tests {
                     "platform": "other",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -1448,6 +1550,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -1527,7 +1632,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         duration_metric.tags.get("transaction").cloned()
@@ -1573,6 +1678,9 @@ mod tests {
                 tags: {
                     "decision": "keep",
                     "transaction": "root_transaction",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1845,62 +1953,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_eventuser_tag() {
-        // Note: If this order changes,
-        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
-        // has to be changed. Though it is probably not a good idea!
-        let user = User {
-            id: Annotated::new("ident".to_owned().into()),
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "id:ident"
-        );
-
-        let user = User {
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "username:username"
-        );
-
-        let user = User {
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "email:email"
-        );
-
-        let user = User {
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "ip:127.0.0.1"
-        );
-
-        let user = User::default();
-
-        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
-    }
-
-    #[test]
     fn test_conditional_tagging() {
         let event = Annotated::from_json(
             r#"{
@@ -1967,6 +2019,9 @@ mod tests {
                     "measurement_rating": "good",
                     "platform": "javascript",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1976,6 +2031,9 @@ mod tests {
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -1990,6 +2048,9 @@ mod tests {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
@@ -2001,6 +2062,9 @@ mod tests {
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);

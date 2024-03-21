@@ -475,6 +475,7 @@ mod tests {
     use relay_protocol::{
         assert_annotated_snapshot, get_value, Annotated, FromValue, Object, Value,
     };
+    use serde_json::json;
 
     use super::*;
     use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -493,7 +494,7 @@ mod tests {
     #[test]
     fn test_scrub_original_value() {
         let mut data = Event::from_value(
-            serde_json::json!({
+            json!({
                 "user": {
                     "username": "hey  man 73.133.27.120", // should be stripped despite not being "known ip field"
                     "ip_address": "is this an ip address? 73.133.27.120", //  <--------
@@ -745,7 +746,7 @@ mod tests {
     #[test]
     fn test_ignore_user_agent_ip_scrubbing() {
         let mut data = Event::from_value(
-            serde_json::json!({
+            json!({
                 "request": {
                     "headers": [
                         ["User-Agent", "127.0.0.1"],
@@ -1313,6 +1314,32 @@ mod tests {
     }
 
     #[test]
+    fn test_span_data_pii() {
+        let mut span = Span::from_value(
+            json!({
+                "data": {
+                    "code.filepath": "src/sentry/api/authentication.py",
+                }
+            })
+            .into(),
+        );
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        processor::process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_eq!(
+            get_value!(span.data.code_filepath!).as_str(),
+            Some("src/sentry/api/authentication.py")
+        );
+    }
+
+    #[test]
     fn test_scrub_breadcrumb_data_http_not_scrubbed() {
         let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
             r#"{
@@ -1423,7 +1450,7 @@ mod tests {
     #[test]
     fn test_scrub_graphql_response_data_with_variables() {
         let mut data = Event::from_value(
-            serde_json::json!({
+            json!({
               "request": {
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}",
@@ -1457,7 +1484,7 @@ mod tests {
     #[test]
     fn test_scrub_graphql_response_data_without_variables() {
         let mut data = Event::from_value(
-            serde_json::json!({
+            json!({
               "request": {
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}"
@@ -1487,7 +1514,7 @@ mod tests {
     #[test]
     fn test_does_not_scrub_if_no_graphql() {
         let mut data = Event::from_value(
-            serde_json::json!({
+            json!({
               "request": {
                 "data": {
                   "query": "{\n  viewer {\n    login\n  }\n}",

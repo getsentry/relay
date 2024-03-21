@@ -2,7 +2,8 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
-pub use sql::parse_query;
+#[cfg(test)]
+pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -12,7 +13,8 @@ use relay_event_schema::protocol::Span;
 use url::Url;
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -41,7 +43,7 @@ pub(crate) fn scrub_span_description(
     let data = span.data.value();
 
     let db_system = data
-        .and_then(|v| v.get("db.system"))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
@@ -69,6 +71,13 @@ pub(crate) fn scrub_span_description(
                     // The description will only contain the entity queried and
                     // the query type ("User find" for example).
                     Some(description.to_owned())
+                } else if span_origin == Some("auto.db.supabase")
+                    && description.starts_with("from(")
+                {
+                    // The description only contains the table name, e.g. `"from(users)`.
+                    // In the future, we might want to parse `data.query` as well.
+                    // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
+                    scrub_supabase(description)
                 } else {
                     let (scrubbed, mode) = sql::scrub_queries(db_system, description);
                     if let sql::Mode::Parsed(ast) = mode {
@@ -84,7 +93,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
-                .and_then(|data| data.get("ui.component_name"))
+                .and_then(|data| data.ui_component_name.value())
                 .and_then(|value| value.as_str())
                 .map(String::from),
             ("app", _) => {
@@ -138,6 +147,10 @@ fn scrub_core_data(string: &str) -> Option<String> {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(_) => None,
     }
+}
+
+fn scrub_supabase(string: &str) -> Option<String> {
+    Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -421,7 +434,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
+        ($name:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
