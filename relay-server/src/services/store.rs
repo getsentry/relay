@@ -299,7 +299,13 @@ impl StoreService {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
                 other => {
-                    relay_log::error!("StoreService received unexpected item type: {other}");
+                    let event_type = event_item.as_ref().map(|item| item.ty());
+                    relay_log::error!(
+                        tags.project_key = %scoping.project_key,
+                        tags.event_type = ?event_type,
+                        envelope_items = envelope.items().len(),
+                        "StoreService received unexpected item type: {other}"
+                    );
                 }
             }
         }
