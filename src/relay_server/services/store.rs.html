@@ -1887,6 +1887,12 @@
 <a href="#1886" id="1886">1886</a>
 <a href="#1887" id="1887">1887</a>
 <a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2409,7 +2415,8 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"Sending kafka message of type {}"</span>, message.variant());
 
-        <span class="self">self</span>.producer
+        <span class="kw">let </span>topic_name = <span class="self">self
+            </span>.producer
             .client
             .send_message(topic, organization_id, <span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
 
@@ -2420,6 +2427,7 @@
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
                     event_type = message.variant(),
+                    topic = topic_name,
                     metric_type = metric.value.variant(),
                     metric_encoding = metric.value.encoding().unwrap_or(<span class="string">""</span>),
                 );
@@ -2432,9 +2440,11 @@
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
                     event_type = message.variant(),
+                    topic = topic_name,
                     platform = platform.unwrap_or(<span class="kw-2">&amp;</span><span class="string">""</span>),
                     is_segment = bool_to_str(is_segment),
                     has_parent = bool_to_str(has_parent),
+                    topic = topic_name,
                 );
             }
             KafkaMessage::ReplayRecordingNotChunked(replay) =&gt; {
@@ -2443,6 +2453,7 @@
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
                     event_type = message.variant(),
+                    topic = topic_name,
                     has_video = bool_to_str(has_video),
                 );
             }
@@ -2450,6 +2461,7 @@
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
                     event_type = message.variant(),
+                    topic = topic_name,
                 );
             }
         }

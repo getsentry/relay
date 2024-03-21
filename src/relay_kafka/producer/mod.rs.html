@@ -380,6 +380,13 @@
 <a href="#379" id="379">379</a>
 <a href="#380" id="380">380</a>
 <a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 //!
 //! There are two different producers that are supported in Relay right now:
@@ -540,12 +547,14 @@
     }
 
     <span class="doccomment">/// Sends message to the provided kafka topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     </span><span class="kw">pub fn </span>send_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         topic: KafkaTopic,
         organization_id: u64,
         message: <span class="kw-2">&amp;</span><span class="kw">impl </span>Message,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ClientError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>str, ClientError&gt; {
         <span class="kw">let </span>serialized = message.serialize()<span class="question-mark">?</span>;
         <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
         </span><span class="self">self</span>.schema_validator
@@ -564,6 +573,8 @@
     }
 
     <span class="doccomment">/// Sends the payload to the correct producer for the current topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     </span><span class="kw">pub fn </span>send(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         topic: KafkaTopic,
@@ -572,7 +583,7 @@
         headers: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt;,
         variant: <span class="kw-2">&amp;</span>str,
         payload: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ClientError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>str, ClientError&gt; {
         <span class="kw">let </span>producer = <span class="self">self</span>.producers.get(<span class="kw-2">&amp;</span>topic).ok_or_else(|| {
             <span class="macro">relay_log::error!</span>(
                 <span class="string">"attempted to send message to {topic:?} using an unconfigured kafka producer"</span>,
@@ -724,7 +735,7 @@
         headers: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt;,
         variant: <span class="kw-2">&amp;</span>str,
         payload: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ClientError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>str, ClientError&gt; {
         <span class="macro">metric!</span>(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() <span class="kw">as </span>u64,
             variant = variant
@@ -751,14 +762,17 @@
             record = record.headers(kafka_headers);
         }
 
-        producer.send(record).map_err(|(error, _message)| {
-            <span class="macro">relay_log::error!</span>(
-                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                tags.variant = variant,
-                <span class="string">"error sending kafka message"
-            </span>);
-            ClientError::SendFailed(error)
-        })
+        producer
+            .send(record)
+            .map(|<span class="kw">_</span>| topic_name)
+            .map_err(|(error, _message)| {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    tags.variant = variant,
+                    <span class="string">"error sending kafka message"
+                </span>);
+                ClientError::SendFailed(error)
+            })
     }
 }
 </code></pre></div></section></main></body></html>
