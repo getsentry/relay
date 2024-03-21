@@ -1229,6 +1229,7 @@ struct ChunkedAttachment {
     name: String,
 
     /// Content type of the attachment payload.
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<String>,
 
     /// The Sentry-internal attachment type used in the processing pipeline.
