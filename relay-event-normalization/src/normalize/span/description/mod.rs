@@ -641,7 +641,7 @@ mod tests {
         redis_set_quoted,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
-        "SET *"
+        "SET * *"
     );
 
     span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET * *");
