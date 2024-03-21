@@ -13,6 +13,9 @@ publish = false
 default = []
 processing = []
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 human-size = "0.4.1"

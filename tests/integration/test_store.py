@@ -491,7 +491,7 @@ def test_processing_quotas(
             relay.send_event(
                 project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
             )
-        event, _ = events_consumer.get_event(timeout=5)
+        event, _ = events_consumer.get_event(timeout=10)
 
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
@@ -536,8 +536,10 @@ def test_sends_metric_bucket_outcome(
 
     outcome = outcomes_consumer.get_outcome(timeout=3)
 
-    assert outcome["category"] == 15
+    assert outcome["category"] == 15  # metric_bucket
     assert outcome["quantity"] == 1
+
+    outcomes_consumer.assert_empty()
 
 
 def test_rate_limit_metric_bucket(

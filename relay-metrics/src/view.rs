@@ -3,7 +3,8 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
 use crate::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
+    SetValue,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -372,7 +373,7 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &'a MetricName {
         &self.inner.name
     }
 

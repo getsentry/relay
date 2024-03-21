@@ -15,6 +15,9 @@ default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
 
+[lints]
+workspace = true
+
 # Direct dependencies of the main application in `src/`
 [dependencies]
 anyhow = { workspace = true }
