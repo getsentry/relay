@@ -44,7 +44,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # Firefox message when an extension tries to modify a no-longer-existing DOM node
         # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
         can't\saccess\sdead\sobject|
-        # Crypocurrency related extension errors solana|ethereum
+        # Cryptocurrency related extension errors solana|ethereum
         # Googletag is also very similar, caused by adblockers
         Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
         # Translation service errors in Chrome on iOS
