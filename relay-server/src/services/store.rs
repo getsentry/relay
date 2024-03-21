@@ -408,7 +408,10 @@ impl StoreService {
         }
 
         if let Some(error) = error {
-            relay_log::error!("failed to produce metric buckets: {error}");
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "failed to produce metric buckets: {error}"
+            );
 
             utils::reject_metrics(
                 &self.outcome_aggregator,
