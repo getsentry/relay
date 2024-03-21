@@ -120,7 +120,8 @@ impl CategoryUnit {
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
             | DataCategory::MetricBucket
-            | DataCategory::UserReportV2 => Some(Self::Count),
+            | DataCategory::UserReportV2
+            | DataCategory::ProfileChunk => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
             DataCategory::ProfileDuration => Some(Self::Milliseconds),
