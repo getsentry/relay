@@ -304,7 +304,6 @@ impl StoreService {
                     start_time,
                     item,
                 )?,
-                _ => {}
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope

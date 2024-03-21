@@ -71,7 +71,7 @@ pub type ProfileId = EventId;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
-    #[serde(alias = "profile_id")]
+    #[serde(alias = "profile_id", alias = "chunk_id")]
     event_id: ProfileId,
     platform: String,
     #[serde(default)]
