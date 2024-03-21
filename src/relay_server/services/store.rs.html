@@ -1887,36 +1887,6 @@
 <a href="#1886" id="1886">1886</a>
 <a href="#1887" id="1887">1887</a>
 <a href="#1888" id="1888">1888</a>
-<a href="#1889" id="1889">1889</a>
-<a href="#1890" id="1890">1890</a>
-<a href="#1891" id="1891">1891</a>
-<a href="#1892" id="1892">1892</a>
-<a href="#1893" id="1893">1893</a>
-<a href="#1894" id="1894">1894</a>
-<a href="#1895" id="1895">1895</a>
-<a href="#1896" id="1896">1896</a>
-<a href="#1897" id="1897">1897</a>
-<a href="#1898" id="1898">1898</a>
-<a href="#1899" id="1899">1899</a>
-<a href="#1900" id="1900">1900</a>
-<a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
-<a href="#1903" id="1903">1903</a>
-<a href="#1904" id="1904">1904</a>
-<a href="#1905" id="1905">1905</a>
-<a href="#1906" id="1906">1906</a>
-<a href="#1907" id="1907">1907</a>
-<a href="#1908" id="1908">1908</a>
-<a href="#1909" id="1909">1909</a>
-<a href="#1910" id="1910">1910</a>
-<a href="#1911" id="1911">1911</a>
-<a href="#1912" id="1912">1912</a>
-<a href="#1913" id="1913">1913</a>
-<a href="#1914" id="1914">1914</a>
-<a href="#1915" id="1915">1915</a>
-<a href="#1916" id="1916">1916</a>
-<a href="#1917" id="1917">1917</a>
-<a href="#1918" id="1918">1918</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2112,14 +2082,13 @@
 
     <span class="kw">fn </span>store_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        envelope: Box&lt;Envelope&gt;,
+        <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
         start_time: Instant,
         scoping: Scoping,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>retention = envelope.retention();
-        <span class="kw">let </span>client = envelope.meta().client();
         <span class="kw">let </span>event_id = envelope.event_id();
-        <span class="kw">let </span>event_item = envelope.get_item_by(|item| {
+        <span class="kw">let </span>event_item = envelope.as_mut().take_item_by(|item| {
             <span class="macro">matches!</span>(
                 item.ty(),
                 ItemType::Event
@@ -2128,10 +2097,11 @@
                     | ItemType::UserReportV2
             )
         });
+        <span class="kw">let </span>client = envelope.meta().client();
 
         <span class="kw">let </span>topic = <span class="kw">if </span>envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } <span class="kw">else if </span>event_item.map(|x| x.ty()) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ItemType::Transaction) {
+        } <span class="kw">else if </span>event_item.as_ref().map(|x| x.ty()) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ItemType::Transaction) {
             KafkaTopic::Transactions
         } <span class="kw">else </span>{
             KafkaTopic::Events
@@ -2173,7 +2143,6 @@
                         item,
                     )<span class="question-mark">?</span>;
                 }
-                ItemType::MetricBuckets =&gt; <span class="self">self</span>.produce_metrics(scoping, item, retention)<span class="question-mark">?</span>,
                 ItemType::Profile =&gt; <span class="self">self</span>.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
@@ -2218,7 +2187,9 @@
                 ItemType::Span =&gt; {
                     <span class="self">self</span>.produce_span(scoping, start_time, event_id, retention, item)<span class="question-mark">?
                 </span>}
-                <span class="kw">_ </span>=&gt; {}
+                other =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">"StoreService received unexpected item type: {other}"</span>);
+                }
             }
         }
 
@@ -2248,7 +2219,7 @@
         <span class="kw">let </span>remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
         <span class="kw">let </span>kafka_messages = <span class="self">Self</span>::extract_kafka_messages_for_event(
-            event_item,
+            event_item.as_ref(),
             event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
             scoping,
             start_time,
@@ -2741,37 +2712,6 @@
             organization_id,
             KafkaMessage::Metric { headers, message },
         )<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>produce_metrics(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        scoping: Scoping,
-        item: <span class="kw-2">&amp;</span>Item,
-        retention: u16,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="kw">let </span>payload = item.payload();
-
-        <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
-        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
-
-        <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
-            <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
-
-            <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket);
-            <span class="kw">let </span>message = <span class="self">self</span>.create_metric_message(
-                scoping.organization_id,
-                scoping.project_id,
-                <span class="kw-2">&amp;mut </span>encoder,
-                namespace,
-                <span class="kw-2">&amp;</span>view,
-                retention,
-            );
-
-            message.and_then(|message| <span class="self">self</span>.send_metric_message(namespace, message))<span class="question-mark">?</span>;
-            <span class="self">self</span>.metric_stats.track(scoping, bucket, Outcome::Accepted);
-        }
-
         <span class="prelude-val">Ok</span>(())
     }
 
