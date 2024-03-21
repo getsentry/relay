@@ -1498,6 +1498,7 @@
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1505,7 +1506,6 @@
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::iter::FromIterator;
-<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 <span class="kw">use </span>std::{fmt, mem};
 
@@ -1519,7 +1519,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-<span class="kw">use </span><span class="kw">crate</span>::BucketMetadata;
+<span class="kw">use crate</span>::{BucketMetadata, MetricName};
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
@@ -1539,7 +1539,7 @@
 </span><span class="kw">enum </span>AggregateMetricsErrorKind {
     <span class="doccomment">/// A metric bucket had invalid characters in the metric name.
     </span><span class="attr">#[error(<span class="string">"found invalid characters: {0}"</span>)]
-    </span>InvalidCharacters(Arc&lt;str&gt;),
+    </span>InvalidCharacters(MetricName),
     <span class="doccomment">/// A metric bucket had an unknown namespace in the metric name.
     </span><span class="attr">#[error(<span class="string">"found unsupported namespace: {0}"</span>)]
     </span>UnsupportedNamespace(MetricNamespace),
@@ -1551,7 +1551,7 @@
     </span>InvalidTypes,
     <span class="doccomment">/// A metric bucket had a too long string (metric name or a tag key/value).
     </span><span class="attr">#[error(<span class="string">"found invalid string: {0}"</span>)]
-    </span>InvalidStringLength(Arc&lt;str&gt;),
+    </span>InvalidStringLength(MetricName),
     <span class="doccomment">/// A metric bucket is too large for the global bytes limit.
     </span><span class="attr">#[error(<span class="string">"total metrics limit exceeded"</span>)]
     </span>TotalLimitExceeded,
@@ -1564,7 +1564,7 @@
 </span><span class="kw">struct </span>BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: Arc&lt;str&gt;,
+    metric_name: MetricName,
     tags: BTreeMap&lt;String, String&gt;,
 }
 
@@ -1588,10 +1588,7 @@
 
     <span class="doccomment">/// Returns the namespace of this bucket.
     </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricNamespace {
-        <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.metric_name) {
-            <span class="prelude-val">Ok</span>(mri) =&gt; mri.namespace,
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; MetricNamespace::Unsupported,
-        }
+        <span class="self">self</span>.metric_name.namespace()
     }
 }
 
@@ -2168,10 +2165,9 @@
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric name {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidCharacters(Arc::clone(
-                    <span class="kw-2">&amp;</span>key.metric_name,
-                ))
-                .into());
+                <span class="kw">return </span><span class="prelude-val">Err</span>(
+                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+                );
             }
         };
 
@@ -2435,13 +2431,15 @@
             .map(|(k, e)| (k, <span class="kw-2">&amp;</span>e.value)) <span class="comment">// skip flush times, they are different every time
             </span>.collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -2449,7 +2447,7 @@
                 ),
             ),
         ]
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -2528,13 +2526,15 @@
             </span>.collect();
 
         buckets.sort_by(|a, b| a.<span class="number">0</span>.timestamp.cmp(<span class="kw-2">&amp;</span>b.<span class="number">0</span>.timestamp));
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -2545,7 +2545,9 @@
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -2553,7 +2555,7 @@
                 ),
             ),
         ]
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]

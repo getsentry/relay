@@ -5244,7 +5244,7 @@
 
         <span class="kw">let </span>buckets_by_ns: HashMap&lt;MetricNamespace, Vec&lt;Bucket&gt;&gt; = buckets
             .into_iter()
-            .filter_map(|bucket| <span class="prelude-val">Some</span>((bucket.parse_namespace().ok()<span class="question-mark">?</span>, bucket)))
+            .filter_map(|bucket| <span class="prelude-val">Some</span>((bucket.name.try_namespace()<span class="question-mark">?</span>, bucket)))
             .into_group_map();
 
         buckets_by_ns

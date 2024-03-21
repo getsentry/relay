@@ -205,16 +205,10 @@
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
 <a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 
 <span class="kw">use </span>relay_dynamic_config::{BucketEncoding, GlobalConfig};
-<span class="kw">use </span>relay_metrics::{
-    Bucket, BucketValue, FiniteF64, MetricNamespace, MetricResourceIdentifier, SetView,
-};
+<span class="kw">use </span>relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">static </span>BASE64: data_encoding::Encoding = data_encoding::BASE64;
@@ -241,9 +235,7 @@
     /// afterwards the bucket can be split into multiple smaller views
     /// and encoded one by one.
     </span><span class="kw">pub fn </span>prepare(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;mut </span>Bucket) -&gt; MetricNamespace {
-        <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>bucket.name)
-            .map(|mri| mri.namespace)
-            .unwrap_or(MetricNamespace::Unsupported);
+        <span class="kw">let </span>namespace = bucket.name.namespace();
 
         <span class="kw">if let </span>BucketValue::Distribution(<span class="kw-2">ref mut </span>distribution) = bucket.value {
             <span class="kw">let </span>enc = <span class="self">self</span>.global_config.options.metric_bucket_dist_encodings;

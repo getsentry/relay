@@ -1105,24 +1105,17 @@
 <a href="#1104" id="1104">1104</a>
 <a href="#1105" id="1105">1105</a>
 <a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use crate</span>::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
+    SetValue,
 };
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::Range;
-<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
 <span class="kw">use </span><span class="kw">crate</span>::BucketValue;
@@ -1487,15 +1480,8 @@
     <span class="doccomment">/// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str {
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>MetricName {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.name
-    }
-
-    <span class="doccomment">/// Returns the name of the bucket.
-    ///
-    /// Caller holds shared ownership of the string.
-    </span><span class="kw">pub fn </span>clone_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;str&gt; {
-        Arc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.name)
     }
 
     <span class="doccomment">/// Value of the bucket view.

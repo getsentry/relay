@@ -246,15 +246,11 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{
-    Aggregator, Bucket, BucketValue, MergeBuckets, MetricResourceIdentifier, UnixTimestamp,
-};
+<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
@@ -262,10 +258,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::utils::is_rolled_out;
 
-<span class="kw">fn </span>volume_metric_mri() -&gt; Arc&lt;str&gt; {
-    <span class="kw">static </span>VOLUME_METRIC_MRI: OnceLock&lt;Arc&lt;str&gt;&gt; = OnceLock::new();
+<span class="kw">fn </span>volume_metric_mri() -&gt; MetricName {
+    <span class="kw">static </span>VOLUME_METRIC_MRI: OnceLock&lt;MetricName&gt; = OnceLock::new();
 
-    Arc::clone(VOLUME_METRIC_MRI.get_or_init(|| <span class="string">"c:metric_stats/volume@none"</span>.into()))
+    VOLUME_METRIC_MRI
+        .get_or_init(|| <span class="string">"c:metric_stats/volume@none"</span>.into())
+        .clone()
 }
 
 <span class="doccomment">/// Tracks stats about metrics.
@@ -332,9 +330,7 @@
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let </span>namespace = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>bucket.name)
-            .ok()<span class="question-mark">?
-            </span>.namespace;
+        <span class="kw">let </span>namespace = bucket.name.namespace();
         <span class="kw">if </span>!namespace.has_metric_stats() {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
