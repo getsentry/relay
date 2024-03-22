@@ -52,8 +52,7 @@ pub fn process(state: &mut ProcessEnvelopeState<ProfileChunkGroup>, config: &Con
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(err),
                 ))),
-            };
-            ItemAction::Keep
+            }
         }
         _ => ItemAction::Keep,
     });
