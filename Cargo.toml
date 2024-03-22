@@ -149,7 +149,7 @@ sha1 = "0.10.5"
 sha2 = "0.10.6"
 similar-asserts = "1.4.2"
 smallvec = { version = "1.11.2", features = ["serde"] }
-sqlparser = { version = "0.44.0" }
+sqlparser = "0.44.0"
 sqlx = { version = "0.7.3", default-features = false }
 statsdproxy = { version = "0.1.2", default-features = false }
 symbolic-common = { version = "12.1.2", default-features = false }
