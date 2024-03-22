@@ -6,7 +6,7 @@ use gloo_net::websocket::State;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use yew::platform::time::sleep;
 
-static RELAY_URL: once_cell::sync::OnceCell<String> = once_cell::sync::OnceCell::new();
+static RELAY_URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 /// Returns the origin location from the browser window.
 ///

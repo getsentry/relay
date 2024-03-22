@@ -2,7 +2,8 @@
 //!
 //! See [`normalize_request`] for more information.
 
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
+
 use regex::Regex;
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingResult};
 use relay_event_schema::protocol::{Cookies, Query, Request};
@@ -80,7 +81,7 @@ fn normalize_url(request: &mut Request) {
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
     method.make_ascii_uppercase();
 
-    static METHOD_RE: OnceCell<Regex> = OnceCell::new();
+    static METHOD_RE: OnceLock<Regex> = OnceLock::new();
     let regex = METHOD_RE.get_or_init(|| Regex::new(r"^[A-Z\-_]{3,32}$").unwrap());
 
     if !meta.has_errors() && !regex.is_match(method) {

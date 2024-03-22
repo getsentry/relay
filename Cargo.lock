@@ -3731,7 +3731,6 @@ dependencies = [
  "gloo-console 0.3.0",
  "gloo-net 0.4.0",
  "instant",
- "once_cell",
  "reqwasm",
  "tokio",
  "wasm-bindgen",
@@ -3945,7 +3944,6 @@ dependencies = [
 name = "relay-monitors"
 version = "24.3.0"
 dependencies = [
- "once_cell",
  "regex",
  "relay-base-schema",
  "serde",

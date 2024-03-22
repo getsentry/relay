@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_event_schema::processor::{
     self, enum_set, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
@@ -374,7 +374,7 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
-        static NULL_SPLIT_RE: OnceCell<Regex> = OnceCell::new();
+        static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
         let regex = NULL_SPLIT_RE.get_or_init(|| {
             #[allow(clippy::trivial_regex)]
             Regex::new("\x00").unwrap()
