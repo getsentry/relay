@@ -13,15 +13,15 @@ publish = false
 workspace = true
 
 [dependencies]
-num-traits = "0.2.12"
-relay-common = { path = "../relay-common" }
-relay-protocol-derive = { path = "../relay-protocol-derive", optional = true }
+num-traits = { workspace = true }
+relay-common = { workspace = true }
+relay-protocol-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
 uuid = { workspace = true }
-unicase = "2.6.0"
+unicase = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

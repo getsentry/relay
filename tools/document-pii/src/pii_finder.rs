@@ -8,8 +8,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use anyhow::anyhow;
 use proc_macro2::TokenTree;
-use syn::visit::Visit;
-use syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
+use syn2::visit::Visit;
+use syn2::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
 
 use crate::EnumOrStruct;
 
@@ -232,9 +232,9 @@ fn get_field_types(path: &Path, segments: &mut BTreeSet<String>) {
         let mut ident = first_segment.ident.to_string();
 
         // Recursion on AngleBracketed args is necessary for nested generic types
-        if let syn::PathArguments::AngleBracketed(angle_bracketed) = &first_segment.arguments {
+        if let syn2::PathArguments::AngleBracketed(angle_bracketed) = &first_segment.arguments {
             for generic_arg in angle_bracketed.args.iter() {
-                if let syn::GenericArgument::Type(Type::Path(path)) = generic_arg {
+                if let syn2::GenericArgument::Type(Type::Path(path)) = generic_arg {
                     get_field_types(&path.path, segments);
                 }
             }

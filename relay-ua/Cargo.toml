@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 once_cell = { workspace = true }
-uaparser = { version = "0.6.0" }
+uaparser = { workspace = true }
 
 [features]
 default = []
