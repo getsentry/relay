@@ -386,6 +386,8 @@ mod tests {
     };
     use similar_asserts::assert_eq;
 
+    use crate::MaxChars;
+
     use super::*;
 
     #[test]
@@ -418,7 +420,7 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
 
         let mut event = Annotated::new(Event {
-            culprit: Annotated::new("x".repeat(300)),
+            logger: Annotated::new("x".repeat(300)),
             ..Default::default()
         });
 
@@ -426,12 +428,12 @@ mod tests {
 
         let mut expected = Annotated::new("x".repeat(300));
         processor::apply(&mut expected, |v, m| {
-            trim_string(v, m, 200);
+            trim_string(v, m, MaxChars::Logger.limit());
             Ok(())
         })
         .unwrap();
 
-        assert_eq!(event.value().unwrap().culprit, expected);
+        assert_eq!(event.value().unwrap().logger, expected);
     }
 
     #[test]
