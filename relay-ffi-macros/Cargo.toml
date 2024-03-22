@@ -16,5 +16,5 @@ proc-macro = true
 workspace = true
 
 [dependencies]
-syn = { version = "1.0.39", features = ["fold", "full"] }
-quote = "1.0.6"
+syn = { workspace = true, features = ["fold", "full"] }
+quote = { workspace = true }

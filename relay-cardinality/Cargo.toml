@@ -20,11 +20,11 @@ workspace = true
 [dependencies]
 hashbrown = { workspace = true }
 parking_lot = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-common = { path = "../relay-common" }
-relay-log = { path = "../relay-log" }
-relay-redis = { path = "../relay-redis" }
-relay-statsd = { path = "../relay-statsd" }
+relay-base-schema = { workspace = true }
+relay-common = { workspace = true }
+relay-log = { workspace = true }
+relay-redis = { workspace = true }
+relay-statsd = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

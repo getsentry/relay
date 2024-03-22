@@ -15,10 +15,10 @@ workspace = true
 [dependencies]
 futures = { workspace = true }
 once_cell = { workspace = true }
-relay-log = { path = "../relay-log" }
-relay-statsd = { path = "../relay-statsd" }
+relay-log = { workspace = true }
+relay-statsd = { workspace = true }
 tokio = { workspace = true, features = ["rt", "signal"] }
 
 [dev-dependencies]
-relay-statsd = { path = "../relay-statsd", features = ["test"] }
+relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }

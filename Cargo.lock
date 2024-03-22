@@ -1483,7 +1483,6 @@ checksum = "23342abe12aba583913b2e62f22225ff9c950774065e4bfb61a19cd9770fec40"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -3732,7 +3731,6 @@ dependencies = [
  "gloo-console 0.3.0",
  "gloo-net 0.4.0",
  "instant",
- "once_cell",
  "reqwasm",
  "tokio",
  "wasm-bindgen",
@@ -3946,7 +3944,6 @@ dependencies = [
 name = "relay-monitors"
 version = "24.3.0"
 dependencies = [
- "once_cell",
  "regex",
  "relay-base-schema",
  "serde",
@@ -5557,7 +5554,6 @@ dependencies = [
  "signal-hook-registry",
  "socket2 0.5.3",
  "tokio-macros",
- "tracing",
  "windows-sys 0.48.0",
 ]
 

@@ -13,10 +13,10 @@ publish = false
 workspace = true
 
 [dependencies]
-quote = "1.0.2"
-syn = "1.0.14"
-synstructure = "0.12.3"
-proc-macro2 = "1.0.8"
+quote = { workspace = true }
+syn = { workspace = true }
+synstructure = { workspace = true }
+proc-macro2 = { workspace = true }
 
 [lib]
 proc-macro = true

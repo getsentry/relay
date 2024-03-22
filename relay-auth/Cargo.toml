@@ -15,13 +15,13 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
-data-encoding = "2.5.0"
-ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
-hmac = "0.12.1"
+data-encoding = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+hmac = { workspace = true }
 rand = { workspace = true }
-relay-common = { path = "../relay-common" }
+relay-common = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2 = "0.10.6"
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }

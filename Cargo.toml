@@ -17,30 +17,164 @@ debug = true
 dbg_macro = "warn"
 
 [workspace.dependencies]
+relay-auth = { path = "relay-auth" }
+relay-aws-extension = { path = "relay-aws-extension" }
+relay-base-schema = { path = "relay-base-schema" }
+relay-cardinality = { path = "relay-cardinality" }
+relay-cogs = { path = "relay-cogs" }
+relay-common = { path = "relay-common" }
+relay-config = { path = "relay-config" }
+relay-crash = { path = "relay-crash" }
+relay-dynamic-config = { path = "relay-dynamic-config" }
+relay-event-normalization = { path = "relay-event-normalization" }
+relay-event-schema = { path = "relay-event-schema" }
+relay-ffi = { path = "relay-ffi" }
+relay-ffi-macros = { path = "relay-ffi-macros" }
+relay-filter = { path = "relay-filter" }
+relay-kafka = { path = "relay-kafka" }
+relay-log = { path = "relay-log" }
+relay-metrics = { path = "relay-metrics" }
+relay-monitors = { path = "relay-monitors" }
+relay-pii = { path = "relay-pii" }
+relay-profiling = { path = "relay-profiling" }
+relay-protocol = { path = "relay-protocol" }
+relay-quotas = { path = "relay-quotas" }
+relay-redis = { path = "relay-redis" }
+relay-replays = { path = "relay-replays" }
+relay-sampling = { path = "relay-sampling" }
+relay-server = { path = "relay-server" }
+relay-spans = { path = "relay-spans" }
+relay-statsd = { path = "relay-statsd" }
+relay-system = { path = "relay-system" }
+relay-ua = { path = "relay-ua" }
+relay-test = { path = "relay-test" }
+relay-protocol-derive = { path = "relay-protocol-derive" }
+relay-event-derive = { path = "relay-event-derive" }
+relay-jsonschema-derive = { path = "relay-jsonschema-derive" }
+
+android_trace_log = { version = "0.3.0", features = ["serde"] }
+ansi-to-html = "0.1.3"
 anyhow = "1.0.66"
+assert-json-diff = "2.0.2"
+axum = "0.6.20"
+axum-extra = "0.7.7"
+axum-server = "0.4.7"
+backoff = "0.4.0"
+bindgen = "0.64.0"
+brotli = "3.3.4"
+bytecount = "0.6.0"
+bytes = "1.4.0"
+cadence = "0.29.0"
 chrono = { version = "0.4.31", default-features = false, features = [
     "std",
     "serde",
 ] }
 clap = { version = "4.4.6" }
+clap_complete = "4.1.1"
+cmake = "0.1.46"
+console = "0.15.5"
+cookie = "0.17.0"
 criterion = "0.5"
+crossbeam-channel = "0.5.6"
+data-encoding = "2.5.0"
+debugid = "0.8.0"
+dialoguer = "0.10.0"
+dynfmt = "0.1.4"
+ed25519-dalek = "2.0.0"
+enumset = "1.0.4"
+flate2 = "1.0.19"
+fnv = "1.0.7"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
+globset = "0.4.5"
+gloo-console = "0.3.0"
+gloo-net = "0.4.0"
 hash32 = "0.3.1"
 hashbrown = "0.14.3"
+hex = "0.4.3"
+hmac = "0.12.1"
+hostname = "0.3.1"
+human-size = "0.4.1"
 indexmap = "2.2.5"
+insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
+instant = "0.1.12"
+ipnetwork = "0.20.0"
 itertools = "0.10.5"
+json-forensics = "0.1.1"
+lru = "0.9.0"
+maxminddb = "0.23.0"
+md5 = "0.7.0"
+mime = "0.3.16"
+mime_guess = "2.0.4"
+minidump = "0.15.2"
+multer = "2.0.4"
+num-traits = "0.2.12"
+num_cpus = "1.13.0"
 once_cell = "1.13.1"
+opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14" }
 parking_lot = "0.12.1"
+path-slash = "0.2.1"
+pest = "2.1.3"
+pest_derive = "2.1.0"
+pretty-hex = "0.3.0"
+proc-macro2 = "1.0.8"
+quote = "1.0.2"
+r2d2 = "0.8.10"
 rand = "0.8.5"
+rand_pcg = "0.3.1"
+rdkafka = "0.29.0"
+rdkafka-sys = "4.3.0"
+redis = "0.23.1"
 regex = "1.10.2"
-serde = { version = "1.0.159", features = ["derive", "rc"] }
-serde_json = "1.0.93"
-serde_yaml = "0.9.17"
+reqwasm = "0.5.0"
+reqwest = "0.11.1"
+rmp-serde = "1.1.1"
+rust-embed = "8.0.0"
 schemars = { version = "=0.8.10", features = ["uuid1", "chrono"] }
+sentry = "0.31.7"
+sentry-core = "0.31.7"
+sentry-kafka-schemas = { version = "0.1.64", default-features = false }
+sentry-release-parser = { version = "1.3.2", default-features = false }
+sentry-types = "0.31.3"
+sentry_usage_accountant = { version = "0.1.0", default-features = false }
+serde = { version = "1.0.159", features = ["derive", "rc"] }
+serde-transcode = "1.1.1"
+serde_bytes = "0.11"
+serde_json = "1.0.93"
+serde_path_to_error = "0.1.14"
+serde_repr = "0.1.16"
+serde_test = "1.0.125"
+serde_urlencoded = "0.7.1"
+serde_yaml = "0.9.17"
+sha1 = "0.10.5"
+sha2 = "0.10.6"
 similar-asserts = "1.4.2"
 smallvec = { version = "1.11.2", features = ["serde"] }
+sqlparser = { version = "0.44.0" }
+sqlx = { version = "0.7.3", default-features = false }
+statsdproxy = { version = "0.1.2", default-features = false }
+symbolic-common = { version = "12.1.2", default-features = false }
+symbolic-unreal = { version = "12.1.2", default-features = false }
+syn = "1.0.14"
+syn2 = { package = "syn", version = "2.0.11" }
+synstructure = "0.12.3"
+sysinfo = { version = "0.30.7", default-features = false }
+tempfile = "3.5.0"
 thiserror = "1.0.38"
-tokio = { version = "1.28.0", features = ["macros", "sync", "tracing"] }
+tikv-jemallocator = "0.5.0"
+tokio = { version = "1.28.0", default-features = false }
+tower = { version = "0.4.13", default-features = false }
+tower-http = { version = "0.4.0", default-features = false }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.17"
+uaparser = "0.6.0"
+unicase = "2.6.0"
 url = "2.1.1"
+utf16string = "0.2.0"
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
+walkdir = "2.3.2"
+wasm-bindgen = "0.2.87"
+wasm-bindgen-futures = "0.4"
+web-sys = "0.3"
+yew = "0.20"
+yew-router = "0.17.0"
+zstd = "0.12.3"

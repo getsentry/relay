@@ -13,9 +13,8 @@ publish = false
 workspace = true
 
 [dependencies]
-once_cell = { workspace = true }
 regex = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
+relay-base-schema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

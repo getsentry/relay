@@ -13,19 +13,19 @@ publish = false
 workspace = true
 
 [dependencies]
-android_trace_log = { version = "0.3.0", features = ["serde"] }
+android_trace_log = { workspace = true, features = ["serde"] }
 chrono = { workspace = true }
-data-encoding = "2.3.3"
+data-encoding = { workspace = true }
 itertools = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-event-schema = { path = "../relay-event-schema" }
-relay-log = { path = "../relay-log" }
-relay-protocol = { path = "../relay-protocol" }
+relay-base-schema = { workspace = true }
+relay-event-schema = { workspace = true }
+relay-log = { workspace = true }
+relay-protocol = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_path_to_error = "0.1.14"
+serde_path_to_error = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
-serde_test = "1.0.125"
+serde_test = { workspace = true }
