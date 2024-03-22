@@ -228,15 +228,11 @@ jobs:
 
       - name: Split debug info
         run: |
-          ls "target/${{ matrix.platform.target }}/release/"
-          cross-util containers list
-
           llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
-          cross-util -v run --target "${{ matrix.platform.target }}" -- "curl -sL https://sentry.io/get-cli/ | sh"
-          cross-util -v run --target "${{ matrix.platform.target }}" -- "make collect-source-bundle"
+          cross-util run --target "${{ matrix.platform.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -245,6 +241,10 @@ jobs:
 
       - name: Build docker container
         run: |
+          mv "${RELAY_BIN}" ./relay-bin
+          zip relay-debug.zip "${RELAY_BIN}.debug"
+          mv "${RELAY_BIN}.src.zip" ./relay.src.zip
+
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
             --tag "${DOCKER_IMAGE}" \
