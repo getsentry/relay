@@ -13,9 +13,9 @@ publish = false
 workspace = true
 
 [dependencies]
-relay-log = { path = "../relay-log" }
-relay-system = { path = "../relay-system" }
-reqwest = { version = "0.11.1", features = ["json"] }
+relay-log = { workspace = true }
+relay-system = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

@@ -14,8 +14,8 @@ workspace = true
 
 [dependencies]
 regex = { workspace = true }
-relay-common = { path = "../relay-common" }
-relay-protocol = { path = "../relay-protocol" }
+relay-common = { workspace = true }
+relay-protocol = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 

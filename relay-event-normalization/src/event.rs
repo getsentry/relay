@@ -6,8 +6,8 @@ use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
@@ -663,7 +663,7 @@ fn normalize_exceptions(event: &mut Event) {
 }
 
 fn normalize_exception(exception: &mut Annotated<Exception>) {
-    static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+    static TYPE_VALUE_RE: OnceLock<Regex> = OnceLock::new();
     let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
     let _ = processor::apply(exception, |exception, meta| {
