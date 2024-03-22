@@ -52,8 +52,9 @@ pub fn extract_metrics(
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let transaction_span = extract_transaction_span(event, max_tag_value_size);
-        metrics.extend(generic::extract_metrics(&transaction_span, config));
+        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+            metrics.extend(generic::extract_metrics(&transaction_span, config));
+        }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {

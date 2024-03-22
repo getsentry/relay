@@ -194,12 +194,14 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, co
         return;
     };
 
-    let transaction_span = extract_transaction_span(
+    let Some(transaction_span) = extract_transaction_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-    );
+    ) else {
+        return;
+    };
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
