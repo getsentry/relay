@@ -183,7 +183,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        platform: 
+        platform:
           - target: aarch64-unknown-linux-gnu
             docker: linux/arm64
           - target: x86_64-unknown-linux-gnu
@@ -194,9 +194,9 @@ jobs:
 
     name: Build Docker Image
     runs-on: ubuntu-latest
-      
+
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-  
+
     env:
       TARGET: "${{ matrix.platform.target }}"
       RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
@@ -218,8 +218,6 @@ jobs:
           key: ${{ github.job }}-${{ matrix.arch }}
       - name: Install Cross
         run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
-      - name: Install Sentry Cli
-        run: curl -sL https://sentry.io/get-cli/ | sh
 
       - name: Compile
         run: |
@@ -248,7 +246,7 @@ jobs:
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
             --tag "${DOCKER_IMAGE}" \
-            --file Dockerfile.release
+            Dockerfile.release
 
       - name: Push to ghcr.io
         # Do not run this on forks as they do not have access to secrets
