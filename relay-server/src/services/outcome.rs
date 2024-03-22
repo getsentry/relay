@@ -527,13 +527,12 @@ impl FromMessage<Self> for TrackRawOutcome {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "processing")]
 #[cfg_attr(feature = "processing", derive(thiserror::Error))]
 pub enum OutcomeError {
     #[error("failed to send kafka message")]
-    #[cfg(feature = "processing")]
     SendFailed(ClientError),
     #[error("json serialization error")]
-    #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
 }
 

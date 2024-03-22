@@ -131,6 +131,8 @@ mod tests {
     use std::sync::Arc;
 
     use insta::assert_debug_snapshot;
+    #[cfg(not(feature = "processing"))]
+    use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
