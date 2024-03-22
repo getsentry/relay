@@ -17,37 +17,64 @@ pub enum Version {
     V2,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// Holds information about a single stacktrace frame.
+///
+/// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
+/// attribute. All values are optional, but recommended.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Frame {
-    /// `abs_path` contains the absolute path the function is called.
+    /// Absolute path to the source file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub abs_path: Option<String>,
-    /// `colno` contains the column number of where the function is called.
+
+    /// Column number within the source file, starting at 1.
     #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
     pub colno: Option<u32>,
+
+    /// The source file name (basename only).
     #[serde(alias = "file", skip_serializing_if = "Option::is_none")]
-    /// `filename` contains the file name only where the function is called.
     pub filename: Option<String>,
+
+    /// Name of the frame's function. This might include the name of a class.
+    ///
+    /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
+    /// it for some platforms. The original function name will be stored in `raw_function`.
     #[serde(alias = "name", skip_serializing_if = "Option::is_none")]
-    /// `function` contains the function's name that was called.
     pub function: Option<String>,
+
+    /// Override whether this frame should be considered part of application code, or part of
+    /// libraries/frameworks/dependencies.
+    ///
+    /// Setting this attribute to `false` causes the frame to be hidden/collapsed by default and
+    /// mostly ignored during issue grouping.
     #[serde(skip_serializing_if = "Option::is_none")]
-    /// `in_app` indicates if the function is from the user application or a third-party/system
-    /// library.
     pub in_app: Option<bool>,
+
+    /// (C/C++/Native) An optional instruction address for symbolication.
+    ///
+    /// This should be a string with a hexadecimal number that includes a 0x prefix.
+    /// If this is set and a known image is defined in the
+    /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
+    /// then symbolication can take place.
     #[serde(skip_serializing_if = "Option::is_none")]
-    /// `instruction_addr` contains the address in memory where the function is called.
     pub instruction_addr: Option<Addr>,
+
+    /// Line number within the source file, starting at 1.
     #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
-    /// `lineno` contains the line number of the file where the function is called.
     pub lineno: Option<u32>,
+
+    /// Name of the module the frame is contained in.
+    ///
+    /// Note that this might also include a class name if that is something the
+    /// language natively considers to be part of the stack (for instance in Java).
     #[serde(skip_serializing_if = "Option::is_none")]
-    /// `module` contains the package or module name of the function.
     pub module: Option<String>,
+
+    /// Which platform this frame is from.
+    ///
+    /// This can override the platform for a single frame. Otherwise, the platform of the event is
+    /// assumed. This can be used for multi-platform stack traces, such as in React Native.
     #[serde(skip_serializing_if = "Option::is_none")]
-    /// `platform` allows you to customize the platform for this frame. For example, in the case of
-    /// hybrid profiles (`cocoa` and `javascript`), you would be allowed to pass a JavaScript frame
-    /// even though the profile has `cocoa` for the platform.
     pub platform: Option<String>,
 }
 
