@@ -283,27 +283,23 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize) {
                 continue;
             }
 
-            match chunk {
-                // If there was enough space for the chunk, it'd been added before.
-                // If there isn't enough space, the redaction is added below.
-                Chunk::Redaction { .. } => {}
+            // If a redacted chunk still doesn't fit, skip the chunk and add the
+            // final redaction below.
 
-                // if this is a text chunk, we can put the remaining characters in.
-                Chunk::Text { text } => {
-                    let mut remaining = String::new();
-                    for c in text.chars() {
-                        if length + 3 < max_chars {
-                            remaining.push(c);
-                        } else {
-                            break;
-                        }
-                        length += 1;
+            if let Chunk::Text { text } = chunk {
+                let mut remaining = String::new();
+                for c in text.chars() {
+                    if length + 3 < max_chars {
+                        remaining.push(c);
+                    } else {
+                        break;
                     }
-
-                    new_chunks.push(Chunk::Text {
-                        text: Cow::Owned(remaining),
-                    });
+                    length += 1;
                 }
+
+                new_chunks.push(Chunk::Text {
+                    text: Cow::Owned(remaining),
+                });
             }
 
             new_chunks.push(Chunk::Redaction {

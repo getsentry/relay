@@ -16,7 +16,7 @@ use relay_protocol::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::StoreConfig;
+use crate::{MaxChars, StoreConfig};
 
 pub mod breakdowns;
 pub mod contexts;
@@ -416,8 +416,6 @@ impl Processor for StoreNormalizeProcessor {
     }
 }
 
-const LOGGER_MAX_LEN: usize = 64;
-
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
 /// a shortened version of the logger. If not, the same logger is returned as a
 /// String. The resulting logger is always trimmed.
@@ -433,7 +431,7 @@ fn shorten_logger(logger: String, meta: &mut Meta) -> String {
     let original_len = bytecount::num_chars(logger.as_bytes());
     let trimmed = logger.trim();
     let logger_len = bytecount::num_chars(trimmed.as_bytes());
-    if logger_len <= LOGGER_MAX_LEN {
+    if logger_len <= MaxChars::Logger.limit() {
         if trimmed == logger {
             return logger;
         } else {
@@ -484,7 +482,7 @@ fn shorten_logger(logger: String, meta: &mut Meta) -> String {
 /// A word is considered any non-empty substring that doesn't contain a `.`.
 fn remove_logger_extra_chars(tokens: &mut Vec<&str>) -> bool {
     // Leave one slot of space for the prefix
-    let mut remove_chars = tokens.len() - LOGGER_MAX_LEN + 1;
+    let mut remove_chars = tokens.len() - MaxChars::Logger.limit() + 1;
     let mut word_cut = false;
     while remove_chars > 0 {
         if let Some(c) = tokens.pop() {
