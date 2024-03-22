@@ -219,6 +219,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
+          prefix-key: "v0-rust-${{ matrix.platform.target }}" 
           cache-on-failure: true
           key: ${{ github.job }}-${{ matrix.arch }}
 
