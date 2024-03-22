@@ -378,9 +378,9 @@
 <span class="kw">use </span>std::path::{Path, PathBuf};
 
 <span class="kw">use </span>anyhow::anyhow;
-<span class="kw">use </span>syn::punctuated::Punctuated;
-<span class="kw">use </span>syn::visit::Visit;
-<span class="kw">use </span>syn::{ItemEnum, ItemStruct, UseTree};
+<span class="kw">use </span>syn2::punctuated::Punctuated;
+<span class="kw">use </span>syn2::visit::Visit;
+<span class="kw">use </span>syn2::{ItemEnum, ItemStruct, UseTree};
 
 <span class="kw">use </span><span class="kw">crate</span>::pii_finder::{FieldsWithAttribute, PiiFinder};
 <span class="kw">use </span><span class="kw">crate</span>::EnumOrStruct;
@@ -483,9 +483,9 @@
         <span class="kw">for </span>path <span class="kw">in </span>paths {
             <span class="self">self</span>.module_path = module_name_from_file(path)<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>syntax_tree: syn::File = {
+            <span class="kw">let </span>syntax_tree: syn2::File = {
                 <span class="kw">let </span>file_content = fs::read_to_string(path.as_path())<span class="question-mark">?</span>;
-                syn::parse_file(<span class="kw-2">&amp;</span>file_content)<span class="question-mark">?
+                syn2::parse_file(<span class="kw-2">&amp;</span>file_content)<span class="question-mark">?
             </span>};
 
             <span class="self">self</span>.visit_file(<span class="kw-2">&amp;</span>syntax_tree);
@@ -509,7 +509,7 @@
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
 
-    <span class="kw">fn </span>visit_item_use(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>syn::ItemUse) {
+    <span class="kw">fn </span>visit_item_use(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: <span class="kw-2">&amp;</span><span class="lifetime">'ast </span>syn2::ItemUse) {
         <span class="kw">let </span>use_statements = usetree_to_paths(<span class="kw-2">&amp;</span>i.tree, <span class="kw-2">&amp;</span><span class="self">self</span>.module_path)
             .iter()
             .filter(|s| s.contains(<span class="string">"relay"</span>))
@@ -541,7 +541,7 @@
 </span><span class="kw">fn </span>usetree_to_paths(use_tree: <span class="kw-2">&amp;</span>UseTree, module_path: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;String&gt; {
     <span class="kw">let </span>crate_root = module_path.split_once(<span class="string">"::"</span>).map_or(module_path, |s| s.<span class="number">0</span>);
     <span class="kw">let </span>paths = flatten_use_tree(
-        syn::Path {
+        syn2::Path {
             leading_colon: <span class="prelude-val">None</span>,
             segments: Punctuated::new(),
         },
@@ -558,7 +558,7 @@
 ///
 /// For example: `use protocol::{Foo, Bar, Baz}` into `[protocol::Foo, protocol::Bar,
 /// protocol::Baz]`.
-</span><span class="kw">fn </span>flatten_use_tree(<span class="kw-2">mut </span>leading_path: syn::Path, use_tree: <span class="kw-2">&amp;</span>UseTree) -&gt; Vec&lt;String&gt; {
+</span><span class="kw">fn </span>flatten_use_tree(<span class="kw-2">mut </span>leading_path: syn2::Path, use_tree: <span class="kw-2">&amp;</span>UseTree) -&gt; Vec&lt;String&gt; {
     <span class="kw">match </span>use_tree {
         UseTree::Path(use_path) =&gt; {
             leading_path.segments.push(use_path.ident.clone().into());

@@ -305,8 +305,8 @@
 
 <span class="kw">use </span>anyhow::anyhow;
 <span class="kw">use </span>proc_macro2::TokenTree;
-<span class="kw">use </span>syn::visit::Visit;
-<span class="kw">use </span>syn::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
+<span class="kw">use </span>syn2::visit::Visit;
+<span class="kw">use </span>syn2::{Attribute, Field, ItemEnum, ItemStruct, Meta, Path, Type, TypePath};
 
 <span class="kw">use </span><span class="kw">crate</span>::EnumOrStruct;
 
@@ -529,9 +529,9 @@
         <span class="kw">let </span><span class="kw-2">mut </span>ident = first_segment.ident.to_string();
 
         <span class="comment">// Recursion on AngleBracketed args is necessary for nested generic types
-        </span><span class="kw">if let </span>syn::PathArguments::AngleBracketed(angle_bracketed) = <span class="kw-2">&amp;</span>first_segment.arguments {
+        </span><span class="kw">if let </span>syn2::PathArguments::AngleBracketed(angle_bracketed) = <span class="kw-2">&amp;</span>first_segment.arguments {
             <span class="kw">for </span>generic_arg <span class="kw">in </span>angle_bracketed.args.iter() {
-                <span class="kw">if let </span>syn::GenericArgument::Type(Type::Path(path)) = generic_arg {
+                <span class="kw">if let </span>syn2::GenericArgument::Type(Type::Path(path)) = generic_arg {
                     get_field_types(<span class="kw-2">&amp;</span>path.path, segments);
                 }
             }
