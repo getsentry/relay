@@ -137,7 +137,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
                 Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
-                    *value = basename[1..].to_owned();
+                    basename[1..].clone_into(value);
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {
                     return Err(ProcessingAction::InvalidTransaction(x))
@@ -469,12 +469,10 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
-    use relay_protocol::{
-        assert_annotated_snapshot, get_value, Annotated, FromValue, Object, Value,
-    };
+    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
     use serde_json::json;
 
     use super::*;

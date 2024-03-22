@@ -201,7 +201,7 @@ pub fn normalize_request(request: &mut Request) {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{Headers, PairList, Query};
+    use relay_event_schema::protocol::{Headers, PairList};
     use relay_protocol::Object;
     use similar_asserts::assert_eq;
 

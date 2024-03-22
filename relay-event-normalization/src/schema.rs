@@ -120,12 +120,12 @@ fn verify_value_characters(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::processor::{self, ProcessingState};
+    use relay_event_schema::processor;
     use relay_event_schema::protocol::{
         CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
         RawStacktrace, User,
     };
-    use relay_protocol::{Annotated, ErrorKind};
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use super::*;

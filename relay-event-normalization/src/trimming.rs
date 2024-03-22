@@ -388,14 +388,10 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
-    use relay_event_schema::processor::MaxChars;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Frame, RawStacktrace,
-        TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, TagEntry, Tags, Values,
     };
-    use relay_protocol::{
-        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
-    };
+    use relay_protocol::{Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
     use super::*;

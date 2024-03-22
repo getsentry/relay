@@ -530,7 +530,7 @@ mod tests {
         Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,
+        assert_annotated_snapshot, get_path, get_value, ErrorKind, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;

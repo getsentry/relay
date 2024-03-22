@@ -773,8 +773,8 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::{get_value, Annotated};
+    use relay_event_schema::protocol::Request;
+    use relay_protocol::get_value;
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};

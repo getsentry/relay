@@ -145,11 +145,10 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::events::EventType;
-    use relay_event_schema::protocol::{Event, EventId, LenientString};
+    use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
-    use relay_sampling::config::{RuleId, RuleType, SamplingConfig, SamplingRule, SamplingValue};
+    use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
     use uuid::Uuid;
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {

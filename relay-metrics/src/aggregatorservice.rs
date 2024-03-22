@@ -415,9 +415,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
-    use relay_system::{FromMessage, Interface};
 
-    use crate::{BucketCountInquiry, BucketMetadata, BucketValue};
+    use crate::{BucketMetadata, BucketValue};
 
     use super::*;
 

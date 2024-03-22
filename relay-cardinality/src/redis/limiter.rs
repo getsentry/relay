@@ -328,13 +328,11 @@ impl IntoIterator for CheckedLimits {
 mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicU64;
-    use std::time::Duration;
 
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::ProjectId;
     use relay_redis::{redis, RedisConfigOptions};
 
-    use crate::limiter::EntryId;
     use crate::redis::{KEY_PREFIX, KEY_VERSION};
     use crate::{CardinalityScope, SlidingWindow};
 

@@ -773,8 +773,6 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
 
-    use crate::envelope::ContentType;
-
     use super::*;
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {

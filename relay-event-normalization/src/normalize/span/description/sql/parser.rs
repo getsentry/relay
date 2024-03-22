@@ -193,7 +193,7 @@ impl NormalizeVisitor {
         if let Some(s) = filter {
             match s {
                 sqlparser::ast::ShowStatementFilter::Like(s)
-                | sqlparser::ast::ShowStatementFilter::ILike(s) => *s = "%s".to_owned(),
+                | sqlparser::ast::ShowStatementFilter::ILike(s) => "%s".clone_into(s),
                 sqlparser::ast::ShowStatementFilter::Where(_) => {}
             }
         }
@@ -519,7 +519,7 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Truncate { .. } => {}
             Statement::Msck { .. } => {}
             Statement::Directory { path, .. } => {
-                *path = "%s".to_owned();
+                "%s".clone_into(path);
             }
             Statement::Call(_) => {}
             Statement::Copy { source, values, .. } => {

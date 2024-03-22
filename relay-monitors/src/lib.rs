@@ -43,7 +43,7 @@ pub enum ProcessCheckInError {
     InvalidEnvironment,
 }
 
-///
+/// Describes the status of the incoming CheckIn.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CheckInStatus {

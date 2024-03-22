@@ -449,7 +449,7 @@ impl FromUserAgentInfo for OsContext {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{Headers, PairList, Request};
+    use relay_event_schema::protocol::{PairList, Request};
     use relay_protocol::assert_annotated_snapshot;
 
     use super::*;

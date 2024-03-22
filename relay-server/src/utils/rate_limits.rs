@@ -729,7 +729,7 @@ mod tests {
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
-    use relay_quotas::{ItemScoping, RetryAfter};
+    use relay_quotas::RetryAfter;
     use smallvec::smallvec;
 
     use super::*;

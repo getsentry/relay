@@ -1,7 +1,6 @@
 //! Minidump scrubbing.
 
 use std::borrow::Cow;
-use std::convert::TryInto;
 use std::num::TryFromIntError;
 use std::ops::Range;
 use std::str::Utf8Error;

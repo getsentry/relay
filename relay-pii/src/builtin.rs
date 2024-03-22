@@ -387,7 +387,6 @@ declare_builtin_rules! {
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
-    use std::collections::BTreeMap;
 
     use relay_event_schema::processor::{
         process_value, EnumSet, FieldAttrs, Pii, ProcessingState, ValueType,
