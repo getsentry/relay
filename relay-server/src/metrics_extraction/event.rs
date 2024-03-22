@@ -48,7 +48,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let transaction_span = extract_transaction_span(event);
+        let transaction_span = extract_transaction_span(event, todo!());
         metrics.extend(generic::extract_metrics(&transaction_span, config));
 
         if let Some(spans) = event.spans.value() {
