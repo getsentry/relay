@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
