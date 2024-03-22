@@ -408,9 +408,15 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Savepoint { name } => Self::erase_name(name),
             Statement::ReleaseSavepoint { name } => Self::erase_name(name),
             Statement::Declare { stmts } => {
-                for Declare { names, .. } in stmts {
+                for Declare {
+                    names, for_query, ..
+                } in stmts
+                {
                     for name in names {
-                        Self::scrub_name(name);
+                        Self::erase_name(name);
+                    }
+                    if let Some(for_query) = for_query {
+                        self.transform_query(for_query.as_mut());
                     }
                 }
             }
