@@ -154,7 +154,7 @@ pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size
     event.spans = spans;
 }
 
-/// Extracts tags and measurements from event and spans and materializes them.
+/// Extracts tags and measurements from event and spans and materializes them into the spans.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
 pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize) {
