@@ -246,7 +246,7 @@ jobs:
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
             --tag "${DOCKER_IMAGE}" \
-            Dockerfile.release
+            --file Dockerfile.release .
 
       - name: Push to ghcr.io
         # Do not run this on forks as they do not have access to secrets
