@@ -237,24 +237,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build docker container
+      - name: Build and push to ghcr.io
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         run: |
           mv "${RELAY_BIN}" ./relay-bin
           zip relay-debug.zip "${RELAY_BIN}.debug"
           mv "${RELAY_BIN}.src.zip" ./relay.src.zip
 
+          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
-            --output type=docker \
             --tag "${DOCKER_IMAGE}" \
-            --file Dockerfile.release .
-
-      - name: Push to ghcr.io
-        # Do not run this on forks as they do not have access to secrets
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-          docker push "${DOCKER_IMAGE}"
+            --file Dockerfile.release \
+            --push .
 
   # build:
   #   timeout-minutes: 30
