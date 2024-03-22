@@ -6,8 +6,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Expr,
-    FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Declare,
+    Expr, FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
     ShowStatementFilter, Statement, TableAlias, TableConstraint, TableFactor, UnaryOperator, Value,
     VisitMut, VisitorMut,
 };
@@ -407,9 +407,12 @@ impl VisitorMut for NormalizeVisitor {
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
             Statement::Savepoint { name } => Self::erase_name(name),
             Statement::ReleaseSavepoint { name } => Self::erase_name(name),
-            Statement::Declare { name, query, .. } => {
-                Self::erase_name(name);
-                self.transform_query(query);
+            Statement::Declare { stmts } => {
+                for Declare { names, .. } in stmts {
+                    for name in names {
+                        Self::scrub_name(name);
+                    }
+                }
             }
             Statement::Fetch { name, into, .. } => {
                 Self::erase_name(name);
@@ -694,6 +697,21 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             Statement::UnlockTables => {}
+            Statement::Install { extension_name } | Statement::Load { extension_name } => {
+                Self::scrub_name(extension_name)
+            }
+            Statement::ShowStatus {
+                filter: _,
+                global: _,
+                session: _,
+            } => {}
+            Statement::Unload {
+                query: _,
+                to,
+                with: _,
+            } => {
+                Self::scrub_name(to);
+            }
         }
 
         ControlFlow::Continue(())
