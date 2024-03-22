@@ -4,30 +4,32 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Error reporting and logging for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.12.0"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 build = "build.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { workspace = true, features = ["clock"], optional = true }
-console = { version = "0.15.5", optional = true }
-once_cell = { version = "1.13.1", optional = true }
-relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.31.7", features = [
+console = { workspace = true, optional = true }
+once_cell = { workspace = true, optional = true }
+relay-common = { workspace = true }
+relay-crash = { workspace = true, optional = true }
+sentry = { workspace = true, features = [
     "debug-images",
     "tower-axum-matched-path",
     "tracing",
 ], optional = true }
-sentry-core = { version = "0.31.7" }
-tokio = { version = "1", default-features = false, features = [
-    "sync",
-], optional = true }
+sentry-core = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["sync"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = [
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = [
     "env-filter",
     "json",
     "time",

@@ -1,8 +1,61 @@
 # Changelog
 
-## Unreleased
+## 0.8.55
 
-This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
+- Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
+
+## 0.8.52
+
+- Add a data category for profile duration. ([#3284](https://github.com/getsentry/relay/pull/3284))
+
+## 0.8.50
+
+### Various fixes & improvements
+
+- release: 0.8.49 (99861e52) by @getsentry-bot
+- release: 0.8.48 (ff3e9662) by @getsentry-bot
+- fix(normalization): Skip validation on renormalization (#3214) by @iker-barriocanal
+- release: 0.8.46 (1292bbdb) by @getsentry-bot
+- fix(normalization): Accept transactions with unfinished spans (#3162) by @iker-barriocanal
+
+## 0.8.49
+
+- Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
+
+## 0.8.48
+
+- Add `passive` flag to cardinality limits in project configs. ([#3199](https://github.com/getsentry/relay/pull/3199))
+- Don't run validation on renormalization, and don't normalize spans. ([#3214](https://github.com/getsentry/relay/pull/3214))
+
+## 0.8.46
+
+- This release requires Python 3.10 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.9.
+- Fix: accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
+
+## 0.8.45
+
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add ability to block metric tags matching a glob pattern. ([#2973](https://github.com/getsentry/relay/pull/2973))
+
+## 0.8.44
+
+- Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
+
+
+## 0.8.43
+
+- Fix JSON capitalization for cardinality config. ([#2979](https://github.com/getsentry/relay/pull/2979))
+
+## 0.8.42
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+
+## 0.8.41
+
+- This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+- Normalize error and trace-ids. Values must be valid UUIDs. ([#2931](https://github.com/getsentry/relay/pull/2931))
+- Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 
 ## 0.8.39
 
@@ -71,18 +124,17 @@ This release requires Python 3.8 or later.
 ## 0.8.27
 
 - Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
+- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
 
 ## 0.8.26
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
-- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
+
 
 ## 0.8.25
 
-### Various fixes & improvements
 
-- release: 0.8.24 (a9a78dfa) by @getsentry-bot
 
 ## 0.8.24
 

@@ -17,7 +17,8 @@ expression: SerializableAnnotated(&event)
   "release": "sentry-electron-test@2.0.2",
   "environment": "development",
   "user": {
-    "ip_address": null
+    "ip_address": null,
+    "sentry_user": "ip:{{auto}}"
   },
   "contexts": {
     "app": {

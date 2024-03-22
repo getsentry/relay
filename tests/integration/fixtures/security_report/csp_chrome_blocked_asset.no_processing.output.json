@@ -23,10 +23,12 @@
   },
   "culprit": "style-src cdn.example.com",
   "environment": "production",
+  "level": "error",
   "logentry": {
     "formatted": "Blocked 'style' from 'notlocalhost:8000'"
   },
   "logger": "csp",
+  "platform": "other",
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "request": {
     "headers": [
@@ -48,6 +50,7 @@
     ]
   ],
   "user": {
-    "ip_address": "127.0.0.1"
+    "ip_address": "127.0.0.1",
+    "sentry_user": "ip:127.0.0.1"
   }
 }

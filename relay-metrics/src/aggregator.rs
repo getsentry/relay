@@ -10,7 +10,7 @@ use std::{fmt, mem};
 
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
-use relay_common::time::{MonotonicResult, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -18,6 +18,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+use crate::{BucketMetadata, MetricName};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -37,7 +38,7 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[error("found invalid characters: {0}")]
-    InvalidCharacters(String),
+    InvalidCharacters(MetricName),
     /// A metric bucket had an unknown namespace in the metric name.
     #[error("found unsupported namespace: {0}")]
     UnsupportedNamespace(MetricNamespace),
@@ -49,7 +50,7 @@ enum AggregateMetricsErrorKind {
     InvalidTypes,
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[error("found invalid string: {0}")]
-    InvalidStringLength(String),
+    InvalidStringLength(MetricName),
     /// A metric bucket is too large for the global bytes limit.
     #[error("total metrics limit exceeded")]
     TotalLimitExceeded,
@@ -62,7 +63,7 @@ enum AggregateMetricsErrorKind {
 struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: String,
+    metric_name: MetricName,
     tags: BTreeMap<String, String>,
 }
 
@@ -71,13 +72,9 @@ impl BucketKey {
     ///
     /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
-        BucketKeyRef {
-            project_key: self.project_key,
-            timestamp: self.timestamp,
-            metric_name: &self.metric_name,
-            tags: &self.tags,
-        }
-        .hash64()
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(self, &mut hasher);
+        hasher.finish()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -85,38 +82,12 @@ impl BucketKey {
     /// Note that this does not necessarily match the exact memory footprint of the key,
     /// because data structures have a memory overhead.
     fn cost(&self) -> usize {
-        mem::size_of::<Self>() + self.metric_name.capacity() + tags_cost(&self.tags)
+        mem::size_of::<Self>() + self.metric_name.len() + tags_cost(&self.tags)
     }
 
     /// Returns the namespace of this bucket.
     fn namespace(&self) -> MetricNamespace {
-        match MetricResourceIdentifier::parse(&self.metric_name) {
-            Ok(mri) => mri.namespace,
-            Err(_) => MetricNamespace::Unsupported,
-        }
-    }
-}
-
-/// Pendant to [`BucketKey`] for referenced data, not owned data.
-///
-/// This makes it possible to compute a hash for a [`Bucket`]
-/// without destructing the bucket into a [`BucketKey`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct BucketKeyRef<'a> {
-    project_key: ProjectKey,
-    timestamp: UnixTimestamp,
-    metric_name: &'a str,
-    tags: &'a BTreeMap<String, String>,
-}
-
-impl<'a> BucketKeyRef<'a> {
-    /// Creates a 64-bit hash of the bucket key using FnvHasher.
-    ///
-    /// This is used for partition key computation and statsd logging.
-    fn hash64(&self) -> u64 {
-        let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finish()
+        self.metric_name.namespace()
     }
 }
 
@@ -144,6 +115,9 @@ pub enum ShiftKey {
     ///
     /// Only for use in processing Relays.
     Bucket,
+
+    /// Do not apply shift. This should be set when `http.global_metrics` is used.
+    None,
 }
 
 /// Parameters used by the [`Aggregator`].
@@ -221,31 +195,35 @@ impl AggregatorConfig {
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_key: &BucketKey) -> Instant {
-        let now = Instant::now();
-        let mut flush = None;
+        let initial_flush = bucket_key.timestamp + self.bucket_interval() + self.initial_delay();
 
-        if let MonotonicResult::Instant(instant) = bucket_key.timestamp.to_instant() {
-            let instant = Instant::from_std(instant);
-            let bucket_end = instant + self.bucket_interval();
-            let initial_flush = bucket_end + self.initial_delay();
-            // If the initial flush is still pending, use that.
-            if initial_flush > now {
-                flush = Some(initial_flush + self.flush_time_shift(bucket_key));
-            }
-        }
+        let now = UnixTimestamp::now();
+        let backdated = initial_flush <= now;
 
-        let delay = UnixTimestamp::now().as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+        let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backdated = if flush.is_none() { "true" } else { "false" },
+            backdated = if backdated { "true" } else { "false" },
         );
 
-        // If the initial flush time has passed or cannot be represented, debounce future flushes
-        // with the `debounce_delay` starting now.
-        match flush {
-            Some(initial_flush) => initial_flush,
-            None => now + self.debounce_delay(),
-        }
+        let flush_timestamp = if backdated {
+            // If the initial flush time has passed or cannot be represented, debounce future
+            // flushes with the `debounce_delay` starting now. However, align the current timestamp
+            // with the bucket interval for proper batching.
+            let floor = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
+            UnixTimestamp::from_secs(floor) + self.bucket_interval() + self.debounce_delay()
+        } else {
+            // If the initial flush is still pending, use that.
+            initial_flush
+        };
+
+        let instant = if flush_timestamp > now {
+            Instant::now().checked_add(flush_timestamp - now)
+        } else {
+            Instant::now().checked_sub(now - flush_timestamp)
+        };
+
+        instant.unwrap_or_else(Instant::now) + self.flush_time_shift(bucket_key)
     }
 
     /// The delay to debounce backdated flushes.
@@ -274,9 +252,10 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             ShiftKey::Bucket => bucket.hash64(),
+            ShiftKey::None => return Duration::ZERO,
         };
-        let shift_millis = hash_value % (self.bucket_interval * 1000);
 
+        let shift_millis = hash_value % (self.bucket_interval * 1000);
         Duration::from_millis(shift_millis)
     }
 
@@ -284,22 +263,12 @@ impl AggregatorConfig {
     ///
     /// We select the output bucket which overlaps with the center of the incoming bucket.
     /// Fails if timestamp is too old or too far into the future.
-    fn get_bucket_timestamp(
-        &self,
-        timestamp: UnixTimestamp,
-        bucket_width: u64,
-    ) -> Result<UnixTimestamp, AggregateMetricsError> {
+    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp, bucket_width: u64) -> UnixTimestamp {
         // Find middle of the input bucket to select a target
         let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
         // Align target_timestamp to output bucket width
         let ts = (ts / self.bucket_interval) * self.bucket_interval;
-        let output_timestamp = UnixTimestamp::from_secs(ts);
-
-        if !self.timestamp_range().contains(&output_timestamp) {
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
-        }
-
-        Ok(output_timestamp)
+        UnixTimestamp::from_secs(ts)
     }
 
     /// Returns the valid range for metrics timestamps.
@@ -340,17 +309,42 @@ impl Default for AggregatorConfig {
 struct QueuedBucket {
     flush_at: Instant,
     value: BucketValue,
+    metadata: BucketMetadata,
 }
 
 impl QueuedBucket {
     /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, value: BucketValue) -> Self {
-        Self { flush_at, value }
+    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -> Self {
+        Self {
+            flush_at,
+            value,
+            metadata,
+        }
     }
 
     /// Returns `true` if the flush time has elapsed.
     fn elapsed(&self) -> bool {
         Instant::now() > self.flush_at
+    }
+
+    /// Merges a bucket into the current queued bucket.
+    ///
+    /// Returns the value cost increase on success,
+    /// otherwise returns an error if the passed bucket value type does not match
+    /// the contained type.
+    fn merge(
+        &mut self,
+        value: BucketValue,
+        metadata: BucketMetadata,
+    ) -> Result<usize, AggregateMetricsErrorKind> {
+        let cost_before = self.value.cost();
+
+        self.value
+            .merge(value)
+            .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
+        self.metadata.merge(metadata);
+
+        Ok(self.value.cost().saturating_sub(cost_before))
     }
 }
 
@@ -526,6 +520,7 @@ impl Aggregator {
                 name: key.metric_name,
                 value: entry.value,
                 tags: key.tags,
+                metadata: entry.metadata,
             })
             .collect()
     }
@@ -558,7 +553,8 @@ impl Aggregator {
                 self.buckets.retain(|key, entry| {
                     if force || entry.elapsed() {
                         // Take the value and leave a placeholder behind. It'll be removed right after.
-                        let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                        let value = mem::replace(&mut entry.value, BucketValue::counter(0.into()));
+                        let metadata = mem::take(&mut entry.metadata);
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
@@ -574,6 +570,7 @@ impl Aggregator {
                             name: key.metric_name.clone(),
                             value,
                             tags: key.tags.clone(),
+                            metadata,
                         };
 
                         buckets
@@ -645,7 +642,7 @@ impl Aggregator {
                     "bucket.project_key",
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra("bucket.metric_name", key.metric_name.into());
+                scope.set_extra("bucket.metric_name", key.metric_name.to_string().into());
             });
             return Err(err);
         }
@@ -663,10 +660,7 @@ impl Aggregator {
                     );
                 }
 
-                let mut metric_name = mri.to_string();
-                // do this so cost tracking still works accurately.
-                metric_name.shrink_to_fit();
-                metric_name
+                mri.to_string().into()
             }
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", &key.metric_name);
@@ -723,26 +717,27 @@ impl Aggregator {
         key
     }
 
-    // Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
-    // Logs a statsd metric for invalid timestamps.
+    /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
+    ///
+    /// Logs a statsd metric for invalid timestamps.
     fn get_bucket_timestamp(
         &self,
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -> Result<UnixTimestamp, AggregateMetricsError> {
-        let res = self.config.get_bucket_timestamp(timestamp, bucket_width);
-        if let Err(AggregateMetricsError {
-            kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
-        }) = res
-        {
-            let delta = (ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
+        let bucket_ts = self.config.get_bucket_timestamp(timestamp, bucket_width);
+
+        if !self.config.timestamp_range().contains(&bucket_ts) {
+            let delta = (bucket_ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
                 aggregator = &self.name,
             );
+
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
-        res
+        Ok(bucket_ts)
     }
 
     /// Merge a preaggregated bucket into this aggregator.
@@ -803,13 +798,8 @@ impl Aggregator {
                     aggregator = &self.name,
                     namespace = entry.key().namespace().as_str(),
                 );
-                let bucket_value = &mut entry.get_mut().value;
-                let cost_before = bucket_value.cost();
-                bucket_value
-                    .merge(bucket.value)
-                    .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
-                let cost_after = bucket_value.cost();
-                added_cost = cost_after.saturating_sub(cost_before);
+
+                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)?;
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
@@ -826,7 +816,7 @@ impl Aggregator {
                 let flush_at = self.config.get_flush_time(entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value));
+                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
             }
         }
 
@@ -888,39 +878,8 @@ impl fmt::Debug for Aggregator {
     }
 }
 
-/// Splits buckets into N logical partitions, determined by the bucket key.
-pub fn partition_buckets(
-    project_key: ProjectKey,
-    buckets: impl IntoIterator<Item = Bucket>,
-    flush_partitions: Option<u64>,
-) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-    let flush_partitions = match flush_partitions {
-        None => return BTreeMap::from([(None, buckets.into_iter().collect())]),
-        Some(x) => x.max(1), // handle 0,
-    };
-    let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-    for bucket in buckets {
-        let key = BucketKeyRef {
-            project_key,
-            timestamp: bucket.timestamp,
-            metric_name: &bucket.name,
-            tags: &bucket.tags,
-        };
-
-        let partition_key = key.hash64() % flush_partitions;
-        partitions
-            .entry(Some(partition_key))
-            .or_default()
-            .push(bucket);
-
-        relay_statsd::metric!(histogram(MetricHistograms::PartitionKeys) = partition_key);
-    }
-    partitions
-}
-
 #[cfg(test)]
 mod tests {
-
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -937,7 +896,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            ..Default::default()
+            shift_key: ShiftKey::default(),
         }
     }
 
@@ -945,9 +904,10 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            name: "c:transactions/foo".into(),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 
@@ -960,7 +920,7 @@ mod tests {
         let bucket1 = some_bucket();
 
         let mut bucket2 = bucket1.clone();
-        bucket2.value = BucketValue::counter(43.);
+        bucket2.value = BucketValue::counter(43.into());
         aggregator.merge(project_key, bucket1, None).unwrap();
         aggregator.merge(project_key, bucket2, None).unwrap();
 
@@ -970,13 +930,15 @@ mod tests {
             .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
             .collect();
 
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -984,7 +946,7 @@ mod tests {
                 ),
             ),
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -994,20 +956,20 @@ mod tests {
         let expected_bucket_value_size = 48;
         let expected_set_entry_size = 4;
 
-        let counter = BucketValue::Counter(123.0);
+        let counter = BucketValue::Counter(123.into());
         assert_eq!(counter.cost(), expected_bucket_value_size);
         let set = BucketValue::Set([1, 2, 3, 4, 5].into());
         assert_eq!(
             set.cost(),
             expected_bucket_value_size + 5 * expected_set_entry_size
         );
-        let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
+        let distribution = BucketValue::Distribution(dist![1, 2, 3]);
         assert_eq!(distribution.cost(), expected_bucket_value_size + 3 * 8);
         let gauge = BucketValue::Gauge(GaugeValue {
-            last: 43.,
-            min: 42.,
-            max: 43.,
-            sum: 85.,
+            last: 43.into(),
+            min: 42.into(),
+            max: 43.into(),
+            sum: 85.into(),
             count: 2,
         });
         assert_eq!(gauge.cost(), expected_bucket_value_size);
@@ -1018,11 +980,11 @@ mod tests {
         // When this test fails, it means that the cost model has changed.
         // Check dimensionality limits.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let name = "12345".to_owned();
+        let metric_name = "12345".into();
         let bucket_key = BucketKey {
-            project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: name,
+            project_key,
+            metric_name,
             tags: BTreeMap::from([
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
@@ -1030,7 +992,7 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            88 + // BucketKey
+            80 + // BucketKey
             5 + // name
             (5 + 5 + 6 + 2) // tags
         );
@@ -1063,13 +1025,15 @@ mod tests {
             .collect();
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -1080,7 +1044,9 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:transactions/foo@none",
+                    metric_name: MetricName(
+                        "c:transactions/foo@none",
+                    ),
                     tags: {},
                 },
                 Counter(
@@ -1088,7 +1054,7 @@ mod tests {
                 ),
             ),
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1189,24 +1155,29 @@ mod tests {
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo@none".to_owned(),
-            value: BucketValue::counter(42.),
+            name: "c:transactions/foo@none".into(),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/foo@none".to_owned(),
+            metric_name: "c:transactions/foo@none".into(),
             tags: BTreeMap::new(),
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/foo@none",
-                BucketValue::counter(42.),
+                BucketValue::counter(42.into()),
                 fixed_cost,
             ),
-            ("c:transactions/foo@none", BucketValue::counter(42.), 0), // counters have constant size
+            (
+                "c:transactions/foo@none",
+                BucketValue::counter(42.into()),
+                0,
+            ), // counters have constant size
             (
                 "s:transactions/foo@none",
                 BucketValue::set(123),
@@ -1216,21 +1187,29 @@ mod tests {
             ("s:transactions/foo@none", BucketValue::set(456), 4), // Different element in set -> +4
             (
                 "d:transactions/foo@none",
-                BucketValue::distribution(1.0),
+                BucketValue::distribution(1.into()),
                 fixed_cost + 8,
             ), // New bucket + 1 element
-            ("d:transactions/foo@none", BucketValue::distribution(1.0), 8), // duplicate element
-            ("d:transactions/foo@none", BucketValue::distribution(2.0), 8), // 1 new element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(1.into()),
+                8,
+            ), // duplicate element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(2.into()),
+                8,
+            ), // 1 new element
             (
                 "g:transactions/foo@none",
-                BucketValue::gauge(0.3),
+                BucketValue::gauge(3.into()),
                 fixed_cost,
             ), // New bucket
-            ("g:transactions/foo@none", BucketValue::gauge(0.2), 0), // gauge has constant size
+            ("g:transactions/foo@none", BucketValue::gauge(2.into()), 0), // gauge has constant size
         ] {
             let mut bucket = bucket.clone();
             bucket.value = metric_value;
-            bucket.name = metric_name.to_string();
+            bucket.name = metric_name.into();
 
             let current_cost = aggregator.cost_tracker.total_cost;
             aggregator.merge(project_key, bucket, None).unwrap();
@@ -1238,7 +1217,7 @@ mod tests {
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(false);
+        aggregator.pop_flush_buckets(true);
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
@@ -1251,8 +1230,10 @@ mod tests {
             ..Default::default()
         };
 
+        let aggregator = Aggregator::new(config);
+
         assert!(matches!(
-            config
+            aggregator
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
                 .unwrap_err()
                 .kind,
@@ -1272,9 +1253,7 @@ mod tests {
         let now = UnixTimestamp::now().as_secs();
         let rounded_now = UnixTimestamp::from_secs(now / 10 * 10);
         assert_eq!(
-            config
-                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 0)
-                .unwrap(),
+            config.get_bucket_timestamp(UnixTimestamp::from_secs(now), 0),
             rounded_now
         );
     }
@@ -1293,7 +1272,6 @@ mod tests {
         assert_eq!(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), 20)
-                .unwrap()
                 .as_secs(),
             rounded_now + 10
         );
@@ -1313,7 +1291,6 @@ mod tests {
         assert_eq!(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), 23)
-                .unwrap()
                 .as_secs(),
             rounded_now + 10
         );
@@ -1326,7 +1303,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/hergus.bergus".to_owned(),
+            metric_name: "c:transactions/hergus.bergus".into(),
             tags: {
                 let mut tags = BTreeMap::new();
                 // There are some SDKs which mess up content encodings, and interpret the raw bytes
@@ -1359,7 +1336,7 @@ mod tests {
         );
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
-        bucket_key.metric_name = "hergus\0bergus".to_owned();
+        bucket_key.metric_name = "hergus\0bergus".into();
         Aggregator::validate_bucket_key(bucket_key, &test_config()).unwrap_err();
     }
 
@@ -1371,7 +1348,7 @@ mod tests {
         let short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric".to_owned(),
+            metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::new(),
         };
         assert!(Aggregator::validate_bucket_key(short_metric, &test_config()).is_ok());
@@ -1379,7 +1356,7 @@ mod tests {
         let long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
             tags: BTreeMap::new(),
         };
         let validation = Aggregator::validate_bucket_key(long_metric, &test_config());
@@ -1394,7 +1371,7 @@ mod tests {
         let short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
         let validation =
@@ -1404,7 +1381,7 @@ mod tests {
         let short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
         let validation =
@@ -1422,7 +1399,7 @@ mod tests {
         let short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/a_short_metric".to_owned(),
+            metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
         };
         let validated_bucket = Aggregator::validate_metric_tags(short_metric, &test_config());
@@ -1434,9 +1411,10 @@ mod tests {
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            name: "c:transactions/foo".into(),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         let mut aggregator = Aggregator::new(test_config());
@@ -1464,9 +1442,10 @@ mod tests {
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            name: "c:transactions/foo".into(),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         };
 
         let mut aggregator = Aggregator::new(config);
@@ -1487,5 +1466,35 @@ mod tests {
         let json = r#"{"shift_key": "bucket"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
+    }
+
+    #[test]
+    fn test_aggregator_merge_metadata() {
+        let mut config = test_config();
+        config.bucket_interval = 10;
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut aggregator = Aggregator::new(config);
+
+        let bucket1 = some_bucket();
+        let bucket2 = some_bucket();
+
+        // Create a bucket with already 3 merges.
+        let mut bucket3 = some_bucket();
+        bucket3.metadata.merge(BucketMetadata::new());
+        bucket3.metadata.merge(BucketMetadata::new());
+
+        aggregator.merge(project_key, bucket1, None).unwrap();
+        aggregator.merge(project_key, bucket2, None).unwrap();
+        aggregator.merge(project_key, bucket3, None).unwrap();
+
+        let buckets: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            BucketMetadata {
+                merges: 5,
+            },
+        ]
+        "###);
     }
 }

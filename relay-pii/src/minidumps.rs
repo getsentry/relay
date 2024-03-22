@@ -583,10 +583,6 @@ mod tests {
         assert_eq!(main.debug_file().unwrap(), "crash");
 
         let modules = scrubber.other_modules(Which::Original);
-        for module in modules.iter() {
-            dbg!(module.code_file());
-            dbg!(module.debug_file());
-        }
         for module in modules {
             assert!(
                 module.code_file().matches('/').count() > 1,

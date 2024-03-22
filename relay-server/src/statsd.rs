@@ -20,8 +20,14 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
-    /// The current count of the keys in the "in-memory" buffer.
-    BufferProjectsMemoryCount,
+    /// The currently used memory by the entire system.
+    ///
+    /// Relay uses the same value for its memory health check.
+    SystemMemoryUsed,
+    /// The total system memory.
+    ///
+    /// Relay uses the same value for its memory health check.
+    SystemMemoryTotal,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -31,7 +37,8 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
-            RelayGauges::BufferProjectsMemoryCount => "buffer.projects_mem_count",
+            RelayGauges::SystemMemoryUsed => "health.system_memory.used",
+            RelayGauges::SystemMemoryTotal => "health.system_memory.total",
         }
     }
 }
@@ -59,6 +66,10 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
+    /// The number of bytes received by Relay for each individual envelope item type.
+    ///
+    /// Metric is tagged by the item type.
+    EnvelopeItemSize,
     /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
@@ -158,6 +169,15 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
+    UpstreamMetricsBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -165,6 +185,7 @@ impl HistogramMetric for RelayHistograms {
         match self {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::EnvelopeItemSize => "event.item_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
@@ -188,6 +209,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
@@ -220,6 +243,10 @@ pub enum RelayTimers {
     EventProcessingSerialization,
     /// Time used to extract span metrics from an event.
     EventProcessingSpanMetricsExtraction,
+    /// Time spent on transaction processing after dynamic sampling.
+    ///
+    /// This includes PII scrubbing and for processing relays also consistent rate limiting.
+    TransactionProcessingAfterDynamicSampling,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -243,8 +270,6 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds an envelope spends in the Relay's on-disk buffer.
-    EnvelopeOnDiskBufferTime,
     /// Total time in milliseconds spent evicting outdated and unused projects happens.
     ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -337,6 +362,30 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     ProcessMessageDuration,
+    /// Timing in milliseconds for handling a project cache message.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    ProjectCacheMessageDuration,
+    /// Timing in milliseconds for processing a message in the buffer service.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    BufferMessageProcessDuration,
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the processor does.
+    ProjectCacheTaskDuration,
+    /// Timing in milliseconds for handling and responding to a health check request.
+    ///
+    /// This metric is tagged with:
+    ///  - `type`: The type of the health check, `liveness` or `readiness`.
+    HealthCheckDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -356,10 +405,12 @@ impl TimerMetric for RelayTimers {
                 "event_processing.span_metrics_extraction"
             }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
+            RelayTimers::TransactionProcessingAfterDynamicSampling => {
+                "transaction.processing.post_ds"
+            }
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
-            RelayTimers::EnvelopeOnDiskBufferTime => "envelope.on_disk_buffer_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
@@ -373,6 +424,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
+            RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
+            RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
+            RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
+            RelayTimers::HealthCheckDuration => "health.message.duration",
         }
     }
 }
@@ -413,6 +468,7 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -482,7 +538,7 @@ pub enum RelayCounters {
     /// Number of times an upstream request for a project config failed.
     ///
     /// Failure can happen, for example, when there's a network error. Refer to
-    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     ProjectUpstreamFailed,
     /// Number of full metric data flushes.
     ///
@@ -500,6 +556,14 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `event_type`: The kind of message produced to Kafka.
+    ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
+    ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
+    ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
+    ///  - `platform` (only for event_type span): The platform from which the span was spent.
+    ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
+    ///  gauge or set.
+    ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
+    ///  set metrics.
     ///
     /// The message types can be:
     ///
@@ -582,6 +646,11 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
+    /// Counter for dynamic sampling decision.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
+    DynamicSamplingDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -620,6 +689,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
+            RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
         }
     }
 }

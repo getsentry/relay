@@ -1,4 +1,4 @@
-//! Logic for persisting items into `span.data` fields.
+//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -8,17 +8,16 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{parse_query, scrub_span_description};
+use crate::span::description::{normalize_domain, scrub_span_description};
 use crate::utils::{
-    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
-    MOBILE_SDKS,
+    extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -32,6 +31,10 @@ pub enum SpanTagKey {
     Transaction,
     TransactionMethod,
     TransactionOp,
+    BrowserName,
+    SdkName,
+    SdkVersion,
+    Platform,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -43,6 +46,7 @@ pub enum SpanTagKey {
     Category,
     Description,
     Domain,
+    RawDomain,
     Group,
     HttpDecodedResponseContentLength,
     HttpResponseContentLength,
@@ -58,7 +62,10 @@ pub enum SpanTagKey {
     /// File extension for resource spans.
     FileExtension,
     /// Span started on main thread.
-    MainTread,
+    MainThread,
+    /// The start type of the application when the span occurred.
+    AppStartType,
+    ReplayId,
 }
 
 impl SpanTagKey {
@@ -75,11 +82,16 @@ impl SpanTagKey {
             SpanTagKey::TransactionOp => "transaction.op",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
+            SpanTagKey::BrowserName => "browser.name",
+            SpanTagKey::SdkName => "sdk.name",
+            SpanTagKey::SdkVersion => "sdk.version",
+            SpanTagKey::Platform => "platform",
 
             SpanTagKey::Action => "action",
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
+            SpanTagKey::RawDomain => "raw_domain",
             SpanTagKey::Group => "group",
             SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
@@ -91,8 +103,10 @@ impl SpanTagKey {
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
-            SpanTagKey::MainTread => "main_thread",
+            SpanTagKey::MainThread => "main_thread",
             SpanTagKey::OsName => "os.name",
+            SpanTagKey::AppStartType => "app_start_type",
+            SpanTagKey::ReplayId => "replay_id",
         }
     }
 }
@@ -141,6 +155,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
+    let start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
     let Some(spans) = event.spans.value_mut() else {
         return;
@@ -154,7 +169,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, is_mobile);
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -177,8 +192,8 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
-    if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user);
+    if let Some(user) = event.user.value().and_then(|u| u.sentry_user.value()) {
+        tags.insert(SpanTagKey::User, user.clone());
     }
 
     if let Some(environment) = event.environment.as_str() {
@@ -226,10 +241,24 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::DeviceClass, device_class.into());
     }
 
+    if let Some(browser_name) = event
+        .context::<BrowserContext>()
+        .and_then(|v| v.name.value())
+    {
+        tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
+    tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
+    tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
+    tags.insert(
+        SpanTagKey::Platform,
+        event.platform.as_str().unwrap_or("other").into(),
+    );
+
     tags
 }
 
-/// Writes fields into [`Span::data`].
+/// Writes fields into [`Span::sentry_tags`].
 ///
 /// Generating new span data fields is based on a combination of looking at
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
@@ -241,13 +270,14 @@ pub fn extract_tags(
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
+    start_type: Option<&str>,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
     let system = span
         .data
         .value()
-        .and_then(|v| v.get("db.system"))
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase());
@@ -263,17 +293,13 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let scrubbed_description = scrub_span_description(span);
+        let (scrubbed_description, parsed_sql) = scrub_span_description(span);
 
         let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
-                .and_then(|v| {
-                    v.get("http.request.method")
-                        .or(v.get("http.method"))
-                        .or(v.get("method"))
-                })
+                .and_then(|data| data.http_request_method.value())
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
@@ -289,7 +315,7 @@ pub fn extract_tags(
                 let action_from_data = span
                     .data
                     .value()
-                    .and_then(|v| v.get("db.operation"))
+                    .and_then(|data| data.db_operation.value())
                     .and_then(|db_op| db_op.as_str())
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
@@ -314,7 +340,7 @@ pub fn extract_tags(
                 } else {
                     scrubbed
                 };
-                Url::parse(url).ok().and_then(|url| {
+                if let Some(domain) = Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -322,14 +348,48 @@ pub fn extract_tags(
                         }
                         domain
                     })
-                })
+                }) {
+                    Some(domain)
+                } else if let Some(server_host) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.server_address.value())
+                    .and_then(|value| value.as_str())
+                {
+                    let lowercase_host = server_host.to_lowercase();
+                    let (domain, port) = match lowercase_host.split_once(':') {
+                        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
+                        None => (server_host, None),
+                    };
+
+                    if let Some(url_scheme) = span
+                        .data
+                        .value()
+                        .and_then(|data| data.url_scheme.value())
+                        .and_then(|value| value.as_str())
+                    {
+                        span_tags.insert(
+                            SpanTagKey::RawDomain,
+                            format!("{url_scheme}://{lowercase_host}"),
+                        );
+                    }
+                    normalize_domain(domain, port)
+                } else {
+                    None
+                }
             } else {
                 None
             }
+        } else if span.origin.as_str() == Some("auto.db.supabase") {
+            scrubbed_description
+                .as_deref()
+                .and_then(|s| s.strip_prefix("from("))
+                .and_then(|s| s.strip_suffix(')'))
+                .map(String::from)
         } else if span_op.starts_with("db") {
             span.description
                 .value()
-                .and_then(|query| sql_tables_from_query(system, query))
+                .and_then(|query| sql_tables_from_query(query, &parsed_sql))
         } else {
             None
         };
@@ -369,24 +429,24 @@ pub fn extract_tags(
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
-                    .get("http.response_content_length")
-                    .and_then(Annotated::value)
+                    .http_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
                 }
 
                 if let Some(value) = data
-                    .get("http.decoded_response_content_length")
-                    .and_then(Annotated::value)
+                    .http_decoded_response_content_length
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
                 }
 
                 if let Some(value) = data
-                    .get("http.response_transfer_size")
-                    .and_then(Annotated::value)
+                    .http_response_transfer_size
+                    .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
@@ -396,13 +456,37 @@ pub fn extract_tags(
             if let Some(resource_render_blocking_status) = span
                 .data
                 .value()
-                .and_then(|data| data.get("resource.render_blocking_status"))
+                .and_then(|data| data.resource_render_blocking_status.value())
                 .and_then(|value| value.as_str())
             {
                 // Validate that it's a valid status:
                 if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
                     span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                }
+            }
+        }
+        if let Some(measurements) = span.measurements.value() {
+            if span_op.starts_with("ui.interaction.") && measurements.contains_key("inp") {
+                if let Some(transaction) =
+                    span.data.value().and_then(|data| data.transaction.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Transaction, transaction.into());
+                }
+                if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
+                    span_tags.insert(SpanTagKey::User, user.into());
+                }
+                if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
+                {
+                    span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
+                }
+                if let Some(environment) =
+                    span.data.value().and_then(|data| data.environment.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                }
+                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
                 }
             }
         }
@@ -416,12 +500,25 @@ pub fn extract_tags(
         if let Some(thread_name) = span
             .data
             .value()
-            .and_then(|data| data.get("thread.name"))
+            .and_then(|data| data.thread_name.value())
             .and_then(|value| value.as_str())
         {
             if thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainTread, "true".to_owned());
+                span_tags.insert(SpanTagKey::MainThread, "true".to_owned());
             }
+        }
+
+        // Attempt to read the start type from span.data if it exists, else
+        // pass along the start_type from the event.
+        if let Some(span_data_start_type) = span
+            .data
+            .value()
+            .and_then(|data| data.app_start_type.value())
+            .and_then(|value| value.as_str())
+        {
+            span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
+        } else if let Some(start_type) = start_type {
+            span_tags.insert(SpanTagKey::AppStartType, start_type.to_owned());
         }
     }
 
@@ -438,6 +535,15 @@ pub fn extract_tags(
         }
     }
 
+    if let Some(browser_name) = span
+        .data
+        .value()
+        .and_then(|data| data.browser_name.value())
+        .and_then(|browser_name| browser_name.as_str())
+    {
+        span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
     span_tags
 }
 
@@ -449,8 +555,26 @@ pub fn extract_measurements(span: &mut Span) {
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
-            let mut try_measurement = |key: &str| {
-                if let Some(value) = measurement_from_data(data, key) {
+            for (field, key) in [
+                (
+                    &data.http_decoded_response_content_length,
+                    "http.decoded_response_content_length",
+                ),
+                (
+                    &data.http_response_content_length,
+                    "http.response_content_length",
+                ),
+                (
+                    &data.http_response_transfer_size,
+                    "http.response_transfer_size",
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -461,22 +585,9 @@ pub fn extract_measurements(span: &mut Span) {
                         .into(),
                     );
                 }
-            };
-            try_measurement("http.response_content_length");
-            try_measurement("http.decoded_response_content_length");
-            try_measurement("http.response_transfer_size");
+            }
         }
     }
-}
-
-fn measurement_from_data(data: &BTreeMap<String, Annotated<Value>>, key: &str) -> Option<f64> {
-    let value = data.get(key)?.value()?;
-    Some(match value {
-        Value::I64(n) => *n as f64,
-        Value::U64(n) => *n as f64,
-        Value::F64(f) => *f,
-        _ => return None,
-    })
 }
 
 /// Finds first matching span and get its timestamp.
@@ -538,9 +649,12 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// HACK: When there is a single table, add comma separation so that the
 /// backend can understand the difference between tables and their subsets
 /// for example: table `,users,` and table `,users_config,` should be considered different
-fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
-    match parse_query(db_system, query) {
-        Ok(ast) => {
+fn sql_tables_from_query(
+    query: &str,
+    ast: &Option<Vec<sqlparser::ast::Statement>>,
+) -> Option<String> {
+    match ast {
+        Some(ast) => {
             let mut visitor = SqlTableNameVisitor {
                 table_names: Default::default(),
             };
@@ -562,8 +676,8 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             }
             (!s.is_empty()).then_some(s)
         }
-        Err(e) => {
-            relay_log::debug!("Failed to parse SQL: {e}");
+        None => {
+            relay_log::debug!("Failed to parse SQL");
             extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
     }
@@ -644,13 +758,26 @@ fn span_op_to_category(op: &str) -> Option<&str> {
     }
 }
 
+/// Reads the event measurements to determine the start type of the event.
+fn get_event_start_type(event: &Event) -> Option<&'static str> {
+    // Check the measurements on the event to determine what kind of start type the event is.
+    if event.measurement("app_start_cold").is_some() {
+        Some("cold")
+    } else if event.measurement("app_start_warm").is_some() {
+        Some("warm")
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::Annotated;
+    use relay_protocol::{get_value, Annotated};
 
     use super::*;
+    use crate::span::description::{scrub_queries, Mode};
     use crate::{normalize_event, NormalizationConfig};
 
     #[test]
@@ -719,16 +846,13 @@ mod tests {
                     }
                 }
 
-                // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = normalize_event(
+                normalize_event(
                     &mut event,
                     &NormalizationConfig {
                         enrich_spans: true,
-                        normalize_spans: true,
                         ..Default::default()
                     },
                 );
-                assert!(res.is_ok());
 
                 assert_eq!(
                     $expected_method,
@@ -766,11 +890,19 @@ mod tests {
         "POST"
     );
 
+    fn sql_tables_from_parsed_query(dialect: Option<&str>, query: &str) -> String {
+        let Mode::Parsed(ast) = scrub_queries(dialect, query).1 else {
+            panic!()
+        };
+        sql_tables_from_query(query, &Some(ast)).unwrap()
+    }
+
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
+
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",b,"
         );
     }
@@ -778,14 +910,14 @@ mod tests {
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(sql_tables_from_parsed_query(None, query), ",b,");
     }
 
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,b,c,"
         );
     }
@@ -795,7 +927,7 @@ mod tests {
         let query =
             r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(Some("mysql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("mysql"), query),
             ",a,b,c,"
         );
     }
@@ -826,7 +958,7 @@ WHERE (
 LIMIT 1
             "#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         );
     }
@@ -834,14 +966,14 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(sql_tables_from_parsed_query(None, query), ",b,");
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,"
         );
     }
@@ -850,7 +982,7 @@ LIMIT 1
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_parsed_query(Some("postgresql"), query),
             ",a,"
         );
     }
@@ -1064,6 +1196,103 @@ LIMIT 1
     }
 
     #[test]
+    fn test_resource_raw_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
+                    },
+                    "hash": "e2fae740cccd3789"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "example.com",
+                        "url.same_origin": true,
+                        "url.scheme": "http"
+                    },
+                    "hash": "e2fae740cccd3781"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.24.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
+                    },
+                    "hash": "e2fae740cccd3788"
+                }
+            ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
+
+        assert_eq!(
+            tags_1.get("raw_domain").unwrap().as_str(),
+            Some("https://subdomain.example.com:5688")
+        );
+        assert_eq!(
+            tags_2.get("raw_domain").unwrap().as_str(),
+            Some("http://example.com")
+        );
+        assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
     fn test_mobile_specific_tags() {
         let json = r#"
             {
@@ -1087,6 +1316,12 @@ LIMIT 1
                         "version": "8.1.0"
                     }
                 },
+                "measurements": {
+                    "app_start_warm": {
+                        "value": 1.0,
+                        "unit": "millisecond"
+                    }
+                },
                 "spans": [
                     {
                         "op": "ui.load",
@@ -1096,7 +1331,8 @@ LIMIT 1
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
                             "thread.id": 1,
-                            "thread.name": "main"
+                            "thread.name": "main",
+                            "app_start_type": "cold"
                         }
                     },
                     {
@@ -1138,15 +1374,169 @@ LIMIT 1
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
         assert_eq!(tags.get("os.name").unwrap().as_str(), Some("Android"));
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("cold"));
 
         let span = &event.spans.value().unwrap()[1];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
 
         let span = &event.spans.value().unwrap()[2];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
+    }
+
+    #[test]
+    fn test_span_tags_extraction_from_event_browser_name() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(
+            tags.get("browser.name"),
+            Some(&Annotated::new("Chrome".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_span_tags_extraction_from_span_browser_name() {
+        let json = r#"
+            {
+                "op": "resource.script",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "browser.name": "Chrome"
+                }
+            }
+        "#;
+        let span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(
+            &span,
+            &Config {
+                max_tag_value_size: 200,
+            },
+            None,
+            None,
+            false,
+            None,
+        );
+
+        assert_eq!(
+            tags.get(&SpanTagKey::BrowserName),
+            Some(&"Chrome".to_string())
+        );
+    }
+
+    fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
+        let json = r#"{
+            "description": "from(my_table)",
+            "op": "db.select",
+            "origin": "auto.db.supabase",
+            "data": {
+                "query": [
+                    "select(*,other(*))",
+                    "in(something, (value1,value2))"
+                ]
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        span.description.set_value(Some(description.into()));
+
+        extract_tags(
+            &span,
+            &Config {
+                max_tag_value_size: 200,
+            },
+            None,
+            None,
+            false,
+            None,
+        )
+    }
+
+    #[test]
+    fn supabase() {
+        let tags = extract_tags_supabase("from(mytable)");
+        assert_eq!(
+            tags.get(&SpanTagKey::Description).map(String::as_str),
+            Some("from(mytable)")
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            Some("mytable")
+        );
+    }
+
+    #[test]
+    fn supabase_with_identifiers() {
+        let tags = extract_tags_supabase("from(my_table00)");
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Description).map(String::as_str),
+            Some("from(my_table{%s})")
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            Some("my_table{%s}")
+        );
+    }
+
+    #[test]
+    fn supabase_unsupported() {
+        let tags = extract_tags_supabase("something else");
+
+        assert_eq!(tags.get(&SpanTagKey::Description), None);
+        assert_eq!(tags.get(&SpanTagKey::Domain), None);
     }
 }

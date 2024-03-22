@@ -932,6 +932,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/NelContext"
         },
         {
+          "$ref": "#/definitions/PerformanceScoreContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -1002,6 +1005,41 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               }
             }
           ]
+        }
+      ]
+    },
+    "Data": {
+      "description": " The arbitrary data on the trace.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "previousRoute": {
+              "description": " The previous route in the application\n\n Set by React Native SDK.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Route"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "route": {
+              "description": " The current route in the application.\n\n Set by React Native SDK.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Route"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2792,6 +2830,25 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "PerformanceScoreContext": {
+      "description": " Performance Score context.\n\n The performance score context contains the version of the\n profile used to calculate the performance score.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "score_profile_version": {
+              "description": " The performance score profile version.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "PosixSignal": {
       "description": " POSIX signal with optional extended data.\n\n On Apple systems, signals also carry a code in addition to the signal number describing the\n signal in more detail. On Linux, this code does not exist.",
       "anyOf": [
@@ -3214,6 +3271,34 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "Route": {
+      "description": " The route in the application, set by React Native SDK.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": " The name of the route.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "params": {
+              "description": " Parameters assigned to this route.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "RuntimeContext": {
       "description": " Runtime information.\n\n Runtime context describes a runtime in more detail. Typically, this context is present in\n `contexts` multiple times if multiple runtimes are involved (for instance, if you have a\n JavaScript application running on top of JVM).",
       "anyOf": [
@@ -3579,6 +3664,18 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               ],
               "format": "double"
             },
+            "data": {
+              "description": " Arbitrary additional data on a trace.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Data"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "exclusive_time": {
               "description": " The amount of time in milliseconds spent in this transaction span,\n excluding its immediate child spans.",
               "default": null,
@@ -3853,6 +3950,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "segment": {
               "description": " The user segment, for apps that divide users in user segments.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sentry_user": {
+              "description": " The user string representation as handled in Sentry.\n\n This field is computed by concatenating the name of specific fields of the `User`\n struct with their value. For example, if `id` is set, `sentry_user` will be equal to\n `\"id:id-of-the-user\".",
               "default": null,
               "type": [
                 "string",

@@ -1,6 +1,5 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 mod parser;
-pub use parser::parse_query;
 
 use std::borrow::Cow;
 use std::time::Instant;
@@ -107,21 +106,21 @@ static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
 static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Normalizes the given SQL-query-like string.
-pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
+pub fn scrub_queries(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
     let t = Instant::now();
     let (res, mode) = scrub_queries_inner(db_system, string);
     relay_statsd::metric!(
         timer(Timers::SpanDescriptionNormalizeSQL) = t.elapsed(),
         mode = mode.as_str(),
     );
-    res
+    (res, mode)
 }
 
 /// The scrubbing mode that was applied to an SQL string.
 #[derive(Debug)]
-enum Mode {
+pub enum Mode {
     /// The SQL parser was able to parse & sanitize the string.
-    Parser,
+    Parsed(Vec<sqlparser::ast::Statement>),
     /// SQL parsing failed and the scrubber fell back to a sequence of regexes.
     Regex,
 }
@@ -129,15 +128,15 @@ enum Mode {
 impl Mode {
     fn as_str(&self) -> &str {
         match self {
-            Mode::Parser => "parser",
+            Mode::Parsed(_) => "parser",
             Mode::Regex => "regex",
         }
     }
 }
 
 fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
-    if let Ok(queries) = normalize_parsed_queries(db_system, string) {
-        return (Some(queries), Mode::Parser);
+    if let Ok((queries, ast)) = normalize_parsed_queries(db_system, string) {
+        return (Some(queries), Mode::Parsed(ast));
     }
 
     let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
@@ -190,10 +189,10 @@ mod tests {
     use super::*;
 
     macro_rules! scrub_sql_test {
-        ($name:ident, $description_in:literal, $output:literal) => {
+        ($name:ident, $description_in:expr, $output:literal) => {
             #[test]
             fn $name() {
-                let scrubbed = scrub_queries(None, $description_in);
+                let (scrubbed, _mode) = scrub_queries(None, $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -203,7 +202,7 @@ mod tests {
         ($name:ident, $db_system:literal, $description_in:literal, $output:literal) => {
             #[test]
             fn $name() {
-                let scrubbed = scrub_queries(Some($db_system), $description_in);
+                let (scrubbed, _mode) = scrub_queries(Some($db_system), $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -211,8 +210,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_percentage,
-        "SELECT count() FROM table1 WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
-        "SELECT count() FROM table1 WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)",
+        "SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)"
     );
 
     scrub_sql_test!(
@@ -319,6 +318,98 @@ mod tests {
     );
 
     scrub_sql_test!(
+        savepoint_mysql,
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        savepoint_mysql_informed,
+        "mysql",
+        r#"SaVePoInT "double_quoted_identifier""#,
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint,
+        r#"ReLease SaVePoInT name"#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_mysql,
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        release_savepoint_mysql_informed,
+        "mysql",
+        r#"ReLease SaVePoInT "double_quoted_identifier""#,
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase,
+        "RELEASE SAVEPOINT unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_uppercase_semicolon,
+        "RELEASE SAVEPOINT unquoted_identifier;",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_lowercase,
+        "release savepoint unquoted_identifier",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted,
+        "RELEASE SAVEPOINT 'single_quoted_identifier'",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        release_savepoint_quoted_backtick,
+        "RELEASE SAVEPOINT `backtick_quoted_identifier`",
+        "RELEASE SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_uppercase_semicolon,
+        "ROLLBACK TO SAVEPOINT unquoted_identifier;",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_lowercase,
+        "rollback to savepoint unquoted_identifier",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted,
+        "ROLLBACK TO SAVEPOINT 'single_quoted_identifier'",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
+        rollback_savepoint_quoted_backtick,
+        "ROLLBACK TO SAVEPOINT `backtick_quoted_identifier`",
+        "ROLLBACK TO SAVEPOINT %s"
+    );
+
+    scrub_sql_test!(
         declare_cursor,
         "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
         "DECLARE %s CURSOR FOR SELECT * FROM t1"
@@ -383,7 +474,7 @@ mod tests {
     scrub_sql_test!(
         strip_prefixes_mysql_generic,
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+        r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     );
 
     scrub_sql_test_with_dialect!(
@@ -581,7 +672,7 @@ mod tests {
     scrub_sql_test!(
         values_multi,
         "INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
-        "INSERT INTO a (..) VALUES (%s)  ON CONFLICT DO NOTHING"
+        "INSERT INTO a (..) VALUES (%s) ON CONFLICT DO NOTHING"
     );
 
     scrub_sql_test!(
@@ -699,6 +790,86 @@ mod tests {
     );
 
     scrub_sql_test!(
+        duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND id = %s AND org = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_or,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        OR (
+            (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_or_long,
+        // Repeating conditions that violate the max query depth
+        // are simplified before applying the limit.
+        {
+            let repeated = ["(a.id = %s OR a.org = %s)"].repeat(64);
+            let repeated = itertools::join(repeated, " OR ");
+            format!("SELECT * FROM a WHERE a.status = %s OR {repeated}").as_str()
+        },
+        "SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_left,
+        r#"SELECT * FROM t WHERE a = %s OR a = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_right,
+        r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        redudant_parentheses,
+        r#"SELECT * FROM t WHERE (
+            (a = %s AND b = %s)
+            OR
+            (a = %s AND b = %s)
+        ) AND c = %s"#,
+        "SELECT * FROM t WHERE a = %s AND b = %s AND c = %s"
+    );
+
+    scrub_sql_test!(
+        not_redudant_parentheses,
+        "SELECT * FROM t WHERE (a OR b) AND c",
+        "SELECT * FROM t WHERE (a OR b) AND c"
+    );
+
+    scrub_sql_test!(
+        non_duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org2 = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))"
+    );
+
+    scrub_sql_test!(
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"
@@ -772,6 +943,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        uuid_in_table_name_with_underscores,
+        "SELECT * FROM prefix_0a234567_89ab_cdef_0123_456789ABCDEF",
+        "SELECT * FROM prefix_{%s}"
+    );
+
+    scrub_sql_test!(
         long_hex_in_table_name,
         "SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300",
         "SELECT id FROM {%s} LIMIT %s OFFSET %s"
@@ -796,13 +973,28 @@ mod tests {
     );
 
     scrub_sql_test_with_dialect!(
-        dont_fallback_to_regex,
+        replace_into,
         "mysql",
-        // sqlparser cannot parse REPLACE INTO. If we know that
-        // a query is MySQL, we should give up rather than try to scrub
-        // with regex
         r#"REPLACE INTO `foo` (`a`) VALUES ("abcd1234")"#,
-        "REPLACE INTO foo (a) VALUES (%s)"
+        "REPLACE INTO foo (..) VALUES (%s)"
+    );
+
+    scrub_sql_test!(
+        replace_into_set_dont_panic,
+        r#"REPLACE INTO `foo` SET x = y"#,
+        "REPLACE INTO foo SET x = y"
+    );
+
+    scrub_sql_test!(
+        create_index_hex,
+    	"CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)",
+        "CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
+    );
+
+    scrub_sql_test!(
+        alter_index_hex,
+        "ALTER INDEX name_0123456789abcdef0123456789abcdef RENAME TO new_name_0123456789abcdef0123456789abcdef",
+        "ALTER INDEX name_{%s} RENAME TO new_name_{%s}"
     );
 
     scrub_sql_test!(

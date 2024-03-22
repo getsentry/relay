@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use axum::response::IntoResponse;
 use futures::future;
 
-use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
+use crate::services::relays::{GetRelay, GetRelays, GetRelaysResponse};
 
 /// Handles the Relay public keys endpoint.
 ///

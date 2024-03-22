@@ -53,7 +53,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.total_count() > 0 {
         target.push(
             SessionMetric::Session {
-                counter: session.total_count() as f64,
+                counter: session.total_count().into(),
                 tags: SessionSessionTags {
                     status: "init".to_string(),
                     common_tags: common_tags.clone(),
@@ -73,7 +73,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             .into_metric(timestamp),
 
             SessionErrored::Aggregated(count) => SessionMetric::Session {
-                counter: count as f64,
+                counter: count.into(),
                 tags: SessionSessionTags {
                     status: "errored_preaggr".to_string(),
                     common_tags: common_tags.clone(),
@@ -117,7 +117,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.abnormal_count() > 0 {
         target.push(
             SessionMetric::Session {
-                counter: session.abnormal_count() as f64,
+                counter: session.abnormal_count().into(),
                 tags: SessionSessionTags {
                     status: "abnormal".to_string(),
                     common_tags: common_tags.clone(),
@@ -151,7 +151,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.crashed_count() > 0 {
         target.push(
             SessionMetric::Session {
-                counter: session.crashed_count() as f64,
+                counter: session.crashed_count().into(),
                 tags: SessionSessionTags {
                     status: "crashed".to_string(),
                     common_tags: common_tags.clone(),
@@ -238,7 +238,7 @@ mod tests {
 
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert_eq!(&*session_metric.name, "c:sessions/session@none");
         assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
@@ -246,7 +246,7 @@ mod tests {
 
         let user_metric = &metrics[1];
         assert_eq!(user_metric.timestamp, started());
-        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert_eq!(&*user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert!(!user_metric.tags.contains_key("session.status"));
         assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -275,7 +275,7 @@ mod tests {
         // A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         assert_eq!(metrics.len(), 1);
         let user_metric = &metrics[0];
-        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert_eq!(&*user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert!(!user_metric.tags.contains_key("session.status"));
     }
@@ -315,13 +315,13 @@ mod tests {
 
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "s:sessions/error@none");
+            assert_eq!(&*session_metric.name, "s:sessions/error@none");
             assert!(matches!(session_metric.value, BucketValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(user_metric.timestamp, started());
-            assert_eq!(user_metric.name, "s:sessions/user@none");
+            assert_eq!(&*user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, BucketValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -350,19 +350,19 @@ mod tests {
 
         assert_eq!(metrics.len(), 4);
 
-        assert_eq!(metrics[0].name, "s:sessions/error@none");
-        assert_eq!(metrics[1].name, "s:sessions/user@none");
+        assert_eq!(&*metrics[0].name, "s:sessions/error@none");
+        assert_eq!(&*metrics[1].name, "s:sessions/user@none");
         assert_eq!(metrics[1].tags["session.status"], "errored");
 
         let session_metric = &metrics[2];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert_eq!(&*session_metric.name, "c:sessions/session@none");
         assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "crashed");
 
         let user_metric = &metrics[3];
         assert_eq!(user_metric.timestamp, started());
-        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert_eq!(&*user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert_eq!(user_metric.tags["session.status"], "crashed");
     }
@@ -401,13 +401,13 @@ mod tests {
 
             assert_eq!(metrics.len(), 4);
 
-            assert_eq!(metrics[0].name, "s:sessions/error@none");
-            assert_eq!(metrics[1].name, "s:sessions/user@none");
+            assert_eq!(&*metrics[0].name, "s:sessions/error@none");
+            assert_eq!(&*metrics[1].name, "s:sessions/user@none");
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "c:sessions/session@none");
+            assert_eq!(&*session_metric.name, "c:sessions/session@none");
             assert!(matches!(session_metric.value, BucketValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], "abnormal");
 
@@ -417,7 +417,7 @@ mod tests {
 
             let user_metric = &metrics[3];
             assert_eq!(user_metric.timestamp, started());
-            assert_eq!(user_metric.name, "s:sessions/user@none");
+            assert_eq!(&*user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, BucketValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "abnormal");
 
@@ -479,7 +479,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     135.0,
                 ),
@@ -489,11 +491,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     12.0,
                 ),
@@ -503,11 +510,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     5.0,
                 ),
@@ -517,11 +529,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "abnormal",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     7.0,
                 ),
@@ -531,11 +548,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "crashed",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     15.0,
                 ),
@@ -545,11 +567,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     3.0,
                 ),
@@ -559,11 +586,16 @@ mod tests {
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "s:sessions/user@none",
+                name: MetricName(
+                    "s:sessions/user@none",
+                ),
                 value: Set(
                     {
                         3097475539,
@@ -574,6 +606,9 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]

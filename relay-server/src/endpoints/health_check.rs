@@ -5,8 +5,8 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::Serialize;
 
-use crate::actors::health_check::IsHealthy;
 use crate::service::ServiceState;
+use crate::services::health_check::{IsHealthy, Status as HealthStatus};
 
 #[derive(Serialize)]
 struct Status {
@@ -15,7 +15,7 @@ struct Status {
 
 pub async fn handle(state: ServiceState, Path(kind): Path<IsHealthy>) -> impl IntoResponse {
     match state.health_check().send(kind).await {
-        Ok(true) => (StatusCode::OK, axum::Json(Status { is_healthy: true })),
+        Ok(HealthStatus::Healthy) => (StatusCode::OK, axum::Json(Status { is_healthy: true })),
         _ => (
             StatusCode::SERVICE_UNAVAILABLE,
             axum::Json(Status { is_healthy: false }),

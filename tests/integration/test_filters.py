@@ -282,3 +282,37 @@ def test_ignore_transactions_filters_are_applied(
     else:
         event, _ = transactions_consumer.get_event()
         assert event["transaction"] == transaction_name
+
+
+def test_global_filters_drop_events(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    mini_sentry.global_config["filters"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "premature-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "eq",
+                    "name": "event.release",
+                    "value": "0.0.0",
+                },
+            }
+        ],
+    }
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing()
+
+    event = {"release": "0.0.0"}
+    relay.send_event(project_id, event)
+
+    events_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == "premature-releases"

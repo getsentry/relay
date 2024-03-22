@@ -293,7 +293,7 @@ impl ConfigObject for Credentials {
 }
 
 /// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.
@@ -493,23 +493,11 @@ struct Metrics {
     default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
-    /// Emitted metrics will be buffered to optimize performance.
-    ///
-    /// Defaults to `true`.
-    buffering: bool,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
-    /// Code locations expiry in seconds.
-    ///
-    /// Defaults to 15 days.
-    meta_locations_expiry: u64,
-    /// Maximum amount of code locations to store per metric.
-    ///
-    /// Defaults to 5.
-    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -519,8 +507,28 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
-            buffering: true,
             sample_rate: 1.0,
+        }
+    }
+}
+
+/// Controls processing of Sentry metrics and metric metadata.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct SentryMetrics {
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    pub meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    pub meta_locations_max: usize,
+}
+
+impl Default for SentryMetrics {
+    fn default() -> Self {
+        Self {
             meta_locations_expiry: 15 * 24 * 60 * 60,
             meta_locations_max: 5,
         }
@@ -757,6 +765,13 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
+    /// Submit metrics globally through a shared endpoint.
+    ///
+    /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
+    /// DSN, this submits metrics to the global endpoint with Relay authentication.
+    ///
+    /// This option does not have any effect on processing mode.
+    global_metrics: bool,
 }
 
 impl Default for Http {
@@ -771,6 +786,7 @@ impl Default for Http {
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
+            global_metrics: false,
         }
     }
 }
@@ -797,17 +813,17 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
 
 /// Default for min connections to keep open in the pool.
 fn spool_envelopes_min_connections() -> u32 {
-    10
+    1
 }
 
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
-    20
+    1
 }
 
-/// Defaualt period for garbage collection in the spooler.
-fn spool_envelopes_check_interval() -> u64 {
-    60
+/// Default interval to unspool buffered envelopes, 100ms.
+fn spool_envelopes_unspool_interval() -> u64 {
+    100
 }
 
 /// Persistent buffering configuration for incoming envelopes.
@@ -833,11 +849,9 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
-
-    /// The interval for the internal check to run and issue specific to the spooler metrics and
-    /// errors.
-    #[serde(default = "spool_envelopes_check_interval")]
-    check_interval: u64,
+    /// The interval in milliseconds to trigger unspool.
+    #[serde(default = "spool_envelopes_unspool_interval")]
+    unspool_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -848,7 +862,7 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            check_interval: spool_envelopes_check_interval(),
+            unspool_interval: spool_envelopes_unspool_interval(), // 100ms
         }
     }
 }
@@ -885,8 +899,10 @@ struct Cache {
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
-    /// The buffer timeout for batched queries before sending them upstream in ms.
+    /// The buffer timeout for batched project config queries before sending them upstream in ms.
     batch_interval: u32,
+    /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
+    downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
@@ -908,8 +924,9 @@ impl Default for Cache {
             relay_expiry: 3600,   // 1 hour
             envelope_expiry: 600, // 10 minutes
             envelope_buffer_size: 1000,
-            miss_expiry: 60,     // 1 minute
-            batch_interval: 100, // 100ms
+            miss_expiry: 60,                       // 1 minute
+            batch_interval: 100,                   // 100ms
+            downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
             eviction_interval: 60,            // 60 seconds
@@ -1266,36 +1283,93 @@ pub struct GeoIpConfig {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct CardinalityLimiter {
-    /// The number of seconds to apply the limit to.
+    /// Cache vacuum interval in seconds for the in memory cache.
     ///
-    /// Defaults to: 1 hour.
-    pub window_seconds: u64,
-    /// A number between 1 and `window_seconds`. Since `window_seconds` is a
-    /// sliding window, configure what the granularity of that window is.
+    /// The cache will scan for expired values based on this interval.
     ///
-    /// If this is equal to `window_seconds`, the quota resets to 0 every
-    /// `window_seconds`.  If this is a very small number, the window slides
-    /// "more smoothly" at the expense of having much more redis keys.
-    ///
-    /// The number of redis keys required to enforce a quota is `window_seconds /
-    /// granularity_seconds`.
-    ///
-    /// Defaults to: 10 minutes.
-    pub granularity_seconds: u64,
-    /// Cardinality limit per bucket.
-    ///
-    /// The current bucket scope is comprised of organization and namespace.
-    ///
-    /// Defaults to: 10_000.
-    pub limit: usize,
+    /// Defaults to 180 seconds, 3 minutes.
+    pub cache_vacuum_interval: u64,
 }
 
 impl Default for CardinalityLimiter {
     fn default() -> Self {
         Self {
-            window_seconds: 3600,
-            granularity_seconds: 600,
-            limit: 10_000,
+            cache_vacuum_interval: 180,
+        }
+    }
+}
+
+/// Settings to control Relay's health checks.
+///
+/// After breaching one of the configured thresholds, Relay will
+/// return an `unhealthy` status from its health endpoint.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Health {
+    /// Interval in which Relay will refresh system information, like current memory usage.
+    ///
+    /// Defaults to 3 seconds.
+    pub sys_info_refresh_interval_secs: u64,
+    /// Maximum memory watermark in bytes.
+    ///
+    /// By default there is no absolute limit set and the watermark
+    /// is only controlled by setting [`Self::max_memory_percent`].
+    pub max_memory_bytes: Option<ByteSize>,
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    ///
+    /// Defaults to `0.95` (95%).
+    pub max_memory_percent: f32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self {
+            sys_info_refresh_interval_secs: 3,
+            max_memory_bytes: None,
+            max_memory_percent: 0.95,
+        }
+    }
+}
+
+/// COGS configuration.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Cogs {
+    /// Whether COGS measurements are enabled.
+    ///
+    /// Defaults to `false`.
+    enabled: bool,
+    /// Granularity of the COGS measurements.
+    ///
+    /// Measurements are aggregated based on the granularity in seconds.
+    ///
+    /// Aggregated measurements are always flushed at the end of their
+    /// aggregation window, which means the granularity also controls the flush
+    /// interval.
+    ///
+    /// Defaults to `60` (1 minute).
+    granularity_secs: u64,
+    /// Maximium amount of COGS measurements allowed to backlog.
+    ///
+    /// Any additional COGS measurements recorded will be dropped.
+    ///
+    /// Defaults to `10_000`.
+    max_queue_size: u64,
+    /// Relay COGS resource id.
+    ///
+    /// All Relay related COGS measurements are emitted with this resource id.
+    ///
+    /// Defaults to `relay_service`.
+    relay_resource_id: String,
+}
+
+impl Default for Cogs {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            granularity_secs: 60,
+            max_queue_size: 10_000,
+            relay_resource_id: "relay_service".to_owned(),
         }
     }
 }
@@ -1319,6 +1393,8 @@ struct ConfigValues {
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
+    sentry_metrics: SentryMetrics,
+    #[serde(default)]
     sentry: relay_log::SentryConfig,
     #[serde(default)]
     processing: Processing,
@@ -1336,6 +1412,10 @@ struct ConfigValues {
     geoip: GeoIpConfig,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
+    #[serde(default)]
+    health: Health,
+    #[serde(default)]
+    cogs: Cogs,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1722,6 +1802,11 @@ impl Config {
         self.values.http.encoding
     }
 
+    /// Returns whether metrics should be sent globally through a shared endpoint.
+    pub fn http_global_metrics(&self) -> bool {
+        self.values.http.global_metrics
+    }
+
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -1807,11 +1892,6 @@ impl Config {
         self.values.metrics.hostname_tag.as_deref()
     }
 
-    /// Returns true if metrics buffering is enabled, false otherwise.
-    pub fn metrics_buffering(&self) -> bool {
-        self.values.metrics.buffering
-    }
-
     /// Returns the global sample rate for all metrics.
     pub fn metrics_sample_rate(&self) -> f32 {
         self.values.metrics.sample_rate
@@ -1819,12 +1899,12 @@ impl Config {
 
     /// Returns the maximum amount of code locations per metric.
     pub fn metrics_meta_locations_max(&self) -> usize {
-        self.values.metrics.meta_locations_max
+        self.values.sentry_metrics.meta_locations_max
     }
 
     /// Returns the expiry for code locations.
     pub fn metrics_meta_locations_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.metrics.meta_locations_expiry)
+        Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
@@ -1876,10 +1956,15 @@ impl Config {
         Duration::from_secs(self.values.cache.project_grace_period.into())
     }
 
-    /// Returns the number of seconds during which batchable queries are collected before sending
-    /// them in a single request.
+    /// Returns the duration in which batchable project config queries are
+    /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
         Duration::from_millis(self.values.cache.batch_interval.into())
+    }
+
+    /// Returns the duration in which downstream relays are requested from upstream.
+    pub fn downstream_relays_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
@@ -1919,6 +2004,11 @@ impl Config {
         self.values.spool.envelopes.min_connections
     }
 
+    /// Unspool interval in milliseconds.
+    pub fn spool_envelopes_unspool_interval(&self) -> Duration {
+        Duration::from_millis(self.values.spool.envelopes.unspool_interval)
+    }
+
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
         self.values.spool.envelopes.max_disk_size.as_bytes()
@@ -1927,11 +2017,6 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
-    }
-
-    /// The interval to run the check.
-    pub fn spool_envelopes_check_interval(&self) -> Duration {
-        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -2125,13 +2210,11 @@ impl Config {
 
     /// Amount of metric partitions.
     pub fn metrics_partitions(&self) -> Option<u64> {
-        // TODO(dav1dde): move config to a better place
         self.values.aggregator.flush_partitions
     }
 
     /// Maximum metrics batch size in bytes.
     pub fn metrics_max_batch_size_bytes(&self) -> usize {
-        // TODO(dav1dde): move config to a better place
         self.values.aggregator.max_flush_bytes
     }
 
@@ -2146,19 +2229,50 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Cardinality limit per org and namespace.
-    pub fn cardinality_limit(&self) -> usize {
-        self.values.cardinality_limiter.limit
+    /// Cache vacuum interval for the cardinality limiter in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    /// Sliding window size to enforce cardinality limit.
-    pub fn cardinality_limiter_window(&self) -> u64 {
-        self.values.cardinality_limiter.window_seconds
+    /// Interval to refresh system information.
+    pub fn health_sys_info_refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
     }
 
-    /// Granularity of the sliding window to enforce cardinality limit.
-    pub fn cardinality_limiter_granularity(&self) -> u64 {
-        self.values.cardinality_limiter.granularity_seconds
+    /// Maximum memory watermark in bytes.
+    pub fn health_max_memory_watermark_bytes(&self) -> u64 {
+        self.values
+            .health
+            .max_memory_bytes
+            .as_ref()
+            .map_or(u64::MAX, |b| b.as_bytes() as u64)
+    }
+
+    /// Maximum memory watermark as a percentage of maximum system memory.
+    pub fn health_max_memory_watermark_percent(&self) -> f32 {
+        self.values.health.max_memory_percent
+    }
+
+    /// Whether COGS measurements are enabled.
+    pub fn cogs_enabled(&self) -> bool {
+        self.values.cogs.enabled
+    }
+
+    /// Granularity for COGS measurements.
+    pub fn cogs_granularity(&self) -> Duration {
+        Duration::from_secs(self.values.cogs.granularity_secs)
+    }
+
+    /// Maximum amount of COGS measurements buffered in memory.
+    pub fn cogs_max_queue_size(&self) -> u64 {
+        self.values.cogs.max_queue_size
+    }
+
+    /// Resource ID to use for Relay COGS measurements.
+    pub fn cogs_relay_resource_id(&self) -> &str {
+        &self.values.cogs.relay_resource_id
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

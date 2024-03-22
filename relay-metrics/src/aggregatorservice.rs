@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregator::{self, AggregatorConfig, ShiftKey};
 use crate::bucket::Bucket;
-use crate::statsd::{MetricCounters, MetricHistograms};
+use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -165,6 +166,18 @@ pub enum Aggregator {
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
 
+impl Aggregator {
+    /// Returns the name of the message variant.
+    fn variant(&self) -> &'static str {
+        match self {
+            Aggregator::AcceptsMetrics(_, _) => "AcceptsMetrics",
+            Aggregator::MergeBuckets(_) => "MergeBuckets",
+            #[cfg(test)]
+            Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
+        }
+    }
+}
+
 impl Interface for Aggregator {}
 
 impl FromMessage<AcceptsMetrics> for Aggregator {
@@ -206,10 +219,8 @@ pub struct BucketCountInquiry;
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
-    /// The project key.
-    pub project_key: ProjectKey,
     /// The buckets to be flushed.
-    pub buckets: Vec<Bucket>,
+    pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
 }
 
 enum AggregatorState {
@@ -265,37 +276,34 @@ impl AggregatorService {
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
-        let flush_buckets = {
-            let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-            self.aggregator.pop_flush_buckets(force_flush)
-        };
+        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+        let buckets = self.aggregator.pop_flush_buckets(force_flush);
 
-        if flush_buckets.is_empty() {
+        if buckets.is_empty() {
             return;
         }
 
-        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
+        relay_log::trace!("flushing {} projects to receiver", buckets.len());
 
         let mut total_bucket_count = 0u64;
-        for (project_key, buckets) in flush_buckets.into_iter() {
+        for buckets in buckets.values() {
             let bucket_count = buckets.len() as u64;
+            total_bucket_count += bucket_count;
+
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
                 aggregator = self.aggregator.name(),
             );
-            total_bucket_count += bucket_count;
-
-            if let Some(ref receiver) = self.receiver {
-                receiver.send(FlushBuckets {
-                    project_key,
-                    buckets,
-                });
-            }
         }
+
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = self.aggregator.name(),
         );
+
+        if let Some(ref receiver) = self.receiver {
+            receiver.send(FlushBuckets { buckets })
+        }
     }
 
     fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
@@ -307,15 +315,22 @@ impl AggregatorService {
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
-        match msg {
-            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.bucket_count())
+    fn handle_message(&mut self, message: Aggregator) {
+        let ty = message.variant();
+        relay_statsd::metric!(
+            timer(MetricTimers::AggregatorServiceDuration),
+            message = ty,
+            {
+                match message {
+                    Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+                    Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+                    #[cfg(test)]
+                    Aggregator::BucketCountInquiry(_, sender) => {
+                        sender.send(self.aggregator.bucket_count())
+                    }
+                }
             }
-        }
+        )
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {
@@ -396,14 +411,13 @@ impl MergeBuckets {
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BTreeMap;
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
     use relay_system::{FromMessage, Interface};
 
-    use crate::{BucketCountInquiry, BucketValue};
+    use crate::{BucketCountInquiry, BucketMetadata, BucketValue};
 
     use super::*;
 
@@ -431,7 +445,8 @@ mod tests {
     }
 
     impl TestReceiver {
-        fn add_buckets(&self, buckets: Vec<Bucket>) {
+        fn add_buckets(&self, buckets: HashMap<ProjectKey, Vec<Bucket>>) {
+            let buckets = buckets.into_values().flatten();
             self.data.write().unwrap().buckets.extend(buckets);
         }
 
@@ -460,9 +475,10 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            name: "c:transactions/foo".into(),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 
@@ -485,10 +501,10 @@ mod tests {
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
+        aggregator.send(MergeBuckets::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            vec![bucket],
+        ));
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
         // Let's check the number of buckets in the aggregator just after sending a
@@ -500,41 +516,5 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(2100)).await;
         // receiver must have 1 bucket flushed
         assert_eq!(receiver.bucket_count(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_merge_back() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        // Create a receiver which accepts nothing:
-        let receiver = TestReceiver {
-            reject_all: true,
-            ..TestReceiver::default()
-        };
-        let recipient = receiver.clone().start().recipient();
-
-        let config = AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
-
-        let mut bucket = some_bucket();
-        bucket.timestamp = UnixTimestamp::now();
-
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
-
-        assert_eq!(receiver.bucket_count(), 0);
-
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-        let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        assert_eq!(bucket_count, 1);
-        assert_eq!(receiver.bucket_count(), 0);
     }
 }

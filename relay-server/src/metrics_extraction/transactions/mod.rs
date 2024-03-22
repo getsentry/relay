@@ -5,9 +5,10 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
-    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
+    TransactionSource,
 };
-use relay_metrics::{Bucket, DurationUnit};
+use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -129,9 +130,10 @@ fn track_transaction_name_stats(event: &Event) {
 }
 
 /// These are the tags that are added to extracted low cardinality metrics.
-fn extract_light_transaction_tags(event: &Event) -> LightTransactionTags {
+fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
     LightTransactionTags {
-        transaction: get_transaction_name(event),
+        transaction_op: tags.0.get(&CommonTag::TransactionOp).cloned(),
+        transaction: tags.0.get(&CommonTag::Transaction).cloned(),
     }
 }
 
@@ -272,7 +274,7 @@ impl TransactionExtractor<'_> {
 
         track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
-        let light_tags = extract_light_transaction_tags(event);
+        let light_tags = extract_light_transaction_tags(&tags);
 
         // Measurements
         let measurement_names: BTreeSet<_> = event
@@ -284,14 +286,20 @@ impl TransactionExtractor<'_> {
             .collect();
         if let Some(measurements) = event.measurements.value() {
             for (name, annotated) in measurements.iter() {
-                let measurement = match annotated.value() {
-                    Some(m) => m,
-                    None => continue,
+                let Some(measurement) = annotated.value() else {
+                    continue;
                 };
 
-                let value = match measurement.value.value() {
-                    Some(value) => *value,
-                    None => continue,
+                let Some(value) = measurement.value.value().copied() else {
+                    continue;
+                };
+
+                let Some(value) = FiniteF64::new(value) else {
+                    relay_log::error!(
+                        tags.field = format_args!("measurements.{name}"),
+                        "non-finite float value in transaction metric extraction"
+                    );
+                    continue;
                 };
 
                 // We treat a measurement as "performance score" if its name is the name of another
@@ -303,7 +311,7 @@ impl TransactionExtractor<'_> {
                         .map_or(false, |suffix| measurement_names.contains(suffix));
 
                 let measurement_tags = TransactionMeasurementTags {
-                    measurement_rating: get_measurement_rating(name, value),
+                    measurement_rating: get_measurement_rating(name, value.to_f64()),
                     universal_tags: if is_performance_score {
                         CommonTags(
                             tags.0
@@ -315,6 +323,9 @@ impl TransactionExtractor<'_> {
                     } else {
                         tags.clone()
                     },
+                    score_profile_version: is_performance_score
+                        .then(|| event.context::<PerformanceScoreContext>())
+                        .and_then(|context| context?.score_profile_version.value().cloned()),
                 };
 
                 metrics.project_metrics.push(
@@ -340,15 +351,23 @@ impl TransactionExtractor<'_> {
                             continue;
                         }
 
-                        let measurement = match annotated.value() {
-                            Some(m) => m,
-                            None => continue,
+                        let Some(measurement) = annotated.value() else {
+                            continue;
                         };
 
-                        let value = match measurement.value.value() {
-                            Some(value) => *value,
-                            None => continue,
+                        let Some(value) = measurement.value.value().copied() else {
+                            continue;
                         };
+
+                        let Some(value) = FiniteF64::new(value) else {
+                            relay_log::error!(
+                                tags.field =
+                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
+                                "non-finite float value in transaction metric extraction"
+                            );
+                            continue;
+                        };
+
                         metrics.project_metrics.push(
                             TransactionMetric::Breakdown {
                                 name: format!("{breakdown}.{measurement_name}"),
@@ -374,33 +393,40 @@ impl TransactionExtractor<'_> {
 
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
-        let has_profile = if self.config.version >= 3 {
-            false
+        if let Some(duration) = FiniteF64::new(duration) {
+            let has_profile = if self.config.version >= 3 {
+                false
+            } else {
+                self.has_profile
+            };
+
+            metrics.project_metrics.push(
+                TransactionMetric::Duration {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: TransactionDurationTags {
+                        has_profile,
+                        universal_tags: tags.clone(),
+                    },
+                }
+                .into_metric(timestamp),
+            );
+
+            // Lower cardinality duration
+            metrics.project_metrics.push(
+                TransactionMetric::DurationLight {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: light_tags,
+                }
+                .into_metric(timestamp),
+            );
         } else {
-            self.has_profile
-        };
-
-        metrics.project_metrics.push(
-            TransactionMetric::Duration {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: TransactionDurationTags {
-                    has_profile,
-                    universal_tags: tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
-
-        // Lower cardinality duration
-        metrics.project_metrics.push(
-            TransactionMetric::DurationLight {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: light_tags,
-            }
-            .into_metric(timestamp),
-        );
+            relay_log::error!(
+                tags.field = "duration",
+                "non-finite float value in transaction metric extraction"
+            );
+        }
 
         let root_counter_tags = {
             let mut universal_tags = CommonTags(BTreeMap::default());
@@ -409,12 +435,14 @@ impl TransactionExtractor<'_> {
                     .0
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
+            let decision = if self.sampling_result.should_keep() {
+                "keep"
+            } else {
+                "drop"
+            };
+
             TransactionCPRTags {
-                decision: if self.sampling_result.should_keep() {
-                    "keep".to_owned()
-                } else {
-                    "drop".to_owned()
-                },
+                decision: decision.to_owned(),
                 universal_tags,
             }
         };
@@ -428,10 +456,14 @@ impl TransactionExtractor<'_> {
 
         // User
         if let Some(user) = event.user.value() {
-            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
-                metrics
-                    .project_metrics
-                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+            if let Some(value) = user.sentry_user.value() {
+                metrics.project_metrics.push(
+                    TransactionMetric::User {
+                        value: value.clone(),
+                        tags,
+                    }
+                    .into_metric(timestamp),
+                );
             }
         }
 
@@ -470,11 +502,11 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, BreakdownsConfig,
-        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig,
-        PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        normalize_event, set_default_transaction_source, validate_event_timestamps,
+        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
-    use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
 
@@ -551,13 +583,15 @@ mod tests {
         )
         .unwrap();
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
+
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
-                normalize_spans: true,
                 performance_score: Some(&PerformanceScoreConfig {
                     profiles: vec![PerformanceScoreProfile {
                         name: Some("".into()),
@@ -569,12 +603,12 @@ mod tests {
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
+                        version: Some("alpha".into()),
                     }],
                 }),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"{
@@ -625,6 +659,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -635,7 +670,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.foo@none",
+                name: MetricName(
+                    "d:transactions/measurements.foo@none",
+                ),
                 value: Distribution(
                     [
                         420.69,
@@ -655,11 +692,16 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.lcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         3000.0,
@@ -680,11 +722,16 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.lcp@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.lcp@ratio",
+                ),
                 value: Distribution(
                     [
                         0.0,
@@ -695,14 +742,20 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.total@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.total@ratio",
+                ),
                 value: Distribution(
                     [
                         0.0,
@@ -713,14 +766,20 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.score.weight.lcp@ratio",
+                name: MetricName(
+                    "d:transactions/measurements.score.weight.lcp@ratio",
+                ),
                 value: Distribution(
                     [
                         1.0,
@@ -731,14 +790,20 @@ mod tests {
                     "environment": "fake_environment",
                     "geo.country_code": "US",
                     "release": "1.2.3",
+                    "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                name: MetricName(
+                    "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -758,20 +823,30 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -791,11 +866,16 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -803,12 +883,18 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "s:transactions/user@none",
+                name: MetricName(
+                    "s:transactions/user@none",
+                ),
                 value: Set(
                     {
                         933084975,
@@ -827,6 +913,9 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -856,7 +945,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -873,7 +962,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.fcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         1.1,
@@ -885,11 +976,16 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.foo@none",
+                name: MetricName(
+                    "d:transactions/measurements.foo@none",
+                ),
                 value: Distribution(
                     [
                         8.8,
@@ -900,11 +996,16 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.stall_count@none",
+                name: MetricName(
+                    "d:transactions/measurements.stall_count@none",
+                ),
                 value: Distribution(
                     [
                         3.3,
@@ -915,20 +1016,30 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -939,11 +1050,16 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -951,6 +1067,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -977,7 +1096,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -994,7 +1113,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.fcp@second",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@second",
+                ),
                 value: Distribution(
                     [
                         1.1,
@@ -1006,11 +1127,16 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/measurements.lcp@none",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@none",
+                ),
                 value: Distribution(
                     [
                         2.2,
@@ -1022,20 +1148,30 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1046,11 +1182,16 @@ mod tests {
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1058,6 +1199,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "<unlabeled transaction>",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1098,11 +1242,17 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
+        assert_eq!(
+            &*duration_metric.name,
+            "d:transactions/duration@millisecond"
+        );
+        assert_eq!(
+            duration_metric.value,
+            BucketValue::distribution(59000.into())
+        );
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -1152,8 +1302,7 @@ mod tests {
                 measurements: Some(config),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1170,7 +1319,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.a_custom1@none",
+                name: MetricName(
+                    "d:transactions/measurements.a_custom1@none",
+                ),
                 value: Distribution(
                     [
                         41.0,
@@ -1181,11 +1332,16 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.fcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.fcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         0.123,
@@ -1197,11 +1353,16 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.g_custom2@second",
+                name: MetricName(
+                    "d:transactions/measurements.g_custom2@second",
+                ),
                 value: Distribution(
                     [
                         42.0,
@@ -1212,20 +1373,30 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -1236,11 +1407,16 @@ mod tests {
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -1248,6 +1424,9 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "foo",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1279,7 +1458,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1318,7 +1497,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         assert_eq!(
@@ -1388,16 +1567,23 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
@@ -1408,17 +1594,25 @@ mod tests {
                     "platform": "other",
                     "transaction.status": "ok",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         59000.0,
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -1498,7 +1692,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| &*m.name == "d:transactions/duration@millisecond")
             .unwrap();
 
         duration_metric.tags.get("transaction").cloned()
@@ -1537,13 +1731,18 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
-                name: "c:transactions/count_per_root_project@none",
+                name: MetricName(
+                    "c:transactions/count_per_root_project@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {
                     "decision": "keep",
                     "transaction": "root_transaction",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1780,7 +1979,7 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = normalize_event(&mut event, &NormalizationConfig::default());
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1801,74 +2000,38 @@ mod tests {
 
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
-            "d:transactions/measurements.frames_frozen@none",
-            "d:transactions/measurements.frames_frozen_rate@ratio",
-            "d:transactions/measurements.frames_slow@none",
-            "d:transactions/measurements.frames_slow_rate@ratio",
-            "d:transactions/measurements.frames_total@none",
-            "d:transactions/measurements.stall_percentage@ratio",
-            "d:transactions/measurements.stall_total_time@millisecond",
-            "c:transactions/usage@none",
-            "d:transactions/duration@millisecond",
-            "d:transactions/duration_light@millisecond",
+            MetricName(
+                "d:transactions/measurements.frames_frozen@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_frozen_rate@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_slow@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_slow_rate@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.frames_total@none",
+            ),
+            MetricName(
+                "d:transactions/measurements.stall_percentage@ratio",
+            ),
+            MetricName(
+                "d:transactions/measurements.stall_total_time@millisecond",
+            ),
+            MetricName(
+                "c:transactions/usage@none",
+            ),
+            MetricName(
+                "d:transactions/duration@millisecond",
+            ),
+            MetricName(
+                "d:transactions/duration_light@millisecond",
+            ),
         ]
         "###);
-    }
-
-    #[test]
-    fn test_get_eventuser_tag() {
-        // Note: If this order changes,
-        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
-        // has to be changed. Though it is probably not a good idea!
-        let user = User {
-            id: Annotated::new("ident".to_owned().into()),
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "id:ident"
-        );
-
-        let user = User {
-            username: Annotated::new("username".to_owned()),
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "username:username"
-        );
-
-        let user = User {
-            email: Annotated::new("email".to_owned()),
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "email:email"
-        );
-
-        let user = User {
-            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
-            ..User::default()
-        };
-
-        assert_eq!(
-            normalize_utils::get_eventuser_tag(&user).unwrap(),
-            "ip:127.0.0.1"
-        );
-
-        let user = User::default();
-
-        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
     }
 
     #[test]
@@ -1928,7 +2091,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/measurements.lcp@millisecond",
+                name: MetricName(
+                    "d:transactions/measurements.lcp@millisecond",
+                ),
                 value: Distribution(
                     [
                         41.0,
@@ -1938,20 +2103,30 @@ mod tests {
                     "measurement_rating": "good",
                     "platform": "javascript",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "c:transactions/usage@none",
+                name: MetricName(
+                    "c:transactions/usage@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration@millisecond",
+                name: MetricName(
+                    "d:transactions/duration@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
@@ -1961,17 +2136,25 @@ mod tests {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
-                name: "d:transactions/duration_light@millisecond",
+                name: MetricName(
+                    "d:transactions/duration_light@millisecond",
+                ),
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);

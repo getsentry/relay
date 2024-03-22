@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
@@ -42,6 +45,22 @@ impl AsRef<str> for TraceId {
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
+
+relay_common::impl_str_serde!(SpanId, "a span identifier");
+
+impl FromStr for SpanId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SpanId(s.to_string()))
+    }
+}
+
+impl fmt::Display for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -118,9 +137,97 @@ pub struct TraceContext {
     /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
     pub sampled: Annotated<bool>,
 
+    /// Arbitrary additional data on a trace.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub data: Annotated<Data>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
+}
+
+/// The arbitrary data on the trace.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Data {
+    /// The current route in the application.
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub route: Annotated<Route>,
+    /// The previous route in the application
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
+    pub previous_route: Annotated<Route>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(
+        additional_properties,
+        retain = "true",
+        pii = "maybe",
+        skip_serialization = "empty"
+    )]
+    pub other: Object<Value>,
+}
+
+/// The route in the application, set by React Native SDK.
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Route {
+    /// The name of the route.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    name: Annotated<String>,
+    /// Parameters assigned to this route.
+    #[metastructure(pii = "true", skip_serialization = "empty", bag_size = "medium")]
+    params: Annotated<Object<Value>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(
+        additional_properties,
+        retain = "true",
+        pii = "maybe",
+        skip_serialization = "empty"
+    )]
+    pub other: Object<Value>,
+}
+
+impl FromValue for Route {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(Value::String(name)), meta) => Annotated(
+                Some(Route {
+                    name: Annotated::new(name),
+                    ..Default::default()
+                }),
+                meta,
+            ),
+            Annotated(Some(Value::Object(mut values)), meta) => {
+                let mut route: Route = Default::default();
+                if let Some(Annotated(Some(Value::String(name)), _)) = values.remove("name") {
+                    route.name = Annotated::new(name);
+                }
+                if let Some(Annotated(Some(Value::Object(params)), _)) = values.remove("params") {
+                    route.params = Annotated::new(params);
+                }
+
+                if !values.is_empty() {
+                    route.other = values;
+                }
+
+                Annotated(Some(route), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("route expected to be an object"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
 }
 
 impl super::DefaultContext for TraceContext {
@@ -170,6 +277,15 @@ mod tests {
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
   "origin": "auto.http",
+  "data": {
+    "route": {
+      "name": "/users",
+      "params": {
+        "tok": "test"
+      },
+      "custom_field": "something"
+    }
+  },
   "other": "value",
   "type": "trace"
 }"#;
@@ -182,6 +298,28 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
+            data: Annotated::new(Data {
+                route: Annotated::new(Route {
+                    name: Annotated::new("/users".into()),
+                    params: Annotated::new({
+                        let mut map = Object::new();
+                        map.insert(
+                            "tok".to_string(),
+                            Annotated::new(Value::String("test".into())),
+                        );
+                        map
+                    }),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "custom_field".into(),
+                            Annotated::new(Value::String("something".into())),
+                        );
+                        map
+                    },
+                }),
+                ..Default::default()
+            }),
             other: {
                 let mut map = Object::new();
                 map.insert(
@@ -207,6 +345,32 @@ mod tests {
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            ..Default::default()
+        })));
+
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_trace_context_with_routes() {
+        let json = r#"{
+  "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+  "span_id": "FA90FDEAD5F74052",
+  "type": "trace",
+  "data": {
+    "route": "HomeRoute"
+  }
+}"#;
+        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            data: Annotated::new(Data {
+                route: Annotated::new(Route {
+                    name: Annotated::new("HomeRoute".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             ..Default::default()
         })));
 

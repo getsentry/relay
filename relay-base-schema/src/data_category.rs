@@ -49,7 +49,7 @@ pub enum DataCategory {
     ProfileIndexed = 11,
     /// Span
     ///
-    /// Used for spans processed independently of transactions.
+    /// This is the category for spans from which we extracted metrics from.
     Span = 12,
     /// Monitor Seat
     ///
@@ -65,6 +65,20 @@ pub enum DataCategory {
     UserReportV2 = 14,
     /// Metric buckets.
     MetricBucket = 15,
+    /// SpanIndexed
+    ///
+    /// This is the category for spans we store in full.
+    SpanIndexed = 16,
+    /// ProfileDuration
+    ///
+    /// This data category is used to count the number of milliseconds we have per indexed profile chunk.
+    /// We will then bill per second.
+    ProfileDuration = 17,
+    /// ProfileChunk
+    ///
+    /// This is a count of profile chunks received. It will not be used for billing but will be
+    /// useful for customers to track what's being dropped.
+    ProfileChunk = 18,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -96,6 +110,9 @@ impl DataCategory {
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
             "metric_bucket" => Self::MetricBucket,
+            "span_indexed" => Self::SpanIndexed,
+            "profile_duration" => Self::ProfileDuration,
+            "profile_chunk" => Self::ProfileChunk,
             _ => Self::Unknown,
         }
     }
@@ -120,6 +137,9 @@ impl DataCategory {
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
             Self::MetricBucket => "metric_bucket",
+            Self::SpanIndexed => "span_indexed",
+            Self::ProfileDuration => "profile_duration",
+            Self::ProfileChunk => "profile_chunk",
             Self::Unknown => "unknown",
         }
     }

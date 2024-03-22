@@ -5,6 +5,8 @@ from requests.adapters import HTTPAdapter
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3.util import Retry
 
+from sentry_relay.auth import SecretKey
+
 session = Session()
 retries = Retry(total=5, backoff_factor=0.1)
 session.mount("http://", HTTPAdapter(max_retries=retries))
@@ -205,22 +207,28 @@ class SentryLike:
     def send_otel_span(
         self,
         project_id,
-        payload,
+        json=None,
+        bytes=None,
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
     ):
-        headers = {
-            "Content-Type": "application/json",
-            **(headers or {}),
-        }
 
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
 
         url = f"/api/{project_id}/spans/?sentry_key={dsn_key}"
 
-        response = self.post(url, headers=headers, json=payload)
+        if json:
+            headers = {
+                "Content-Type": "application/json",
+                **(headers or {}),
+            }
+
+            response = self.post(url, headers=headers, json=json)
+        else:
+            response = self.post(url, headers=headers, data=bytes)
+
         response.raise_for_status()
 
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
@@ -241,6 +249,7 @@ class SentryLike:
         }
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
+        return response
 
     def send_session(self, project_id, payload, item_headers=None):
         envelope = Envelope()
@@ -299,6 +308,11 @@ class SentryLike:
         envelope.add_item(Item(PayloadRef(json=payload), type="feedback"))
         self.send_envelope(project_id, envelope)
 
+    def send_user_report(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="user_report"))
+        self.send_envelope(project_id, envelope)
+
     def send_metrics(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(
@@ -310,6 +324,20 @@ class SentryLike:
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
+
+    def send_metrics_batch(self, payload):
+        packed, signature = SecretKey.parse(self.secret_key).pack(payload)
+
+        response = self.post(
+            "/api/0/relays/metrics/",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": self.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+        response.raise_for_status()
 
     def send_security_report(
         self,

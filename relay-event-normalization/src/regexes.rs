@@ -81,3 +81,17 @@ pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 pub static DB_SQL_TRANSACTION_CORE_DATA_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<int>\d+)").unwrap());
+
+pub static DB_SUPABASE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?xi)
+        # UUIDs.
+        (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Hexadecimal strings with more than 5 digits.
+        (?P<hex>[a-f0-9]{5}[a-f0-9]+) |
+        # Integer IDs with more than one digit.
+        (?P<int>\d\d+)
+        ",
+    )
+    .unwrap()
+});

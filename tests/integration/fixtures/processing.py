@@ -56,6 +56,9 @@ def processing_config(get_topic_name):
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
+                "profiles": get_topic_name("profiles"),
+                "metrics_summaries": get_topic_name("metrics_summaries"),
+                "cogs": get_topic_name("cogs"),
             }
 
         if not processing.get("redis"):
@@ -77,9 +80,9 @@ def relay_with_processing(relay, mini_sentry, processing_config):
     requests to the test ingestion topics
     """
 
-    def inner(options=None):
+    def inner(options=None, **kwargs):
         options = processing_config(options)
-        return relay(mini_sentry, options=options)
+        return relay(mini_sentry, options=options, **kwargs)
 
     return inner
 
@@ -171,7 +174,8 @@ class ConsumerBase:
         test message ends up in the same partition as the message we are checking).
         """
         # First, give Relay a bit of time to process
-        assert self.poll(timeout=0.2) is None
+        rv = self.poll(timeout=0.2)
+        assert rv is None, f"not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -309,6 +313,23 @@ def spans_consumer(kafka_consumer):
     return lambda timeout=None: SpansConsumer(timeout=timeout, *kafka_consumer("spans"))
 
 
+@pytest.fixture
+def profiles_consumer(kafka_consumer):
+    return lambda: ProfileConsumer(*kafka_consumer("profiles"))
+
+
+@pytest.fixture
+def metrics_summaries_consumer(kafka_consumer):
+    return lambda timeout=None: MetricsSummariesConsumer(
+        timeout=timeout, *kafka_consumer("metrics_summaries")
+    )
+
+
+@pytest.fixture
+def cogs_consumer(kafka_consumer):
+    return lambda timeout=None: CogsConsumer(timeout=timeout, *kafka_consumer("cogs"))
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -374,6 +395,15 @@ class AttachmentsConsumer(EventsConsumer):
         assert v["type"] == "attachment", v["type"]
         return v
 
+    def get_user_report(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert v["type"] == "user_report", v["type"]
+        return v
+
 
 class ReplayRecordingsConsumer(EventsConsumer):
     def get_chunked_replay_chunk(self):
@@ -394,8 +424,8 @@ class ReplayRecordingsConsumer(EventsConsumer):
         assert v["type"] == "replay_recording", v["type"]
         return v
 
-    def get_not_chunked_replay(self):
-        message = self.poll()
+    def get_not_chunked_replay(self, timeout=None):
+        message = self.poll(timeout=timeout)
         assert message is not None
         assert message.error() is None
 
@@ -445,3 +475,40 @@ class SpansConsumer(ConsumerBase):
             else:
                 assert message.error() is None
                 yield json.loads(message.value())
+
+
+class ProfileConsumer(ConsumerBase):
+    def get_profile(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return msgpack.loads(message.value()), message.headers()
+
+
+class MetricsSummariesConsumer(ConsumerBase):
+    def get_metrics_summary(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())
+
+    def get_metrics_summaries(self, timeout=None, max_attempts=100):
+        for _ in range(max_attempts):
+            message = self.poll(timeout=timeout)
+
+            if message is None:
+                return
+            else:
+                assert message.error() is None
+                yield json.loads(message.value())
+
+
+class CogsConsumer(ConsumerBase):
+    def get_measurement(self, timeout=None):
+        message = self.poll(timeout=timeout)
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())

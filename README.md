@@ -139,6 +139,9 @@ suite will create a virtualenv, build the Relay binary with processing enabled,
 and run a set of integration tests:
 
 ```bash
+# Make sure that kafka and redis are running
+sentry devservices up kafka redis
+
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
 
@@ -149,7 +152,7 @@ make build
 
 #### Snapshot tests
 
-We use `insta` for snapshot testing. It will run as part of the `make test` command 
+We use `insta` for snapshot testing. It will run as part of the `make test` command
 to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
 ```bash
 cargo install cargo-insta
@@ -160,7 +163,7 @@ After that you'll be able to review and automatically update snapshot files by r
 cargo insta review
 ```
 
-Make sure to run the command if you've made any changed to the event schema/protocol.
+Make sure to run the command if you've made any changes to the event schema/protocol.
 For more information see https://insta.rs/docs/.
 
 ### Linting
@@ -224,7 +227,7 @@ relay:
   # Listen to a port other than 3000:
   port: 3001
 logging:
-  # Enable full logging and backraces:
+  # Enable full logging and backtraces:
   level: trace
   enable_backtraces: true
 limits:

@@ -253,17 +253,21 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-mod actors;
 mod constants;
 mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+#[cfg(feature = "processing")]
+mod metric_stats;
 mod metrics_extraction;
 mod middlewares;
 mod service;
+mod services;
 mod statsd;
 mod utils;
+
+pub use self::services::spooler::spool_utils;
 
 #[cfg(test)]
 mod testutils;
@@ -273,8 +277,8 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_system::{Controller, Service};
 
-use crate::actors::server::HttpServer;
 use crate::service::{Runtimes, ServiceState};
+use crate::services::server::HttpServer;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///

@@ -2,12 +2,161 @@
 
 ## Unreleased
 
+**Features**
+
+- Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
+- Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
+
+**Internal**:
+
+- Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
+- Add data categories for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284), [#3303](https://github.com/getsentry/relay/pull/3303))
+- Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
+- Extract metrics from transaction spans. ([#3273](https://github.com/getsentry/relay/pull/3273))
+- Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
+- Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
+- Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
+
+## 24.3.0
+
+**Features**:
+
+- Extend GPU context with data for Unreal Engine crash reports. ([#3144](https://github.com/getsentry/relay/pull/3144))
+- Implement base64 and zstd metric bucket encodings. ([#3218](https://github.com/getsentry/relay/pull/3218))
+- Implement COGS measurements into Relay. ([#3157](https://github.com/getsentry/relay/pull/3157))
+- Parametrize transaction in dynamic sampling context. ([#3141](https://github.com/getsentry/relay/pull/3141))
+- Adds ReplayVideo envelope-item type. ([#3105](https://github.com/getsentry/relay/pull/3105))
+- Parse & scrub span description for supabase. ([#3153](https://github.com/getsentry/relay/pull/3153), [#3156](https://github.com/getsentry/relay/pull/3156))
+- Introduce generic filters in global configs. ([#3161](https://github.com/getsentry/relay/pull/3161))
+- Individual cardinality limits can now be set into passive mode and not be enforced. ([#3199](https://github.com/getsentry/relay/pull/3199))
+- Allow enabling SSL for Kafka. ([#3232](https://github.com/getsentry/relay/pull/3232))
+- Enable HTTP compression for all APIs. ([#3233](https://github.com/getsentry/relay/pull/3233))
+- Add `process.load` span to ingested mobile span ops. ([#3227](https://github.com/getsentry/relay/pull/3227))
+- Track metric bucket metadata for Relay internal usage. ([#3254](https://github.com/getsentry/relay/pull/3254))
+- Enforce rate limits for standalone spans. ([#3238](https://github.com/getsentry/relay/pull/3238))
+- Extract `span.status_code` tag for HTTP spans. ([#3245](https://github.com/getsentry/relay/pull/3245))
+- Add `version` property and set as event context when a performance profile has calculated data. ([#3249](https://github.com/getsentry/relay/pull/3249))
+
+**Bug Fixes**:
+
+- Forward metrics in proxy mode. ([#3106](https://github.com/getsentry/relay/pull/3106))
+- Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
+- Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
+- Don't run validation on renormalization, and don't normalize spans from librelay calls. ([#3214](https://github.com/getsentry/relay/pull/3214))
+
+**Internal**:
+
+- Add quotas to global config. ([#3086](https://github.com/getsentry/relay/pull/3086))
+- Adds support for dynamic metric bucket encoding. ([#3137](https://github.com/getsentry/relay/pull/3137))
+- Use statsdproxy to pre-aggregate metrics. ([#2425](https://github.com/getsentry/relay/pull/2425))
+- Add SDK information to spans. ([#3178](https://github.com/getsentry/relay/pull/3178))
+- Drop replay envelopes if any item fails. ([#3201](https://github.com/getsentry/relay/pull/3201))
+- Filter null values from metrics summary tags. ([#3204](https://github.com/getsentry/relay/pull/3204))
+- Emit a usage metric for every span seen. ([#3209](https://github.com/getsentry/relay/pull/3209))
+- Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
+- Collect exclusive time for all spans. ([#3268](https://github.com/getsentry/relay/pull/3268))
+- Add segment_id to the profile. ([#3265](https://github.com/getsentry/relay/pull/3265))
+
+## 24.2.0
+
+**Bug Fixes**:
+
+- Fix regression in SQL query scrubbing. ([#3091](https://github.com/getsentry/relay/pull/3091))
+- Fix span metric ingestion for http spans. ([#3111](https://github.com/getsentry/relay/pull/3111))
+- Normalize route in trace context data field. ([#3104](https://github.com/getsentry/relay/pull/3104))
+
+**Features**:
+
+- Add protobuf support for ingesting OpenTelemetry spans and use official `opentelemetry-proto` generated structs. ([#3044](https://github.com/getsentry/relay/pull/3044))
+
+**Internal**:
+
+- Add ability to use namespace in non-global quotas. ([#3090](https://github.com/getsentry/relay/pull/3090))
+- Set the span op on segments. ([#3082](https://github.com/getsentry/relay/pull/3082))
+- Skip profiles without required measurements. ([#3112](https://github.com/getsentry/relay/pull/3112))
+- Push metrics summaries to their own topic. ([#3045](https://github.com/getsentry/relay/pull/3045))
+- Add `user.sentry_user` computed field for the on demand metrics extraction pipeline. ([#3122](https://github.com/getsentry/relay/pull/3122))
+
+## 24.1.2
+
+**Features**:
+
+- Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
+- Add `app_start_type` as a tag for self time and duration for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027)), ([#3066](https://github.com/getsentry/relay/pull/3066))
+
+**Internal**:
+
+- Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
+- Drop timestamp from metrics partition key. ([#3025](https://github.com/getsentry/relay/pull/3025))
+- Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+- Add support for combining replay envelope items. ([#3035](https://github.com/getsentry/relay/pull/3035))
+- Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
+- Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+- Upgrade sqlparser to 0.43.1.([#3057](https://github.com/getsentry/relay/pull/3057))
+- Implement project scoped cardinality limits. ([#3071](https://github.com/getsentry/relay/pull/3071))
+
+## 24.1.1
+
+**Features**:
+
+- Add new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
+
+**Internal**:
+
+- Implement quota system for cardinality limiter. ([#2972](https://github.com/getsentry/relay/pull/2972))
+- Use cardinality limits from project config instead of Relay config. ([#2990](https://github.com/getsentry/relay/pull/2990))
+- Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
+- Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+- Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
+- Forward profiles of non-sampled transactions. ([#2940](https://github.com/getsentry/relay/pull/2940))
+- Enable throttled periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
+
+**Bug Fixes**:
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+- Avoid producing `null` values in metric data. These values were the result of Infinity or NaN values extracted from event data. The values are now discarded during extraction. ([#2958](https://github.com/getsentry/relay/pull/2958))
+- Fix processing of user reports. ([#2981](https://github.com/getsentry/relay/pull/2981), [#2984](https://github.com/getsentry/relay/pull/2984))
+- Fetch project config when metrics are received. ([#2987](https://github.com/getsentry/relay/pull/2987))
+
+## 24.1.0
+
+**Features**:
+
+- Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
+- Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
+
+**Bug Fixes**:
+
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+- Resolve a division by zero in performance score computation that leads to dropped metrics for transactions. ([#2911](https://github.com/getsentry/relay/pull/2911))
+
+**Internal**:
+
+- Add `duration` metric for mobile app start spans. ([#2906](https://github.com/getsentry/relay/pull/2906))
+- Introduce the configuration option `http.global_metrics`. When enabled, Relay submits metric buckets not through regular project-scoped Envelopes, but instead through the global endpoint. When this Relay serves a high number of projects, this can reduce the overall request volume. ([#2902](https://github.com/getsentry/relay/pull/2902))
+- Record the size of global metrics requests in statsd as `upstream.metrics.body_size`. ([#2908](https://github.com/getsentry/relay/pull/2908))
+- Make Kafka spans compatible with the Snuba span schema. ([#2917](https://github.com/getsentry/relay/pull/2917), [#2926](https://github.com/getsentry/relay/pull/2926))
+- Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907), [#2923](https://github.com/getsentry/relay/pull/2923), [#2924](https://github.com/getsentry/relay/pull/2924))
+- Normalize metric resource identifiers in `event._metrics_summary` and `span._metrics_summary`. ([#2914](https://github.com/getsentry/relay/pull/2914))
+- Send outcomes for spans. ([#2930](https://github.com/getsentry/relay/pull/2930))
+- Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
+- Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
+- Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
+- Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
+
+## 23.12.1
+
 **Internal**:
 
 - Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
 - Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
 - Add an internal endpoint that allows Relays to submit metrics from multiple projects in a single request. ([#2869](https://github.com/getsentry/relay/pull/2869))
 - Emit a `processor.message.duration` metric to assess the throughput of the internal CPU pool. ([#2877](https://github.com/getsentry/relay/pull/2877))
+- Add `transaction.op` to the duration light metric. ([#2881](https://github.com/getsentry/relay/pull/2881))
 
 ## 23.12.0
 

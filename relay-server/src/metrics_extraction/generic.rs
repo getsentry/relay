@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Bucket, BucketValue, MetricResourceIdentifier, MetricType};
+
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
+};
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
@@ -54,11 +57,12 @@ where
         };
 
         metrics.push(Bucket {
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             width: 0,
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
+            metadata: BucketMetadata::new(),
         });
     }
 
@@ -127,16 +131,28 @@ fn read_metric_value(
     field: Option<&str>,
     ty: MetricType,
 ) -> Option<BucketValue> {
+    let finite = |float: f64| match FiniteF64::new(float) {
+        Some(f) => Some(f),
+        None => {
+            relay_log::error!(
+                tags.field = field,
+                tags.metric_type = ?ty,
+                "non-finite float value in generic metric extraction"
+            );
+            None
+        }
+    };
+
     Some(match ty {
         MetricType::Counter => BucketValue::counter(match field {
-            Some(field) => instance.get_value(field)?.as_f64()?,
-            None => 1.0,
+            Some(field) => finite(instance.get_value(field)?.as_f64()?)?,
+            None => 1.into(),
         }),
         MetricType::Distribution => {
-            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)
+            BucketValue::distribution(finite(instance.get_value(field?)?.as_f64()?)?)
         }
         MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
-        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?),
+        MetricType::Gauge => BucketValue::gauge(finite(instance.get_value(field?)?.as_f64()?)?),
     })
 }
 
@@ -173,11 +189,16 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -210,13 +231,18 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "d:transactions/duration@none",
+                name: MetricName(
+                    "d:transactions/duration@none",
+                ),
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -251,13 +277,18 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "s:transactions/users@none",
+                name: MetricName(
+                    "s:transactions/users@none",
+                ),
                 value: Set(
                     {
                         943162418,
                     },
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
         "###);
@@ -304,7 +335,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -312,6 +345,9 @@ mod tests {
                     "fast": "no",
                     "id": "4711",
                     "release": "myapp@1.0.0",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -358,12 +394,17 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -414,12 +455,86 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn skip_nonfinite_float() {
+        let event_json = json!({
+            "type": "transaction",
+            "timestamp": 1597976302.0,
+            "measurements": {
+                "valid": {"value": 1.0},
+                "invalid": {"value": 0.0},
+            }
+        });
+        let mut event = Event::from_value(event_json.into());
+
+        // Patch event.measurements.test.value to NAN
+        event
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .measurements
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_mut("invalid")
+            .unwrap()
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .value
+            .set_value(Some(f64::NAN));
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "d:transactions/measurements.valid@none",
+                    "field": "event.measurements.valid.value",
+                },
+                {
+                    "category": "transaction",
+                    "mri": "d:transactions/measurements.invalid@none",
+                    "field": "event.measurements.invalid.value",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: MetricName(
+                    "d:transactions/measurements.valid@none",
+                ),
+                value: Distribution(
+                    [
+                        1.0,
+                    ],
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]

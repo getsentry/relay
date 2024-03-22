@@ -33,6 +33,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, LenientString, Request, Tags, Timestamp, User,
 };
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -136,11 +137,11 @@ pub struct Replay {
 
     /// A list of error-ids discovered during the lifetime of the segment.
     #[metastructure(bag_size = "medium")]
-    pub error_ids: Annotated<Array<String>>,
+    pub error_ids: Annotated<Array<Uuid>>,
 
     /// A list of trace-ids discovered during the lifetime of the segment.
     #[metastructure(bag_size = "medium")]
-    pub trace_ids: Annotated<Array<String>>,
+    pub trace_ids: Annotated<Array<Uuid>>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(skip_serialization = "empty")]
@@ -265,10 +266,10 @@ mod tests {
             ),
             urls: Annotated::new(vec![Annotated::new("localhost:9000".to_string())]),
             error_ids: Annotated::new(vec![Annotated::new(
-                "52df9022835246eeb317dbd739ccd059".to_string(),
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             trace_ids: Annotated::new(vec![Annotated::new(
-                "52df9022835246eeb317dbd739ccd059".to_string(),
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             platform: Annotated::new("myplatform".to_string()),
             release: Annotated::new("myrelease".to_string().into()),

@@ -2,7 +2,8 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
-pub use sql::parse_query;
+#[cfg(test)]
+pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -12,7 +13,8 @@ use relay_event_schema::protocol::Span;
 use url::Url;
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -31,17 +33,23 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
-pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
-    let description = span.description.as_str()?;
+pub(crate) fn scrub_span_description(
+    span: &Span,
+) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
+    let Some(description) = span.description.as_str() else {
+        return (None, None);
+    };
 
-    let db_system = span
-        .data
-        .value()
-        .and_then(|v| v.get("db.system"))
+    let data = span.data.value();
+
+    let db_system = data
+        .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
-    span.op
+    let mut parsed_sql = None;
+    let scrubbed_description = span
+        .op
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
@@ -63,28 +71,61 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     // The description will only contain the entity queried and
                     // the query type ("User find" for example).
                     Some(description.to_owned())
+                } else if span_origin == Some("auto.db.supabase")
+                    && description.starts_with("from(")
+                {
+                    // The description only contains the table name, e.g. `"from(users)`.
+                    // In the future, we might want to parse `data.query` as well.
+                    // See https://github.com/supabase-community/sentry-integration-js/blob/master/index.js#L259
+                    scrub_supabase(description)
                 } else {
-                    sql::scrub_queries(db_system, description)
+                    let (scrubbed, mode) = sql::scrub_queries(db_system, description);
+                    if let sql::Mode::Parsed(ast) = mode {
+                        parsed_sql = Some(ast);
+                    }
+                    scrubbed
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
-                // At the moment the metrics from this module
-                // are still filtered by the `SpanMetricsExtractionAllModules` feature, so it should
-                // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
+            ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
+                .and_then(|data| data.ui_component_name.value())
+                .and_then(|value| value.as_str())
+                .map(String::from),
             ("app", _) => {
                 // `app.*` has static descriptions, like `Cold Start`
                 // or `Pre Runtime Init`.
                 // They are low-cardinality.
                 Some(description.to_owned())
             }
+            ("contentprovider", "load") => {
+                // `contentprovider.load` spans contain paths of third party framework components
+                // and their onCreate method such as
+                // `io.sentry.android.core.SentryPerformanceProvider.onCreate`, which
+                // _should_ be low-cardinality, on the order of 10s per project.
+                Some(description.to_owned())
+            }
+            ("application", "load") => {
+                // `application.load` spans contain paths of app components and their
+                // onCreate method such as
+                // `io.sentry.samples.android.MyApplication.onCreate`, which _should_ be
+                // low-cardinality.
+                Some(description.to_owned())
+            }
+            ("activity", "load") => {
+                // `activity.load` spans contain paths of app components and their onCreate/onStart
+                // method such as `io.sentry.samples.android.MainActivity.onCreate`, which
+                // _should_ be low-cardinality, less than 10 per project.
+                Some(description.to_owned())
+            }
             ("file", _) => scrub_file(description),
             _ => None,
-        })
+        });
+    (scrubbed_description, parsed_sql)
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
@@ -106,6 +147,10 @@ fn scrub_core_data(string: &str) -> Option<String> {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(_) => None,
     }
+}
+
+fn scrub_supabase(string: &str) -> Option<String> {
+    Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -148,7 +193,17 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
+/// Normalize the domain and port of a URL.
+///
+/// # Arguments
+///
+/// * `domain` - The domain of the URL.
+/// * `port` - The port of the URL.
+///
+/// # Returns
+///
+/// The normalized domain and port as a `String`, or `None` if normalization fails.
+pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
     if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
         return Some(allow_listed);
     }
@@ -379,7 +434,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
+        ($name:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -406,9 +461,9 @@ mod tests {
                 let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
                 if $expected == "" {
-                    assert!(scrubbed.is_none());
+                    assert!(scrubbed.0.is_none());
                 } else {
-                    assert_eq!($expected, scrubbed.unwrap());
+                    assert_eq!($expected, scrubbed.0.unwrap());
                 }
             }
         };
@@ -684,6 +739,27 @@ mod tests {
     );
 
     span_description_test!(
+        contentprovider_load,
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate",
+        "contentprovider.load",
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate"
+    );
+
+    span_description_test!(
+        application_load,
+        "io.sentry.samples.android.MyApplication.onCreate",
+        "application.load",
+        "io.sentry.samples.android.MyApplication.onCreate"
+    );
+
+    span_description_test!(
+        activity_load,
+        "io.sentry.samples.android.MainActivity.onCreate",
+        "activity.load",
+        "io.sentry.samples.android.MainActivity.onCreate"
+    );
+
+    span_description_test!(
         span_description_file_write_keep_extension_only,
         "data.data (42 KB)",
         "file.write",
@@ -865,7 +941,7 @@ mod tests {
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
         let scrubbed = scrub_span_description(span);
-        assert_eq!(scrubbed.as_deref(), Some("SELECT %s"));
+        assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
     #[test]
@@ -880,7 +956,7 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
-        assert!(scrubbed.is_none());
+        assert!(scrubbed.0.is_none());
     }
 
     #[test]
@@ -898,7 +974,7 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // Can be scrubbed with db system.
-        assert_eq!(scrubbed.as_deref(), Some("SELECT a FROM b"));
+        assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
     }
 
     #[test]
@@ -913,7 +989,7 @@ mod tests {
 
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-        assert_eq!(scrubbed.as_deref(), Some("INSERTED * 'UAEventData'"));
+        assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
 
     #[test]
@@ -929,8 +1005,26 @@ mod tests {
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         assert_eq!(
-            scrubbed.as_deref(),
+            scrubbed.0.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
+    }
+
+    #[test]
+    fn ui_interaction_with_component_name() {
+        let json = r#"{
+            "description": "input.app-asdfasfg.asdfasdf[type=\"range\"][name=\"replay-timeline\"]",
+            "op": "ui.interaction.click",
+            "data": {
+                "ui.component_name": "my-component-name"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        // Can be scrubbed with db system.
+        assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
     }
 }

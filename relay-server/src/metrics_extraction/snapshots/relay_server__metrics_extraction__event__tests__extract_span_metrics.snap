@@ -4,9 +4,97 @@ expression: metrics
 ---
 [
     Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                59000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "mYOp",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1619420400),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.op": "mYOp",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.react.render",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -14,11 +102,30 @@ expression: metrics
             "span.category": "ui.react",
             "span.op": "ui.react.render",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -26,7 +133,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
             "span.category": "http",
             "span.description": "GET http://domain.tld",
             "span.domain": "domain.tld",
@@ -36,11 +142,16 @@ expression: metrics
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -48,20 +159,22 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
             "span.category": "http",
             "span.description": "GET http://domain.tld",
             "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -69,11 +182,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -81,7 +213,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://domain.tld",
             "span.domain": "domain.tld",
@@ -91,11 +222,16 @@ expression: metrics
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -103,20 +239,22 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://domain.tld",
             "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -124,11 +262,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -136,7 +293,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "PUT",
             "span.category": "http",
             "span.description": "PUT http://domain.tld",
             "span.domain": "domain.tld",
@@ -146,11 +302,16 @@ expression: metrics
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -158,20 +319,22 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "PUT",
             "span.category": "http",
             "span.description": "PUT http://domain.tld",
             "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -179,11 +342,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -191,7 +373,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
             "span.category": "http",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -200,11 +381,16 @@ expression: metrics
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -212,19 +398,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
             "span.category": "http",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -232,11 +420,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -244,22 +451,105 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
+            "span.category": "http",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "http.client",
+            "span.status_code": "500",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "http.client",
+            "span.status_code": "500",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
             "span.category": "http",
             "span.description": "POST http://127.0.0.1:1234",
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -267,21 +557,22 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://127.0.0.1:1234",
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -289,11 +580,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -301,23 +611,26 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -325,22 +638,23 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -348,11 +662,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -360,23 +693,26 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain.tld:1234",
             "span.domain": "targetdomain.tld:1234",
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -384,22 +720,23 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain.tld:1234",
             "span.domain": "targetdomain.tld:1234",
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -407,11 +744,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -419,23 +775,26 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:1234",
             "span.domain": "targetdomain:1234",
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -443,22 +802,23 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:1234",
             "span.domain": "targetdomain:1234",
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -466,11 +826,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -478,23 +857,26 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -502,22 +884,23 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -525,11 +908,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -537,23 +939,26 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -561,22 +966,23 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*.domain.tld:1234",
             "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
             "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -584,11 +990,30 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -602,17 +1027,20 @@ expression: metrics
             "span.domain": "table",
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -626,16 +1054,17 @@ expression: metrics
             "span.domain": "table",
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -644,11 +1073,30 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -662,16 +1110,20 @@ expression: metrics
             "span.domain": "table",
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
-            "span.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -685,15 +1137,17 @@ expression: metrics
             "span.domain": "table",
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -701,11 +1155,30 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -717,17 +1190,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -739,16 +1215,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -757,11 +1234,30 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -775,17 +1271,20 @@ expression: metrics
             "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -799,16 +1298,17 @@ expression: metrics
             "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -817,11 +1317,30 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -833,16 +1352,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -854,15 +1377,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -870,11 +1395,30 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -888,17 +1432,20 @@ expression: metrics
             "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -912,16 +1459,17 @@ expression: metrics
             "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "postgresql",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -930,11 +1478,30 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -948,17 +1515,20 @@ expression: metrics
             "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "postgresql",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -972,16 +1542,17 @@ expression: metrics
             "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "postgresql",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -990,11 +1561,30 @@ expression: metrics
             "span.op": "db",
             "span.system": "postgresql",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1006,17 +1596,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1028,16 +1621,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1046,11 +1640,30 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1062,17 +1675,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1084,16 +1700,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1102,11 +1719,30 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1119,17 +1755,20 @@ expression: metrics
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1142,16 +1781,17 @@ expression: metrics
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
-            "span.status": "ok",
-            "span.system": "mydatabase",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1160,11 +1800,51 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1172,47 +1852,30 @@ expression: metrics
             "span.category": "cache",
             "span.op": "cache.get_item",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
         ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
                 2000.0,
@@ -1220,22 +1883,239 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "file_extension": "js",
-            "span.category": "resource",
-            "span.description": "http://domain/static/myscript-*.js",
-            "span.domain": "domain",
-            "span.group": "022f81fdf31228bf",
-            "span.op": "resource.script",
-            "span.status": "ok",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
+            "span.group": "46b2cac4b418f556",
+            "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
+            "span.group": "46b2cac4b418f556",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1249,15 +2129,43 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
-            "span.status": "ok",
-            "transaction.method": "POST",
+            "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "022f81fdf31228bf",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1265,11 +2173,51 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1278,11 +2226,30 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "mongodb",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1294,17 +2261,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1316,16 +2286,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.query",
-            "span.status": "ok",
-            "span.system": "mydatabase",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1334,11 +2305,51 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "db.mongodb.find",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1346,11 +2357,30 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.mongodb.find",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1362,17 +2392,20 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.activerecord",
-            "span.status": "ok",
-            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1384,16 +2417,17 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.activerecord",
-            "span.status": "ok",
-            "span.system": "mydatabase",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1402,11 +2436,75 @@ expression: metrics
             "span.op": "db.sql.activerecord",
             "span.system": "mydatabase",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.op": "db.redis.command",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.op": "db.redis.command",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1415,11 +2513,30 @@ expression: metrics
             "span.op": "db.redis.command",
             "span.system": "redis",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255152),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 15833.532095,
@@ -1427,51 +2544,50 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.description": "viewDidLoad",
-            "span.group": "247104252ec2b753",
             "span.op": "ui.load",
-            "span.status": "ok",
-            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            [
-                15833.532095,
-            ],
+        name: MetricName(
+            "c:spans/count_per_op@none",
         ),
-        tags: {
-            "environment": "fake_environment",
-            "span.description": "viewDidLoad",
-            "span.group": "247104252ec2b753",
-            "span.op": "ui.load",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1695255152),
-        width: 0,
-        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
         tags: {
             "span.op": "ui.load",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1695255136),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255136),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 1668.516159,
@@ -1479,52 +2595,51 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.category": "app",
-            "span.description": "Cold Start",
-            "span.group": "2d675185edfeb30c",
             "span.op": "app.start.cold",
-            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1695255136),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            [
-                1668.516159,
-            ],
+        name: MetricName(
+            "c:spans/count_per_op@none",
         ),
-        tags: {
-            "environment": "fake_environment",
-            "span.category": "app",
-            "span.description": "Cold Start",
-            "span.group": "2d675185edfeb30c",
-            "span.op": "app.start.cold",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1695255136),
-        width: 0,
-        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
         tags: {
             "span.category": "app",
             "span.op": "app.start.cold",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -1540,14 +2655,18 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -1562,14 +2681,17 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
         value: Distribution(
             [
                 36170.0,
@@ -1585,11 +2707,16 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.decoded_response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
         value: Distribution(
             [
                 128950.0,
@@ -1604,11 +2731,16 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_transfer_size@byte",
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
         value: Distribution(
             [
                 36470.0,
@@ -1623,17 +2755,2607 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
         tags: {
             "span.category": "resource",
             "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.react.render",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "ui.react",
+            "span.op": "ui.react.render",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "d9dc18637d441612",
+            "span.op": "http.client",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "d9dc18637d441612",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "25faf23529f71d3e",
+            "span.op": "http.client",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "25faf23529f71d3e",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "PUT http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "488f09b46e5978be",
+            "span.op": "http.client",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "PUT http://domain.tld",
+            "span.domain": "domain.tld",
+            "span.group": "488f09b46e5978be",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "http.client",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://127.0.0.1:1234",
+            "span.group": "464fe695f9cf639c",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://127.0.0.1:1234",
+            "span.group": "464fe695f9cf639c",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain.tld:1234",
+            "span.domain": "targetdomain.tld:1234",
+            "span.group": "72ab88b506cb04b2",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain.tld:1234",
+            "span.domain": "targetdomain.tld:1234",
+            "span.group": "72ab88b506cb04b2",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain:1234",
+            "span.domain": "targetdomain:1234",
+            "span.group": "c8e531abe96ff360",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain:1234",
+            "span.domain": "targetdomain:1234",
+            "span.group": "c8e531abe96ff360",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status_code": "200",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "f4a7fef06db3d88e",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "f4a7fef06db3d88e",
+            "span.op": "db.sql.query",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "4f9711d2d09963b9",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "4f9711d2d09963b9",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db.sql.query",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
+            "span.op": "db.sql.query",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
+            "span.group": "03cb381cee3f1463",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
+            "span.group": "03cb381cee3f1463",
+            "span.op": "db.sql.query",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
+            "span.group": "e0f7e81a59b030ba",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
+            "span.group": "e0f7e81a59b030ba",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "postgresql",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "cache",
+            "span.op": "cache.get_item",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
+            "span.group": "46b2cac4b418f556",
+            "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
+            "span.group": "46b2cac4b418f556",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "browser-extension://*",
+            "span.domain": "*",
+            "span.group": "3e92c536f98104b2",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "browser-extension://*",
+            "span.domain": "*",
+            "span.group": "3e92c536f98104b2",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "022f81fdf31228bf",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "022f81fdf31228bf",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "*/zero-length-*",
+            "span.group": "c7d3c9d83f92123a",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "*/zero-length-*",
+            "span.group": "c7d3c9d83f92123a",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ui.interaction.click",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "span.description": "my-component-name",
+            "span.group": "e674f9eca1d88a4d",
+            "span.op": "ui.interaction.click",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.op": "ui.interaction.click",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
 ]

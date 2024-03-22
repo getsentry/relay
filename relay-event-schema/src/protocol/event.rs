@@ -14,9 +14,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
-    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
-    TraceContext, TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
+    ProfileContext, RelayInfo, Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo,
+    Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -496,7 +496,7 @@ pub struct Event {
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     #[metastructure(omit_from_schema)]
-    pub _metrics_summary: Annotated<Value>,
+    pub _metrics_summary: Annotated<MetricsSummary>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
@@ -669,6 +669,9 @@ impl Getter for Event {
                 .into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
+
+            // Computed fields (after light normalization).
+            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
@@ -1074,12 +1077,14 @@ mod tests {
     #[test]
     fn test_field_value_provider_event_filled() {
         let event = Event {
+            level: Annotated::new(Level::Info),
             release: Annotated::new(LenientString("1.1.1".to_owned())),
             environment: Annotated::new("prod".to_owned()),
             user: Annotated::new(User {
                 ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 id: Annotated::new(LenientString("user-id".into())),
                 segment: Annotated::new("user-seg".into()),
+                sentry_user: Annotated::new("id:user-id".into()),
                 ..Default::default()
             }),
             client_sdk: Annotated::new(ClientSdkInfo {
@@ -1146,6 +1151,8 @@ mod tests {
             ..Default::default()
         };
 
+        assert_eq!(Some(Val::String("info")), event.get_value("event.level"));
+
         assert_eq!(Some(Val::String("1.1.1")), event.get_value("event.release"));
         assert_eq!(
             Some(Val::String("prod")),
@@ -1154,6 +1161,10 @@ mod tests {
         assert_eq!(
             Some(Val::String("user-id")),
             event.get_value("event.user.id")
+        );
+        assert_eq!(
+            Some(Val::String("id:user-id")),
+            event.get_value("event.sentry_user")
         );
         assert_eq!(
             Some(Val::String("user-seg")),

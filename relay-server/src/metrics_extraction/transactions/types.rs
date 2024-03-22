@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
-    MetricUnit,
+    Bucket, BucketMetadata, BucketValue, DistributionType, DurationUnit, MetricNamespace,
+    MetricResourceIdentifier, MetricUnit,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -78,13 +78,13 @@ impl IntoMetric for TransactionMetric {
             ),
             Self::Usage { tags } => (
                 Cow::Borrowed("usage"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             Self::CountPerRootProject { tags } => (
                 Cow::Borrowed("count_per_root_project"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
@@ -117,9 +117,10 @@ impl IntoMetric for TransactionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags,
+            metadata: BucketMetadata::new(),
         }
     }
 }
@@ -142,12 +143,16 @@ impl From<TransactionDurationTags> for BTreeMap<String, String> {
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct LightTransactionTags {
+    pub transaction_op: Option<String>,
     pub transaction: Option<String>,
 }
 
 impl From<LightTransactionTags> for BTreeMap<String, String> {
     fn from(tags: LightTransactionTags) -> Self {
         let mut map = BTreeMap::new();
+        if let Some(transaction_op) = tags.transaction_op {
+            map.insert(CommonTag::TransactionOp.to_string(), transaction_op);
+        }
         if let Some(transaction) = tags.transaction {
             map.insert(CommonTag::Transaction.to_string(), transaction);
         }
@@ -173,6 +178,7 @@ impl From<UsageTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TransactionMeasurementTags {
     pub measurement_rating: Option<String>,
+    pub score_profile_version: Option<String>,
     pub universal_tags: CommonTags,
 }
 
@@ -181,6 +187,12 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
         if let Some(decision) = value.measurement_rating {
             map.insert("measurement_rating".to_string(), decision);
+        }
+        if let Some(score_profile_version) = value.score_profile_version {
+            map.insert(
+                "sentry.score_profile_version".to_string(),
+                score_profile_version,
+            );
         }
         map
     }

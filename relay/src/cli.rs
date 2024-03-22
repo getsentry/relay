@@ -1,13 +1,15 @@
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::{env, io};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use relay_server::spool_utils;
 use uuid::Uuid;
 
 use crate::cliapp::make_app;
@@ -63,6 +65,8 @@ pub fn execute() -> Result<()> {
         let arg_config = extract_config_args(matches);
         config.apply_override(arg_config)?;
         run(config, matches)
+    } else if let Some(matches) = matches.subcommand_matches("spool") {
+        manage_spool(&config, matches)
     } else {
         unreachable!();
     }
@@ -310,6 +314,49 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
     } else {
         println!("Nothing to do.");
     }
+
+    Ok(())
+}
+
+/// Manages the on-disk spool file.
+pub fn manage_spool(config: &Config, matches: &ArgMatches) -> Result<()> {
+    let Some(matches) = matches.subcommand_matches("clear") else {
+        unreachable!()
+    };
+
+    let path = match matches.get_one::<PathBuf>("path") {
+        Some(path) => path.to_owned(),
+        None => config
+            .spool_envelopes_path()
+            .context("Config file does not contain the path to the spool file.")?,
+    };
+
+    if !path.is_file() {
+        bail!("Could not find provided file: {}", path.display());
+    }
+
+    let force = matches.get_flag("force");
+
+    if !force {
+        let stdin = std::io::stdin();
+        eprintln!(
+            "Are you sure you want to clear up on-disk spooled data in {} (yes/no): ",
+            path.display()
+        );
+        for line in stdin.lock().lines().map_while(Result::ok) {
+            match line.trim().to_lowercase().as_str() {
+                "yes" => break,
+                "no" => bail!("Canceling the cleaning of the spooled data."),
+                _ => eprintln!("Accepting only YES or NO: "),
+            }
+        }
+    }
+
+    relay_log::info!("Clearing the spool file: {}", path.to_string_lossy());
+
+    let truncated = spool_utils::truncate(&path)?;
+
+    relay_log::info!("On-disk spool emptied. Deleted {truncated} envelopes.");
 
     Ok(())
 }

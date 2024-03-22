@@ -6,7 +6,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
     aggregator::{Aggregator, AggregatorConfig},
-    Bucket, BucketValue, DistributionValue,
+    Bucket, BucketValue, DistributionValue, FiniteF64,
 };
 
 /// Struct representing a testcase for which insert + flush are timed.
@@ -31,7 +31,7 @@ impl MetricInput {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
             let mut bucket = self.bucket.clone();
-            bucket.name = metric_name;
+            bucket.name = metric_name.into();
             let key = ProjectKey::parse(&format!("{key_id:0width$x}", width = 32)).unwrap();
             rv.push((key, bucket));
         }
@@ -64,9 +64,10 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     let counter = Bucket {
         timestamp: UnixTimestamp::now(),
         width: 0,
-        name: "c:transactions/foo@none".to_owned(),
-        value: BucketValue::counter(42.),
+        name: "c:transactions/foo@none".into(),
+        value: BucketValue::counter(42.into()),
         tags: BTreeMap::new(),
+        metadata: Default::default(),
     };
 
     let inputs = [
@@ -163,8 +164,9 @@ fn bench_distribution(c: &mut Criterion) {
 
     for size in [1, 10, 100, 1000, 10_000, 100_000, 1_000_000] {
         let values = std::iter::from_fn(|| Some(rand::random()))
+            .filter_map(FiniteF64::new)
             .take(size as usize)
-            .collect::<Vec<f64>>();
+            .collect::<Vec<FiniteF64>>();
 
         group.throughput(criterion::Throughput::Elements(size));
         group.bench_with_input(BenchmarkId::from_parameter(size), &values, |b, values| {

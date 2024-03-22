@@ -1,8 +1,10 @@
+import datetime
+import copy
 import gzip
+import json
 import os
 import re
 import uuid
-import datetime
 from copy import deepcopy
 from queue import Queue
 
@@ -35,8 +37,10 @@ class Sentry(SentryLike):
 
         self.app = app
         self.project_configs = {}
+        self.global_config = copy.deepcopy(GLOBAL_CONFIG)
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
+        self.captured_metrics = Queue()
         self.test_failures = []
         self.hits = {}
         self.known_relays = {}
@@ -316,7 +320,7 @@ def mini_sentry(request):  # noqa
         version = flask_request.args.get("version")
 
         if version == "3" and flask_request.json.get("global"):
-            global_ = GLOBAL_CONFIG
+            global_ = sentry.global_config
 
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
@@ -387,6 +391,24 @@ def mini_sentry(request):  # noqa
         sentry.captured_outcomes.put(outcomes_batch)
         return jsonify({})
 
+    @app.route("/api/0/relays/metrics/", methods=["POST"])
+    def global_metrics():
+        """
+        Mock endpoint for global batched metrics. SENTRY DOES NOT IMPLEMENT THIS ENDPOINT! This is
+        just used to verify Relay's batching behavior.
+        """
+        relay_id = flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in authenticated_relays:
+            abort(403, "relay not registered")
+
+        encoding = flask_request.headers.get("Content-Encoding", "")
+        assert encoding == "gzip", "Relay should always compress store requests"
+        data = gzip.decompress(flask_request.data)
+
+        metrics_batch = json.loads(data)["buckets"]
+        sentry.captured_metrics.put(metrics_batch)
+        return jsonify({})
+
     @app.errorhandler(500)
     def fail(e):
         sentry.test_failures.append((flask_request.url, e))
@@ -438,5 +460,7 @@ GLOBAL_CONFIG = {
             {"name": "time_to_initial_display", "unit": "millisecond"},
         ],
         "maxCustomMeasurements": 10,
-    }
+    },
+    "filters": {"version": 1, "filters": []},
+    "options": {"relay.span-usage-metric": True},
 }

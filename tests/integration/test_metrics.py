@@ -1,6 +1,7 @@
 import hashlib
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
 
@@ -11,7 +12,12 @@ import queue
 from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
-    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0}
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+        "debounce_delay": 0,
+        "shift_key": "none",
+    }
 }
 
 
@@ -57,6 +63,109 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
             return metrics_by_project
 
 
+def test_metrics_proxy_mode_buckets(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    bucket_name = "d:transactions/measurements.lcp@millisecond"
+
+    bucket = {
+        "org_id": 1,
+        "project_id": project_id,
+        "timestamp": int(datetime.utcnow().timestamp()),
+        "name": bucket_name,
+        "type": "d",
+        "value": [1.0],
+        "width": 1,
+    }
+    relay.send_metrics_buckets(project_id, [bucket])
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    payload = envelope.items[0].payload.json[0]
+    assert payload["name"] == bucket_name
+
+
+def test_metrics_proxy_mode_statsd(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    project_id = 42
+    now = int(datetime.now(tz=timezone.utc).timestamp())
+
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{now}"
+    relay.send_metrics(project_id, metrics_payload)
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "statsd"
+    assert metric_meta_item.get_bytes().decode() == metrics_payload
+
+
+def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    location = {
+        "type": "location",
+        "function": "_scan_for_suspect_projects",
+        "module": "sentry.tasks.low_priority_symbolication",
+        "filename": "sentry/tasks/low_priority_symbolication.py",
+        "abs_path": "/usr/src/sentry/src/sentry/tasks/low_priority_symbolication.py",
+        "lineno": 45,
+    }
+
+    meta_payload = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "mapping": {
+            "d:custom/sentry.process_profile.track_outcome@second": [
+                location,
+            ]
+        },
+    }
+    meta_payload = json.dumps(meta_payload, sort_keys=True)
+
+    envelope = Envelope()
+    envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
+    relay.send_envelope(42, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "metric_meta"
+    assert json.loads(metric_meta_item.get_bytes().decode()) == meta_payload
+
+
 def test_metrics(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -64,7 +173,9 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
@@ -123,7 +234,7 @@ def test_metrics_backdated(mini_sentry, relay):
 
 @pytest.mark.parametrize(
     "metrics_partitions,expected_header",
-    [(None, None), (0, "0"), (1, "0"), (128, "34")],
+    [(None, None), (0, "0"), (1, "0"), (128, "17")],
 )
 def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
@@ -138,6 +249,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
             "flush_partitions": metrics_partitions,
+            "shift_key": "none",
         },
     }
     relay = relay(mini_sentry, options=relay_config)
@@ -199,6 +311,126 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
         mini_sentry.captured_events.get(timeout=1)
 
 
+def test_global_metrics(mini_sentry, relay):
+    relay = relay(
+        mini_sentry, options={"http": {"global_metrics": True}, **TEST_CONFIG}
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics_batch = mini_sentry.captured_metrics.get(timeout=5)
+    assert mini_sentry.captured_metrics.qsize() == 0  # we had only one batch
+
+    metrics = sorted(metrics_batch[public_key], key=lambda x: x["name"])
+
+    assert metrics == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/bar@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
+
+
+def test_global_metrics_no_config(mini_sentry, relay):
+    relay = relay(mini_sentry, TEST_CONFIG)
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics = [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 17.0,
+            "type": "c",
+        }
+    ]
+    relay.send_metrics_batch(
+        {"buckets": {public_key: metrics}},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    item = envelope.items[0]
+    assert item.headers["type"] == "metric_buckets"
+    metrics_batch = json.loads(item.payload.get_bytes())
+    received_metrics = sorted(metrics_batch, key=lambda x: x["name"])
+
+    assert received_metrics == metrics
+
+
+def test_global_metrics_batching(mini_sentry, relay):
+    # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
+    MAX_FLUSH_SIZE = 200
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "http": {"global_metrics": True},
+            "limits": {"max_concurrent_requests": 1},  # deterministic submission order
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_flush_bytes": MAX_FLUSH_SIZE,
+            },
+        },
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T{timestamp}"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    batch1 = mini_sentry.captured_metrics.get(timeout=5)
+    batch2 = mini_sentry.captured_metrics.get(timeout=1)
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_metrics.get(timeout=1)
+
+    assert batch1[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [float(i) for i in range(1, 16)],
+            "type": "d",
+        }
+    ]
+
+    assert batch2[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [16.0, 17.0],
+            "type": "d",
+        }
+    ]
+
+
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
@@ -209,6 +441,57 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    assert metrics["headers"]["c:transactions/foo@none"] == [
+        ("namespace", b"transactions")
+    ]
+    assert metrics["c:transactions/foo@none"] == {
+        "org_id": 1,
+        "project_id": project_id,
+        "retention_days": 90,
+        "name": "c:transactions/foo@none",
+        "tags": {},
+        "value": 42.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+    assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
+    assert metrics["c:custom/bar@second"] == {
+        "org_id": 1,
+        "project_id": project_id,
+        "retention_days": 90,
+        "name": "c:custom/bar@second",
+        "tags": {},
+        "value": 17.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+
+def test_global_metrics_with_processing(
+    mini_sentry, relay, relay_with_processing, metrics_consumer
+):
+    # Set up a relay chain where the outer relay has global metrics enabled
+    # and forwards to a processing Relay.
+    processing_relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(
+        processing_relay, options={"http": {"global_metrics": True}, **TEST_CONFIG}
+    )
+
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:custom-metrics"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\nbar@second:17|c|T{timestamp}"
+    )
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -644,6 +927,7 @@ def test_transaction_metrics(
         config["transactionMetrics"] = {
             "version": 1,
         }
+        config.setdefault("features", []).append("projects:span-metrics-extraction")
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -689,7 +973,8 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -701,6 +986,8 @@ def test_transaction_metrics(
             "transaction.status": "unknown",
         },
     }
+
+    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
@@ -1067,7 +1354,6 @@ def test_transaction_name_too_long(
             assert metric["tags"]["transaction"] == expected_transaction_name
 
 
-@pytest.mark.skip(reason="flake")
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,
@@ -1075,8 +1361,9 @@ def test_graceful_shutdown(mini_sentry, relay):
             "limits": {"shutdown_timeout": 2},
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 10,
+                "initial_delay": 100,
                 "debounce_delay": 0,
+                "shift_key": "none",
             },
         },
     )
@@ -1088,17 +1375,17 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Backdated metric will be flushed immediately due to debounce delay
     past_timestamp = timestamp - 1000
-    metrics_payload = f"transactions/foo:42|c|T{past_timestamp}"
+    metrics_payload = f"transactions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     # Future timestamp will not be flushed regularly, only through force flush
     future_timestamp = timestamp + 30
-    metrics_payload = f"transactions/bar:17|c|T{future_timestamp}"
+    metrics_payload = f"transactions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
-    relay.shutdown(sig=signal.SIGTERM)
+    relay.process.send_signal(signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"transactions/zap:666|c|T{timestamp}"
+    metrics_payload = f"transactions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
@@ -1112,14 +1399,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "c:transactions/bar@none",
+            "name": "c:transactions/future@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "c:transactions/foo@none",
+            "name": "c:transactions/past@none",
             "value": 42.0,
             "type": "c",
         },
@@ -1221,6 +1508,7 @@ def test_span_metrics(
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
                 "type": "trace",
+                "op": "my-transaction-op",
             }
         },
         "spans": [
@@ -1257,13 +1545,16 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 3
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] == "c:spans/count_per_op@none":
+        if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
             continue
-        assert metric["tags"]["span.description"] == expected_description
-        assert metric["tags"]["span.group"] == expected_group
+
+        # Ignore transaction spans
+        if metric["tags"]["span.op"] != "my-transaction-op":
+            assert metric["tags"]["span.description"] == expected_description, metric
+            assert metric["tags"]["span.group"] == expected_group, metric
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
@@ -1356,7 +1647,7 @@ def test_span_metrics_secondary_aggregator(
             {
                 "description": "SELECT %s FROM foo",
                 "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
+                "parent_span_id": "FA90FDEAD5F74052",
                 "span_id": "bd429c44b67a3eb4",
                 "start_timestamp": 1597976393.4619668,
                 "timestamp": 1597976393.4718769,
@@ -1369,6 +1660,9 @@ def test_span_metrics_secondary_aggregator(
     transaction["timestamp"] = transaction["spans"][0][
         "timestamp"
     ] = timestamp.isoformat()
+    transaction["start_timestamp"] = (
+        timestamp - timedelta(milliseconds=126)
+    ).isoformat()
     transaction["spans"][0]["start_timestamp"] = (
         timestamp - timedelta(milliseconds=123)
     ).isoformat()
@@ -1409,6 +1703,7 @@ def test_span_metrics_secondary_aggregator(
         for metric, headers in metrics
         if metric["name"] == "d:spans/exclusive_time@millisecond"
     ]
+    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
     assert span_metrics == [
         (
             {
@@ -1426,6 +1721,19 @@ def test_span_metrics_secondary_aggregator(
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
                 "value": [123],
+            },
+            [("namespace", b"spans")],
+        ),
+        (
+            {
+                "name": "d:spans/exclusive_time@millisecond",
+                "org_id": 1,
+                "project_id": 42,
+                "retention_days": 90,
+                "tags": {"span.op": "default"},
+                "timestamp": int(timestamp.timestamp()),
+                "type": "d",
+                "value": [3],
             },
             [("namespace", b"spans")],
         ),
@@ -1448,3 +1756,300 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
 
     assert "c:transactions/foo@none" in metrics
     assert "c:custom/bar@second" not in metrics
+
+
+@pytest.mark.parametrize(
+    "denied_tag", ["sdk", "release"], ids=["remove sdk tag", "remove release tag"]
+)
+@pytest.mark.parametrize(
+    "denied_names", ["*user*", ""], ids=["deny user", "no denied names"]
+)
+def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    extra_config = {
+        "config": {
+            "sessionMetrics": {"version": 1},
+            "metrics": {
+                "deniedNames": [denied_names],
+                "deniedTags": [{"name": ["*"], "tags": [denied_tag]}],
+            },
+        }
+    }
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(hours=1)
+    session_payload = _session_payload(timestamp=timestamp, started=started)
+
+    relay.send_session(
+        project_id,
+        session_payload,
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(envelope.items) == 1
+    first_item = envelope.items[0]
+
+    second_envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(second_envelope.items) == 1
+    second_item = second_envelope.items[0]
+
+    if first_item.type == "session":
+        metrics_item = second_item
+    else:
+        metrics_item = first_item
+
+    assert metrics_item.type == "metric_buckets"
+
+    session_metrics = json.loads(metrics_item.get_bytes().decode())
+    session_metrics = sorted(session_metrics, key=lambda x: x["name"])
+
+    if denied_names == "*user*":
+        assert len(session_metrics) == 1
+        assert session_metrics[0]["name"] == "c:sessions/session@none"
+    elif denied_names == "":
+        assert len(session_metrics) == 2
+        assert session_metrics[0]["name"] == "c:sessions/session@none"
+        assert session_metrics[1]["name"] == "s:sessions/user@none"
+    else:
+        assert False, "add new else-branch if you add another denied name"
+
+    if denied_tag == "sdk":
+        assert session_metrics[0]["tags"] == {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+            "session.status": "init",
+        }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "environment": "production",
+                "release": "sentry-test@1.0.0",
+            }
+    elif denied_tag == "release":
+        assert session_metrics[0]["tags"] == {
+            "sdk": "raven-node/2.6.3",
+            "environment": "production",
+            "session.status": "init",
+        }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "sdk": "raven-node/2.6.3",
+                "environment": "production",
+            }
+    else:
+        assert False, "add new else-branch if you add another denied tag"
+
+
+@pytest.mark.parametrize("is_processing_relay", (False, True))
+@pytest.mark.parametrize(
+    "global_generic_filters",
+    [
+        # Config is broken
+        {
+            "version": "Halp! I'm broken!",
+            "filters": [],
+        },
+        # Config is valid, but filters aren't supported
+        {
+            "version": 65535,
+            "filters": [],
+        },
+    ],
+)
+def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filters(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+    is_processing_relay,
+    global_generic_filters,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    mini_sentry.global_config["filters"] = global_generic_filters
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    if is_processing_relay:
+        relay = relay_with_processing(
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            }
+        )
+    else:
+        relay = relay(
+            mini_sentry,
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            },
+        )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    if is_processing_relay:
+        tx, _ = tx_consumer.get_event()
+        assert tx is not None
+        # Processing Relays extract metrics even on broken global filters.
+        assert metrics_consumer.get_metrics(timeout=2)
+    else:
+        assert mini_sentry.captured_events.get(timeout=2) is not None
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_metrics.get(timeout=2)
+
+
+@pytest.mark.parametrize("is_processing_relay", (False, True))
+def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project_filters(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+    is_processing_relay,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["filterSettings"] = {
+        "generic": {
+            "version": 65535,  # u16::MAX
+            "filters": [],
+        }
+    }
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    if is_processing_relay:
+        relay = relay_with_processing(
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            }
+        )
+    else:
+        relay = relay(
+            mini_sentry,
+            options={
+                "aggregator": {
+                    "bucket_interval": 1,
+                    "initial_delay": 0,
+                    "debounce_delay": 0,
+                    "shift_key": "none",
+                }
+            },
+        )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    if is_processing_relay:
+        tx, _ = tx_consumer.get_event()
+        assert tx is not None
+        # Processing Relays extract metrics even on unsupported project filters.
+        assert metrics_consumer.get_metrics(timeout=2)
+    else:
+        assert mini_sentry.captured_events.get(timeout=2)
+        with pytest.raises(queue.Empty):
+            mini_sentry.captured_metrics.get(timeout=2)
+
+
+def test_missing_global_filters_enables_metric_extraction(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    metrics_consumer,
+):
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    mini_sentry.global_config.pop("filters")
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            }
+        }
+    )
+
+    transaction = generate_transaction_item()
+    relay.send_transaction(project_id, transaction)
+
+    tx, _ = tx_consumer.get_event()
+    assert tx is not None
+    assert metrics_consumer.get_metrics()
+
+
+def test_profiles_metrics(mini_sentry, relay):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
+
+    relay.send_metrics(project_id, metrics_payload)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+
+    metrics_item = envelope.items[0]
+    assert metrics_item.type == "metric_buckets"
+
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:profiles/bar@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:profiles/foo@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]

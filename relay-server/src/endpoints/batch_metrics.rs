@@ -1,11 +1,10 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use relay_config::EmitOutcomes;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::processor::ProcessBatchedMetrics;
 use crate::extractors::{SignedBytes, StartTime};
 use crate::service::ServiceState;
+use crate::services::processor::ProcessBatchedMetrics;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SendMetricsResponse {}
@@ -15,12 +14,13 @@ pub async fn handle(
     start_time: StartTime,
     body: SignedBytes,
 ) -> impl IntoResponse {
-    if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
+    if !body.relay.internal {
         return StatusCode::FORBIDDEN.into_response();
     }
 
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
+        keep_metadata: body.relay.internal,
         start_time: start_time.into_inner(),
         sent_at: None,
     });

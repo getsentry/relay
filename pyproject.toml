@@ -23,5 +23,6 @@ module = [
     "confluent_kafka.*",
     "msgpack.*",
     "pytest_localserver.*",
+    "opentelemetry.*"
 ]
 ignore_missing_imports = true

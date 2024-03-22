@@ -1,3 +1,5 @@
+//! Computation and normalization of contexts from event data.
+
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
@@ -160,7 +162,9 @@ fn get_windows_version(description: &str) -> Option<(&str, &str)> {
 }
 
 #[allow(dead_code)]
-// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
+/// Returns the API version of an Android description.
+///
+/// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
 pub fn get_android_api_version(description: &str) -> Option<&str> {
     if let Some(captures) = OS_ANDROID_REGEX.captures(description) {
         captures.name("api").map(|m| m.as_str())
@@ -270,6 +274,7 @@ fn normalize_response(response: &mut ResponseContext) {
     }
 }
 
+/// Normalizes the given context.
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
