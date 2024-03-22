@@ -245,7 +245,7 @@ jobs:
 
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
-            --output type=docker
+            --output type=docker \
             --tag "${DOCKER_IMAGE}" \
             --file Dockerfile.release .
 
