@@ -154,8 +154,6 @@ pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size
     event.spans = spans;
 }
 
-trait SpanIter<'a>: Iterator<Item = &'a mut Span> + std::clone::Clone {}
-
 /// Extracts tags and measurements from event and spans and materializes them.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
@@ -600,10 +598,10 @@ pub fn extract_measurements(span: &mut Span) {
 /// Finds first matching span and get its timestamp.
 ///
 /// Used to get time-to-initial/full-display times.
-fn timestamp_by_op(spans: &mut [Annotated<Span>], op: &str) -> Option<Timestamp> {
+fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
     spans
-        .iter_mut()
-        .filter_map(|a| a.value_mut().as_mut())
+        .iter()
+        .filter_map(Annotated::value)
         .find(|span| span.op.as_str() == Some(op))
         .and_then(|span| span.timestamp.value().copied())
 }
