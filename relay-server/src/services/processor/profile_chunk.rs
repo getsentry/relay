@@ -1,12 +1,17 @@
 //! Profile chunks processor code.
 use relay_dynamic_config::Feature;
 
-use relay_config::Config;
-
-use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, ProfileChunkGroup};
+use crate::envelope::ItemType;
+use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
+
+#[cfg(feature = "processing")]
+use {
+    crate::envelope::ContentType,
+    crate::services::outcome::{DiscardReason, Outcome},
+    crate::services::processor::ProfileChunkGroup,
+    relay_config::Config,
+};
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
