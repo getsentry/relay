@@ -3,7 +3,6 @@
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
-use relay_protocol::Annotated;
 
 use crate::services::processor::SpanGroup;
 use crate::{envelope::ItemType, services::processor::ProcessEnvelopeState, utils::ItemAction};
@@ -34,7 +33,7 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 pub fn extract_transaction_span(event: &Event, max_tag_value_size: usize) -> Span {
     let mut spans = [Span::from(event).into()];
 
-    tag_extraction::extract_span_tags(&event, &mut spans, max_tag_value_size);
+    tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size);
 
-    spans[0]
+    spans.into_iter().next().unwrap().into_value().unwrap() // TODO
 }

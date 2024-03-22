@@ -145,11 +145,13 @@ impl std::fmt::Display for RenderBlockingStatus {
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
 pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize) {
-    let spans = &mut event.spans;
+    let mut spans = std::mem::take(&mut event.spans);
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
     extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size);
+
+    event.spans = spans;
 }
 
 trait SpanIter<'a>: Iterator<Item = &'a mut Span> + std::clone::Clone {}
@@ -157,11 +159,7 @@ trait SpanIter<'a>: Iterator<Item = &'a mut Span> + std::clone::Clone {}
 /// Extracts tags and measurements from event and spans and materializes them.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub fn extract_span_tags<'a>(
-    event: &Event,
-    spans: &mut [Annotated<Span>],
-    max_tag_value_size: usize,
-) {
+pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);

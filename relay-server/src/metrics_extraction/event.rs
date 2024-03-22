@@ -44,11 +44,15 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
+pub fn extract_metrics(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let transaction_span = extract_transaction_span(event, todo!());
+        let transaction_span = extract_transaction_span(event, max_tag_value_size);
         metrics.extend(generic::extract_metrics(&transaction_span, config));
 
         if let Some(spans) = event.spans.value() {
@@ -1010,7 +1014,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1145,7 +1149,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1206,7 +1210,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1242,7 +1246,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1471,7 +1475,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
         assert_eq!(metrics.len(), 2);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
