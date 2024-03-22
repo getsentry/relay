@@ -13,6 +13,6 @@ publish = false
 workspace = true
 
 [dependencies]
-relay-log = { path = "../relay-log", features = ["test"] }
-relay-system = { path = "../relay-system" }
+relay-log = { workspace = true, features = ["test"] }
+relay-system = { workspace = true }
 tokio = { workspace = true }

@@ -14,13 +14,13 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
-globset = "0.4.5"
-lru = "0.9.0"
+globset = { workspace = true }
+lru = { workspace = true }
 once_cell = { workspace = true }
-parking_lot = "0.12.1"
+parking_lot = { workspace = true }
 regex = { workspace = true }
-sentry-types = "0.31.3"
+sentry-types = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-serde_test = "1.0.125"
+serde_test = { workspace = true }
