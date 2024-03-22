@@ -19,12 +19,8 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         .project_state
         .has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::ProfileChunk => {
-            if continuous_profiling_enabled {
-                ItemAction::Keep
-            } else {
-                ItemAction::DropSilently
-            }
+        ItemType::ProfileChunk if !continuous_profiling_enabled {
+            ItemAction::DropSilently
         }
         _ => ItemAction::Keep,
     });
