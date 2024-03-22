@@ -428,9 +428,9 @@
 <a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Serializable glob patterns for the API.
 
-</span><span class="kw">use </span>std::{fmt, str};
+</span><span class="kw">use </span>std::sync::OnceLock;
+<span class="kw">use </span>std::{fmt, str};
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 
 <span class="doccomment">/// Glob options represent the underlying regex emulating the globs.
@@ -494,7 +494,7 @@
 
         pattern.push(<span class="string">'^'</span>);
 
-        <span class="kw">static </span>GLOB_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+        <span class="kw">static </span>GLOB_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
         <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*"</span>).unwrap());
 
         <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(<span class="self">self</span>.value) {
@@ -674,7 +674,7 @@
 </span><span class="attr">#[derive(Clone, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>LazyGlob {
     raw: String,
-    glob: OnceCell&lt;Glob&gt;,
+    glob: OnceLock&lt;Glob&gt;,
 }
 
 <span class="kw">impl </span>LazyGlob {
@@ -682,7 +682,7 @@
     </span><span class="kw">pub fn </span>new(raw: String) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             raw,
-            glob: OnceCell::new(),
+            glob: OnceLock::new(),
         }
     }
 

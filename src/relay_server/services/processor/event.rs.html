@@ -937,9 +937,9 @@
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::OnceLock;
 
 <span class="kw">use </span>chrono::Duration <span class="kw">as </span>SignedDuration;
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
@@ -1091,7 +1091,7 @@
     };
 
     <span class="kw">if </span>!config.processing_enabled() {
-        <span class="kw">static </span>MY_VERSION_STRING: OnceCell&lt;String&gt; = OnceCell::new();
+        <span class="kw">static </span>MY_VERSION_STRING: OnceLock&lt;String&gt; = OnceLock::new();
         <span class="kw">let </span>my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
         event

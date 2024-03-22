@@ -3241,8 +3241,8 @@
 
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
+<span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
@@ -3898,7 +3898,7 @@
 }
 
 <span class="kw">fn </span>normalize_exception(exception: <span class="kw-2">&amp;mut </span>Annotated&lt;Exception&gt;) {
-    <span class="kw">static </span>TYPE_VALUE_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+    <span class="kw">static </span>TYPE_VALUE_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
     <span class="kw">let </span>regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(<span class="string">r"^(\w+):(.*)$"</span>).unwrap());
 
     <span class="kw">let _ </span>= processor::apply(exception, |exception, meta| {

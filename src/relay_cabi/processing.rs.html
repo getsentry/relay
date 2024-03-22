@@ -434,8 +434,8 @@
 <span class="kw">use </span>std::ffi::CStr;
 <span class="kw">use </span>std::os::raw::c_char;
 <span class="kw">use </span>std::slice;
+<span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_common::glob::{glob_match_bytes, GlobOptions};
 <span class="kw">use </span>relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::{
@@ -496,7 +496,7 @@
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
 </span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_valid_platforms(size_out: <span class="kw-2">*mut </span>usize) -&gt; <span class="kw-2">*const </span>RelayStr {
-    <span class="kw">static </span>VALID_PLATFORM_STRS: OnceCell&lt;Vec&lt;RelayStr&gt;&gt; = OnceCell::new();
+    <span class="kw">static </span>VALID_PLATFORM_STRS: OnceLock&lt;Vec&lt;RelayStr&gt;&gt; = OnceLock::new();
     <span class="kw">let </span>platforms = VALID_PLATFORM_STRS
         .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
 

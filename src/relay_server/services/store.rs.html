@@ -1914,18 +1914,16 @@
 <a href="#1912" id="1912">1912</a>
 <a href="#1913" id="1913">1913</a>
 <a href="#1914" id="1914">1914</a>
-<a href="#1915" id="1915">1915</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::sync::{Arc, OnceLock};
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::{instant_to_date_time, UnixTimestamp};
@@ -1972,7 +1970,7 @@
 }
 
 <span class="kw">fn </span>make_distinct_id(s: <span class="kw-2">&amp;</span>str) -&gt; Uuid {
-    <span class="kw">static </span>NAMESPACE: OnceCell&lt;Uuid&gt; = OnceCell::new();
+    <span class="kw">static </span>NAMESPACE: OnceLock&lt;Uuid&gt; = OnceLock::new();
     <span class="kw">let </span>namespace =
         NAMESPACE.get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b"https://sentry.io/#did"</span>));
 

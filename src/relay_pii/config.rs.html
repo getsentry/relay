@@ -278,8 +278,8 @@
 <a href="#276" id="276">276</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::{Regex, RegexBuilder};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -309,7 +309,7 @@
 </span><span class="kw">pub struct </span>LazyPattern {
     raw: Cow&lt;<span class="lifetime">'static</span>, str&gt;,
     case_insensitive: bool,
-    pattern: OnceCell&lt;<span class="prelude-ty">Result</span>&lt;Regex, PiiConfigError&gt;&gt;,
+    pattern: OnceLock&lt;<span class="prelude-ty">Result</span>&lt;Regex, PiiConfigError&gt;&gt;,
 }
 
 <span class="kw">impl </span>PartialEq <span class="kw">for </span>LazyPattern {
@@ -327,7 +327,7 @@
         <span class="self">Self </span>{
             raw: raw.into(),
             case_insensitive: <span class="bool-val">false</span>,
-            pattern: OnceCell::new(),
+            pattern: OnceLock::new(),
         }
     }
 
@@ -519,7 +519,7 @@
     ///
     /// Cached because the conversion process is expensive.
     </span><span class="attr">#[serde(skip)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) compiled: OnceCell&lt;CompiledPiiConfig&gt;,
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) compiled: OnceLock&lt;CompiledPiiConfig&gt;,
 }
 
 <span class="kw">impl </span>PartialEq <span class="kw">for </span>PiiConfig {

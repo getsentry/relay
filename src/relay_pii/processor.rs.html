@@ -1606,8 +1606,8 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::mem;
+<span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_event_schema::processor::{
     <span class="self">self</span>, enum_set, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
@@ -1979,7 +1979,7 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">static </span>NULL_SPLIT_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+        <span class="kw">static </span>NULL_SPLIT_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
         <span class="kw">let </span>regex = NULL_SPLIT_RE.get_or_init(|| {
             <span class="attr">#[allow(clippy::trivial_regex)]
             </span>Regex::new(<span class="string">"\x00"</span>).unwrap()

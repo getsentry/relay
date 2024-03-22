@@ -381,6 +381,7 @@
 <a href="#379" id="379">379</a>
 <a href="#380" id="380">380</a>
 <a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -399,7 +400,8 @@
 </span>)]
 #![warn(missing_docs)]
 
-</span><span class="kw">use </span>once_cell::sync::OnceCell;
+</span><span class="kw">use </span>std::sync::OnceLock;
+
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>uuid::Uuid;
@@ -584,7 +586,7 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessCheckInError::InvalidEnvironment);
     }
 
-    <span class="kw">static </span>NAMESPACE: OnceCell&lt;Uuid&gt; = OnceCell::new();
+    <span class="kw">static </span>NAMESPACE: OnceLock&lt;Uuid&gt; = OnceLock::new();
     <span class="kw">let </span>namespace = NAMESPACE
         .get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b"https://sentry.io/crons/#did"</span>));
 

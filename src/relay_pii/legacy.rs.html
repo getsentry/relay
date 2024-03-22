@@ -80,12 +80,17 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Legacy datascrubbing coniguration
 //!
 //! All these configuration options are ignored by the new data scrubbers which operate
 //! solely from the [PiiConfig] rules for the project.
 
-</span><span class="kw">use </span>once_cell::sync::OnceCell;
+</span><span class="kw">use </span>std::sync::OnceLock;
+
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{PiiConfig, PiiConfigError};
@@ -117,19 +122,22 @@
     /// because we want the conversion to run on the processing sync arbiter, so that it does not
     /// slow down or even crash other parts of the system.
     </span><span class="attr">#[serde(skip)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) pii_config: OnceCell&lt;<span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;PiiConfig&gt;, PiiConfigError&gt;&gt;,
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) pii_config: OnceLock&lt;<span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;PiiConfig&gt;, PiiConfigError&gt;&gt;,
 }
 
 <span class="kw">impl </span>DataScrubbingConfig {
     <span class="doccomment">/// Creates a new data scrubbing configuration that does nothing on the event.
     </span><span class="kw">pub fn </span>new_disabled() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>pii_config = OnceLock::new();
+        <span class="kw">let _ </span>= pii_config.set(<span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>));
+
         DataScrubbingConfig {
             exclude_fields: <span class="macro">vec!</span>[],
             scrub_data: <span class="bool-val">false</span>,
             scrub_ip_addresses: <span class="bool-val">false</span>,
             sensitive_fields: <span class="macro">vec!</span>[],
             scrub_defaults: <span class="bool-val">false</span>,
-            pii_config: OnceCell::with_value(<span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)),
+            pii_config,
         }
     }
 

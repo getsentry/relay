@@ -90,7 +90,7 @@
 <span class="kw">use </span>gloo_net::websocket::{futures::WebSocket, Message};
 <span class="kw">use </span>yew::platform::time::sleep;
 
-<span class="kw">static </span>RELAY_URL: once_cell::sync::OnceCell&lt;String&gt; = once_cell::sync::OnceCell::new();
+<span class="kw">static </span>RELAY_URL: std::sync::OnceLock&lt;String&gt; = std::sync::OnceLock::new();
 
 <span class="doccomment">/// Returns the origin location from the browser window.
 ///

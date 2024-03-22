@@ -1105,8 +1105,8 @@
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt::Write;
+<span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_event_schema::protocol::{
     BrowserContext, Context, Contexts, DefaultContext, DeviceContext, Event, HeaderName,
@@ -1468,7 +1468,7 @@
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">static </span>UA_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+        <span class="kw">static </span>UA_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
         <span class="kw">let </span>regex = UA_RE.get_or_init(|| Regex::new(<span class="string">r#""([^"]*)";v="([^"]*)""#</span>).unwrap());
 
         <span class="kw">let </span>captures = regex.captures(item)<span class="question-mark">?</span>;
