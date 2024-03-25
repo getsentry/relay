@@ -9,7 +9,10 @@ use crate::{
     CardinalityLimit,
 };
 
-/// Internal state combining relevant entries for the respective quota.
+/// Internal state combining relevant entries for the respective quotas.
+///
+/// Also tracks amount of cache hits and misses as well as amount of
+/// items accepted and rejected. These metrics are reported via statsd on drop.
 pub struct LimitState<'a> {
     /// The limit of the quota.
     pub limit: u64,
@@ -36,6 +39,9 @@ pub struct LimitState<'a> {
 }
 
 impl<'a> LimitState<'a> {
+    /// Creates a new limit state from a [`Scoping`] and [`CardinalityLimit`].
+    ///
+    /// Returns `None` if the cardinality limit scope is [`Unknown`](crate::CardinalityScope::Unknown).
     pub fn new(scoping: Scoping, cardinality_limit: &'a CardinalityLimit) -> Option<Self> {
         Some(Self {
             scope: PartialQuotaScoping::new(scoping, cardinality_limit)?,
@@ -50,6 +56,9 @@ impl<'a> LimitState<'a> {
         })
     }
 
+    /// Converts a list of limits with the same scope to a vector of limit states.
+    ///
+    /// All invalid/unknown limits are skipped, see also [Self::new].
     pub fn from_limits(scoping: Scoping, limits: &'a [CardinalityLimit]) -> Vec<Self> {
         limits
             .iter()
@@ -57,6 +66,7 @@ impl<'a> LimitState<'a> {
             .collect::<Vec<_>>()
     }
 
+    /// Returns a [`QuotaScoping`] if the `entry` matches the limit contained in the state.
     pub fn matches(&self, entry: Entry) -> Option<QuotaScoping> {
         if self.scope.matches(&entry) {
             Some(self.scope.full(entry))
@@ -65,34 +75,44 @@ impl<'a> LimitState<'a> {
         }
     }
 
+    /// Adds an entry to the state.
+    ///
+    /// The `scope` must be extracted from the state with [`Self::matches`] first.
     pub fn add(&mut self, scope: QuotaScoping, entry: RedisEntry) {
         self.sub_scopes.entry(scope).or_default().push(entry)
     }
 
+    /// Returns the underlying cardinality limit id.
     pub fn id(&self) -> &'a str {
         &self.cardinality_limit.id
     }
 
+    /// Returns the underlying cardinality limit.
     pub fn cardinality_limit(&self) -> &'a CardinalityLimit {
         self.cardinality_limit
     }
 
+    /// Removes all contained scopes and entries and returns them.
     pub fn take_scopes(&mut self) -> impl Iterator<Item = (QuotaScoping, Vec<RedisEntry>)> {
         std::mem::take(&mut self.sub_scopes).into_iter()
     }
 
+    /// Increases the cache hit counter.
     pub fn cache_hit(&mut self) {
         self.cache_hits += 1;
     }
 
+    /// Increases the cache miss counter.
     pub fn cache_miss(&mut self) {
         self.cache_misses += 1;
     }
 
+    /// Increases the accepted counter.
     pub fn accepted(&mut self) {
         self.accepts += 1;
     }
 
+    /// Increases the rejected counter.
     pub fn rejected(&mut self) {
         self.rejections += 1;
     }
