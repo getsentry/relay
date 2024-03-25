@@ -1867,6 +1867,7 @@
 <a href="#1865" id="1865">1865</a>
 <a href="#1866" id="1866">1866</a>
 <a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -3116,6 +3117,7 @@
     </span>name: String,
 
     <span class="doccomment">/// Content type of the attachment payload.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// The Sentry-internal attachment type used in the processing pipeline.

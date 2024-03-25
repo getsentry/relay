@@ -295,6 +295,9 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 
 <span class="kw">use </span>axum::extract::multipart::{Field, Multipart};
@@ -481,12 +484,15 @@
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
-            <span class="kw">let </span>content_type = <span class="kw">match </span>field.content_type() {
-                <span class="prelude-val">Some</span>(string) =&gt; string.into(),
-                <span class="prelude-val">None </span>=&gt; ContentType::OctetStream,
-            };
             <span class="comment">// Extract the body after the immutable borrow on `file_name` is gone.
-            </span>item.set_payload(content_type, field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>);
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(content_type) = field.content_type() {
+                item.set_payload(
+                    content_type.into(),
+                    field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>,
+                );
+            } <span class="kw">else </span>{
+                item.set_payload_without_content_type(field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>);
+            }
             items.push(item);
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(field_name) = field.name().map(str::to_owned) {
             <span class="kw">let </span>data = field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>;
