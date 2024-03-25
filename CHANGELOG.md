@@ -17,6 +17,7 @@
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
 - Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
+- Stop producing to sessions topic, the feature is now fully migrated to metrics. ([#3271](https://github.com/getsentry/relay/pull/3271))
 
 
 ## 24.3.0
