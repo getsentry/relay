@@ -71,5 +71,5 @@ impl ProducerContext for Context {
 }
 
 /// The wrapper type around the kafka [`rdkafka::producer::ThreadedProducer`] with our own
-/// [`CaptureErrorContext`] context.
+/// [`Context`].
 pub type ThreadedProducer = rdkafka::producer::ThreadedProducer<Context>;
