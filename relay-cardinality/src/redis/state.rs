@@ -93,8 +93,8 @@ impl<'a> LimitState<'a> {
     }
 
     /// Removes all contained scopes and entries and returns them.
-    pub fn take_scopes(&mut self) -> impl Iterator<Item = (QuotaScoping, Vec<RedisEntry>)> {
-        std::mem::take(&mut self.scopes).into_iter()
+    pub fn take_scopes(&mut self) -> BTreeMap<QuotaScoping, Vec<RedisEntry>> {
+        std::mem::take(&mut self.scopes)
     }
 
     /// Increases the cache hit counter.

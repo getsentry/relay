@@ -8,10 +8,10 @@ use crate::{
     redis::{
         cache::{Cache, CacheOutcome},
         quota::QuotaScoping,
-        script::{CardinalityScript, Status},
+        script::{CardinalityScript, CardinalityScriptResult, Status},
         state::{LimitState, RedisEntry},
     },
-    statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
+    statsd::{CardinalityLimiterGauges, CardinalityLimiterTimers},
     CardinalityLimit, Result,
 };
 use relay_common::time::UnixTimestamp;
@@ -55,39 +55,48 @@ impl RedisSetLimiter {
     /// Returns an iterator over all entries which have been accepted.
     fn check_limits(
         &self,
-        con: &mut Connection,
-        state: &LimitState<'_>,
-        scope: QuotaScoping,
-        entries: Vec<RedisEntry>,
+        connection: &mut Connection<'_>,
+        state: &mut LimitState<'_>,
         timestamp: UnixTimestamp,
-    ) -> Result<CheckedLimits> {
+    ) -> Result<Vec<CheckedLimits>> {
         let limit = state.limit;
 
+        let scopes = state.take_scopes();
+
+        let mut num_hashes: u64 = 0;
+
+        let mut pipeline = self.script.pipe();
+        for (scope, entries) in &scopes {
+            let keys = scope
+                .slots(timestamp)
+                .map(|slot| scope.into_redis_key(slot));
+
+            let hashes = entries.iter().map(|entry| entry.hash);
+            num_hashes += hashes.len() as u64;
+
+            // The expiry is a off by `window.granularity_seconds`,
+            // but since this is only used for cleanup, this is not an issue.
+            pipeline.add_invocation(limit, scope.redis_key_ttl(), hashes, keys);
+        }
+
         metric!(
-            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
+            gauge(CardinalityLimiterGauges::RedisCheckHashes) = num_hashes,
             id = state.id(),
         );
 
-        let keys = scope
-            .slots(timestamp)
-            .map(|slot| scope.into_redis_key(slot));
-        let hashes = entries.iter().map(|entry| entry.hash);
+        let results = pipeline.invoke(connection)?;
 
-        // The expiry is a off by `window.granularity_seconds`,
-        // but since this is only used for cleanup, this is not an issue.
-        let result = self
-            .script
-            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)?;
-
-        metric!(
-            histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            id = state.id(),
-        );
-
-        Ok(CheckedLimits {
-            entries,
-            statuses: result.statuses,
-        })
+        scopes
+            .into_iter()
+            .zip(results)
+            .inspect(|(_, result)| {
+                metric!(
+                    gauge(CardinalityLimiterGauges::RedisSetCardinality) = result.cardinality,
+                    id = state.id(),
+                );
+            })
+            .map(|((scope, entries), result)| CheckedLimits::new(scope, entries, result))
+            .collect()
     }
 }
 
@@ -145,16 +154,16 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for mut state in states {
-            for (scope, entries) in state.take_scopes() {
-                let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
-                    self.check_limits(&mut connection, &state, scope, entries, timestamp)
-                })?;
+            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
+                self.check_limits(&mut connection, &mut state, timestamp)
+            })?;
 
+            for result in results {
                 // This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
                 // -> there is a very high chance we actually need the lock.
-                let mut cache = self.cache.update(scope, timestamp); // Acquire a write lock.
-                for (entry, status) in results {
+                let mut cache = self.cache.update(result.scope, timestamp); // Acquire a write lock.
+                for (entry, status) in result {
                     if status.is_rejected() {
                         rejections.reject(state.cardinality_limit(), entry.id);
                         state.rejected();
@@ -172,8 +181,25 @@ impl Limiter for RedisSetLimiter {
 }
 
 struct CheckedLimits {
+    scope: QuotaScoping,
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
+}
+
+impl CheckedLimits {
+    fn new(
+        scope: QuotaScoping,
+        entries: Vec<RedisEntry>,
+        result: CardinalityScriptResult,
+    ) -> Result<Self> {
+        result.validate(entries.len())?;
+
+        Ok(Self {
+            scope,
+            entries,
+            statuses: result.statuses,
+        })
+    }
 }
 
 impl IntoIterator for CheckedLimits {
