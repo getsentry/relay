@@ -374,7 +374,7 @@ pub fn parse_sample_profile(
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
         if let Some(ref mut transaction) = profile.metadata.transaction {
-            transaction.name = transaction_name.to_owned();
+            transaction_name.clone_into(&mut transaction.name)
         }
     }
 
@@ -386,11 +386,11 @@ pub fn parse_sample_profile(
     }
 
     if let Some(dist) = transaction_metadata.get("dist") {
-        profile.metadata.dist = dist.to_owned();
+        dist.clone_into(&mut profile.metadata.dist);
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.metadata.environment = environment.to_owned();
+        environment.clone_into(&mut profile.metadata.environment);
     }
 
     if let Some(segment_id) = transaction_metadata.get("segment_id") {
@@ -407,8 +407,6 @@ pub fn parse_sample_profile(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::SpanId;
-
     use super::*;
     use std::time::Duration;
 

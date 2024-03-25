@@ -136,10 +136,7 @@ pub fn compute_span_exclusive_time(event: &mut Event) {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use relay_event_schema::protocol::{
-        Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
-    };
-    use relay_protocol::Annotated;
+    use relay_event_schema::protocol::{EventType, Timestamp, TraceId};
     use similar_asserts::assert_eq;
 
     use super::*;

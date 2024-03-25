@@ -336,7 +336,7 @@ pub fn normalize_ip_addresses(
         if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
                 if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
+                    client_ip.clone_into(user_ip)
                 }
             }
         }
@@ -1103,18 +1103,12 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
-    use relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
-        Request, Tags, Values,
-    };
-    use relay_protocol::{get_value, Annotated, SerializableAnnotated};
+    use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
+    use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
-    use crate::{
-        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-        RawUserAgentInfo,
-    };
+    use crate::{ClientHints, MeasurementsConfig};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {

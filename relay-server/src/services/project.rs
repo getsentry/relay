@@ -1256,7 +1256,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
 
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;

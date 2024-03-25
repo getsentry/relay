@@ -1,5 +1,3 @@
-use std::iter::{FromIterator, IntoIterator};
-
 use cookie::Cookie;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;

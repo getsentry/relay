@@ -169,7 +169,7 @@ fn main() {
 mod tests {
     use path_slash::PathBufExt;
 
-    use crate::item_collector::{AstItemCollector, TypesAndScopedPaths};
+    use crate::item_collector::TypesAndScopedPaths;
 
     use super::*;
 
