@@ -533,7 +533,7 @@ impl StoreService {
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
             }
-            KafkaMessage::Span(span) => {
+            KafkaMessage::Span { message: span, .. } => {
                 let is_segment = span.is_segment;
                 let has_parent = span.parent_span_id.is_some();
                 let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
@@ -913,7 +913,13 @@ impl StoreService {
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
-            KafkaMessage::Span(span),
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
         )?;
 
         self.outcome_aggregator.send(TrackOutcome {
@@ -1422,7 +1428,12 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage<'a>),
+    Span {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanKafkaMessage<'a>,
+    },
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
     Cogs(CogsKafkaMessage),
 }
@@ -1439,7 +1450,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Span(_) => "span",
+            KafkaMessage::Span { .. } => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
             KafkaMessage::Cogs(_) => "cogs",
         }
@@ -1463,7 +1474,7 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_)
+            | Self::Span { .. }
             | Self::MetricsSummary(_)
             | Self::Cogs(_) => Uuid::nil(),
 
@@ -1492,6 +1503,12 @@ impl Message for KafkaMessage<'_> {
                 }
                 None
             }
+            KafkaMessage::Span { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
+            }
             _ => None,
         }
     }
@@ -1505,7 +1522,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span(message) => serde_json::to_vec(message)
+            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)
