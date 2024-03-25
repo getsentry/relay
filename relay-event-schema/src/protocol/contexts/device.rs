@@ -216,7 +216,6 @@ impl super::DefaultContext for DeviceContext {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Annotated, Object, Value};
     use uuid::uuid;
 
     use super::*;

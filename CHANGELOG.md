@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-**Features**
+**Features**:
 
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
@@ -16,6 +16,7 @@
 - Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
+- Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
 - Stop producing to sessions topic, the feature is now fully migrated to metrics. ([#3271](https://github.com/getsentry/relay/pull/3271))
 
 
@@ -45,6 +46,7 @@
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 - Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
 - Don't run validation on renormalization, and don't normalize spans from librelay calls. ([#3214](https://github.com/getsentry/relay/pull/3214))
+- Pass on multipart attachments without content type. ([#3225](https://github.com/getsentry/relay/pull/3225))
 
 **Internal**:
 

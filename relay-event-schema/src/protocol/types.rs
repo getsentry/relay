@@ -1,7 +1,6 @@
 //! Common types of the protocol.
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 use std::{fmt, net};

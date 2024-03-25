@@ -1,6 +1,5 @@
 //! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
-use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 

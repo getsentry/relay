@@ -4,7 +4,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
-use std::iter::FromIterator;
 use std::time::Duration;
 use std::{fmt, mem};
 

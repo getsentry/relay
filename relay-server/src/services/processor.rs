@@ -1140,7 +1140,14 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
+                let metrics = crate::metrics_extraction::event::extract_metrics(
+                    event,
+                    config,
+                    self.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Spans)
+                        .max_tag_value_length,
+                );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -1357,7 +1364,7 @@ impl EnvelopeProcessorService {
                 if state.has_event() {
                     event::scrub(state)?;
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(state);
+                        span::extract_from_event(state, &self.inner.config);
                     });
                 }
 
@@ -2821,21 +2828,16 @@ impl<'a> IntoIterator for DynamicQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use std::env;
 
-    use chrono::{DateTime, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
-    use relay_event_normalization::{
-        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
-    };
-    use relay_event_schema::protocol::{EventId, TransactionSource};
+    use relay_event_normalization::{RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
-    use crate::extractors::RequestMeta;
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
@@ -2846,7 +2848,7 @@ mod tests {
     use {
         relay_dynamic_config::Options,
         relay_metrics::BucketValue,
-        relay_quotas::{Quota, QuotaScope, ReasonCode},
+        relay_quotas::{QuotaScope, ReasonCode},
         relay_test::mock_service,
     };
 

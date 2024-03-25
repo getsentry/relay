@@ -122,7 +122,11 @@ impl<'a> PiiFinder<'a> {
                 // return to this function after the match statement, we can set them back.
                 let current_type = self.current_type.clone();
                 let module_path = self.module_path.clone();
-                self.module_path = use_path.rsplit_once("::").unwrap().0.to_owned();
+                use_path
+                    .rsplit_once("::")
+                    .unwrap()
+                    .0
+                    .clone_into(&mut self.module_path);
 
                 match enum_or_struct {
                     EnumOrStruct::Struct(itemstruct) => self.visit_item_struct(&itemstruct),

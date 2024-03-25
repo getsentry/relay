@@ -4,7 +4,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
-    MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
@@ -16,7 +16,7 @@ use relay_protocol::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::StoreConfig;
+use crate::{MaxChars, StoreConfig};
 
 pub mod breakdowns;
 pub mod contexts;
@@ -530,7 +530,7 @@ mod tests {
         Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,
+        assert_annotated_snapshot, get_path, get_value, ErrorKind, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;

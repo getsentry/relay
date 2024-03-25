@@ -1059,6 +1059,7 @@ struct ChunkedAttachment {
     name: String,
 
     /// Content type of the attachment payload.
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<String>,
 
     /// The Sentry-internal attachment type used in the processing pipeline.
@@ -1157,53 +1158,6 @@ struct AttachmentKafkaMessage {
     project_id: ProjectId,
     /// The attachment.
     attachment: ChunkedAttachment,
-}
-
-/// Container payload for chunks of attachments.
-#[derive(Debug, Serialize)]
-struct ReplayRecordingChunkKafkaMessage {
-    /// Chunk payload of the replay recording.
-    payload: Bytes,
-    /// The replay id.
-    replay_id: EventId,
-    /// The project id for the current replay.
-    project_id: ProjectId,
-    /// The recording ID within the replay.
-    id: String,
-    /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
-    /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
-    chunk_index: usize,
-}
-#[derive(Debug, Serialize)]
-struct ReplayRecordingChunkMeta {
-    /// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    id: String,
-
-    /// Number of chunks. Must be greater than zero.
-    chunks: usize,
-
-    /// The size of the attachment in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-struct ReplayRecordingKafkaMessage {
-    replay_id: EventId,
-    /// The key_id for the current recording.
-    key_id: Option<u64>,
-    /// The org id for the current recording.
-    org_id: u64,
-    /// The project id for the current recording.
-    project_id: ProjectId,
-    /// The timestamp of when the recording was Received by relay
-    received: u64,
-    // Number of days to retain.
-    retention_days: u16,
-    /// The recording attachment.
-    replay_recording: ReplayRecordingChunkMeta,
 }
 
 #[derive(Debug, Serialize)]
