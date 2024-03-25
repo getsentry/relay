@@ -191,7 +191,7 @@
     ///
     /// Official Sentry SDKs use the entity `sentry`, as in `sentry.python` or
     /// `sentry.javascript.react-native`. Please use a different entity for your own SDKs.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The version of the SDK. _Required._
@@ -200,7 +200,7 @@
     /// without any prefix (no `v` or anything else in front of the major version number).
     ///
     /// Examples: `0.1.0`, `1.0.0`, `4.3.12`
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>version: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// List of integrations that are enabled in the SDK. _Optional._

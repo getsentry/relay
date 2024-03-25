@@ -492,7 +492,7 @@
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// Whether the trace failed or succeeded. Currently only used to indicate status of individual
@@ -510,7 +510,7 @@
     </span><span class="kw">pub </span>client_sample_rate: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// The origin of the trace indicates what created the trace (see [OriginType] docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
     <span class="doccomment">/// Track whether the trace connected to this event has been sampled entirely.

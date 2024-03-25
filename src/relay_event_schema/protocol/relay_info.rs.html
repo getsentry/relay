@@ -33,11 +33,11 @@
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>RelayInfo {
     <span class="doccomment">/// Version of the Relay. Required.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>version: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Public key of the Relay.
-    </span><span class="attr">#[metastructure(required = <span class="string">"false"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"false"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>public_key: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.

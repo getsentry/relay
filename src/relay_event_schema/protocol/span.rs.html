@@ -630,7 +630,7 @@
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// The Span id.
@@ -661,7 +661,7 @@
     </span><span class="kw">pub </span>tags: Annotated&lt;Object&lt;JsonLenientString&gt;&gt;,
 
     <span class="doccomment">/// The origin of the span indicates what created the span (see [OriginType] docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
     <span class="doccomment">/// ID of a profile that can be associated with the span.

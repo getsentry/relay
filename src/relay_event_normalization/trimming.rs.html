@@ -893,11 +893,25 @@
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_event_schema::processor::{
-    <span class="self">self</span>, BagSize, Chunk, MaxChars, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType,
+    <span class="self">self</span>, BagSize, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
+    Processor, ValueType,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{Frame, RawStacktrace};
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
@@ -1020,11 +1034,11 @@
         state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars);
+            trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>bag_size_state) = <span class="self">self</span>.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+            trim_string(value, meta, bag_size_state.size_remaining, <span class="number">0</span>);
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1159,9 +1173,8 @@
 }
 
 <span class="doccomment">/// Trims the string to the given maximum length and updates meta data.
-</span><span class="kw">fn </span>trim_string(value: <span class="kw-2">&amp;mut </span>String, meta: <span class="kw-2">&amp;mut </span>Meta, max_chars: MaxChars) {
-    <span class="kw">let </span>soft_limit = max_chars.limit();
-    <span class="kw">let </span>hard_limit = soft_limit + max_chars.allowance();
+</span><span class="kw">fn </span>trim_string(value: <span class="kw-2">&amp;mut </span>String, meta: <span class="kw-2">&amp;mut </span>Meta, max_chars: usize, max_chars_allowance: usize) {
+    <span class="kw">let </span>hard_limit = max_chars + max_chars_allowance;
 
     <span class="kw">if </span>bytecount::num_chars(value.as_bytes()) &lt;= hard_limit {
         <span class="kw">return</span>;
@@ -1175,7 +1188,7 @@
             <span class="kw">let </span>chunk_chars = chunk.count();
 
             <span class="comment">// if the entire chunk fits, just put it in
-            </span><span class="kw">if </span>length + chunk_chars &lt; soft_limit {
+            </span><span class="kw">if </span>length + chunk_chars &lt; max_chars {
                 new_chunks.push(chunk);
                 length += chunk_chars;
                 <span class="kw">continue</span>;
@@ -1194,7 +1207,7 @@
                 </span>Chunk::Text { text } =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>remaining = String::new();
                     <span class="kw">for </span>c <span class="kw">in </span>text.chars() {
-                        <span class="kw">if </span>length + <span class="number">3 </span>&lt; soft_limit {
+                        <span class="kw">if </span>length + <span class="number">3 </span>&lt; max_chars {
                             remaining.push(c);
                         } <span class="kw">else </span>{
                             <span class="kw">break</span>;
@@ -1289,6 +1302,8 @@
     <span class="kw">use </span>relay_protocol::{Map, Remark, SerializableAnnotated};
     <span class="kw">use </span>similar_asserts::assert_eq;
 
+    <span class="kw">use </span><span class="kw">crate</span>::MaxChars;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
@@ -1296,7 +1311,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>value =
             Annotated::new(<span class="string">"This is my long string I want to have trimmed!"</span>.to_string());
         processor::apply(<span class="kw-2">&amp;mut </span>value, |v, m| {
-            trim_string(v, m, MaxChars::Hard(<span class="number">20</span>));
+            trim_string(v, m, <span class="number">20</span>, <span class="number">0</span>);
             <span class="prelude-val">Ok</span>(())
         })
         .unwrap();
@@ -1321,7 +1336,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            culprit: Annotated::new(<span class="string">"x"</span>.repeat(<span class="number">300</span>)),
+            logger: Annotated::new(<span class="string">"x"</span>.repeat(<span class="number">300</span>)),
             ..Default::default()
         });
 
@@ -1329,12 +1344,25 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>expected = Annotated::new(<span class="string">"x"</span>.repeat(<span class="number">300</span>));
         processor::apply(<span class="kw-2">&amp;mut </span>expected, |v, m| {
-            trim_string(v, m, MaxChars::Culprit);
+            trim_string(v, m, MaxChars::Logger.limit(), <span class="number">0</span>);
             <span class="prelude-val">Ok</span>(())
         })
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(event.value().unwrap().culprit, expected);
+        <span class="macro">assert_eq!</span>(event.value().unwrap().logger, expected);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_max_char_allowance() {
+        <span class="kw">let </span>string = <span class="string">"This string requires some allowance to fit!"</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>value = Annotated::new(string.to_owned()); <span class="comment">// len == 43
+        </span>processor::apply(<span class="kw-2">&amp;mut </span>value, |v, m| {
+            trim_string(v, m, <span class="number">40</span>, <span class="number">5</span>);
+            <span class="prelude-val">Ok</span>(())
+        })
+        .unwrap();
+
+        <span class="macro">assert_eq!</span>(value, Annotated::new(string.to_owned()));
     }
 
     <span class="attr">#[test]

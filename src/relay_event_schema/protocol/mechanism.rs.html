@@ -637,12 +637,7 @@
     ///
     /// In the Python SDK this is merely the name of the framework integration that produced the
     /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
-    </span><span class="attr">#[metastructure(
-        field = <span class="string">"type"</span>,
-        required = <span class="string">"true"</span>,
-        nonempty = <span class="string">"true"</span>,
-        max_chars = <span class="string">"enumlike"
-    </span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>, nonempty = <span class="string">"true"</span>, max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// If this is set then the exception is not a real exception but some
@@ -654,11 +649,16 @@
     <span class="doccomment">/// Optional human-readable description of the error mechanism.
     ///
     /// May include a possible hint on how to solve this error.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"message"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">8192</span>, max_chars_allowance = <span class="number">200</span>)]
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Link to online resources describing this error.
-    </span><span class="attr">#[metastructure(required = <span class="string">"false"</span>, nonempty = <span class="string">"true"</span>, max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(
+        required = <span class="string">"false"</span>,
+        nonempty = <span class="string">"true"</span>,
+        max_chars = <span class="number">256</span>,
+        max_chars_allowance = <span class="number">40
+    </span>)]
     </span><span class="kw">pub </span>help_link: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Flag indicating whether this exception was handled.
@@ -688,7 +688,7 @@
     </span><span class="attr">#[metastructure(
         required = <span class="string">"false"</span>,
         nonempty = <span class="string">"true"</span>,
-        max_chars = <span class="string">"enumlike"</span>,
+        max_chars = <span class="number">128</span>,
         deny_chars = <span class="string">" \t\r\n"
     </span>)]
     </span><span class="kw">pub </span>source: Annotated&lt;String&gt;,

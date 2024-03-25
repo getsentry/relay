@@ -2230,7 +2230,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 <span class="kw">use </span>relay_event_schema::processor::{
-    MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{
     ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
@@ -2242,7 +2242,7 @@
 };
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::StoreConfig;
+<span class="kw">use crate</span>::{MaxChars, StoreConfig};
 
 <span class="kw">pub mod </span>breakdowns;
 <span class="kw">pub mod </span>contexts;

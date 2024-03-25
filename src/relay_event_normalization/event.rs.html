@@ -3236,7 +3236,7 @@
 <span class="kw">use </span>relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, MaxChars, ProcessingAction, ProcessingState, Processor};
+<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
     Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
@@ -3250,7 +3250,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, MaxChars, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 

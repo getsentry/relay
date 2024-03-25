@@ -288,14 +288,14 @@
     /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"message"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">8192</span>, max_chars_allowance = <span class="number">200</span>)]
     </span><span class="kw">pub </span>message: Annotated&lt;Message&gt;,
 
     <span class="doccomment">/// The formatted message. If `message` and `params` are given, Sentry
     /// will attempt to backfill `formatted` if empty.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"message"</span>, pii = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">8192</span>, max_chars_allowance = <span class="number">200</span>, pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>formatted: Annotated&lt;Message&gt;,
 
     <span class="doccomment">/// Parameters to be interpolated into the log message. This can be an array of positional

@@ -661,8 +661,6 @@
 <a href="#659" id="659">659</a>
 <a href="#660" id="660">660</a>
 <a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
 //!
 //! This derive provides the `ProcessValue` trait. It must be used within the `relay-event-schema`
@@ -879,26 +877,6 @@
     })
 }
 
-<span class="kw">fn </span>parse_max_chars(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
-    <span class="kw">match </span>name {
-        <span class="string">"logger" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Logger),
-        <span class="string">"hash" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Hash),
-        <span class="string">"enumlike" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::EnumLike),
-        <span class="string">"summary" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Summary),
-        <span class="string">"message" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Message),
-        <span class="string">"symbol" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Symbol),
-        <span class="string">"path" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Path),
-        <span class="string">"short_path" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::ShortPath),
-        <span class="string">"email" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Email),
-        <span class="string">"culprit" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Culprit),
-        <span class="string">"tag_key" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagKey),
-        <span class="string">"tag_value" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagValue),
-        <span class="string">"environment" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Environment),
-        <span class="string">"distribution" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Distribution),
-        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid max_chars variant '{name}'"</span>),
-    }
-}
-
 <span class="kw">fn </span>parse_bag_size(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
     <span class="kw">match </span>name {
         <span class="string">"small" </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Small),
@@ -1016,6 +994,7 @@
     retain: bool,
     characters: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
     max_chars: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
+    max_chars_allowance: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
     bag_size: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
 }
 
@@ -1070,6 +1049,14 @@
             <span class="macro">quote!</span>(<span class="prelude-val">None</span>)
         };
 
+        <span class="kw">let </span>max_chars_allowance = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>max_chars_allowance) = <span class="self">self</span>.max_chars_allowance {
+            <span class="macro">quote!</span>(#max_chars_allowance)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.max_chars_allowance)
+        } <span class="kw">else </span>{
+            <span class="macro">quote!</span>(<span class="number">0</span>)
+        };
+
         <span class="kw">let </span>bag_size = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>bag_size) = <span class="self">self</span>.bag_size {
             <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#bag_size))
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
@@ -1093,6 +1080,7 @@
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
                 max_chars: #max_chars,
+                max_chars_allowance: #max_chars_allowance,
                 characters: #characters,
                 bag_size: #bag_size,
                 pii: #pii,
@@ -1209,17 +1197,25 @@
                                         rv.characters = <span class="prelude-val">Some</span>(attr);
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for max_chars"</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for {}"</span>, ident);
                                     }
                                 }
                             } <span class="kw">else if </span>ident == <span class="string">"max_chars" </span>{
                                 <span class="kw">match </span>name_value.lit {
-                                    Lit::Str(litstr) =&gt; {
-                                        <span class="kw">let </span>attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#attr));
+                                    Lit::Int(litint) =&gt; {
+                                        rv.max_chars = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#litint));
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for max_chars"</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non integer literal for max_chars"</span>);
+                                    }
+                                }
+                            } <span class="kw">else if </span>ident == <span class="string">"max_chars_allowance" </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Int(litint) =&gt; {
+                                        rv.max_chars_allowance = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#litint));
+                                    }
+                                    <span class="kw">_ </span>=&gt; {
+                                        <span class="macro">panic!</span>(<span class="string">"Got non integer literal for max_chars_allowance"</span>);
                                     }
                                 }
                             } <span class="kw">else if </span>ident == <span class="string">"bag_size" </span>{

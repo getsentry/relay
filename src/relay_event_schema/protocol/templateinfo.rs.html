@@ -108,11 +108,11 @@
 #[metastructure(process_func = <span class="string">"process_template_info"</span>)]
 </span><span class="kw">pub struct </span>TemplateInfo {
     <span class="doccomment">/// The file name (basename only).
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"short_path"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>filename: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Absolute path to the file.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
     </span><span class="kw">pub </span>abs_path: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Line number within the source file.

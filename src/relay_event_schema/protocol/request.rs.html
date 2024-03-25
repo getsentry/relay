@@ -1435,7 +1435,7 @@
     <span class="doccomment">/// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>, pii = <span class="string">"maybe"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>url: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// HTTP request method.
@@ -1462,7 +1462,7 @@
     </span><span class="kw">pub </span>query_string: Annotated&lt;Query&gt;,
 
     <span class="doccomment">/// The fragment of the request URI.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">1024</span>, max_chars_allowance = <span class="number">100</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>fragment: Annotated&lt;String&gt;,
 

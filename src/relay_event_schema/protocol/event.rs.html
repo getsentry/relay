@@ -1386,7 +1386,7 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>GroupingConfig {
     <span class="doccomment">/// The id of the grouping config.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;String&gt;,
     <span class="doccomment">/// The enhancements configuration.
     </span><span class="kw">pub </span>enhancements: Annotated&lt;String&gt;,
@@ -1472,14 +1472,14 @@
     <span class="doccomment">/// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"culprit"</span>, pii = <span class="string">"maybe"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">200</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>culprit: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Transaction name of the event.
     ///
     /// For example, in a web app, this might be the route name (`"/users/&lt;username&gt;/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"culprit"</span>, trim_whitespace = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">200</span>, trim_whitespace = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional information about the name of the transaction.
@@ -1496,7 +1496,7 @@
 
     <span class="doccomment">/// Logger that created the event.
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">"logger"</span>, <span class="comment">// DB-imposed limit
+        max_chars = <span class="number">64</span>, <span class="comment">// DB-imposed limit
         </span>deny_chars = <span class="string">"\r\n"</span>,
     )]
     </span><span class="kw">pub </span>logger: Annotated&lt;String&gt;,
@@ -1565,7 +1565,7 @@
     <span class="doccomment">/// Server or device name the event was generated on.
     ///
     /// This is supposed to be a hostname.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>server_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The release version of the application.
@@ -1573,7 +1573,7 @@
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">"tag_value"</span>,  <span class="comment">// release ends in tag
+        max_chars = <span class="number">200</span>,  <span class="comment">// release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
         </span>required = <span class="string">"false"</span>,
         trim_whitespace = <span class="string">"true"</span>,
@@ -1603,7 +1603,7 @@
     /// { "environment": "production" }
     /// ```
     </span><span class="attr">#[metastructure(
-        max_chars = <span class="string">"environment"</span>,
+        max_chars = <span class="number">64</span>,
         <span class="comment">// environment allowed chars are validated in the sentry-release-parser crate!
         </span>nonempty = <span class="string">"true"</span>,
         required = <span class="string">"false"</span>,
@@ -1612,7 +1612,7 @@
     </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Deprecated in favor of tags.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
     </span><span class="kw">pub </span>site: Annotated&lt;String&gt;,
 
@@ -1710,7 +1710,7 @@
     </span><span class="kw">pub </span>grouping_config: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Legacy checksum used for grouping before fingerprint hashes.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"hash"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
     </span><span class="kw">pub </span>checksum: Annotated&lt;String&gt;,
 

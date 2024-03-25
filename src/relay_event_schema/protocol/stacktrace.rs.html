@@ -822,7 +822,7 @@
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>function: Annotated&lt;String&gt;,
 
@@ -841,7 +841,7 @@
     /// `function` and the value before trimming is stored in this field instead.  However also this
     /// field will be capped at 256 characters at the moment which often means that not the entire
     /// original value can be stored.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>raw_function: Annotated&lt;String&gt;,
 
@@ -852,7 +852,7 @@
     /// like Swift, C++ or Rust.
     </span><span class="comment">// XXX(markus): How is this different from just storing the mangled function name in
     // `function`?
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>)]
     </span><span class="kw">pub </span>symbol: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Name of the module the frame is contained in.
@@ -872,12 +872,12 @@
     </span><span class="kw">pub </span>package: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The source file name (basename only).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>filename: Annotated&lt;NativeImagePath&gt;,
 
     <span class="doccomment">/// Absolute path to the source file.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>abs_path: Annotated&lt;NativeImagePath&gt;,
 
@@ -965,12 +965,12 @@
     </span><span class="kw">pub </span>symbol_addr: Annotated&lt;Addr&gt;,
 
     <span class="doccomment">/// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     #[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>trust: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The language of the frame if it overrides the stacktrace language.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     #[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>lang: Annotated&lt;String&gt;,
 
@@ -1006,13 +1006,13 @@
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>FrameData {
     <span class="doccomment">/// A reference to the sourcemap used.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
     </span>sourcemap: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original function name before it was resolved.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span>orig_function: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original minified filename.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"path"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
     </span>orig_filename: Annotated&lt;String&gt;,
     <span class="doccomment">/// The original line number.
     </span>orig_lineno: Annotated&lt;u64&gt;,
@@ -1147,7 +1147,7 @@
     </span><span class="kw">pub </span>instruction_addr_adjustment: Annotated&lt;InstructionAddrAdjustment&gt;,
 
     <span class="doccomment">/// The language of the stacktrace.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>lang: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Indicates that this stack trace is a snapshot triggered by an external signal.

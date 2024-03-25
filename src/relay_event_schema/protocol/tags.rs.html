@@ -216,8 +216,8 @@
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>TagEntry(
-    <span class="attr">#[metastructure(max_chars = <span class="string">"tag_key"</span>, allow_chars = <span class="string">"a-zA-Z0-9_.:-"</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
-    <span class="attr">#[metastructure(max_chars = <span class="string">"tag_value"</span>, deny_chars = <span class="string">"\n"</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(max_chars = <span class="number">200</span>, allow_chars = <span class="string">"a-zA-Z0-9_.:-"</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(max_chars = <span class="number">200</span>, deny_chars = <span class="string">"\n"</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
 );
 
 <span class="kw">impl </span>AsPair <span class="kw">for </span>TagEntry {

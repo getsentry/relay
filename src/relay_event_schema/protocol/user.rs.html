@@ -243,19 +243,19 @@
 #[metastructure(process_func = <span class="string">"process_geo"</span>)]
 </span><span class="kw">pub struct </span>Geo {
     <span class="doccomment">/// Two-letter country code (ISO 3166-1 alpha-2).
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">102</span>, max_chars_allowance = <span class="number">1004</span>)]
     </span><span class="kw">pub </span>country_code: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Human readable city name.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">1024</span>, max_chars_allowance = <span class="number">100</span>)]
     </span><span class="kw">pub </span>city: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Human readable subdivision name.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">1024</span>, max_chars_allowance = <span class="number">100</span>)]
     </span><span class="kw">pub </span>subdivision: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Human readable region name or code.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"summary"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">1024</span>, max_chars_allowance = <span class="number">100</span>)]
     </span><span class="kw">pub </span>region: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -281,11 +281,11 @@
 #[metastructure(process_func = <span class="string">"process_user"</span>, value_type = <span class="string">"User"</span>)]
 </span><span class="kw">pub struct </span>User {
     <span class="doccomment">/// Unique identifier of the user.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"enumlike"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>id: Annotated&lt;LenientString&gt;,
 
     <span class="doccomment">/// Email address of the user.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"email"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">75</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>email: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Remote IP address of the user. Defaults to "{{auto}}".
@@ -293,11 +293,11 @@
     </span><span class="kw">pub </span>ip_address: Annotated&lt;IpAddr&gt;,
 
     <span class="doccomment">/// Username of the user.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"enumlike"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>username: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Human readable name of the user.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="string">"enumlike"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Approximate geographical location of the end user or device.

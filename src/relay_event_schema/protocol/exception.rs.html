@@ -207,17 +207,17 @@
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
     </span><span class="comment">// (note: requirement checked in checked in StoreNormalizeProcessor)
-    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Human readable display value.
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"message"</span>, pii = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">8192</span>, max_chars_allowance = <span class="number">200</span>, pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>value: Annotated&lt;JsonLenientString&gt;,
 
     <span class="doccomment">/// The optional module, or package which the exception type lives in.
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"symbol"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
     </span><span class="kw">pub </span>module: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Stack trace containing frames of this exception.
@@ -232,7 +232,7 @@
     </span><span class="kw">pub </span>raw_stacktrace: Annotated&lt;RawStacktrace&gt;,
 
     <span class="doccomment">/// An optional value that refers to a [thread](#typedef-Thread).
-    </span><span class="attr">#[metastructure(max_chars = <span class="string">"enumlike"</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>thread_id: Annotated&lt;ThreadId&gt;,
 
     <span class="doccomment">/// Mechanism by which this exception was generated and handled.
