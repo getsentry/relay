@@ -125,12 +125,7 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(
-                value,
-                meta,
-                max_chars,
-                state.attrs().max_chars_allowance.unwrap_or(0),
-            );
+            trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {

@@ -387,11 +387,11 @@ impl FieldAttrs {
         };
 
         let max_chars_allowance = if let Some(ref max_chars_allowance) = self.max_chars_allowance {
-            quote!(Some(#max_chars_allowance))
+            quote!(#max_chars_allowance)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.max_chars_allowance)
         } else {
-            quote!(None)
+            quote!(0)
         };
 
         let bag_size = if let Some(ref bag_size) = self.bag_size {

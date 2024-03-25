@@ -153,7 +153,7 @@ pub struct FieldAttrs {
     /// The maximum char length of this field.
     pub max_chars: Option<usize>,
     /// The extra char length allowance on top of max_chars.
-    pub max_chars_allowance: Option<usize>,
+    pub max_chars_allowance: usize,
     /// The maximum bag size of this field.
     pub bag_size: Option<BagSize>,
     /// The type of PII on the field.
@@ -194,7 +194,7 @@ impl FieldAttrs {
             trim_whitespace: false,
             characters: None,
             max_chars: None,
-            max_chars_allowance: None,
+            max_chars_allowance: 0,
             bag_size: None,
             pii: Pii::False,
             retain: false,
