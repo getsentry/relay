@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -35,6 +36,7 @@ impl Scoping {
         ItemScoping {
             category,
             scoping: self,
+            namespace: None,
         }
     }
 }
@@ -51,6 +53,9 @@ pub struct ItemScoping<'a> {
 
     /// Scoping of the data.
     pub scoping: &'a Scoping,
+
+    /// Namespace if applicable. `None` matches any namespace.
+    pub namespace: Option<MetricNamespace>,
 }
 
 impl AsRef<Scoping> for ItemScoping<'_> {
@@ -95,6 +100,7 @@ enum CategoryUnit {
     Count,
     Bytes,
     Batched,
+    Milliseconds,
 }
 
 impl CategoryUnit {
@@ -114,9 +120,11 @@ impl CategoryUnit {
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
             | DataCategory::MetricBucket
-            | DataCategory::UserReportV2 => Some(Self::Count),
+            | DataCategory::UserReportV2
+            | DataCategory::ProfileChunk => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+            DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,
         }
@@ -161,6 +169,7 @@ impl QuotaScope {
     /// Returns the quota scope corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
         match string {
+            "global" => Self::Global,
             "organization" => Self::Organization,
             "project" => Self::Project,
             "key" => Self::Key,
@@ -228,7 +237,7 @@ impl fmt::Display for ReasonCode {
 /// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
 /// configured by the customer. Each piece of data (such as event, attachment) will be counted
 /// against all quotas that it matches with based on the `category`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
     /// The unique identifier for counting this quota. Required, except for quotas with a `limit` of
@@ -264,6 +273,11 @@ pub struct Quota {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<u64>,
 
+    /// The namespace the quota applies to.
+    ///
+    /// If `None`, it will match any namespace.
+    pub namespace: Option<MetricNamespace>,
+
     /// A machine readable reason returned when this quota is exceeded. Required in all cases except
     /// `limit=None`, since unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -298,6 +312,11 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+        // Accept all types of namespaces if none are configured in the quota.
+        if self.namespace.is_some() && self.namespace != scoping.namespace {
+            return false;
+        }
+
         if self.scope == QuotaScope::Global {
             return true;
         }
@@ -340,15 +359,16 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: None,
           categories: [],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -361,7 +381,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: None,
           categories: [
@@ -369,9 +389,10 @@ mod tests {
           ],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -385,16 +406,17 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("o"),
           categories: [],
           scope: organization,
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -410,7 +432,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("p"),
           categories: [],
@@ -418,9 +440,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -436,7 +459,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("p"),
           categories: [],
@@ -444,9 +467,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4294967296),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -462,7 +486,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("k"),
           categories: [],
@@ -470,9 +494,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -489,7 +514,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("f"),
           categories: [
@@ -499,9 +524,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -513,15 +539,16 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("o"),
           categories: [],
           scope: organization,
           limit: None,
           window: Some(42),
+          namespace: None,
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -534,6 +561,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.is_valid());
@@ -549,6 +577,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.is_valid());
@@ -564,6 +593,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.is_valid());
@@ -579,6 +609,7 @@ mod tests {
             limit: Some(1000),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -595,6 +626,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -611,6 +643,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -620,7 +653,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -634,6 +668,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.matches(ItemScoping {
@@ -643,7 +678,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -657,6 +693,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -666,7 +703,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -676,7 +714,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -690,6 +729,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.matches(ItemScoping {
@@ -699,7 +739,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -713,6 +754,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -722,7 +764,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -732,7 +775,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -746,6 +790,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -755,7 +800,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -765,7 +811,8 @@ mod tests {
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -779,6 +826,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -788,7 +836,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -798,7 +847,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(0),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -808,7 +858,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 }

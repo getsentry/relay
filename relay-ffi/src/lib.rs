@@ -113,7 +113,7 @@ use std::{fmt, panic, thread};
 pub use relay_ffi_macros::catch_unwind;
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<anyhow::Error>> = RefCell::new(None);
+    static LAST_ERROR: RefCell<Option<anyhow::Error>> = const { RefCell::new(None) };
 }
 
 fn set_last_error(err: anyhow::Error) {

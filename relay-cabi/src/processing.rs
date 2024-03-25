@@ -7,8 +7,8 @@ use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) 
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const RelayStr {
-    static VALID_PLATFORM_STRS: OnceCell<Vec<RelayStr>> = OnceCell::new();
+    static VALID_PLATFORM_STRS: OnceLock<Vec<RelayStr>> = OnceLock::new();
     let platforms = VALID_PLATFORM_STRS
         .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
 
@@ -85,11 +85,10 @@ pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const R
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_new(
     config: *const RelayStr,
-    geoip_lookup: *const RelayGeoIpLookup,
+    _geoip_lookup: *const RelayGeoIpLookup,
 ) -> *mut RelayStoreNormalizer {
     let config: StoreConfig = serde_json::from_str((*config).as_str())?;
-    let geoip_lookup = (geoip_lookup as *const GeoIpLookup).as_ref();
-    let normalizer = StoreProcessor::new(config, geoip_lookup);
+    let normalizer = StoreProcessor::new(config);
     Box::into_raw(Box::new(normalizer)) as *mut RelayStoreNormalizer
 }
 
@@ -114,17 +113,19 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let config = (*processor).config();
 
-    let tx_validation_config = TransactionValidationConfig {
-        timestamp_range: None, // only supported in relay
-    };
-    validate_transaction(&event, &tx_validation_config)?;
-
     let event_validation_config = EventValidationConfig {
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        is_validated: config.is_renormalize.unwrap_or(false),
     };
     validate_event_timestamps(&mut event, &event_validation_config)?;
+
+    let tx_validation_config = TransactionValidationConfig {
+        timestamp_range: None, // only supported in relay
+        is_validated: config.is_renormalize.unwrap_or(false),
+    };
+    validate_transaction(&mut event, &tx_validation_config)?;
 
     let normalization_config = NormalizationConfig {
         client_ip: config.client_ip.as_ref(),
@@ -139,13 +140,13 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         is_renormalize: config.is_renormalize.unwrap_or(false),
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
-        normalize_spans: false,
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
+        normalize_spans: config.normalize_spans,
     };
     normalize_event(&mut event, &normalization_config);
 

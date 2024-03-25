@@ -1,29 +1,33 @@
-use relay_statsd::{CounterMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
 pub enum CardinalityLimiterCounters {
     /// Incremented for every accepted item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     Accepted,
     /// Incremented for every rejected item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The scope of check operation.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     Rejected,
     /// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     RedisCacheHit,
     /// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `passive`: `true` if the enforced limit is passive.
     #[cfg(feature = "redis")]
     RedisCacheMiss,
     /// Amount of entries removed from the cache via periodic cleanups.
@@ -99,6 +103,26 @@ impl HistogramMetric for CardinalityLimiterHistograms {
             Self::RedisCheckHashes => "cardinality.limiter.redis.check_hashes",
             #[cfg(feature = "redis")]
             Self::RedisSetCardinality => "cardinality.limiter.redis.set_cardinality",
+        }
+    }
+}
+
+pub enum CardinalityLimiterSets {
+    /// Set containing all organizations which have had any metric sent through the cardinality
+    /// limiter.
+    ///
+    /// This metric is tagged with:
+    ///  - `id`: The id of the enforced limit.
+    ///  - `status`: Wether the organization was cardinality limited.
+    #[cfg(feature = "redis")]
+    Organizations,
+}
+
+impl SetMetric for CardinalityLimiterSets {
+    fn name(&self) -> &'static str {
+        match *self {
+            #[cfg(feature = "redis")]
+            Self::Organizations => "cardinality.limiter.organizations",
         }
     }
 }

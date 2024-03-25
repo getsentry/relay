@@ -15,7 +15,7 @@ use relay_system::Addr;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, TrackOutcome};
-use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -40,7 +40,7 @@ pub enum ClientReportField {
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 pub fn process_client_reports(
-    state: &mut ProcessEnvelopeState,
+    state: &mut ProcessEnvelopeState<ClientReportGroup>,
     config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
@@ -188,7 +188,7 @@ pub fn process_client_reports(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports(state: &mut ProcessEnvelopeState) {
+pub fn process_user_reports<G>(state: &mut ProcessEnvelopeState<G>) {
     state.managed_envelope.retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;

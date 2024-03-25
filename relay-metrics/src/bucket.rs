@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -347,6 +349,118 @@ impl BucketValue {
     }
 }
 
+/// Optimized string represenation of a metric name
+///
+/// The contained name does not need to be valid MRI, but it usually is.
+///
+/// The metric name can be efficiently cloned.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct MetricName(Arc<str>);
+
+impl MetricName {
+    /// Extracts the namespace from a well formed MRI.
+    ///
+    /// Returns [`MetricNamespace::Unsupported`] if the metric name is not a well formed MRI.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::{MetricName, MetricNamespace};
+    ///
+    /// let name = MetricName::from("foo");
+    /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
+    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
+    ///
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.namespace(), MetricNamespace::Custom);
+    /// ```
+    pub fn namespace(&self) -> MetricNamespace {
+        self.try_namespace().unwrap_or(MetricNamespace::Unsupported)
+    }
+
+    /// Extracts the namespace from a well formed MRI.
+    ///
+    /// If the contained metric name is not a well formed MRI this function returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::{MetricName, MetricNamespace};
+    ///
+    /// let name = MetricName::from("foo");
+    /// assert!(name.try_namespace().is_none());
+    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// assert!(name.try_namespace().is_none());
+    ///
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
+    ///
+    /// ```
+    pub fn try_namespace(&self) -> Option<MetricNamespace> {
+        // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`,
+        // `<type>` is always a single ascii character.
+        //
+        // Skip the first two ascii characters and extract the namespace.
+        let maybe_namespace = self.0.get(2..)?.split('/').next()?;
+
+        MetricNamespace::all()
+            .into_iter()
+            .find(|namespace| maybe_namespace == namespace.as_str())
+    }
+}
+
+impl PartialEq<str> for MetricName {
+    fn eq(&self, other: &str) -> bool {
+        self.0.as_ref() == other
+    }
+}
+
+impl fmt::Display for MetricName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<String> for MetricName {
+    fn from(value: String) -> Self {
+        Self(value.into())
+    }
+}
+
+impl From<Arc<str>> for MetricName {
+    fn from(value: Arc<str>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<&str> for MetricName {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
+impl std::ops::Deref for MetricName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl AsRef<str> for MetricName {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl std::borrow::Borrow<str> for MetricName {
+    fn borrow(&self) -> &str {
+        self.0.borrow()
+    }
+}
+
 /// Parses a list of counter values separated by colons and sums them up.
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
@@ -448,7 +562,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # Submission Protocol
 ///
 /// ```text
-/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>|T<timestamp>
+/// <name>[@unit]:<value>[:<value>...]|<type>[|#<tag_key>:<tag_value>,<tag>][|T<timestamp>]
 /// ```
 ///
 /// See the [field documentation](Bucket#fields) for more information on the components. An example
@@ -550,7 +664,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -593,7 +707,7 @@ pub struct Bucket {
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
     /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d_:/@.{}\[\]$-]+/`.
+    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
     ///
     /// # Example
     ///
@@ -602,6 +716,13 @@ pub struct Bucket {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
+
+    /// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    #[serde(default, skip_serializing_if = "BucketMetadata::is_default")]
+    pub metadata: BucketMetadata,
 }
 
 impl Bucket {
@@ -627,9 +748,10 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         for component in components {
@@ -707,19 +829,7 @@ impl Bucket {
 
 impl CardinalityItem for Bucket {
     fn namespace(&self) -> Option<MetricNamespace> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
-
-        Some(mri.namespace)
+        self.name.try_namespace()
     }
 
     fn to_hash(&self) -> u32 {
@@ -727,6 +837,47 @@ impl CardinalityItem for Bucket {
         self.name.hash(&mut hasher);
         self.tags.hash(&mut hasher);
         hasher.finish32()
+    }
+}
+
+/// Relay internal metadata for a metric bucket.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct BucketMetadata {
+    /// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    pub merges: NonZeroU32,
+}
+
+impl BucketMetadata {
+    /// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge.
+    pub fn new() -> Self {
+        Self {
+            merges: NonZeroU32::MIN,
+        }
+    }
+
+    /// Whether the metadata does not contain more information than the default.
+    pub fn is_default(&self) -> bool {
+        let Self { merges } = self;
+        *merges == NonZeroU32::MIN
+    }
+
+    /// Merges another metadata object into the current one.
+    pub fn merge(&mut self, other: Self) {
+        self.merges = self.merges.saturating_add(other.merges.get());
+    }
+}
+
+impl Default for BucketMetadata {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -850,11 +1001,16 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:transactions/foo@none",
+            name: MetricName(
+                "c:transactions/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -876,13 +1032,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "d:transactions/foo@none",
+            name: MetricName(
+                "d:transactions/foo@none",
+            ),
             value: Distribution(
                 [
                     17.5,
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -922,13 +1083,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "s:transactions/foo@none",
+            name: MetricName(
+                "s:transactions/foo@none",
+            ),
             value: Set(
                 {
                     4267882815,
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -972,7 +1138,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 42.0,
@@ -983,6 +1151,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -996,7 +1167,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 25.0,
@@ -1007,6 +1180,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1020,11 +1196,16 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:custom/foo@none",
+            name: MetricName(
+                "c:custom/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1081,7 +1262,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]
@@ -1191,7 +1372,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -1202,6 +1385,9 @@ mod tests {
                 ),
                 tags: {
                     "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1221,19 +1407,24 @@ mod tests {
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                name: MetricName(
+                    "endpoint.hits",
+                ),
                 value: Counter(
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]

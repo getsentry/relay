@@ -1,7 +1,6 @@
 //! Common types of the protocol.
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 use std::{fmt, net};
@@ -22,7 +21,7 @@ use crate::processor::{
     process_value, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
 };
 
-/// A array like wrapper used in various places.
+/// An array-like wrapper used in various places.
 #[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {

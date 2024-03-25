@@ -107,6 +107,20 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SPAN_INDEXED = 16,
   /**
+   * ProfileDuration
+   *
+   * This data category is used to count the number of milliseconds we have per indexed profile chunk.
+   * We will then bill per second.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_DURATION = 17,
+  /**
+   * ProfileChunk
+   *
+   * This is a count of profile chunks received. It will not be used for billing but will be
+   * useful for customers to track what's being dropped.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_CHUNK = 18,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
@@ -544,7 +558,7 @@ const struct RelayStr *relay_valid_platforms(uintptr_t *size_out);
  * Creates a new normalization processor.
  */
 struct RelayStoreNormalizer *relay_store_normalizer_new(const struct RelayStr *config,
-                                                        const struct RelayGeoIpLookup *geoip_lookup);
+                                                        const struct RelayGeoIpLookup *_geoip_lookup);
 
 /**
  * Frees a `RelayStoreNormalizer`.

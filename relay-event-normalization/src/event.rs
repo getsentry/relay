@@ -3,29 +3,30 @@
 //! This module provides a function to normalize events.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::OnceLock;
 
+use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
+    PerformanceScoreContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::request;
-use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::span::tag_extraction::extract_span_tags_from_event;
+use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, MaxChars, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
@@ -67,14 +68,12 @@ pub struct NormalizationConfig<'a> {
     /// Configuration to apply to transaction names, especially around sanitizing.
     pub transaction_name_config: TransactionNameConfig<'a>,
 
-    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    /// When `true`, it is assumed that the event has been normalized before.
     ///
     /// This disables certain normalizations, especially all that are not idempotent. The
     /// renormalize mode is intended for the use in the processing pipeline, so an event modified
     /// during ingestion can be validated against the schema and large data can be trimmed. However,
     /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
-    ///
-    /// `None` equals to `false`.
     pub is_renormalize: bool,
 
     /// When `true`, infers the device class from CPU and model.
@@ -82,9 +81,6 @@ pub struct NormalizationConfig<'a> {
 
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
-
-    /// When `true`, computes and materializes attributes in spans based on the given configuration.
-    pub normalize_spans: bool,
 
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
@@ -104,6 +100,11 @@ pub struct NormalizationConfig<'a> {
     ///
     /// See the event schema for size declarations.
     pub enable_trimming: bool,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans, `is_renormalize` must be disabled _and_ `normalize_spans` enabled.
+    pub normalize_spans: bool,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -118,13 +119,13 @@ impl<'a> Default for NormalizationConfig<'a> {
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
+            normalize_spans: true,
         }
     }
 }
@@ -144,7 +145,16 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     if !is_renormalize {
+        // Check for required and non-empty values
+        let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
         normalize(event, meta, config);
+    }
+
+    if config.enable_trimming {
+        // Trim large strings and databags down
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 }
 
@@ -157,9 +167,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     let mut transactions_processor =
         transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
-
-    // Check for required and non-empty values
-    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -200,7 +207,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
+    normalize_user(event);
     normalize_logentry(&mut event.logentry, meta);
+    normalize_debug_meta(event);
+    normalize_breadcrumbs(event);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
     normalize_platform_and_level(event);
@@ -229,28 +239,12 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        // XXX(iker): span normalization runs in the store processor, but
-        // the exclusive time is required for span metrics. Most of
-        // transactions don't have many spans, but if this is no longer the
-        // case and we roll this flag out for most projects, we may want to
-        // reconsider this approach.
         crate::normalize::normalize_app_start_spans(event);
-        span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+        span::exclusive_time::compute_span_exclusive_time(event);
     }
 
     if config.enrich_spans {
-        extract_span_tags(
-            event,
-            &tag_extraction::Config {
-                max_tag_value_size: config.max_tag_value_length,
-            },
-        );
-    }
-
-    if config.enable_trimming {
-        // Trim large strings and databags down
-        let _ =
-            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
+        extract_span_tags_from_event(event, config.max_tag_value_length);
     }
 }
 
@@ -337,7 +331,7 @@ pub fn normalize_ip_addresses(
         if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
                 if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
+                    client_ip.clone_into(user_ip)
                 }
             }
         }
@@ -378,10 +372,68 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
+fn normalize_user(event: &mut Event) {
+    let Annotated(Some(user), _) = &mut event.user else {
+        return;
+    };
+
+    if !user.other.is_empty() {
+        let data = user.data.value_mut().get_or_insert_with(Object::new);
+        data.extend(std::mem::take(&mut user.other));
+    }
+
+    // We set the `sentry_user` field in the `Event` payload in order to have it ready for the extraction
+    // pipeline.
+    let event_user_tag = get_event_user_tag(user);
+    user.sentry_user.set_value(event_user_tag);
+}
+
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
     let _ = processor::apply(logentry, |logentry, meta| {
         crate::logentry::normalize_logentry(logentry, meta)
     });
+}
+
+/// Normalizes the debug images in the event's debug meta.
+fn normalize_debug_meta(event: &mut Event) {
+    let Annotated(Some(debug_meta), _) = &mut event.debug_meta else {
+        return;
+    };
+    let Annotated(Some(debug_images), _) = &mut debug_meta.images else {
+        return;
+    };
+
+    for annotated_image in debug_images {
+        let _ = processor::apply(annotated_image, |image, meta| match image {
+            DebugImage::Other(_) => {
+                meta.add_error(Error::invalid("unsupported debug image type"));
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+            _ => Ok(()),
+        });
+    }
+}
+
+fn normalize_breadcrumbs(event: &mut Event) {
+    let Annotated(Some(breadcrumbs), _) = &mut event.breadcrumbs else {
+        return;
+    };
+    let Some(breadcrumbs) = breadcrumbs.values.value_mut() else {
+        return;
+    };
+
+    for annotated_breadcrumb in breadcrumbs {
+        let Annotated(Some(breadcrumb), _) = annotated_breadcrumb else {
+            continue;
+        };
+
+        if breadcrumb.ty.value().is_empty() {
+            breadcrumb.ty.set_value(Some("default".to_string()));
+        }
+        if breadcrumb.level.value().is_none() {
+            breadcrumb.level.set_value(Some(Level::Info));
+        }
+    }
 }
 
 /// Ensures that the `release` and `dist` fields match up.
@@ -514,35 +566,62 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the last frame of the stacktrace of the first exception.
+/// Normalizes all the stack traces in the given event.
 ///
-/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+/// Normalized stack traces are `event.stacktrace`, `event.exceptions.stacktrace`, and
+/// `event.thread.stacktrace`. Raw stack traces are not normalized.
 fn normalize_stacktraces(event: &mut Event) {
-    match event.exceptions.value_mut() {
-        None => (),
-        Some(exception) => match exception.values.value_mut() {
-            None => (),
-            Some(exceptions) => match exceptions.first_mut() {
-                None => (),
-                Some(first) => normalize_last_stacktrace_frame(first),
-            },
-        },
-    };
+    normalize_event_stacktrace(event);
+    normalize_exception_stacktraces(event);
+    normalize_thread_stacktraces(event);
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
-    let _ = processor::apply(exception, |e, _| {
-        processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
-            None => Ok(()),
-            Some(frames) => match frames.last_mut() {
-                None => Ok(()),
-                Some(frame) => {
-                    stacktrace::process_non_raw_frame(frame);
-                    Ok(())
-                }
-            },
-        })
-    });
+/// Normalizes an event's stack trace, in `event.stacktrace`.
+fn normalize_event_stacktrace(event: &mut Event) {
+    let Annotated(Some(stacktrace), meta) = &mut event.stacktrace else {
+        return;
+    };
+    stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+}
+
+/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
+fn normalize_exception_stacktraces(event: &mut Event) {
+    let Some(event_exception) = event.exceptions.value_mut() else {
+        return;
+    };
+    let Some(exceptions) = event_exception.values.value_mut() else {
+        return;
+    };
+    for annotated_exception in exceptions {
+        let Some(exception) = annotated_exception.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut exception.stacktrace {
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
+}
+
+/// Normalizes the stack traces in an event's threads, in `event.threads.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
+fn normalize_thread_stacktraces(event: &mut Event) {
+    let Some(event_threads) = event.threads.value_mut() else {
+        return;
+    };
+    let Some(threads) = event_threads.values.value_mut() else {
+        return;
+    };
+    for annotated_thread in threads {
+        let Some(thread) = annotated_thread.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut thread.stacktrace {
+            stacktrace::normalize_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
 }
 
 fn normalize_exceptions(event: &mut Event) {
@@ -567,6 +646,7 @@ fn normalize_exceptions(event: &mut Event) {
             //
             // We also want to validate some other aspects of it.
             for exception in exceptions {
+                normalize_exception(exception);
                 if let Some(exception) = exception.value_mut() {
                     if let Some(mechanism) = exception.mechanism.value_mut() {
                         mechanism::normalize_mechanism(mechanism, os_hint);
@@ -575,6 +655,35 @@ fn normalize_exceptions(event: &mut Event) {
             }
         }
     }
+}
+
+fn normalize_exception(exception: &mut Annotated<Exception>) {
+    static TYPE_VALUE_RE: OnceLock<Regex> = OnceLock::new();
+    let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
+
+    let _ = processor::apply(exception, |exception, meta| {
+        if exception.ty.value().is_empty() {
+            if let Some(value_str) = exception.value.value_mut() {
+                let new_values = regex
+                    .captures(value_str)
+                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+
+                if let Some((new_type, new_value)) = new_values {
+                    exception.ty.set_value(Some(new_type));
+                    *value_str = new_value;
+                }
+            }
+        }
+
+        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
+            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
+                error.insert("attribute", "type or value");
+            }));
+            return Err(ProcessingAction::DeleteValueSoft);
+        }
+
+        Ok(())
+    });
 }
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
@@ -627,11 +736,11 @@ pub fn normalize_measurements(
     }
 }
 
-/// Computes performance score measurements.
+/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-fn normalize_performance_score(
+pub fn normalize_performance_score(
     event: &mut Event,
     performance_score: Option<&PerformanceScoreConfig>,
 ) {
@@ -651,12 +760,12 @@ fn normalize_performance_score(
                         && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
+                    // required to exist on the event. Skip this profile if
                     // a measurement with weight is missing.
-                    break;
+                    continue;
                 }
-                let mut score_total = 0.0;
-                let mut weight_total = 0.0;
+                let mut score_total = 0.0f64;
+                let mut weight_total = 0.0f64;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
@@ -669,7 +778,7 @@ fn normalize_performance_score(
                 if weight_total.abs() < f64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
-                    break;
+                    continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -703,8 +812,14 @@ fn normalize_performance_score(
                         .into(),
                     );
                 }
-
                 if should_add_total {
+                    if let Some(version) = &profile.version {
+                        event
+                            .contexts
+                            .get_or_insert_with(Contexts::new)
+                            .get_or_default::<PerformanceScoreContext>()
+                            .score_profile_version = version.clone().into();
+                    }
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -714,7 +829,6 @@ fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
@@ -783,9 +897,17 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
+        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
+        // construct.
+        // [`normalize`] does not run on renormalization anyway.
+        contexts.0.remove("reprocessing");
+
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
                 context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
+            if let Some(context_inner) = annotated.value_mut() {
+                crate::normalize::contexts::normalize_context(&mut context_inner.0);
             }
         }
 
@@ -975,17 +1097,63 @@ mod tests {
     use std::collections::BTreeMap;
 
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
-    };
-    use relay_protocol::{Annotated, SerializableAnnotated};
+    use itertools::Itertools;
+    use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
+    use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
-    use crate::{
-        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-        RawUserAgentInfo,
-    };
+    use crate::{ClientHints, MeasurementsConfig};
+
+    const IOS_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.cocoa"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 8240.571022033691,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
+
+    const ANDROID_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.java.android"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 22648,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
 
     #[test]
     fn test_normalize_dist_none() {
@@ -2443,5 +2611,612 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_multiple_profiles() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11},
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                },
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_ios_profile() {
+        let mut event = Annotated::<Event>::from_json(IOS_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_android_profile() {
+        let mut event = Annotated::<Event>::from_json(ANDROID_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_computes_performance_score_and_tags_with_profile_version() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "performance_score": {
+              "score_profile_version": "beta",
+              "type": "performancescore",
+            },
+          },
+          "measurements": {
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_normalization_removes_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(&mut event, &NormalizationConfig::default());
+        assert!(!get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_renormalization_does_not_remove_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_normalize_user() {
+        let json = r#"{
+            "user": {
+                "id": "123456",
+                "username": "john",
+                "other": "value"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        normalize_user(event.value_mut().as_mut().unwrap());
+
+        let user = event.value().unwrap().user.value().unwrap();
+        assert_eq!(user.data, {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            Annotated::new(map)
+        });
+        assert_eq!(user.other, Object::new());
+        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
+    }
+
+    #[test]
+    fn test_handle_types_in_spaced_exception_values() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError: unauthorized".to_string().into()),
+            ..Exception::default()
+        });
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
+    }
+
+    #[test]
+    fn test_handle_types_in_non_spaced_excepton_values() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError:unauthorized".to_string().into()),
+            ..Exception::default()
+        });
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
+    }
+
+    #[test]
+    fn test_rejects_empty_exception_fields() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("".to_string().into()),
+            ty: Annotated::new("".to_string()),
+            ..Default::default()
+        });
+
+        normalize_exception(&mut exception);
+
+        assert!(exception.value().is_none());
+        assert!(exception.meta().has_errors());
+    }
+
+    #[test]
+    fn test_json_value() {
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            ..Exception::default()
+        });
+
+        normalize_exception(&mut exception);
+
+        let exception = exception.value().unwrap();
+
+        // Don't split a json-serialized value on the colon
+        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
+        assert_eq!(exception.ty.value(), None);
+    }
+
+    #[test]
+    fn test_exception_invalid() {
+        let mut exception = Annotated::new(Exception::default());
+
+        normalize_exception(&mut exception);
+
+        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
+            error.insert("attribute", "type or value");
+        });
+        assert_eq!(
+            exception.meta().iter_errors().collect_tuple(),
+            Some((&expected,))
+        );
+    }
+
+    #[test]
+    fn test_normalize_exception() {
+        let mut event = Annotated::new(Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                // Exception with missing type and value
+                ty: Annotated::empty(),
+                value: Annotated::empty(),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        });
+
+        normalize_event(&mut event, &NormalizationConfig::default());
+
+        let exception = event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap();
+
+        assert_debug_snapshot!(exception.meta(), @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: MissingAttribute,
+                    data: {
+                        "attribute": String(
+                            "type or value",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {
+                        "mechanism": ~,
+                        "module": ~,
+                        "raw_stacktrace": ~,
+                        "stacktrace": ~,
+                        "thread_id": ~,
+                        "type": ~,
+                        "value": ~,
+                    },
+                ),
+            ),
+        }"#);
+    }
+
+    #[test]
+    fn test_normalize_breadcrumbs() {
+        let mut event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Breadcrumb::default())]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_breadcrumbs(&mut event);
+
+        let breadcrumb = event
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+        assert_eq!(breadcrumb.ty.value().unwrap(), "default");
+        assert_eq!(&breadcrumb.level.value().unwrap().to_string(), "info");
+    }
+
+    #[test]
+    fn test_other_debug_images_have_meta_errors() {
+        let mut event = Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(
+                    DebugImage::Other(BTreeMap::default()),
+                )]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_debug_meta(&mut event);
+
+        let debug_image_meta = event
+            .debug_meta
+            .value()
+            .unwrap()
+            .images
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .meta();
+        assert_debug_snapshot!(debug_image_meta, @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "unsupported debug image type",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {},
+                ),
+            ),
+        }"#);
+    }
+
+    #[test]
+    fn test_skip_span_normalization_when_configured() {
+        let json = r#"{
+            "type": "transaction",
+            "start_timestamp": 1,
+            "timestamp": 2,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "aaaaaaaaaaaaaaaa"
+                }
+            },
+            "spans": [
+                {
+                    "op": "db",
+                    "description": "SELECT * FROM table;",
+                    "start_timestamp": 1,
+                    "timestamp": 2,
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa"
+                }
+            ]
+        }"#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_none());
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: false,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.spans[0].exclusive_time).is_some());
     }
 }

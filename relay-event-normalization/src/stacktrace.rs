@@ -12,15 +12,16 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
+pub fn normalize_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
     // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
-            process_non_raw_frame(frame);
+            normalize_non_raw_frame(frame);
         }
     }
 }
-pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
+
+pub fn normalize_non_raw_frame(frame: &mut Annotated<Frame>) {
     let _ = processor::apply(frame, |frame, _meta| {
         if frame.abs_path.value().is_empty() {
             frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
@@ -41,6 +42,33 @@ pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
                 }
             }
         }
+
+        if frame.function.as_str() == Some("?") {
+            frame.function.set_value(None);
+        }
+
+        if frame.symbol.as_str() == Some("?") {
+            frame.symbol.set_value(None);
+        }
+
+        if let Some(lines) = frame.pre_context.value_mut() {
+            for line in lines.iter_mut() {
+                line.get_or_insert_with(String::new);
+            }
+        }
+
+        if let Some(lines) = frame.post_context.value_mut() {
+            for line in lines.iter_mut() {
+                line.get_or_insert_with(String::new);
+            }
+        }
+
+        if frame.context_line.value().is_none()
+            && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
+        {
+            frame.context_line.set_value(Some(String::new()));
+        }
+
         Ok(())
     });
 }
@@ -59,7 +87,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_non_raw_frame(&mut frame);
+        normalize_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");
@@ -78,7 +106,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_non_raw_frame(&mut frame);
+        normalize_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "foo.js");
@@ -96,7 +124,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_non_raw_frame(&mut frame);
+        normalize_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com");
@@ -114,7 +142,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_non_raw_frame(&mut frame);
+        normalize_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com/");
@@ -133,7 +161,7 @@ mod tests {
             ..Default::default()
         });
 
-        process_non_raw_frame(&mut frame);
+        normalize_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");

@@ -1,10 +1,10 @@
 [package]
 name = "relay-cardinality"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Metrics Cardiniality Limiter"
+description = "Metrics Cardinality Limiter"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.1"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -14,19 +14,24 @@ autobenches = false
 default = []
 redis = ["relay-redis/impl"]
 
+[lints]
+workspace = true
+
 [dependencies]
 hashbrown = { workspace = true }
-relay-common = { path = "../relay-common" }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-log = { path = "../relay-log" }
-relay-redis = { path = "../relay-redis" }
-relay-statsd = { path = "../relay-statsd" }
+parking_lot = { workspace = true }
+relay-base-schema = { workspace = true }
+relay-common = { workspace = true }
+relay-log = { workspace = true }
+relay-redis = { workspace = true }
+relay-statsd = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
 
 [[bench]]
 name = "redis"

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregator::{self, AggregatorConfig, ShiftKey};
 use crate::bucket::Bucket;
-use crate::statsd::{MetricCounters, MetricHistograms};
+use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -166,6 +166,18 @@ pub enum Aggregator {
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
 
+impl Aggregator {
+    /// Returns the name of the message variant.
+    fn variant(&self) -> &'static str {
+        match self {
+            Aggregator::AcceptsMetrics(_, _) => "AcceptsMetrics",
+            Aggregator::MergeBuckets(_) => "MergeBuckets",
+            #[cfg(test)]
+            Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
+        }
+    }
+}
+
 impl Interface for Aggregator {}
 
 impl FromMessage<AcceptsMetrics> for Aggregator {
@@ -303,15 +315,22 @@ impl AggregatorService {
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
-        match msg {
-            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.bucket_count())
+    fn handle_message(&mut self, message: Aggregator) {
+        let ty = message.variant();
+        relay_statsd::metric!(
+            timer(MetricTimers::AggregatorServiceDuration),
+            message = ty,
+            {
+                match message {
+                    Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+                    Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+                    #[cfg(test)]
+                    Aggregator::BucketCountInquiry(_, sender) => {
+                        sender.send(self.aggregator.bucket_count())
+                    }
+                }
             }
-        }
+        )
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {
@@ -396,9 +415,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
-    use relay_system::{FromMessage, Interface};
 
-    use crate::{BucketCountInquiry, BucketValue};
+    use crate::{BucketMetadata, BucketValue};
 
     use super::*;
 
@@ -456,9 +474,10 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
-            name: "c:transactions/foo".to_owned(),
+            name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(),
         }
     }
 
@@ -481,10 +500,10 @@ mod tests {
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
+        aggregator.send(MergeBuckets::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            vec![bucket],
+        ));
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
         // Let's check the number of buckets in the aggregator just after sending a

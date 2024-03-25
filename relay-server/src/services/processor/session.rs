@@ -14,7 +14,7 @@ use relay_metrics::Bucket;
 use relay_statsd::metric;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
@@ -22,7 +22,7 @@ use crate::utils::ItemAction;
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) {
     let received = state.managed_envelope.received_at();
     let extracted_metrics = &mut state.extracted_metrics.project_metrics;
     let metrics_config = state.project_state.config().session_metrics;

@@ -41,8 +41,10 @@ pub enum InvalidSelectorError {
     InternalError,
 }
 
+#[allow(unknown_lints)]
+#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::empty_docs)]
 mod parser {
-    #![allow(clippy::upper_case_acronyms)]
     use pest_derive::Parser;
 
     #[derive(Parser)]

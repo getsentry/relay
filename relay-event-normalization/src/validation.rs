@@ -19,6 +19,13 @@ pub struct TransactionValidationConfig {
     /// Transactions that finish outside this range are invalid. The check is
     /// skipped if no range is provided.
     pub timestamp_range: Option<Range<UnixTimestamp>>,
+
+    /// Controls whether the event has been validated before, in which case disables validation.
+    ///
+    /// By default, `is_validated` is disabled and transaction validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates a transaction.
@@ -32,10 +39,14 @@ pub struct TransactionValidationConfig {
 /// Note: this function does not validate a transaction's timestamp values are
 /// up-to-date, [`validate_event_timestamps`] should be used for that.
 pub fn validate_transaction(
-    event: &Annotated<Event>,
+    event: &mut Annotated<Event>,
     config: &TransactionValidationConfig,
 ) -> ProcessingResult {
-    let Annotated(Some(ref event), ref _meta) = event else {
+    if config.is_validated {
+        return Ok(());
+    }
+
+    let Annotated(Some(ref mut event), ref _meta) = event else {
         return Ok(());
     };
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -46,6 +57,7 @@ pub fn validate_transaction(
     validate_trace_context(event)?;
     // There are no timestamp range requirements for span timestamps.
     // Transaction will be rejected only if either end or start timestamp is missing.
+    end_all_spans(event);
     validate_spans(event, None)?;
 
     Ok(())
@@ -131,6 +143,21 @@ fn validate_trace_context(transaction: &Event) -> ProcessingResult {
     }
 
     Ok(())
+}
+
+/// Copies the event's end timestamp into the spans that don't have one.
+fn end_all_spans(event: &mut Event) {
+    let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
+    for span in spans {
+        if let Some(span) = span.value_mut() {
+            if span.timestamp.value().is_none() {
+                // event timestamp guaranteed to be `Some` due to validate_transaction call
+                span.timestamp.set_value(event.timestamp.value().cloned());
+                span.status =
+                    Annotated::new(relay_base_schema::spans::SpanStatus::DeadlineExceeded);
+            }
+        }
+    }
 }
 
 /// Validates the spans in the transaction.
@@ -221,6 +248,13 @@ pub struct EventValidationConfig {
     ///
     /// If the event's timestamp lies further into the future, the received timestamp is assumed.
     pub max_secs_in_future: Option<i64>,
+
+    /// Controls whether the event has been validated before, in which case disables validation.
+    ///
+    /// By default, `is_validated` is disabled and event validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
 }
 
 /// Validates the timestamp values of an event, after performing minimal timestamp normalization.
@@ -229,8 +263,9 @@ pub struct EventValidationConfig {
 /// checking for validity, like clock drift correction. This normalization
 /// depends on the given configuration.
 ///
-/// Validation is checked individually on timestamps. Use
-/// [`validate_transaction`] to perform additional transaction-specific checks.
+/// Validation is checked individually on timestamps. For transaction events,
+/// [`validate_transaction`] should run after this method to perform additional
+/// transaction-specific checks.
 ///
 /// The returned [`ProcessingResult`] indicates whether the event is invalid and
 /// thus should be dropped.
@@ -242,6 +277,10 @@ pub fn validate_event_timestamps(
     event: &mut Annotated<Event>,
     config: &EventValidationConfig,
 ) -> ProcessingResult {
+    if config.is_validated {
+        return Ok(());
+    }
+
     let Annotated(Some(ref mut event), ref mut meta) = event else {
         return Ok(());
     };
@@ -320,8 +359,9 @@ fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::protocol::{Contexts, SpanId, TraceId};
-    use relay_protocol::Object;
+    use relay_protocol::{get_value, Object};
 
     use super::*;
 
@@ -357,13 +397,13 @@ mod tests {
 
     #[test]
     fn test_discards_when_missing_timestamp() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             ..Default::default()
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events"
             ))
@@ -372,13 +412,14 @@ mod tests {
 
     #[test]
     fn test_discards_when_timestamp_out_of_range() {
-        let event = new_test_event();
+        let mut event = new_test_event();
 
         assert!(matches!(
             validate_transaction(
-                &event,
+                &mut event,
                 &TransactionValidationConfig {
                     timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -389,14 +430,14 @@ mod tests {
 
     #[test]
     fn test_discards_when_missing_start_timestamp() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             ..Default::default()
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "start_timestamp hard-required for transaction events"
             ))
@@ -405,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_discards_on_missing_contexts_map() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -416,9 +457,10 @@ mod tests {
 
         assert_eq!(
             validate_transaction(
-                &event,
+                &mut event,
                 &TransactionValidationConfig {
-                    timestamp_range: None
+                    timestamp_range: None,
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -429,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_discards_on_missing_context() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -441,9 +483,10 @@ mod tests {
 
         assert_eq!(
             validate_transaction(
-                &event,
+                &mut event,
                 &TransactionValidationConfig {
-                    timestamp_range: None
+                    timestamp_range: None,
+                    is_validated: false
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -454,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_discards_on_null_context() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -469,7 +512,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "missing valid trace context"
             ))
@@ -478,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_discards_on_missing_trace_id_in_context() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -493,7 +536,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "trace context is missing trace_id"
             ))
@@ -502,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_discards_on_missing_span_id_in_context() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -520,7 +563,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "trace context is missing span_id"
             ))
@@ -529,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_discards_transaction_event_with_nulled_out_span() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -550,7 +593,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event"
             ))
@@ -559,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -585,7 +628,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing start_timestamp"
             ))
@@ -594,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_discards_transaction_event_with_span_with_missing_trace_id() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -623,7 +666,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing trace_id"
             ))
@@ -632,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_discards_transaction_event_with_span_with_missing_span_id() {
-        let event = Annotated::new(Event {
+        let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -662,7 +705,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&event, &TransactionValidationConfig::default()),
+            validate_transaction(&mut event, &TransactionValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing span_id"
             ))
@@ -692,6 +735,7 @@ mod tests {
             received_at: Some(Utc::now()),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
+            is_validated: false,
         };
 
         let json = r#"{
@@ -717,6 +761,7 @@ mod tests {
             received_at: Some(now),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
+            is_validated: false,
         };
 
         let json = format!(
@@ -736,5 +781,127 @@ mod tests {
                 .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
+    }
+
+    /// Validates an unfinished span in a transaction, and the transaction is accepted.
+    #[test]
+    fn test_accept_transactions_with_unfinished_spans() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(validate_transaction(&mut event, &TransactionValidationConfig::default()).is_ok());
+
+        let event = get_value!(event!);
+        let spans = &event.spans;
+        let span = get_value!(spans[0]!);
+
+        assert_eq!(span.timestamp, event.timestamp);
+        assert_eq!(span.status.value().unwrap(), &SpanStatus::DeadlineExceeded);
+    }
+
+    /// Validates an unfinished span is finished with the normalized transaction's timestamp.
+    #[test]
+    fn test_finish_spans_with_normalized_transaction_end_timestamp() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 946731000,
+  "timestamp": 946731555,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 946731000,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        validate_event_timestamps(
+            &mut event,
+            &EventValidationConfig {
+                received_at: Some(Utc::now()),
+                max_secs_in_past: Some(2),
+                max_secs_in_future: Some(1),
+                is_validated: false,
+            },
+        )
+        .unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
+
+        let event = get_value!(event!);
+        let spans = &event.spans;
+        let span = get_value!(spans[0]!);
+
+        assert_eq!(span.timestamp.value(), event.timestamp.value());
+    }
+
+    #[test]
+    fn test_skip_transaction_validation_on_renormalization() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I'm invalid because I don't have any timestamps!"
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(validate_transaction(&mut event, &TransactionValidationConfig::default()).is_err());
+        assert!(validate_transaction(
+            &mut event,
+            &TransactionValidationConfig {
+                is_validated: true,
+                ..Default::default()
+            }
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_skip_event_timestamp_validation_on_renormalization() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "completely outdated transaction",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(validate_event_timestamps(&mut event, &EventValidationConfig::default()).is_err());
+        assert!(validate_event_timestamps(
+            &mut event,
+            &EventValidationConfig {
+                is_validated: true,
+                ..Default::default()
+            }
+        )
+        .is_ok());
     }
 }

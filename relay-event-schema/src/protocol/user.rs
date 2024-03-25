@@ -11,19 +11,19 @@ use crate::protocol::{IpAddr, LenientString};
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 102, max_chars_allowance = 1004)]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub city: Annotated<String>,
 
     /// Human readable subdivision name.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub subdivision: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub region: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -49,11 +49,11 @@ pub struct Geo {
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {
     /// Unique identifier of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
     pub id: Annotated<LenientString>,
 
     /// Email address of the user.
-    #[metastructure(pii = "true", max_chars = "email", skip_serialization = "empty")]
+    #[metastructure(pii = "true", max_chars = 75, skip_serialization = "empty")]
     pub email: Annotated<String>,
 
     /// Remote IP address of the user. Defaults to "{{auto}}".
@@ -61,11 +61,11 @@ pub struct User {
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.
-    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
     pub name: Annotated<String>,
 
     /// Approximate geographical location of the end user or device.
@@ -75,6 +75,14 @@ pub struct User {
     /// The user segment, for apps that divide users in user segments.
     #[metastructure(skip_serialization = "empty")]
     pub segment: Annotated<String>,
+
+    /// The user string representation as handled in Sentry.
+    ///
+    /// This field is computed by concatenating the name of specific fields of the `User`
+    /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
+    /// `"id:id-of-the-user".
+    #[metastructure(skip_serialization = "empty")]
+    pub sentry_user: Annotated<String>,
 
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
@@ -174,6 +182,7 @@ mod tests {
                 );
                 map
             },
+            ..Default::default()
         });
 
         assert_eq!(user, Annotated::from_json(json).unwrap());

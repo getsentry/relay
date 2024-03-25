@@ -84,21 +84,17 @@ impl OutcomeAggregator {
     }
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
-        relay_log::trace!("Outcome aggregation requested: {msg:?}");
-
         if self.mode == AggregationMode::DropEverything {
             return;
         }
 
         let (event_id, remote_addr) = if self.erase_high_cardinality_fields(&msg) {
-            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {msg:?}");
             (None, None)
         } else {
             (msg.event_id, msg.remote_addr)
         };
 
-        if let Some(event_id) = event_id {
-            relay_log::trace!("Forwarding outcome without aggregation: {event_id}");
+        if event_id.is_some() {
             self.outcome_producer.send(msg);
             return;
         }
@@ -155,7 +151,6 @@ impl OutcomeAggregator {
                 quantity,
             };
 
-            relay_log::trace!("Flushing outcome for timestamp {timestamp}");
             outcome_producer.send(outcome);
         }
     }

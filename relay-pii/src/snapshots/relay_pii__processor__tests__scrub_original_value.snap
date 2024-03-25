@@ -71,6 +71,7 @@ Event {
         name: ~,
         geo: ~,
         segment: ~,
+        sentry_user: ~,
         data: ~,
         other: {},
     },

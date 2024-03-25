@@ -6,7 +6,7 @@ use std::str::FromStr;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, SkipSerialization, Value};
 #[cfg(feature = "jsonschema")]
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// Trace status.
 ///
@@ -241,23 +241,4 @@ impl IntoValue for SpanStatus {
     {
         Serialize::serialize(self.as_str(), s)
     }
-}
-
-/// A span attribute to compute during normalization.
-///
-/// Relay computes certain known span data fields from spans and their children during
-/// normalization. These fields are written back into span data and can be used in ingestion and
-/// storage.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum SpanAttribute {
-    /// The time spent in this span without time spent in children.
-    ///
-    /// Sometimes also referred to as own-time, this is the execution time spent in this span
-    /// without the time spent in all transitive children.
-    ExclusiveTime,
-
-    /// A field unknown to this Relay for forward compatibility.
-    #[serde(other)]
-    Unknown,
 }

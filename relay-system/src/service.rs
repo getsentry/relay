@@ -749,6 +749,16 @@ impl<I: Interface> Addr<I> {
         }
     }
 
+    /// Returns wether the queue is currently empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the current queue size.
+    pub fn len(&self) -> u64 {
+        self.queue_size.load(Ordering::Relaxed)
+    }
+
     /// Custom address used for testing.
     ///
     /// Returns the receiving end of the channel for inspection.

@@ -49,7 +49,7 @@ where
 }
 
 /// Reference to information required for tracking quotas in Redis.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
@@ -129,31 +129,22 @@ impl<'a> RedisQuota<'a> {
 
     /// Returns the key of the quota.
     pub fn key(&self) -> String {
-        if matches!(self.quota.scope, QuotaScope::Global) {
-            // Global quotas have their own key with the shard based on the quota name instead of
-            // the organization.
-            return format!(
-                "quota:global:{{{id}}}:{slot}",
-                id = self.prefix,
-                slot = self.slot(),
-            );
-        }
-
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
+            QuotaScope::Global => None,
             QuotaScope::Organization => None,
             scope => self.scoping.scope_id(scope),
         };
 
-        // 0 is arbitrary, we just need to ensure global quotas from different orgs have the same key.
         let org = self.scoping.organization_id;
 
         format!(
-            "quota:{id}{{{org}}}{subscope}:{slot}",
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
             id = self.prefix,
             org = org,
             subscope = OptionalDisplay(subscope),
+            namespace = OptionalDisplay(self.namespace),
             slot = self.slot(),
         )
     }
@@ -221,9 +212,9 @@ impl RedisRateLimiter {
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
-    pub fn is_rate_limited(
+    pub fn is_rate_limited<'a>(
         &self,
-        quotas: &[Quota],
+        quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
         over_accept_once: bool,
@@ -233,6 +224,8 @@ impl RedisRateLimiter {
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
+
+        let mut global_quotas = vec![];
 
         for quota in quotas {
             if !quota.matches(item_scoping) {
@@ -245,15 +238,7 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    let is_rate_limited = self
-                        .global_limits
-                        .is_rate_limited(&mut client, &quota, quantity)
-                        .map_err(RateLimitingError::Redis)?;
-
-                    if is_rate_limited {
-                        let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                        rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
-                    }
+                    global_quotas.push(quota);
                 } else {
                     let key = quota.key();
                     // Remaining quotas are expected to be trackable in Redis.
@@ -277,6 +262,16 @@ impl RedisRateLimiter {
                     || relay_log::warn!("skipping unsupported quota"),
                 )
             }
+        }
+
+        let rate_limited_global_quotas = self
+            .global_limits
+            .filter_rate_limited(&mut client, &global_quotas, quantity)
+            .map_err(RateLimitingError::Redis)?;
+
+        for quota in rate_limited_global_quotas {
+            let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
+            rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
@@ -312,9 +307,9 @@ impl RedisRateLimiter {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
@@ -346,6 +341,7 @@ mod tests {
                 limit: Some(0),
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
             },
             Quota {
                 id: Some("42".to_owned()),
@@ -355,6 +351,7 @@ mod tests {
                 limit: None,
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
+                namespace: None,
             },
         ];
 
@@ -366,6 +363,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -381,8 +379,79 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
+                namespace: None,
             }]
         );
+    }
+
+    /// Tests that a quota with and without namespace are counted separately.
+    #[test]
+    fn test_non_global_namespace_quota() {
+        let quota_limit = 5;
+        let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
+            Quota {
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(quota_limit),
+                window: Some(600),
+                reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
+                namespace,
+            }
+        };
+
+        let quotas = &[get_quota(None)];
+        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: Some(MetricNamespace::Transactions),
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // First confirm normal behaviour without namespace.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: None"))
+                );
+            }
+        }
+
+        // Then, send identical quota with namespace and confirm it counts separately.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: Some(Transactions)"))
+                );
+            }
+        }
     }
 
     #[test]
@@ -395,6 +464,7 @@ mod tests {
             limit: Some(5),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -405,6 +475,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -424,6 +495,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {
@@ -442,6 +514,7 @@ mod tests {
             limit: Some(5),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -452,6 +525,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -471,6 +545,7 @@ mod tests {
                         scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {
@@ -489,6 +564,7 @@ mod tests {
             limit: Some(1),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -499,6 +575,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -538,6 +615,7 @@ mod tests {
             limit: Some(2),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -548,6 +626,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -591,6 +670,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -613,6 +693,7 @@ mod tests {
                 limit: None,
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
+                namespace: None,
             },
             Quota {
                 id: Some("q1".to_string()),
@@ -622,6 +703,7 @@ mod tests {
                 limit: Some(1),
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
+                namespace: None,
             },
         ];
 
@@ -633,6 +715,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -654,6 +737,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             }
@@ -670,6 +754,7 @@ mod tests {
             limit: Some(500),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -680,6 +765,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -699,6 +785,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {
@@ -717,6 +804,7 @@ mod tests {
             window: Some(2),
             limit: Some(0),
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -727,6 +815,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
@@ -744,6 +833,7 @@ mod tests {
             window: Some(10),
             limit: Some(0),
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -754,6 +844,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -771,6 +862,7 @@ mod tests {
             window: Some(10),
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -781,6 +873,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);

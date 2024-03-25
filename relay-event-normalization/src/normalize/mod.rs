@@ -2,33 +2,29 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use once_cell::sync::OnceCell;
-use regex::Regex;
 use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
-    MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
-    VALID_PLATFORMS,
+    ClientSdkInfo, Event, EventId, EventType, Level, MetricSummaryMapping, NelContext,
+    ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
-    RuleCondition, Value,
+    Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{GeoIpLookup, StoreConfig};
+use crate::{MaxChars, StoreConfig};
 
 pub mod breakdowns;
+pub mod contexts;
 pub mod nel;
 pub mod request;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
-
-mod contexts;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -96,18 +92,14 @@ pub fn is_valid_platform(platform: &str) -> bool {
 }
 
 /// The processor that normalizes events for store.
-pub struct StoreNormalizeProcessor<'a> {
+pub struct StoreNormalizeProcessor {
     config: Arc<StoreConfig>,
-    geoip_lookup: Option<&'a GeoIpLookup>,
 }
 
-impl<'a> StoreNormalizeProcessor<'a> {
+impl StoreNormalizeProcessor {
     /// Creates a new normalization processor.
-    pub fn new(config: Arc<StoreConfig>, geoip_lookup: Option<&'a GeoIpLookup>) -> Self {
-        StoreNormalizeProcessor {
-            config,
-            geoip_lookup,
-        }
+    pub fn new(config: Arc<StoreConfig>) -> Self {
+        StoreNormalizeProcessor { config }
     }
 
     /// Returns the SDK info from the config.
@@ -123,13 +115,6 @@ impl<'a> StoreNormalizeProcessor<'a> {
                     ..Default::default()
                 })
         })
-    }
-
-    fn normalize_spans(&self, event: &mut Event) {
-        if event.ty.value() == Some(&EventType::Transaction) {
-            normalize_app_start_spans(event);
-            span::attributes::normalize_spans(event, &self.config.span_attributes);
-        }
     }
 
     fn normalize_metrics_summaries(&self, event: &mut Event) {
@@ -353,6 +338,9 @@ pub struct PerformanceScoreProfile {
     pub score_components: Vec<PerformanceScoreWeightedComponent>,
     /// See [`RuleCondition`] for all available options to specify and combine conditions.
     pub condition: Option<RuleCondition>,
+    /// The version of the profile, used to isolate changes to score calculations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 /// Defines the performance configuration for the project.
@@ -366,7 +354,7 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
-impl<'a> Processor for StoreNormalizeProcessor<'a> {
+impl Processor for StoreNormalizeProcessor {
     fn process_event(
         &mut self,
         event: &mut Event,
@@ -420,170 +408,10 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_spans(event);
         self.normalize_metrics_summaries(event);
         self.normalize_trace_context(event);
         self.normalize_replay_context(event);
 
-        Ok(())
-    }
-
-    fn process_breadcrumb(
-        &mut self,
-        breadcrumb: &mut Breadcrumb,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        breadcrumb.process_child_values(self, state)?;
-
-        if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
-        }
-
-        if breadcrumb.level.value().is_none() {
-            breadcrumb.level.set_value(Some(Level::Info));
-        }
-
-        Ok(())
-    }
-
-    fn process_user(
-        &mut self,
-        user: &mut User,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if !user.other.is_empty() {
-            let data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::take(&mut user.other));
-        }
-
-        user.process_child_values(self, state)?;
-
-        // Infer user.geo from user.ip_address
-        if let Some(geoip_lookup) = self.geoip_lookup {
-            crate::event::normalize_user_geoinfo(geoip_lookup, user)
-        }
-
-        Ok(())
-    }
-
-    fn process_debug_image(
-        &mut self,
-        image: &mut DebugImage,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        match image {
-            DebugImage::Other(_) => {
-                meta.add_error(Error::invalid("unsupported debug image type"));
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn process_exception(
-        &mut self,
-        exception: &mut Exception,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        exception.process_child_values(self, state)?;
-
-        static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
-
-        if exception.ty.value().is_empty() {
-            if let Some(value_str) = exception.value.value_mut() {
-                let new_values = regex
-                    .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
-
-                if let Some((new_type, new_value)) = new_values {
-                    exception.ty.set_value(Some(new_type));
-                    *value_str = new_value;
-                }
-            }
-        }
-
-        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
-            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
-                error.insert("attribute", "type or value");
-            }));
-            return Err(ProcessingAction::DeleteValueSoft);
-        }
-
-        Ok(())
-    }
-
-    fn process_frame(
-        &mut self,
-        frame: &mut Frame,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        frame.process_child_values(self, state)?;
-
-        if frame.function.as_str() == Some("?") {
-            frame.function.set_value(None);
-        }
-
-        if frame.symbol.as_str() == Some("?") {
-            frame.symbol.set_value(None);
-        }
-
-        if let Some(lines) = frame.pre_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if let Some(lines) = frame.post_context.value_mut() {
-            for line in lines.iter_mut() {
-                line.get_or_insert_with(String::new);
-            }
-        }
-
-        if frame.context_line.value().is_none()
-            && (!frame.pre_context.is_empty() || !frame.post_context.is_empty())
-        {
-            frame.context_line.set_value(Some(String::new()));
-        }
-
-        Ok(())
-    }
-
-    fn process_stacktrace(
-        &mut self,
-        stacktrace: &mut Stacktrace,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta);
-        Ok(())
-    }
-
-    fn process_context(
-        &mut self,
-        context: &mut Context,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        contexts::normalize_context(context);
-        Ok(())
-    }
-
-    fn process_contexts(
-        &mut self,
-        contexts: &mut Contexts,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
-        // construct.
-        // This processor does not run on renormalization anyway.
-        contexts.0.remove("reprocessing");
         Ok(())
     }
 }
@@ -697,28 +525,29 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
-        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
-        Values,
+        Context, ContextInner, Contexts, DebugImage, DebugMeta, Exception, Frame, Geo, IpAddr,
+        LenientString, LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request,
+        Span, SpanId, Stacktrace, TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
+        assert_annotated_snapshot, get_path, get_value, ErrorKind, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
+    use crate::stacktrace::normalize_non_raw_frame;
     use crate::{
         normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-        NormalizationConfig, TransactionValidationConfig,
+        GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
     };
 
     use super::*;
 
-    impl Default for StoreNormalizeProcessor<'_> {
+    impl Default for StoreNormalizeProcessor {
         fn default() -> Self {
-            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
+            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()))
         }
     }
 
@@ -775,90 +604,23 @@ mod tests {
     }
 
     #[test]
-    fn test_handles_type_in_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError: unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError:unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-    }
-
-    #[test]
-    fn test_rejects_empty_exception_fields() {
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("".to_string().into()),
-            ty: Annotated::new("".to_string()),
-            ..Default::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        assert!(exception.value().is_none());
-        assert!(exception.meta().has_errors());
-    }
-
-    #[test]
-    fn test_json_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-            ..Exception::default()
-        });
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-
-        // Don't split a json-serialized value on the colon
-        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
-        assert_eq!(exception.ty.value(), None);
-    }
-
-    #[test]
-    fn test_exception_invalid() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception::default());
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
-            error.insert("attribute", "type or value");
-        });
-
-        assert_eq!(
-            exception.meta().iter_errors().collect_tuple(),
-            Some((&expected,))
-        );
-    }
-
-    #[test]
     fn test_geo_from_ip_address() {
         let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor =
-            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
 
-        let mut user = Annotated::new(User {
-            ip_address: Annotated::new(IpAddr("2.125.160.216".to_string())),
-            ..User::default()
-        });
+        let json = r#"{
+            "user": {
+                "ip_address": "2.125.160.216"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                geoip_lookup: Some(&lookup),
+                ..Default::default()
+            },
+        );
 
         let expected = Annotated::new(Geo {
             country_code: Annotated::new("GB".to_string()),
@@ -867,7 +629,7 @@ mod tests {
             region: Annotated::new("United Kingdom".to_string()),
             ..Geo::default()
         });
-        assert_eq!(user.value().unwrap().geo, expected)
+        assert_eq!(get_value!(event.user!).geo, expected);
     }
 
     #[test]
@@ -889,7 +651,7 @@ mod tests {
         });
 
         let config = StoreConfig::default();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
 
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -917,7 +679,7 @@ mod tests {
         });
 
         let config = StoreConfig::default();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -937,7 +699,7 @@ mod tests {
             ..StoreConfig::default()
         };
 
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -962,21 +724,16 @@ mod tests {
         });
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let config = StoreConfig {
-            client_ip: Some(ip_address.clone()),
-            ..StoreConfig::default()
-        };
 
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
                 ..Default::default()
             },
         );
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
         let ip_addr = user.ip_address.value().expect("ip address missing");
@@ -990,21 +747,15 @@ mod tests {
         let mut event = Annotated::new(Event::default());
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let config = StoreConfig {
-            client_ip: Some(ip_address.clone()),
-            ..StoreConfig::default()
-        };
-
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
                 ..Default::default()
             },
         );
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
         assert!(user.ip_address.value().is_none());
@@ -1110,7 +861,7 @@ mod tests {
             replay_id: Some(replay_id),
             ..StoreConfig::default()
         };
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1363,7 +1114,7 @@ mod tests {
         let config = StoreConfig {
             ..StoreConfig::default()
         };
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1374,37 +1125,6 @@ mod tests {
             event_trace_context.status,
             Annotated::new(SpanStatus::Unknown)
         )
-    }
-
-    #[test]
-    fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
-
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
-
-        let user = user.value().unwrap();
-
-        assert_eq!(user.data, {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_owned())),
-            );
-            Annotated::new(map)
-        });
-
-        assert_eq!(user.other, Object::new());
     }
 
     #[test]
@@ -1444,8 +1164,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         let frame = frame.value().unwrap();
         assert_eq!(frame.context_line.as_str(), Some(""));
@@ -1481,8 +1200,7 @@ mod tests {
             ..Frame::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+        normalize_non_raw_frame(&mut frame);
 
         assert_eq!(
             *get_value!(frame.pre_context!),
@@ -1604,13 +1322,10 @@ mod tests {
     #[test]
     fn test_parses_sdk_info_from_header() {
         let mut event = Annotated::new(Event::default());
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                client: Some("_fooBar/0.0.0".to_string()),
-                ..StoreConfig::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            client: Some("_fooBar/0.0.0".to_string()),
+            ..StoreConfig::default()
+        }));
 
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1651,15 +1366,12 @@ mod tests {
             ..Default::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                grouping_config: Some(json!({
-                    "id": "legacy:1234-12-12".to_string(),
-                })),
-                ..Default::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            grouping_config: Some(json!({
+                "id": "legacy:1234-12-12".to_string(),
+            })),
+            ..Default::default()
+        }));
 
         validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
@@ -1756,25 +1468,23 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                received_at,
-                max_secs_in_past,
-                max_secs_in_future,
-                ..Default::default()
-            }),
-            None,
-        );
-        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+            ..Default::default()
+        }));
         validate_event_timestamps(
             &mut event,
             &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_validated: false,
             },
         )
         .unwrap();
+        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1819,21 +1529,19 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                received_at,
-                max_secs_in_past,
-                max_secs_in_future,
-                ..Default::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+            ..Default::default()
+        }));
         validate_event_timestamps(
             &mut event,
             &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
+                is_validated: false,
             },
         )
         .unwrap();
@@ -2118,7 +1826,7 @@ mod tests {
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
             let res =
-                validate_transaction(&modified_event, &TransactionValidationConfig::default());
+                validate_transaction(&mut modified_event, &TransactionValidationConfig::default());
 
             assert!(res.is_err(), "{span:?}");
         }
@@ -2252,6 +1960,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -2295,6 +2004,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]
@@ -2338,6 +2048,7 @@ mod tests {
                 received: ~,
                 measurements: ~,
                 _metrics_summary: ~,
+                platform: ~,
                 other: {},
             },
         ]

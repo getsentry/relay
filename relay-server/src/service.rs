@@ -6,12 +6,16 @@ use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
+use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
+#[cfg(feature = "processing")]
+use crate::metric_stats::MetricStats;
+use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -135,16 +139,37 @@ impl ServiceState {
         .start_in(&runtimes.aggregator);
 
         #[cfg(feature = "processing")]
+        let metric_stats = MetricStats::new(
+            config.clone(),
+            global_config_handle.clone(),
+            aggregator.clone(),
+        );
+
+        #[cfg(feature = "processing")]
         let store = match runtimes.store {
-            Some(ref rt) => {
-                Some(StoreService::create(config.clone(), outcome_aggregator.clone())?.start_in(rt))
-            }
+            Some(ref rt) => Some(
+                StoreService::create(
+                    config.clone(),
+                    global_config_handle.clone(),
+                    outcome_aggregator.clone(),
+                    metric_stats,
+                )?
+                .start_in(rt),
+            ),
             None => None,
         };
+
+        let cogs = CogsService::new(
+            &config,
+            #[cfg(feature = "processing")]
+            store.clone(),
+        );
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
             config.clone(),
             global_config_handle,
+            cogs,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
             outcome_aggregator.clone(),
@@ -293,7 +318,7 @@ impl Runtimes {
     pub fn new(config: &Config) -> Self {
         Self {
             upstream: create_runtime("upstream-rt", 1),
-            project: create_runtime("project-rt", 1),
+            project: create_runtime("project-rt", 2),
             aggregator: create_runtime("aggregator-rt", 1),
             outcome: create_runtime("outcome-rt", 1),
             #[cfg(feature = "processing")]

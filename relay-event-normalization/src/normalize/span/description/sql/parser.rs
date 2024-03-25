@@ -6,9 +6,10 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, Ident,
-    ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
-    TableFactor, UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Declare,
+    Expr, FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
+    ShowStatementFilter, Statement, TableAlias, TableConstraint, TableFactor, UnaryOperator, Value,
+    VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -20,11 +21,38 @@ use sqlparser::dialect::{Dialect, GenericDialect};
 const MAX_EXPRESSION_DEPTH: usize = 64;
 
 /// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)[0-9a-f]{8,}|\d\d+").unwrap());
+static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?ix)
+        [0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12} |
+        [0-9a-f]{8,} |
+        \d\d+
+        ",
+    )
+    .unwrap()
+});
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
 pub fn parse_query(
+    db_system: Option<&str>,
+    query: &str,
+) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
+    relay_log::with_scope(
+        |scope| {
+            scope.set_tag("db_system", db_system.unwrap_or_default());
+            scope.set_extra("query", query.into());
+        },
+        || match std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
+            Ok(res) => res,
+            Err(_) => Err(sqlparser::parser::ParserError::ParserError(
+                "panicked".to_string(),
+            )),
+        },
+    )
+}
+
+fn parse_query_inner(
     db_system: Option<&str>,
     query: &str,
 ) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
@@ -39,7 +67,10 @@ pub fn parse_query(
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.
-pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result<String, ()> {
+pub fn normalize_parsed_queries(
+    db_system: Option<&str>,
+    string: &str,
+) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     parsed.visit(&mut NormalizeVisitor);
     parsed.visit(&mut MaxDepthVisitor::new());
@@ -52,7 +83,7 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
     // Insert placeholders that the SQL serializer cannot provide.
     let replaced = concatenated.replace("___UPDATE_LHS___ = NULL", "..");
 
-    Ok(replaced)
+    Ok((replaced, parsed))
 }
 
 /// A visitor that normalizes the SQL AST in-place.
@@ -157,6 +188,16 @@ impl NormalizeVisitor {
         name.quote_style = None;
         name.value = "%s".into()
     }
+
+    fn scrub_statement_filter(filter: &mut Option<ShowStatementFilter>) {
+        if let Some(s) = filter {
+            match s {
+                sqlparser::ast::ShowStatementFilter::Like(s)
+                | sqlparser::ast::ShowStatementFilter::ILike(s) => "%s".clone_into(s),
+                sqlparser::ast::ShowStatementFilter::Where(_) => {}
+            }
+        }
+    }
 }
 
 impl VisitorMut for NormalizeVisitor {
@@ -198,12 +239,41 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::Pivot {
-                table_alias,
-                pivot_alias,
+                value_column,
+                alias,
                 ..
             } => {
-                Self::simplify_table_alias(table_alias);
-                Self::simplify_table_alias(pivot_alias);
+                Self::simplify_compound_identifier(value_column);
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Function {
+                name, args, alias, ..
+            } => {
+                Self::simplify_compound_identifier(&mut name.0);
+                for arg in args {
+                    if let FunctionArg::Named { name, .. } = arg {
+                        Self::scrub_name(name);
+                    }
+                }
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::JsonTable { columns, alias, .. } => {
+                for column in columns {
+                    Self::scrub_name(&mut column.name);
+                }
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Unpivot {
+                value,
+                name,
+                columns,
+                alias,
+                ..
+            } => {
+                Self::scrub_name(value);
+                Self::scrub_name(name);
+                Self::simplify_compound_identifier(columns);
+                Self::simplify_table_alias(alias);
             }
         }
         ControlFlow::Continue(())
@@ -311,8 +381,10 @@ impl VisitorMut for NormalizeVisitor {
                 columns, source, ..
             } => {
                 *columns = vec![Self::ellipsis()];
-                if let SetExpr::Values(v) = &mut *source.body {
-                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                if let Some(source) = source.as_mut() {
+                    if let SetExpr::Values(v) = &mut *source.body {
+                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                    }
                 }
             }
             // Simple lists of col = value assignments are collapsed to `..`.
@@ -334,9 +406,19 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
             Statement::Savepoint { name } => Self::erase_name(name),
-            Statement::Declare { name, query, .. } => {
-                Self::erase_name(name);
-                self.transform_query(query);
+            Statement::ReleaseSavepoint { name } => Self::erase_name(name),
+            Statement::Declare { stmts } => {
+                for Declare {
+                    names, for_query, ..
+                } in stmts
+                {
+                    for name in names {
+                        Self::erase_name(name);
+                    }
+                    if let Some(for_query) = for_query {
+                        self.transform_query(for_query.as_mut());
+                    }
+                }
             }
             Statement::Fetch { name, into, .. } => {
                 Self::erase_name(name);
@@ -347,96 +429,295 @@ impl VisitorMut for NormalizeVisitor {
                     }];
                 }
             }
-            Statement::Close {
-                cursor: CloseCursor::Specific { name },
-            } => Self::erase_name(name),
-            Statement::AlterTable { name, operation } => {
+            Statement::Close { cursor } => match cursor {
+                CloseCursor::All => {}
+                CloseCursor::Specific { name } => Self::erase_name(name),
+            },
+            Statement::AlterTable {
+                name, operations, ..
+            } => {
                 Self::simplify_compound_identifier(&mut name.0);
-                match operation {
-                    AlterTableOperation::AddConstraint(c) => match c {
-                        TableConstraint::Unique { name, columns, .. } => {
-                            if let Some(name) = name {
-                                Self::scrub_name(name);
+                for operation in operations {
+                    match operation {
+                        AlterTableOperation::AddConstraint(c) => match c {
+                            TableConstraint::Unique { name, columns, .. } => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                for column in columns {
+                                    Self::scrub_name(column);
+                                }
                             }
-                            for column in columns {
-                                Self::scrub_name(column);
+                            TableConstraint::ForeignKey {
+                                name,
+                                columns,
+                                referred_columns,
+                                ..
+                            } => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                for column in columns {
+                                    Self::scrub_name(column);
+                                }
+                                for column in referred_columns {
+                                    Self::scrub_name(column);
+                                }
                             }
+                            TableConstraint::Check { name, .. } => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                            }
+                            TableConstraint::Index { name, columns, .. } => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                for column in columns {
+                                    Self::scrub_name(column);
+                                }
+                            }
+                            TableConstraint::FulltextOrSpatial {
+                                opt_index_name,
+                                columns,
+                                ..
+                            } => {
+                                if let Some(name) = opt_index_name {
+                                    Self::scrub_name(name);
+                                }
+                                for column in columns {
+                                    Self::scrub_name(column);
+                                }
+                            }
+                        },
+                        AlterTableOperation::AddColumn { column_def, .. } => {
+                            let ColumnDef { name, .. } = column_def;
+                            Self::scrub_name(name);
                         }
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            referred_columns,
-                            ..
+                        AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
+                        AlterTableOperation::DropColumn { column_name, .. } => {
+                            Self::scrub_name(column_name)
+                        }
+                        AlterTableOperation::RenameColumn {
+                            old_column_name,
+                            new_column_name,
                         } => {
-                            if let Some(name) = name {
-                                Self::scrub_name(name);
-                            }
-                            for column in columns {
-                                Self::scrub_name(column);
-                            }
-                            for column in referred_columns {
-                                Self::scrub_name(column);
-                            }
+                            Self::scrub_name(old_column_name);
+                            Self::scrub_name(new_column_name);
                         }
-                        TableConstraint::Check { name, .. } => {
-                            if let Some(name) = name {
-                                Self::scrub_name(name);
-                            }
-                        }
-                        TableConstraint::Index { name, columns, .. } => {
-                            if let Some(name) = name {
-                                Self::scrub_name(name);
-                            }
-                            for column in columns {
-                                Self::scrub_name(column);
-                            }
-                        }
-                        TableConstraint::FulltextOrSpatial {
-                            opt_index_name,
-                            columns,
-                            ..
+                        AlterTableOperation::ChangeColumn {
+                            old_name, new_name, ..
                         } => {
-                            if let Some(name) = opt_index_name {
-                                Self::scrub_name(name);
-                            }
-                            for column in columns {
-                                Self::scrub_name(column);
-                            }
+                            Self::scrub_name(old_name);
+                            Self::scrub_name(new_name);
                         }
-                    },
-                    AlterTableOperation::AddColumn { column_def, .. } => {
-                        let ColumnDef { name, .. } = column_def;
-                        Self::scrub_name(name);
+                        AlterTableOperation::RenameConstraint { old_name, new_name } => {
+                            Self::scrub_name(old_name);
+                            Self::scrub_name(new_name);
+                        }
+                        AlterTableOperation::AlterColumn { column_name, .. } => {
+                            Self::scrub_name(column_name);
+                        }
+                        _ => {}
                     }
-                    AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
-                    AlterTableOperation::DropColumn { column_name, .. } => {
-                        Self::scrub_name(column_name)
-                    }
-                    AlterTableOperation::RenameColumn {
-                        old_column_name,
-                        new_column_name,
-                    } => {
-                        Self::scrub_name(old_column_name);
-                        Self::scrub_name(new_column_name);
-                    }
-                    AlterTableOperation::ChangeColumn {
-                        old_name, new_name, ..
-                    } => {
-                        Self::scrub_name(old_name);
-                        Self::scrub_name(new_name);
-                    }
-                    AlterTableOperation::RenameConstraint { old_name, new_name } => {
-                        Self::scrub_name(old_name);
-                        Self::scrub_name(new_name);
-                    }
-                    AlterTableOperation::AlterColumn { column_name, .. } => {
-                        Self::scrub_name(column_name);
-                    }
-                    _ => {}
                 }
             }
-
-            _ => {}
+            Statement::Analyze { columns, .. } => {
+                Self::simplify_compound_identifier(columns);
+            }
+            Statement::Truncate { .. } => {}
+            Statement::Msck { .. } => {}
+            Statement::Directory { path, .. } => {
+                "%s".clone_into(path);
+            }
+            Statement::Call(_) => {}
+            Statement::Copy { source, values, .. } => {
+                if let CopySource::Table { columns, .. } = source {
+                    Self::simplify_compound_identifier(columns);
+                }
+                *values = vec![Some("..".into())];
+            }
+            Statement::CopyIntoSnowflake {
+                from_stage_alias,
+                files,
+                pattern,
+                validation_mode,
+                ..
+            } => {
+                if let Some(from_stage_alias) = from_stage_alias {
+                    Self::scrub_name(from_stage_alias);
+                }
+                *files = None;
+                *pattern = None;
+                *validation_mode = None;
+            }
+            Statement::Delete { .. } => {}
+            Statement::CreateView {
+                columns,
+                cluster_by,
+                ..
+            } => {
+                for column in columns {
+                    Self::scrub_name(&mut column.name);
+                }
+                Self::simplify_compound_identifier(cluster_by);
+            }
+            Statement::CreateTable { .. } => {}
+            Statement::CreateVirtualTable {
+                module_name,
+                module_args,
+                ..
+            } => {
+                Self::scrub_name(module_name);
+                Self::simplify_compound_identifier(module_args);
+            }
+            Statement::CreateIndex {
+                name,
+                using,
+                include,
+                ..
+            } => {
+                // `table_name` is visited by `visit_relation`, but `name` is not.
+                if let Some(name) = name {
+                    Self::simplify_compound_identifier(&mut name.0);
+                }
+                if let Some(using) = using {
+                    Self::scrub_name(using);
+                }
+                Self::simplify_compound_identifier(include);
+            }
+            Statement::CreateRole { .. } => {}
+            Statement::AlterIndex { name, operation } => {
+                // Names here are not visited by `visit_relation`.
+                Self::simplify_compound_identifier(&mut name.0);
+                match operation {
+                    sqlparser::ast::AlterIndexOperation::RenameIndex { index_name } => {
+                        Self::simplify_compound_identifier(&mut index_name.0);
+                    }
+                }
+            }
+            Statement::AlterView { .. } => {}
+            Statement::AlterRole { name, .. } => {
+                Self::scrub_name(name);
+            }
+            Statement::AttachDatabase { schema_name, .. } => Self::scrub_name(schema_name),
+            Statement::Drop { .. } => {}
+            Statement::DropFunction { .. } => {}
+            Statement::CreateExtension { name, .. } => Self::scrub_name(name),
+            Statement::Flush { channel, .. } => *channel = None,
+            Statement::Discard { .. } => {}
+            Statement::SetRole { role_name, .. } => {
+                if let Some(role_name) = role_name {
+                    Self::scrub_name(role_name);
+                }
+            }
+            Statement::SetVariable { .. } => {}
+            Statement::SetTimeZone { .. } => {}
+            Statement::SetNames {
+                charset_name,
+                collation_name,
+            } => {
+                *charset_name = "%s".into();
+                *collation_name = None;
+            }
+            Statement::SetNamesDefault {} => {}
+            Statement::ShowFunctions { filter } => Self::scrub_statement_filter(filter),
+            Statement::ShowVariable { variable } => Self::simplify_compound_identifier(variable),
+            Statement::ShowVariables { filter, .. } => Self::scrub_statement_filter(filter),
+            Statement::ShowCreate { .. } => {}
+            Statement::ShowColumns { filter, .. } => Self::scrub_statement_filter(filter),
+            Statement::ShowTables {
+                db_name, filter, ..
+            } => {
+                if let Some(db_name) = db_name {
+                    Self::scrub_name(db_name);
+                }
+                Self::scrub_statement_filter(filter);
+            }
+            Statement::ShowCollation { filter } => Self::scrub_statement_filter(filter),
+            Statement::Use { db_name } => Self::scrub_name(db_name),
+            Statement::StartTransaction { .. } => {}
+            Statement::SetTransaction { .. } => {}
+            Statement::Comment { comment, .. } => *comment = None,
+            Statement::Commit { .. } => {}
+            Statement::Rollback { savepoint, .. } => {
+                if let Some(savepoint) = savepoint {
+                    Self::erase_name(savepoint);
+                }
+            }
+            Statement::CreateSchema { .. } => {}
+            Statement::CreateDatabase {
+                location,
+                managed_location,
+                ..
+            } => {
+                *location = None;
+                *managed_location = None;
+            }
+            Statement::CreateFunction { .. } => {}
+            Statement::CreateProcedure { .. } => {}
+            Statement::CreateMacro { .. } => {}
+            Statement::CreateStage { comment, .. } => *comment = None,
+            Statement::Assert { .. } => {}
+            Statement::Grant {
+                grantees,
+                granted_by,
+                ..
+            } => {
+                Self::simplify_compound_identifier(grantees);
+                *granted_by = None;
+            }
+            Statement::Revoke {
+                grantees,
+                granted_by,
+                ..
+            } => {
+                Self::simplify_compound_identifier(grantees);
+                *granted_by = None;
+            }
+            Statement::Deallocate { name, .. } => {
+                Self::scrub_name(name);
+            }
+            Statement::Execute { name, .. } => Self::scrub_name(name),
+            Statement::Prepare { name, .. } => Self::scrub_name(name),
+            Statement::Kill { id, .. } => *id = 0,
+            Statement::ExplainTable { .. } => {}
+            Statement::Explain { .. } => {}
+            Statement::Merge { .. } => {}
+            Statement::Cache { .. } => {}
+            Statement::UNCache { .. } => {}
+            Statement::CreateSequence { .. } => {}
+            Statement::CreateType { .. } => {}
+            Statement::Pragma { .. } => {}
+            Statement::LockTables { tables } => {
+                for table in tables {
+                    let LockTable {
+                        table,
+                        alias,
+                        lock_type: _,
+                    } = table;
+                    Self::scrub_name(table);
+                    if let Some(alias) = alias {
+                        Self::scrub_name(alias);
+                    }
+                }
+            }
+            Statement::UnlockTables => {}
+            Statement::Install { extension_name } | Statement::Load { extension_name } => {
+                Self::scrub_name(extension_name)
+            }
+            Statement::ShowStatus {
+                filter: _,
+                global: _,
+                session: _,
+            } => {}
+            Statement::Unload {
+                query: _,
+                to,
+                with: _,
+            } => {
+                Self::scrub_name(to);
+            }
         }
 
         ControlFlow::Continue(())
@@ -586,6 +867,11 @@ mod tests {
     #[test]
     fn parse_deep_expression() {
         let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
-        assert_eq!(normalize_parsed_queries(None, query).as_deref(), Ok("SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"));
+        assert_eq!(normalize_parsed_queries(None, query).unwrap().0, "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s");
+    }
+
+    #[test]
+    fn parse_dont_panic() {
+        assert!(parse_query_inner(None, "REPLACE g;'341234c").is_err());
     }
 }

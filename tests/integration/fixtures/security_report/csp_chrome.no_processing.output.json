@@ -50,6 +50,7 @@
     ]
   ],
   "user": {
-    "ip_address": "127.0.0.1"
+    "ip_address": "127.0.0.1",
+    "sentry_user": "ip:127.0.0.1"
   }
 }

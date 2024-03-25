@@ -90,6 +90,7 @@ impl UpstreamRateLimits {
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
                 reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
+                namespace: None,
             });
         }
         rate_limits

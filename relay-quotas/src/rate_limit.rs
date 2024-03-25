@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
@@ -154,6 +155,9 @@ pub struct RateLimit {
 
     /// A marker when this rate limit expires.
     pub retry_after: RetryAfter,
+
+    /// The namespace of this rate limit.
+    pub namespace: Option<MetricNamespace>,
 }
 
 impl RateLimit {
@@ -164,12 +168,20 @@ impl RateLimit {
             scope: RateLimitScope::for_quota(scoping, quota.scope),
             reason_code: quota.reason_code.clone(),
             retry_after,
+            namespace: quota.namespace,
         }
     }
 
     /// Checks whether the rate limit applies to the given item.
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
-        self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
+        self.matches_scope(scoping)
+            && self.matches_namespace(scoping)
+            && scoping.matches_categories(&self.categories)
+    }
+
+    /// Returns `true` if the rate limit namespace matches the namespace of the item.
+    fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
+        self.namespace.is_none() || self.namespace == scoping.namespace
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
@@ -404,6 +416,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -413,7 +426,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -423,7 +437,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -434,6 +449,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -443,7 +459,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -453,7 +470,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -464,6 +482,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -473,7 +492,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -483,7 +503,8 @@ mod tests {
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -496,6 +517,7 @@ mod tests {
             ),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -505,7 +527,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -515,7 +538,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -528,6 +552,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // longer rate limit shadows shorter one
@@ -536,9 +561,10 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
+            namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -549,10 +575,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -564,6 +591,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(10),
+            namespace: None,
         });
 
         // shorter rate limit is shadowed by existing one
@@ -572,9 +600,10 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -585,10 +614,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -600,6 +630,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Same scope but different categories
@@ -608,6 +639,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Same categories but different scope
@@ -616,9 +648,10 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -628,6 +661,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -636,6 +670,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -644,10 +679,11 @@ mod tests {
               scope: Project(ProjectId(21)),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -659,6 +695,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Distinct scope to prevent deduplication
@@ -667,10 +704,11 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
+            namespace: None,
         });
 
         let rate_limit = rate_limits.longest().unwrap();
-        insta::assert_ron_snapshot!(rate_limit, @r#"
+        insta::assert_ron_snapshot!(rate_limit, @r###"
         RateLimit(
           categories: [
             transaction,
@@ -678,8 +716,9 @@ mod tests {
           scope: Organization(42),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
+          namespace: None,
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -692,6 +731,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Inactive error limit with distinct scope
@@ -700,6 +740,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),
+            namespace: None,
         });
 
         // Sanity check before running `clean_expired`
@@ -708,7 +749,7 @@ mod tests {
         rate_limits.clean_expired();
 
         // Check that the expired limit has been removed
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -718,10 +759,11 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -734,6 +776,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Active transaction limit
@@ -742,6 +785,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         let applied_limits = rate_limits.check(ItemScoping {
@@ -752,10 +796,11 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            namespace: None,
         });
 
         // Check that the error limit is applied
-        insta::assert_ron_snapshot!(applied_limits, @r#"
+        insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -765,10 +810,11 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -781,6 +827,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         // Active transaction limit
@@ -789,6 +836,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         let item_scoping = ItemScoping {
@@ -799,6 +847,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            namespace: None,
         };
 
         let quotas = &[Quota {
@@ -809,11 +858,12 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
+            namespace: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        insta::assert_ron_snapshot!(applied_limits, @r#"
+        insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -823,10 +873,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -839,6 +890,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         rate_limits1.add(RateLimit {
@@ -846,6 +898,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
+            namespace: None,
         });
 
         rate_limits2.add(RateLimit {
@@ -853,11 +906,12 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
+            namespace: None,
         });
 
         rate_limits1.merge(rate_limits2);
 
-        insta::assert_ron_snapshot!(rate_limits1, @r#"
+        insta::assert_ron_snapshot!(rate_limits1, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -867,6 +921,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -875,9 +930,10 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 }

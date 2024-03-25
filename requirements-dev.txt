@@ -3,18 +3,19 @@
 # Dependencies and their versions must be listed in the Sentry package index.
 # See https://github.com/getsentry/pypi#readme
 
-black==22.10.0
+black==24.3.0
 blinker==1.5
 click==8.0.4
 flake8==6.0.0
 confluent-kafka==2.1.1
 flask==2.2.2
-msgpack==1.0.4
+msgpack==1.0.7
+opentelemetry-proto==1.22.0
 pytest-localserver==0.7.0
 pytest-sentry==0.1.11
 pytest-xdist==3.0.2
 pytest==7.1.2
-PyYAML==6.0
+PyYAML==6.0.1
 redis==4.5.4
 requests==2.31.0
 sentry_sdk==1.14.0

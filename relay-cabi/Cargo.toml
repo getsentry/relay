@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.8.45"
+version = "0.8.55"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -12,24 +12,27 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 chrono = { workspace = true }
-json-forensics = { version = "0.1.1" }
-lru = "0.9.0"
+json-forensics = { workspace = true }
+lru = { workspace = true }
 once_cell = { workspace = true }
 regex = { workspace = true }
-relay-auth = { path = "../relay-auth" }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-common = { path = "../relay-common" }
-relay-dynamic-config = { path = "../relay-dynamic-config" }
-relay-event-normalization = { path = "../relay-event-normalization" }
-relay-event-schema = { path = "../relay-event-schema" }
-relay-ffi = { path = "../relay-ffi" }
-relay-pii = { path = "../relay-pii" }
-relay-protocol = { path = "../relay-protocol" }
-relay-sampling = { path = "../relay-sampling" }
-sentry-release-parser = { version = "1.3.2", features = ["serde"] }
+relay-auth = { workspace = true }
+relay-base-schema = { workspace = true }
+relay-common = { workspace = true }
+relay-dynamic-config = { workspace = true }
+relay-event-normalization = { workspace = true }
+relay-event-schema = { workspace = true }
+relay-ffi = { workspace = true }
+relay-pii = { workspace = true }
+relay-protocol = { workspace = true }
+relay-sampling = { workspace = true }
+sentry-release-parser = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

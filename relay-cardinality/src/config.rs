@@ -4,11 +4,18 @@ use serde::{Deserialize, Serialize};
 use crate::SlidingWindow;
 
 /// A cardinality limit.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
+    /// Whether this is a passive limit.
+    ///
+    /// Passive limits are tracked separately to normal limits
+    /// and are not enforced, but still evaluated.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub passive: bool,
+
     /// The sliding window to enforce the cardinality limits in.
     pub window: SlidingWindow,
     /// The cardinality limit.
@@ -19,17 +26,23 @@ pub struct CardinalityLimit {
     /// Metric namespace the limit applies to.
     ///
     /// No namespace means this specific limit is enforced across all namespaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<MetricNamespace>,
 }
 
 /// A scope to restrict the [`CardinalityLimit`] to.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CardinalityScope {
-    /// The organization that this project belongs to.
+    /// An organization level cardinality limit.
     ///
-    /// This is the top-level scope.
+    /// The limit will be enforced across the entire org.
     Organization,
+
+    /// A project level cardinality limit.
+    ///
+    /// The limit will be enforced for a specific project.
+    Project,
 
     /// Any other scope that is not known by this Relay.
     #[serde(other)]
@@ -44,6 +57,7 @@ mod tests {
     fn test_cardinality_limit_json() {
         let limit = CardinalityLimit {
             id: "some_id".to_string(),
+            passive: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 200,

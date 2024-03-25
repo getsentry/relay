@@ -1,5 +1,3 @@
-use std::iter::{FromIterator, IntoIterator};
-
 use cookie::Cookie;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
@@ -438,7 +436,7 @@ pub struct Request {
     /// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    #[metastructure(max_chars = "path", pii = "maybe")]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40, pii = "maybe")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -465,7 +463,7 @@ pub struct Request {
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URI.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 

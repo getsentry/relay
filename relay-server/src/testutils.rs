@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
+
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
@@ -126,6 +128,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     EnvelopeProcessorService::new(
         Arc::new(config),
         GlobalConfigHandle::fixed(Default::default()),
+        Cogs::noop(),
         #[cfg(feature = "processing")]
         redis,
         outcome_aggregator,

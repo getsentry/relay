@@ -36,8 +36,10 @@ use std::pin::pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
+use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use relay_statsd::metric;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
@@ -54,10 +56,14 @@ use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
+pub mod spool_utils;
 mod sql;
+
+/// The number of keys to take from the [`ProjectCache`] index in one unspool operation.
+pub const BATCH_KEY_COUNT: usize = 2000;
 
 /// The predefined batch size for the SQL queries, when fetching anything from the on-disk spool.
 const BATCH_SIZE: i64 = 200;
@@ -128,6 +134,15 @@ impl QueueKey {
     }
 }
 
+/// The envelope with its key sent to project cache for processing.
+///
+/// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
+#[derive(Debug)]
+pub struct UnspooledEnvelope {
+    pub key: QueueKey,
+    pub managed_envelope: ManagedEnvelope,
+}
+
 /// Adds the envelope and the managed envelope to the internal buffer.
 #[derive(Debug)]
 pub struct Enqueue {
@@ -144,22 +159,13 @@ impl Enqueue {
 /// Removes messages from the internal buffer and streams them to the sender.
 #[derive(Debug)]
 pub struct DequeueMany {
-    project_key: ProjectKey,
-    keys: Vec<QueueKey>,
-    sender: mpsc::UnboundedSender<ManagedEnvelope>,
+    keys: HashSet<QueueKey>,
+    sender: mpsc::UnboundedSender<UnspooledEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(
-        project_key: ProjectKey,
-        keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Self {
-        Self {
-            project_key,
-            keys,
-            sender,
-        }
+    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<UnspooledEnvelope>) -> Self {
+        Self { keys, sender }
     }
 }
 
@@ -215,6 +221,18 @@ pub enum Buffer {
     RemoveMany(RemoveMany),
     Health(Health),
     RestoreIndex(RestoreIndex),
+}
+
+impl Buffer {
+    pub fn variant(&self) -> &'static str {
+        match self {
+            Buffer::Enqueue(_) => "Enqueue",
+            Buffer::DequeueMany(_) => "DequeueMany",
+            Buffer::RemoveMany(_) => "RemoveMany",
+            Buffer::Health(_) => "Health",
+            Buffer::RestoreIndex(_) => "RestoreIndex",
+        }
+    }
 }
 
 impl Interface for Buffer {}
@@ -329,12 +347,21 @@ impl InMemory {
     }
 
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    fn dequeue(&mut self, keys: &Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
+    fn dequeue(
+        &mut self,
+        keys: HashSet<QueueKey>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
+    ) {
         for key in keys {
-            for envelope in self.buffer.remove(key).unwrap_or_default() {
+            for envelope in self.buffer.remove(&key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
                 self.envelope_count = self.envelope_count.saturating_sub(1);
-                sender.send(envelope).ok();
+                sender
+                    .send(UnspooledEnvelope {
+                        managed_envelope: envelope,
+                        key,
+                    })
+                    .ok();
             }
         }
         relay_statsd::metric!(
@@ -492,15 +519,15 @@ impl OnDisk {
     /// Returns the amount of envelopes deleted from disk.
     async fn delete_and_fetch(
         &mut self,
-        key: QueueKey,
-        sender: &mpsc::UnboundedSender<ManagedEnvelope>,
+        mut keys: Vec<QueueKey>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
-    ) -> Result<(), QueueKey> {
+    ) -> Result<(), Vec<QueueKey>> {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
             if !self.buffer_guard.is_below_low_watermark() {
-                return Err(key);
+                break;
             }
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferDequeueAttempts) = self.dequeue_attempts as u64
@@ -512,7 +539,8 @@ impl OnDisk {
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            let envelopes = sql::delete_and_fetch(key, self.unspool_batch())
+            let query = sql::prepare_delete_query(std::mem::take(&mut keys));
+            let envelopes = sql::delete_and_fetch(&query, self.unspool_batch())
                 .fetch(&self.db)
                 .peekable();
             let mut envelopes = pin!(envelopes);
@@ -520,7 +548,7 @@ impl OnDisk {
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if envelopes.as_mut().peek().await.is_none() {
-                return Ok(());
+                break;
             }
 
             let mut count: i64 = 0;
@@ -528,22 +556,25 @@ impl OnDisk {
                 count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
-
-                    // Bail if there are errors in the stream.
                     Err(err) => {
                         relay_log::error!(
                             error = &err as &dyn Error,
                             "failed to read the buffer stream from the disk",
                         );
                         self.track_count(-count);
-                        return Err(key);
+                        continue;
                     }
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((_, managed_envelopes)) => {
+                    Ok((key, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender.send(managed_envelope).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -555,6 +586,12 @@ impl OnDisk {
 
             self.track_count(-count);
         }
+
+        if !keys.is_empty() {
+            return Err(keys);
+        }
+
+        Ok(())
     }
 
     /// Unspools the entire contents of the on-disk spool.
@@ -620,22 +657,35 @@ impl OnDisk {
     /// back into index.
     async fn dequeue(
         &mut self,
-        project_key: ProjectKey,
-        keys: &mut Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        mut keys: HashSet<QueueKey>,
+        sender: mpsc::UnboundedSender<UnspooledEnvelope>,
         services: &Services,
     ) {
-        let mut unused_keys = BTreeSet::new();
-        while let Some(key) = keys.pop() {
+        if keys.is_empty() {
+            return;
+        }
+
+        let mut unused_keys = HashSet::new();
+        loop {
+            if keys.is_empty() {
+                break;
+            }
+
+            let chunk = keys
+                .extract_if(|_| true)
+                .take(BATCH_SIZE as usize)
+                .collect();
+
             // If the error with a key is returned we must save it for the next iteration.
-            if let Err(key) = self.delete_and_fetch(key, &sender, services).await {
-                unused_keys.insert(key);
+            if let Err(failed_keys) = self.delete_and_fetch(chunk, sender.clone(), services).await {
+                unused_keys.extend(failed_keys);
             };
         }
+
         if !unused_keys.is_empty() {
             services
                 .project_cache
-                .send(UpdateSpoolIndex::new(project_key, unused_keys))
+                .send(UpdateSpoolIndex::new(unused_keys))
         }
     }
 
@@ -728,9 +778,7 @@ impl OnDisk {
     }
 
     /// Returns the index from the on-disk spool.
-    async fn get_spooled_index(
-        db: &Pool<Sqlite>,
-    ) -> Result<BTreeMap<ProjectKey, BTreeSet<QueueKey>>, BufferError> {
+    async fn get_spooled_index(db: &Pool<Sqlite>) -> Result<HashSet<QueueKey>, BufferError> {
         let keys = sql::get_keys()
             .fetch_all(db)
             .await
@@ -740,15 +788,7 @@ impl OnDisk {
             .into_iter()
             // Collect only keys we could extract.
             .filter_map(Self::extract_key)
-            // Fold the list into the index format.
-            .fold(
-                BTreeMap::new(),
-                |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
-                    acc.entry(key.own_key).or_default().insert(key);
-                    acc.entry(key.sampling_key).or_default().insert(key);
-                    acc
-                },
-            );
+            .collect();
 
         Ok(index)
     }
@@ -1030,20 +1070,15 @@ impl BufferService {
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
     async fn handle_dequeue(&mut self, message: DequeueMany) -> Result<(), BufferError> {
-        let DequeueMany {
-            project_key,
-            mut keys,
-            sender,
-        } = message;
+        let DequeueMany { keys, sender } = message;
 
         match self.state {
             BufferState::Memory(ref mut ram)
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
-                ram.dequeue(&keys, sender);
+                ram.dequeue(keys, sender);
             }
             BufferState::Disk(ref mut disk) => {
-                disk.dequeue(project_key, &mut keys, sender, &self.services)
-                    .await;
+                disk.dequeue(keys, sender, &self.services).await;
             }
         }
         let state = std::mem::take(&mut self.state);
@@ -1135,13 +1170,20 @@ impl BufferService {
 
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
-        match message {
-            Buffer::Enqueue(message) => self.handle_enqueue(message).await,
-            Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
-            Buffer::RemoveMany(message) => self.handle_remove(message).await,
-            Buffer::Health(message) => self.handle_health(message).await,
-            Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
-        }
+        let ty = message.variant();
+        metric!(
+            timer(RelayTimers::BufferMessageProcessDuration),
+            message = ty,
+            {
+                match message {
+                    Buffer::Enqueue(message) => self.handle_enqueue(message).await,
+                    Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
+                    Buffer::RemoveMany(message) => self.handle_remove(message).await,
+                    Buffer::Health(message) => self.handle_health(message).await,
+                    Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
+                }
+            }
+        )
     }
 
     /// Handle the shutdown notification.
@@ -1226,12 +1268,12 @@ impl Drop for BufferService {
 mod tests {
     use std::str::FromStr;
     use std::sync::Mutex;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use insta::assert_debug_snapshot;
+    use rand::Rng;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
-    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::ConnectOptions;
     use uuid::Uuid;
 
@@ -1306,39 +1348,50 @@ mod tests {
 
         // Test cases:
         let test_cases = [
-            // The difference between the `Instant::now` and start_time is 2 seconds,
-            // that the start time is restored to the correct point in time.
-            (2, "a94ae32be2584e0bbd7a4cbb95971fee"),
-            // There is no delay, and the `Instant::now` must be within the same second.
-            (0, "aaaae32be2584e0bbd7a4cbb95971fff"),
+            "a94ae32be2584e0bbd7a4cbb95971fee",
+            "aaaae32be2584e0bbd7a4cbb95971fff",
         ];
-        for (result, pub_key) in test_cases {
+        for pub_key in test_cases {
             let project_key = ProjectKey::parse(pub_key).unwrap();
             let key = QueueKey {
                 own_key: project_key,
                 sampling_key: project_key,
             };
 
+            let envelope = empty_managed_envelope();
+            let start_time_sent = envelope.start_time();
             addr.send(Enqueue {
                 key,
-                value: empty_managed_envelope(),
+                value: envelope,
             });
 
             // How long to wait to dequeue the message from the spool.
             // This will also ensure that the start time will have to be restored to the time
             // when the request first came in.
-            tokio::time::sleep(Duration::from_millis(1000 * result)).await;
+            tokio::time::sleep(Duration::from_millis(
+                1000 * rand::thread_rng().gen_range(1..3),
+            ))
+            .await;
 
             addr.send(DequeueMany {
-                project_key,
                 keys: [key].into(),
                 sender: tx.clone(),
             });
 
-            let managed_envelope = rx.recv().await.unwrap();
-            let start_time = managed_envelope.envelope().meta().start_time();
+            let UnspooledEnvelope {
+                key: _,
+                managed_envelope,
+            } = rx.recv().await.unwrap();
+            let start_time_received = managed_envelope.envelope().meta().start_time();
 
-            assert_eq!((Instant::now() - start_time).as_secs(), result);
+            // Check if the original start time elapsed to the same second as the restored one.
+            //
+            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
+            // similar number of seconds if one of the instants runs forward a bit.
+            assert_eq!(
+                start_time_received.elapsed().as_secs_f64().round(),
+                start_time_sent.elapsed().as_secs_f64().round()
+            );
         }
     }
 
@@ -1383,7 +1436,6 @@ mod tests {
 
         // Dequeue an envelope:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1412,7 +1464,6 @@ mod tests {
         });
         // Request to dequeue:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1427,7 +1478,6 @@ mod tests {
 
         // Dequeue an envelope:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1485,7 +1535,6 @@ mod tests {
                 let (tx, mut rx) = mpsc::unbounded_channel();
                 service
                     .handle_dequeue(DequeueMany {
-                        project_key,
                         keys: [key].into(),
                         sender: tx,
                     })
@@ -1681,7 +1730,7 @@ mod tests {
 
         assert_eq!(result.rows_affected(), 2);
 
-        let index = Arc::new(Mutex::new(BTreeMap::new()));
+        let index = Arc::new(Mutex::new(HashSet::new()));
         let mut services = services();
         let index_in = index.clone();
         let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
@@ -1704,19 +1753,130 @@ mod tests {
         // Get the index out of the mutex.
         let index = index.lock().unwrap().clone();
 
-        assert_eq!(index.len(), 3);
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap()));
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap()));
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap()));
-        let result_for_key = BTreeSet::from([QueueKey {
+        let key1 = QueueKey {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-        }]);
-        assert_eq!(
-            index
-                .get(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap())
-                .unwrap(),
-            &result_for_key
-        );
+        };
+        let key2 = QueueKey {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap(),
+            sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap(),
+        };
+
+        assert_eq!(index.len(), 2);
+        assert!(index.contains(&key1));
+        assert!(index.contains(&key2));
+    }
+
+    #[tokio::test]
+    async fn chunked_unspool() {
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(10000).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": "10KB",
+                    "max_disk_size": "20MB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let services = services();
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+
+        let mut keys = HashSet::new();
+        for _ in 1..=300 {
+            let project_key = uuid::Uuid::new_v4().as_simple().to_string();
+            let key = ProjectKey::parse(&project_key).unwrap();
+            let index_key = QueueKey {
+                own_key: key,
+                sampling_key: key,
+            };
+            keys.insert(index_key);
+            addr.send(Enqueue::new(index_key, empty_managed_envelope()))
+        }
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        // Dequeue all the keys at once.
+        addr.send(DequeueMany {
+            keys,
+            sender: tx.clone(),
+        });
+        drop(tx);
+
+        let mut count = 0;
+        while rx.recv().await.is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 300);
+    }
+
+    #[tokio::test]
+    async fn over_the_low_watermark() {
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(300).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": "10KB",
+                    "max_disk_size": "20MB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let index = Arc::new(Mutex::new(HashSet::new()));
+        let mut services = services();
+        let index_in = index.clone();
+        let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
+            // First chunk in the unspool will take us over the low watermark, that means we will get
+            // small portion of the keys back.
+            let ProjectCache::UpdateSpoolIndex(new_index) = msg else {
+                return;
+            };
+            index_in.lock().unwrap().extend(new_index.0);
+        });
+
+        services.project_cache = project_cache;
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+
+        let mut keys = HashSet::new();
+        for _ in 1..=300 {
+            let project_key = uuid::Uuid::new_v4().as_simple().to_string();
+            let key = ProjectKey::parse(&project_key).unwrap();
+            let index_key = QueueKey {
+                own_key: key,
+                sampling_key: key,
+            };
+            keys.insert(index_key);
+            addr.send(Enqueue::new(index_key, empty_managed_envelope()))
+        }
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        // Dequeue all the keys at once.
+        addr.send(DequeueMany {
+            keys,
+            sender: tx.clone(),
+        });
+        drop(tx);
+
+        let mut envelopes = Vec::new();
+        while let Some(envelope) = rx.recv().await {
+            envelopes.push(envelope);
+        }
+
+        assert_eq!(envelopes.len(), 200);
+        let index = index.lock().unwrap().clone();
+        assert_eq!(index.len(), 100);
     }
 }

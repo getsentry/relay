@@ -10,8 +10,6 @@
 )]
 #![recursion_limit = "256"]
 
-use std::str::FromStr;
-
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{Ident, Lit, Meta, NestedMeta};
@@ -216,26 +214,6 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     })
 }
 
-fn parse_max_chars(name: &str) -> TokenStream {
-    match name {
-        "logger" => quote!(crate::processor::MaxChars::Logger),
-        "hash" => quote!(crate::processor::MaxChars::Hash),
-        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
-        "summary" => quote!(crate::processor::MaxChars::Summary),
-        "message" => quote!(crate::processor::MaxChars::Message),
-        "symbol" => quote!(crate::processor::MaxChars::Symbol),
-        "path" => quote!(crate::processor::MaxChars::Path),
-        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
-        "email" => quote!(crate::processor::MaxChars::Email),
-        "culprit" => quote!(crate::processor::MaxChars::Culprit),
-        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
-        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
-        "environment" => quote!(crate::processor::MaxChars::Environment),
-        "distribution" => quote!(crate::processor::MaxChars::Distribution),
-        _ => panic!("invalid max_chars variant '{name}'"),
-    }
-}
-
 fn parse_bag_size(name: &str) -> TokenStream {
     match name {
         "small" => quote!(crate::processor::BagSize::Small),
@@ -353,6 +331,7 @@ struct FieldAttrs {
     retain: bool,
     characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
+    max_chars_allowance: Option<TokenStream>,
     bag_size: Option<TokenStream>,
 }
 
@@ -407,6 +386,14 @@ impl FieldAttrs {
             quote!(None)
         };
 
+        let max_chars_allowance = if let Some(ref max_chars_allowance) = self.max_chars_allowance {
+            quote!(#max_chars_allowance)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.max_chars_allowance)
+        } else {
+            quote!(0)
+        };
+
         let bag_size = if let Some(ref bag_size) = self.bag_size {
             quote!(Some(#bag_size))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
@@ -430,34 +417,12 @@ impl FieldAttrs {
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
                 max_chars: #max_chars,
+                max_chars_allowance: #max_chars_allowance,
                 characters: #characters,
                 bag_size: #bag_size,
                 pii: #pii,
                 retain: #retain,
             }
-        })
-    }
-}
-
-#[derive(Copy, Clone, Default)]
-enum SkipSerialization {
-    #[default]
-    Never,
-    Null(bool),
-    Empty(bool),
-}
-
-impl FromStr for SkipSerialization {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, ()> {
-        Ok(match s {
-            "never" => SkipSerialization::Never,
-            "null" => SkipSerialization::Null(false),
-            "null_deep" => SkipSerialization::Null(true),
-            "empty" => SkipSerialization::Empty(false),
-            "empty_deep" => SkipSerialization::Empty(true),
-            _ => return Err(()),
         })
     }
 }
@@ -569,17 +534,25 @@ fn parse_field_attributes(
                                         rv.characters = Some(attr);
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non string literal for {}", ident);
                                     }
                                 }
                             } else if ident == "max_chars" {
                                 match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = Some(quote!(#attr));
+                                    Lit::Int(litint) => {
+                                        rv.max_chars = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non integer literal for max_chars");
+                                    }
+                                }
+                            } else if ident == "max_chars_allowance" {
+                                match name_value.lit {
+                                    Lit::Int(litint) => {
+                                        rv.max_chars_allowance = Some(quote!(#litint));
+                                    }
+                                    _ => {
+                                        panic!("Got non integer literal for max_chars_allowance");
                                     }
                                 }
                             } else if ident == "bag_size" {

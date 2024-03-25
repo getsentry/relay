@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Script: get the Sentry release name (e.g. "relay@1.0.0+1234abcd...")
+#
+# Positional arguments:
+#   $1: Release version (commit SHA)
+#   $2: Name of the release (default: relay)
+set -eu
+
+REVISION="${1:-}"
+NAME="${2:-relay}"
+
+if [ -z "${REVISION}" ]; then
+  echo 'No revision specified' && exit 1
+fi
+
+# Don't fail if the release name doesn't exist (e.g. if the release hasn't been created yet)
+RELEASE=$(gsutil cat "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/release-name") || true
+
+echo "${RELEASE}"

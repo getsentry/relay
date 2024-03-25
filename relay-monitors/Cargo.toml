@@ -4,15 +4,17 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Monitors processing for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.1"
+version = "24.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
-once_cell = { workspace = true }
 regex = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
+relay-base-schema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

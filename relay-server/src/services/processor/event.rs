@@ -1,13 +1,13 @@
 //! Event processor related code.
 
 use std::error::Error;
+use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
-use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -15,14 +15,14 @@ use relay_event_schema::protocol::{
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, FromValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
 #[cfg(feature = "processing")]
 use {
-    relay_event_normalization::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::IpAddr,
 };
 
@@ -30,7 +30,7 @@ use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
+    EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
 };
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
@@ -43,7 +43,10 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn extract<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -100,10 +103,12 @@ pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
+            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to extract security report"
+                );
+            }
             error
         })?
     } else if let Some(item) = nel_item {
@@ -136,7 +141,10 @@ pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
     Ok(())
 }
 
-pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn finalize<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
@@ -147,7 +155,7 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     };
 
     if !config.processing_enabled() {
-        static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+        static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
         let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
         event
@@ -265,31 +273,73 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     Ok(())
 }
 
-pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+/// Status for applying some filters that don't drop the event.
+///
+/// The enum represents either the success of running all filters and keeping
+/// the event, [`FiltersStatus::Ok`], or not running all the filters because
+/// some are unsupported, [`FiltersStatus::Unsupported`].
+///
+/// If there are unsuppported filters, Relay should forward the event upstream
+/// so that a more up-to-date Relay can apply filters appropriately. Actions
+/// that depend on the outcome of event filtering, such as metric extraction,
+/// should be postponed until a filtering decision is made.
+#[must_use]
+pub enum FiltersStatus {
+    /// All filters have been applied and the event should be kept.
+    Ok,
+    /// Some filters are not supported and were not applied.
+    ///
+    /// Relay should forward events upstream for a more up-to-date Relay to apply these filters.
+    /// Supported filters were applied and they don't reject the event.
+    Unsupported,
+}
+
+pub fn filter<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+    global_config: &GlobalConfig,
+) -> Result<FiltersStatus, ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
-        None => return Ok(()),
+        None => return Ok(FiltersStatus::Ok),
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
-        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
-                .reject(Outcome::Filtered(err.clone()));
-            ProcessingError::EventFiltered(err)
-        })
-    })
+        relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::EventFiltered(err)
+            })
+    })?;
+
+    // Don't extract metrics if relay can't apply generic filters.  A filter
+    // applied in another up-to-date relay in chain may need to drop the event,
+    // and there should not be metrics from dropped events.
+    // In processing relays, always extract metrics to avoid losing them.
+    let supported_generic_filters = global_config.filters.is_ok()
+        && relay_filter::are_generic_filters_supported(
+            global_config.filters().map(|f| f.version),
+            state.project_state.config.filter_settings.generic.version,
+        );
+    if supported_generic_filters {
+        Ok(FiltersStatus::Ok)
+    } else {
+        Ok(FiltersStatus::Unsupported)
+    }
 }
 
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn scrub<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+) -> Result<(), ProcessingError> {
     let event = &mut state.event;
     let config = &state.project_state.config;
 
@@ -317,7 +367,14 @@ pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
     Ok(())
 }
 
-pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn serialize<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
+) -> Result<(), ProcessingError> {
+    if state.event.is_empty() {
+        relay_log::error!("Cannot serialize empty event");
+        return Ok(());
+    }
+
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -344,10 +401,9 @@ pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError
 }
 
 #[cfg(feature = "processing")]
-pub fn store(
-    state: &mut ProcessEnvelopeState,
+pub fn store<G: EventProcessing>(
+    state: &mut ProcessEnvelopeState<G>,
     config: &Config,
-    geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     let ProcessEnvelopeState {
         ref mut event,
@@ -386,13 +442,13 @@ pub fn store(
         sent_at: envelope.sent_at(),
         received_at: Some(managed_envelope.received_at()),
         breakdowns: project_state.config.breakdowns_v2.clone(),
-        span_attributes: project_state.config.span_attributes.clone(),
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),
+        normalize_spans: false, // noop
     };
 
-    let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+    let mut store_processor = StoreProcessor::new(store_config);
     metric!(timer(RelayTimers::EventProcessingProcess), {
         processor::process_value(event, &mut store_processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -454,6 +510,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::Profile => false,
         ItemType::ReplayEvent => false,
         ItemType::ReplayRecording => false,
+        ItemType::ReplayVideo => false,
         ItemType::CheckIn => false,
         ItemType::Span => false,
         ItemType::OtelSpan => false,
@@ -492,11 +549,18 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityType(bytes));
     };
 
-    let apply_result = match report_type {
-        SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
-        SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+    let (apply_result, event_type) = match report_type {
+        SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::ExpectCt => (
+            ExpectCt::apply_to_event(data, &mut event),
+            EventType::ExpectCt,
+        ),
+        SecurityReportType::ExpectStaple => (
+            ExpectStaple::apply_to_event(data, &mut event),
+            EventType::ExpectStaple,
+        ),
+        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
+        SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
@@ -530,12 +594,7 @@ fn event_from_security_report(
 
     // Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
-    event.ty = Annotated::new(match report_type {
-        SecurityReportType::Csp => EventType::Csp,
-        SecurityReportType::ExpectCt => EventType::ExpectCt,
-        SecurityReportType::ExpectStaple => EventType::ExpectStaple,
-        SecurityReportType::Hpkp => EventType::Hpkp,
-    });
+    event.ty = Annotated::new(event_type);
 
     Ok((Annotated::new(event), len))
 }
@@ -713,8 +772,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
-
-    use crate::envelope::ContentType;
 
     use super::*;
 

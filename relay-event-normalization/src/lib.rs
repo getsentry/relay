@@ -6,12 +6,11 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
-use relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
+use relay_event_schema::protocol::{Event, IpAddr};
 use relay_protocol::Meta;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -40,7 +39,9 @@ pub use validation::{
     TransactionValidationConfig,
 };
 pub mod replay;
-pub use event::{normalize_event, normalize_measurements, NormalizationConfig};
+pub use event::{
+    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
+};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
@@ -148,9 +149,6 @@ pub struct StoreConfig {
     /// Emit breakdowns based on given configuration.
     pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
 
-    /// Emit additional span attributes based on given configuration.
-    pub span_attributes: BTreeSet<SpanAttribute>,
-
     /// The SDK's sample rate as communicated via envelope headers.
     ///
     /// It is persisted into the event payload.
@@ -160,6 +158,13 @@ pub struct StoreConfig {
     ///
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans in [`crate::normalize_event`], `is_renormalize` must
+    /// be disabled _and_ `normalize_spans` enabled in
+    /// [`crate::NormalizationConfig`].
+    pub normalize_spans: bool,
 }
 
 /// The processor that normalizes events for processing and storage.
@@ -170,17 +175,17 @@ pub struct StoreConfig {
 /// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
-pub struct StoreProcessor<'a> {
+pub struct StoreProcessor {
     config: Arc<StoreConfig>,
-    normalize: normalize::StoreNormalizeProcessor<'a>,
+    normalize: normalize::StoreNormalizeProcessor,
 }
 
-impl<'a> StoreProcessor<'a> {
+impl StoreProcessor {
     /// Creates a new normalization processor.
-    pub fn new(config: StoreConfig, geoip_lookup: Option<&'a GeoIpLookup>) -> Self {
+    pub fn new(config: StoreConfig) -> Self {
         let config = Arc::new(config);
         StoreProcessor {
-            normalize: normalize::StoreNormalizeProcessor::new(config.clone(), geoip_lookup),
+            normalize: normalize::StoreNormalizeProcessor::new(config.clone()),
             config,
         }
     }
@@ -191,7 +196,7 @@ impl<'a> StoreProcessor<'a> {
     }
 }
 
-impl<'a> Processor for StoreProcessor<'a> {
+impl Processor for StoreProcessor {
     fn process_event(
         &mut self,
         event: &mut Event,
@@ -217,5 +222,27 @@ impl<'a> Processor for StoreProcessor<'a> {
         }
 
         Ok(())
+    }
+}
+
+/// Maximum number of characters allowed for a field value.
+///
+/// Must be aligned with the `max_chars` field in the metastructure of the
+/// payload's attribute.
+enum MaxChars {
+    TagKey,
+    TagValue,
+    Distribution,
+    Logger,
+}
+
+impl MaxChars {
+    pub fn limit(self) -> usize {
+        match self {
+            Self::TagKey => 200,
+            Self::TagValue => 200,
+            Self::Distribution => 64,
+            Self::Logger => 64,
+        }
     }
 }

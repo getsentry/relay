@@ -11,5 +11,5 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-relay-pii = { path = "../../relay-pii" }
+relay-pii = { workspace = true }
 serde_json = { workspace = true }

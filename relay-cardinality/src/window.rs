@@ -28,24 +28,24 @@ impl SlidingWindow {
     /// This function is used to calculate keys for storing the number of
     /// requests made in each granule.
     ///
-    /// The iteration is done in reverse-order (newest timestamp to oldest),
+    /// The iteration is done in natural-order (oldest timestamp to newest),
     /// starting with the key to which a currently-processed request should be
     /// added. That request's timestamp is `request_timestamp`.
     ///
-    /// * `request_timestamp / self.granularity_seconds - 1`
-    /// * `request_timestamp / self.granularity_seconds - 2`
-    /// * `request_timestamp / self.granularity_seconds - 3`
+    /// * `request_timestamp / self.granularity_seconds`
+    /// * `request_timestamp / self.granularity_seconds + 1`
+    /// * `request_timestamp / self.granularity_seconds + 2`
     /// * ...
     pub fn iter(&self, timestamp: UnixTimestamp) -> impl Iterator<Item = Slot> {
         let value = timestamp.as_secs() / self.granularity_seconds;
         (0..self.window_seconds / self.granularity_seconds)
-            .map(move |i| value.saturating_sub(i + 1))
+            .map(move |i| value + i)
             .map(Slot)
     }
 
     /// The active bucket is the oldest active granule.
     pub fn active_slot(&self, timestamp: UnixTimestamp) -> Slot {
-        self.iter(timestamp).last().unwrap_or(Slot(0))
+        self.iter(timestamp).next().unwrap_or(Slot(0))
     }
 }
 
@@ -72,23 +72,15 @@ mod tests {
             granularity_seconds: 720,
         };
 
-        let timestamp = UnixTimestamp::from_secs(1701775000);
+        let timestamp = UnixTimestamp::from_secs(7200);
         let r = window.iter(timestamp).collect::<Vec<_>>();
         assert_eq!(
             r.len() as u64,
             window.window_seconds / window.granularity_seconds
         );
-        assert_eq!(
-            r,
-            vec![
-                Slot(2363575),
-                Slot(2363574),
-                Slot(2363573),
-                Slot(2363572),
-                Slot(2363571)
-            ]
-        );
-        assert_eq!(window.active_slot(timestamp), *r.last().unwrap());
+
+        assert_eq!(r, vec![Slot(10), Slot(11), Slot(12), Slot(13), Slot(14)]);
+        assert_eq!(window.active_slot(timestamp), *r.first().unwrap());
 
         let r2 = window
             .iter(timestamp + Duration::from_secs(10))

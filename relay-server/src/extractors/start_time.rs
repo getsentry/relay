@@ -63,14 +63,14 @@ mod tests {
 
     #[test]
     fn start_time_from_timestamp() {
-        let elapsed = 10;
+        let elapsed = Duration::from_secs(10);
         let now = Instant::now();
-        let system_time =
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - Duration::from_secs(elapsed);
+        let system_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - elapsed;
         let start_time =
             StartTime::from_timestamp_millis(system_time.as_millis() as u64).into_inner();
 
         // Check that the difference between the now and generated start_time is about 10s.
-        assert_eq!((now - start_time).as_secs(), elapsed);
+        assert!((now - start_time) < elapsed + Duration::from_millis(50));
+        assert!((now - start_time) > elapsed - Duration::from_millis(50));
     }
 }

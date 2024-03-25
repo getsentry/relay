@@ -3,9 +3,9 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_dynamic_config::GlobalConfig;
 use relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -24,6 +24,7 @@ use crate::services::project_redis::RedisProjectSource;
 use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
+    UnspooledEnvelope, BATCH_KEY_COUNT,
 };
 use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
@@ -183,14 +184,11 @@ pub struct AddMetricMeta {
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
-pub struct UpdateSpoolIndex {
-    project_key: ProjectKey,
-    keys: BTreeSet<QueueKey>,
-}
+pub struct UpdateSpoolIndex(pub HashSet<QueueKey>);
 
 impl UpdateSpoolIndex {
-    pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
-        Self { project_key, keys }
+    pub fn new(keys: HashSet<QueueKey>) -> Self {
+        Self(keys)
     }
 }
 
@@ -203,7 +201,7 @@ pub struct SpoolHealth;
 /// This index will be received only once shortly after startup and will trigger refresh for the
 /// project states for the project keys returned in the message.
 #[derive(Debug)]
-pub struct RefreshIndexCache(pub BTreeMap<ProjectKey, BTreeSet<QueueKey>>);
+pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 
 /// A cache for [`ProjectState`]s.
 ///
@@ -236,6 +234,25 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
+}
+
+impl ProjectCache {
+    pub fn variant(&self) -> &'static str {
+        match self {
+            Self::RequestUpdate(_) => "RequestUpdate",
+            Self::Get(_, _) => "Get",
+            Self::GetCached(_, _) => "GetCached",
+            Self::CheckEnvelope(_, _) => "CheckEnvelope",
+            Self::ValidateEnvelope(_) => "ValidateEnvelope",
+            Self::UpdateRateLimits(_) => "UpdateRateLimits",
+            Self::MergeBuckets(_) => "MergeBuckets",
+            Self::AddMetricMeta(_) => "AddMetricMeta",
+            Self::FlushBuckets(_) => "FlushBuckets",
+            Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
+            Self::SpoolHealth(_) => "SpoolHealth",
+            Self::RefreshIndexCache(_) => "RefreshIndexCache",
+        }
+    }
 }
 
 impl Interface for ProjectCache {}
@@ -484,48 +501,47 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
-    // Need hashbrown because drain_filter is not stable in std yet.
+    // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+    buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     buffer_guard: Arc<BufferGuard>,
     /// Index of the buffered project keys.
-    index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
+    index: HashSet<QueueKey>,
     buffer_unspool_handle: SleepHandle,
     buffer_unspool_backoff: RetryBackoff,
     buffer: Addr<Buffer>,
     global_config: GlobalConfigStatus,
 }
 
-/// Describes the current status of the [`GlobalConfig`]
+/// Describes the current status of the `GlobalConfig`.
 ///
 /// Either it's ready to be used, or it contains the list of in-flight project keys,
 /// to be processed once the config arrives.
 #[derive(Debug)]
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
-    Ready(Arc<GlobalConfig>),
+    Ready,
     /// The global config is not fetched yet.
     Pending,
 }
 
 impl GlobalConfigStatus {
     fn is_ready(&self) -> bool {
-        matches!(self, GlobalConfigStatus::Ready(_))
+        matches!(self, GlobalConfigStatus::Ready)
     }
 }
 
 impl ProjectCacheBroker {
-    fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        self.global_config = GlobalConfigStatus::Ready(global_config);
+    fn set_global_config_ready(&mut self) {
+        self.global_config = GlobalConfigStatus::Ready;
     }
 
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
-        self.index.entry(key.own_key).or_default().insert(key);
-        self.index.entry(key.sampling_key).or_default().insert(key);
+        self.index.insert(key);
         self.buffer.send(Enqueue::new(key, value));
     }
 
@@ -533,49 +549,9 @@ impl ProjectCacheBroker {
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
-    pub fn dequeue(&mut self, partial_key: ProjectKey) {
-        // If we don't yet have the global config, we will defer dequeuing until we do.
-        if let GlobalConfigStatus::Pending = self.global_config {
-            return;
-        }
-
-        let mut result = Vec::new();
-        let mut queue_keys = self.index.remove(&partial_key).unwrap_or_default();
-        let mut index = BTreeSet::new();
-
-        while let Some(queue_key) = queue_keys.pop_first() {
-            // We only have to check `other_key`, because we already know that the `partial_key`s `state`
-            // is valid and loaded.
-            let other_key = if queue_key.own_key == partial_key {
-                queue_key.sampling_key
-            } else {
-                queue_key.own_key
-            };
-
-            if self
-                .projects
-                .get(&other_key)
-                // Make sure we have only cached and valid state.
-                .and_then(|p| p.valid_state())
-                .map_or(false, |s| !s.invalid())
-            {
-                result.push(queue_key);
-            } else {
-                index.insert(queue_key);
-            }
-        }
-
-        if !index.is_empty() {
-            self.index.insert(partial_key, index);
-        }
-
-        if !result.is_empty() {
-            self.buffer.send(DequeueMany::new(
-                partial_key,
-                result,
-                self.buffer_tx.clone(),
-            ))
-        }
+    pub fn dequeue(&self, keys: HashSet<QueueKey>) {
+        self.buffer
+            .send(DequeueMany::new(keys, self.buffer_tx.clone()))
     }
 
     /// Evict projects that are over its expiry date.
@@ -590,12 +566,17 @@ impl ProjectCacheBroker {
 
         let expired = self
             .projects
-            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+            .extract_if(|_, entry| entry.last_updated_at() + delta <= eviction_start);
 
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
         for (project_key, project) in expired {
-            if let Some(keys) = self.index.remove(&project_key) {
+            let keys = self
+                .index
+                .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
+                .collect::<BTreeSet<_>>();
+
+            if !keys.is_empty() {
                 self.buffer.send(RemoveMany::new(project_key, keys))
             }
 
@@ -652,11 +633,8 @@ impl ProjectCacheBroker {
             no_cache,
         );
 
-        // Schedule unspool if nothing is running at the moment.
-        if !self.buffer_unspool_backoff.started() {
-            self.buffer_unspool_backoff.reset();
-            self.schedule_unspool();
-        }
+        // Try to schedule unspool if it's not scheduled yet.
+        self.schedule_unspool();
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -725,15 +703,7 @@ impl ProjectCacheBroker {
     }
 
     /// Handles the processing of the provided envelope.
-    ///
-    /// The following pre-conditions must be met before calling this function:
-    /// - Envelope's project state must be cached and valid.
-    /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - [`GlobalConfig`] from the [`GlobalConfigManager`] must be available.
-    ///
-    /// Calling this function without envelope's project state available will cause the envelope to
-    /// be dropped and outcome will be logged.
-    fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
+    fn handle_processing(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
@@ -741,6 +711,11 @@ impl ProjectCacheBroker {
                 tags.project_key = %project_key,
                 "project could not be found in the cache",
             );
+
+            let mut project = Project::new(project_key, self.config.clone());
+            project.prefetch(self.services.project_cache.clone(), false);
+            self.projects.insert(project_key, project);
+            self.enqueue(key, managed_envelope);
             return;
         };
 
@@ -810,6 +785,8 @@ impl ProjectCacheBroker {
                 .filter(|st| !st.invalid())
         });
 
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
+
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if project_state.is_some()
@@ -817,10 +794,9 @@ impl ProjectCacheBroker {
             && !self.buffer_guard.is_over_high_watermark()
             && self.global_config.is_ready()
         {
-            return self.handle_processing(context);
+            return self.handle_processing(key, context);
         }
 
-        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.enqueue(key, context);
     }
 
@@ -868,7 +844,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
-        self.index.insert(message.project_key, message.keys);
+        self.index.extend(message.0);
     }
 
     fn handle_spool_health(&mut self, sender: Sender<bool>) {
@@ -879,10 +855,14 @@ impl ProjectCacheBroker {
         let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
 
-        for (key, values) in index {
-            self.index.entry(key).or_default().extend(values);
-            self.get_or_create_project(key)
+        for key in index {
+            self.index.insert(key);
+            self.get_or_create_project(key.own_key)
                 .prefetch(project_cache.clone(), false);
+            if key.own_key != key.sampling_key {
+                self.get_or_create_project(key.sampling_key)
+                    .prefetch(project_cache.clone(), false);
+            }
         }
     }
 
@@ -899,6 +879,44 @@ impl ProjectCacheBroker {
         }
     }
 
+    /// Returns `true` if the project state valid for the [`QueueKey`].
+    ///
+    /// Which includes the own key and the samplig key for the project.
+    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired or not
+    /// valid.
+    fn is_state_valid(&mut self, key: &QueueKey) -> bool {
+        let QueueKey {
+            own_key,
+            sampling_key,
+        } = key;
+
+        let is_own_state_valid = self.projects.get_mut(own_key).map_or(false, |project| {
+            // Returns `Some` if the project is cached otherwise None and also triggers refresh
+            // in background.
+            project
+                .get_cached_state(self.services.project_cache.clone(), false)
+                // Makes sure that the state also is valid.
+                .map_or(false, |state| !state.invalid())
+        });
+
+        let is_sampling_state_valid = if own_key != sampling_key {
+            self.projects
+                .get_mut(sampling_key)
+                .map_or(false, |project| {
+                    // Returns `Some` if the project is cached otherwise None and also triggers refresh
+                    // in background.
+                    project
+                        .get_cached_state(self.services.project_cache.clone(), false)
+                        // Makes sure that the state also is valid.
+                        .map_or(false, |state| !state.invalid())
+                })
+        } else {
+            is_own_state_valid
+        };
+
+        is_own_state_valid && is_sampling_state_valid
+    }
+
     /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
     /// state.
     ///
@@ -907,62 +925,68 @@ impl ProjectCacheBroker {
     fn handle_periodic_unspool(&mut self) {
         self.buffer_unspool_handle.reset();
 
+        // If we don't yet have the global config, we will defer dequeuing until we do.
+        if let GlobalConfigStatus::Pending = self.global_config {
+            self.buffer_unspool_backoff.reset();
+            self.schedule_unspool();
+            return;
+        }
         // If there is nothing spooled, schedule the next check a little bit later.
         if self.index.is_empty() {
             self.schedule_unspool();
             return;
         }
 
-        let keys = self.index.keys().cloned().collect::<Box<[_]>>();
-        let mut dequeued = false;
+        let mut index = std::mem::take(&mut self.index);
+        let values = index
+            .extract_if(|key| self.is_state_valid(key))
+            .take(BATCH_KEY_COUNT)
+            .collect::<HashSet<_>>();
 
-        for project_key in keys.iter() {
-            if self.projects.get_mut(project_key).map_or(false, |project| {
-                // Returns `Some` if the project is cache otherwise None and also triggers refresh
-                // in background.
-                project
-                    .get_cached_state(self.services.project_cache.clone(), false)
-                    // Makes sure that the state also is valid.
-                    .map_or(false, |state| !state.invalid())
-            }) {
-                // Do *not* attempt to unspool if the assigned permits over low watermark.
-                if !self.buffer_guard.is_below_low_watermark() {
-                    self.schedule_unspool();
-                    return;
-                }
-
-                self.dequeue(*project_key);
-                dequeued = true;
-            }
+        if !values.is_empty() {
+            self.dequeue(values);
         }
 
-        // If cannot dequeue for some reason, back off the next retry.
-        if dequeued {
-            self.buffer_unspool_backoff.reset();
+        // Return all the un-used items to the index.
+        if !index.is_empty() {
+            self.index.extend(index);
         }
+
         // Schedule unspool once we are done.
+        self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
-        match message {
-            ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
-            ProjectCache::Get(message, sender) => self.handle_get(message, sender),
-            ProjectCache::GetCached(message, sender) => {
-                sender.send(self.handle_get_cached(message))
+        let ty = message.variant();
+        metric!(
+            timer(RelayTimers::ProjectCacheMessageDuration),
+            message = ty,
+            {
+                match message {
+                    ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
+                    ProjectCache::Get(message, sender) => self.handle_get(message, sender),
+                    ProjectCache::GetCached(message, sender) => {
+                        sender.send(self.handle_get_cached(message))
+                    }
+                    ProjectCache::CheckEnvelope(message, sender) => {
+                        sender.send(self.handle_check_envelope(message))
+                    }
+                    ProjectCache::ValidateEnvelope(message) => {
+                        self.handle_validate_envelope(message)
+                    }
+                    ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
+                    ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
+                    ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
+                    ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
+                    ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
+                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+                    ProjectCache::RefreshIndexCache(message) => {
+                        self.handle_refresh_index_cache(message)
+                    }
+                }
             }
-            ProjectCache::CheckEnvelope(message, sender) => {
-                sender.send(self.handle_check_envelope(message))
-            }
-            ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
-            ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-            ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
-            ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
-            ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-            ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-            ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::RefreshIndexCache(message) => self.handle_refresh_index_cache(message),
-        }
+        )
     }
 }
 
@@ -1045,9 +1069,9 @@ impl Service for ProjectCacheService {
             };
 
             let global_config = match subscription.borrow().clone() {
-                global_config::Status::Ready(global_config) => {
+                global_config::Status::Ready(_) => {
                     relay_log::info!("global config received");
-                    GlobalConfigStatus::Ready(global_config)
+                    GlobalConfigStatus::Ready
                 }
                 global_config::Status::Pending => {
                     relay_log::info!("waiting for global config");
@@ -1073,7 +1097,7 @@ impl Service for ProjectCacheService {
                 state_tx,
                 buffer_tx,
                 buffer_guard,
-                index: BTreeMap::new(),
+                index: HashSet::new(),
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
@@ -1085,20 +1109,42 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        match subscription.borrow().clone() {
-                            global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
-                            // The watch should only be updated if it gets a new value.
-                            // This would imply a logical bug.
-                            global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
-                        }
+                        metric!(timer(RelayTimers::EventProcessingDeserialize), task = "update_global_config", {
+                            match subscription.borrow().clone() {
+                                global_config::Status::Ready(_) => broker.set_global_config_ready(),
+                                // The watch should only be updated if it gets a new value.
+                                // This would imply a logical bug.
+                                global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
+                            }
+                        })
                     },
-                    Some(message) = state_rx.recv() => broker.merge_state(message),
+                    Some(message) = state_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "merge_state", {
+                            broker.merge_state(message)
+                        })
+                    }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
-                    _ = ticker.tick() => broker.evict_stale_project_caches(),
-                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
-                    Some(message) = rx.recv() => broker.handle_message(message),
+                    Some(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
+                            broker.handle_processing(key, managed_envelope)
+                        })
+                    },
+                    _ = ticker.tick() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "evict_project_caches", {
+                            broker.evict_stale_project_caches()
+                        })
+                    }
+                    () = &mut broker.buffer_unspool_handle => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
+                            broker.handle_periodic_unspool()
+                        })
+                    }
+                    Some(message) = rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
+                            broker.handle_message(message)
+                        })
+                    }
                     else => break,
                 }
             }
@@ -1130,8 +1176,6 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;
@@ -1165,7 +1209,7 @@ mod tests {
         services: Services,
         buffer_guard: Arc<BufferGuard>,
         state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-        buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+        buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     ) -> (ProjectCacheBroker, Addr<Buffer>) {
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
@@ -1208,7 +1252,7 @@ mod tests {
                 state_tx,
                 buffer_tx,
                 buffer_guard,
-                index: BTreeMap::new(),
+                index: HashSet::new(),
                 buffer: buffer.clone(),
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
@@ -1250,8 +1294,7 @@ mod tests {
 
         // All the messages should have been spooled to disk.
         assert_eq!(buffer_guard.available(), 5);
-        assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().count(), 1);
+        assert_eq!(broker.index.len(), 1);
 
         let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let key = QueueKey {
@@ -1261,11 +1304,7 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new(
-            project_key,
-            [key].into(),
-            tx.clone(),
-        ));
+        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // We should be able to unspool 5 envelopes since we have 5 permits.
@@ -1283,11 +1322,10 @@ mod tests {
 
         // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
-        assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().count(), 1);
+        assert_eq!(broker.index.len(), 1);
 
         // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));
+        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
         tokio::time::sleep(Duration::from_millis(100)).await;
         // Cannot dequeue anymore, no more available permits.
         assert!(rx.try_recv().is_err());
@@ -1321,7 +1359,7 @@ mod tests {
             project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
                 .await;
 
-        broker.global_config = GlobalConfigStatus::Ready(Default::default());
+        broker.global_config = GlobalConfigStatus::Ready;
         let (tx_update, mut rx_update) = mpsc::unbounded_channel();
         let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
 
@@ -1353,8 +1391,7 @@ mod tests {
                 select! {
 
                     Some(assert) = rx_assert.recv() => {
-                        assert_eq!(broker.index.keys().len(), assert);
-                        assert_eq!(broker.index.values().count(), assert);
+                        assert_eq!(broker.index.len(), assert);
                     },
                     Some(update) = rx_update.recv() => broker.merge_state(update),
                     () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
@@ -1391,5 +1428,57 @@ mod tests {
         tx_assert.send(0).unwrap();
         // Make sure the last assert is tested.
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn handle_processing_without_project() {
+        let num_permits = 50;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, buffer_svc) = project_cache_broker_setup(
+            services.clone(),
+            buffer_guard.clone(),
+            state_tx,
+            buffer_tx.clone(),
+        )
+        .await;
+
+        let dsn = "111d836b15bb49d7bbf99e64295d995b";
+        let project_key = ProjectKey::parse(dsn).unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        let envelope = buffer_guard
+            .enter(
+                empty_envelope_with_dsn(dsn),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            )
+            .unwrap();
+
+        // Index and projects are empty.
+        assert!(broker.projects.is_empty());
+        assert!(broker.index.is_empty());
+
+        // Since there is no project we should not process anything but create a project and spool
+        // the envelope.
+        broker.handle_processing(key, envelope);
+
+        // Assert that we have a new project and also added an index.
+        assert!(broker.projects.get(&project_key).is_some());
+        assert!(broker.index.contains(&key));
+
+        // Check is we actually spooled anything.
+        buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
+        let UnspooledEnvelope {
+            key: unspooled_key,
+            managed_envelope: _,
+        } = buffer_rx.recv().await.unwrap();
+
+        assert_eq!(key, unspooled_key);
     }
 }
