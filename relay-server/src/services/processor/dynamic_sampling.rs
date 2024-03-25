@@ -81,6 +81,7 @@ pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) 
                 Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
                 _ => None,
             };
+            dbg!(&sampling_config);
 
             let root_state = state.sampling_project_state.as_ref();
             let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
