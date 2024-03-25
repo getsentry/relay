@@ -97,6 +97,10 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
+    /// Whether the span is a segment span that was converted from a transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub was_transaction: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -114,6 +118,7 @@ impl From<&Event> for Span {
             timestamp: event.timestamp.clone(),
             measurements: event.measurements.clone(),
             platform: event.platform.clone(),
+            was_transaction: true.into(),
             ..Default::default()
         };
 
@@ -151,6 +156,7 @@ impl Getter for Span {
                 let timestamp = *self.timestamp.value()?;
                 relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
             }
+            "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(key)?.as_str()?.into()

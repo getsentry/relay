@@ -147,7 +147,7 @@ def test_span_extraction(
 
 
 def test_duplicate_performance_score(mini_sentry, relay):
-    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [

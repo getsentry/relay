@@ -53,7 +53,7 @@ pub fn extract_metrics(
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            metrics.extend(dbg!(generic::extract_metrics(&transaction_span, config)));
+            metrics.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {

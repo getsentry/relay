@@ -1129,17 +1129,17 @@ impl EnvelopeProcessorService {
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload. Once transaction metric
         // extraction is moved to generic metrics, this can be converted into an early return.
-        let config = match dbg!(&state.project_state.config.metric_extraction) {
+        let config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
 
         if let Some(event) = state.event.value() {
-            if dbg!(state.event_metrics_extracted) {
+            if state.event_metrics_extracted {
                 return Ok(());
             }
 
-            if let Some(config) = dbg!(config) {
+            if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
                     config,
@@ -1336,7 +1336,7 @@ impl EnvelopeProcessorService {
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             let sampling_result = dynamic_sampling::run(state, &self.inner.config);
             // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            sampling_should_drop = dbg!(sampling_result.should_drop());
+            sampling_should_drop = sampling_result.should_drop();
 
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
