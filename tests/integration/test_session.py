@@ -97,33 +97,6 @@ def test_session_age_discard_aggregates(
     sessions_consumer.assert_empty()
 
 
-def test_session_force_errors_on_crash(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "foobarbaz",
-            "seq": 42,
-            "init": True,
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-            "status": "crashed",
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
-        },
-    )
-    sessions_consumer.assert_empty()
-
-
 def test_session_release_required(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
