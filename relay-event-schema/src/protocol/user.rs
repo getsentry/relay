@@ -11,19 +11,19 @@ use crate::protocol::{IpAddr, LenientString};
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
-    #[metastructure(pii = "true", max_chars = 1024)]
+    #[metastructure(pii = "true", max_chars = 102, max_chars_allowance = 1004)]
     pub country_code: Annotated<String>,
 
     /// Human readable city name.
-    #[metastructure(pii = "true", max_chars = 1024)]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub city: Annotated<String>,
 
     /// Human readable subdivision name.
-    #[metastructure(pii = "true", max_chars = 1024)]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub subdivision: Annotated<String>,
 
     /// Human readable region name or code.
-    #[metastructure(pii = "true", max_chars = 1024)]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     pub region: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.

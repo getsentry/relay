@@ -123,11 +123,16 @@ pub struct Mechanism {
     /// Optional human-readable description of the error mechanism.
     ///
     /// May include a possible hint on how to solve this error.
-    #[metastructure(pii = "true", max_chars = 8192)]
+    #[metastructure(pii = "true", max_chars = 8192, max_chars_allowance = 200)]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(required = "false", nonempty = "true", max_chars = 256)]
+    #[metastructure(
+        required = "false",
+        nonempty = "true",
+        max_chars = 256,
+        max_chars_allowance = 40
+    )]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.

@@ -101,7 +101,7 @@ pub struct Breadcrumb {
     ///
     /// If a message is provided, it is rendered as text with all whitespace preserved. Very long
     /// text might be truncated in the UI.
-    #[metastructure(pii = "true", max_chars = 8192)]
+    #[metastructure(pii = "true", max_chars = 8192, max_chars_allowance = 200)]
     pub message: Annotated<String>,
 
     /// Arbitrary data associated with this breadcrumb.

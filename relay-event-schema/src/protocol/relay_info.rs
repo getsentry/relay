@@ -9,11 +9,11 @@ use crate::processor::ProcessValue;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RelayInfo {
     /// Version of the Relay. Required.
-    #[metastructure(required = "true", max_chars = 256)]
+    #[metastructure(required = "true", max_chars = 256, max_chars_allowance = 20)]
     pub version: Annotated<String>,
 
     /// Public key of the Relay.
-    #[metastructure(required = "false", max_chars = 256)]
+    #[metastructure(required = "false", max_chars = 256, max_chars_allowance = 20)]
     pub public_key: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.

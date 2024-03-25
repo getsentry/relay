@@ -25,7 +25,7 @@ pub struct Frame {
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
@@ -44,7 +44,7 @@ pub struct Frame {
     /// `function` and the value before trimming is stored in this field instead.  However also this
     /// field will be capped at 256 characters at the moment which often means that not the entire
     /// original value can be stored.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     #[metastructure(skip_serialization = "empty")]
     pub raw_function: Annotated<String>,
 
@@ -75,12 +75,12 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub filename: Annotated<NativeImagePath>,
 
     /// Absolute path to the source file.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub abs_path: Annotated<NativeImagePath>,
 
@@ -209,13 +209,13 @@ pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<V
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameData {
     /// A reference to the sourcemap used.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
     sourcemap: Annotated<String>,
     /// The original function name before it was resolved.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     orig_function: Annotated<String>,
     /// The original minified filename.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
     orig_filename: Annotated<String>,
     /// The original line number.
     orig_lineno: Annotated<u64>,

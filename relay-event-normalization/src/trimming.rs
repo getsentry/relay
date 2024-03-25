@@ -125,11 +125,16 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars);
+            trim_string(
+                value,
+                meta,
+                max_chars,
+                state.attrs().max_chars_allowance.unwrap_or(0),
+            );
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, bag_size_state.size_remaining);
+            trim_string(value, meta, bag_size_state.size_remaining, 0);
         }
 
         Ok(())
@@ -264,8 +269,10 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize) {
-    if bytecount::num_chars(value.as_bytes()) <= max_chars {
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_allowance: usize) {
+    let hard_limit = max_chars + max_chars_allowance;
+
+    if bytecount::num_chars(value.as_bytes()) <= hard_limit {
         return;
     }
 
@@ -283,23 +290,31 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize) {
                 continue;
             }
 
-            // If a redacted chunk still doesn't fit, skip the chunk and add the
-            // final redaction below.
-
-            if let Chunk::Text { text } = chunk {
-                let mut remaining = String::new();
-                for c in text.chars() {
-                    if length + 3 < max_chars {
-                        remaining.push(c);
-                    } else {
-                        break;
+            match chunk {
+                // if there is enough space for this chunk and the 3 character
+                // ellipsis marker we can push the remaining chunk
+                Chunk::Redaction { .. } => {
+                    if length + chunk_chars + 3 < hard_limit {
+                        new_chunks.push(chunk);
                     }
-                    length += 1;
                 }
 
-                new_chunks.push(Chunk::Text {
-                    text: Cow::Owned(remaining),
-                });
+                // if this is a text chunk, we can put the remaining characters in.
+                Chunk::Text { text } => {
+                    let mut remaining = String::new();
+                    for c in text.chars() {
+                        if length + 3 < max_chars {
+                            remaining.push(c);
+                        } else {
+                            break;
+                        }
+                        length += 1;
+                    }
+
+                    new_chunks.push(Chunk::Text {
+                        text: Cow::Owned(remaining),
+                    });
+                }
             }
 
             new_chunks.push(Chunk::Redaction {
@@ -395,7 +410,7 @@ mod tests {
         let mut value =
             Annotated::new("This is my long string I want to have trimmed!".to_string());
         processor::apply(&mut value, |v, m| {
-            trim_string(v, m, 20);
+            trim_string(v, m, 20, 0);
             Ok(())
         })
         .unwrap();
@@ -428,12 +443,25 @@ mod tests {
 
         let mut expected = Annotated::new("x".repeat(300));
         processor::apply(&mut expected, |v, m| {
-            trim_string(v, m, MaxChars::Logger.limit());
+            trim_string(v, m, MaxChars::Logger.limit(), 0);
             Ok(())
         })
         .unwrap();
 
         assert_eq!(event.value().unwrap().logger, expected);
+    }
+
+    #[test]
+    fn test_max_char_allowance() {
+        let string = "This string requires some allowance to fit!";
+        let mut value = Annotated::new(string.to_owned()); // len == 43
+        processor::apply(&mut value, |v, m| {
+            trim_string(v, m, 40, 5);
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(value, Annotated::new(string.to_owned()));
     }
 
     #[test]

@@ -294,7 +294,7 @@ pub struct Event {
     /// Server or device name the event was generated on.
     ///
     /// This is supposed to be a hostname.
-    #[metastructure(pii = "true", max_chars = 256)]
+    #[metastructure(pii = "true", max_chars = 256, max_chars_allowance = 20)]
     pub server_name: Annotated<String>,
 
     /// The release version of the application.
@@ -341,7 +341,7 @@ pub struct Event {
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     #[metastructure(omit_from_schema)] // deprecated
     pub site: Annotated<String>,
 

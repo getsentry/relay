@@ -36,17 +36,17 @@ pub struct Exception {
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
     // (note: requirement checked in checked in StoreNormalizeProcessor)
-    #[metastructure(field = "type", max_chars = 256)]
+    #[metastructure(field = "type", max_chars = 256, max_chars_allowance = 20)]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
-    #[metastructure(max_chars = 8192, pii = "true")]
+    #[metastructure(max_chars = 8192, max_chars_allowance = 200, pii = "true")]
     pub value: Annotated<JsonLenientString>,
 
     /// The optional module, or package which the exception type lives in.
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     pub module: Annotated<String>,
 
     /// Stack trace containing frames of this exception.

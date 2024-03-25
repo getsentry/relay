@@ -331,6 +331,7 @@ struct FieldAttrs {
     retain: bool,
     characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
+    max_chars_allowance: Option<TokenStream>,
     bag_size: Option<TokenStream>,
 }
 
@@ -385,6 +386,14 @@ impl FieldAttrs {
             quote!(None)
         };
 
+        let max_chars_allowance = if let Some(ref max_chars_allowance) = self.max_chars_allowance {
+            quote!(Some(#max_chars_allowance))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.max_chars_allowance)
+        } else {
+            quote!(None)
+        };
+
         let bag_size = if let Some(ref bag_size) = self.bag_size {
             quote!(Some(#bag_size))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
@@ -408,6 +417,7 @@ impl FieldAttrs {
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
                 max_chars: #max_chars,
+                max_chars_allowance: #max_chars_allowance,
                 characters: #characters,
                 bag_size: #bag_size,
                 pii: #pii,
@@ -533,7 +543,16 @@ fn parse_field_attributes(
                                         rv.max_chars = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non usize literal for max_chars");
+                                        panic!("Got non integer literal for max_chars");
+                                    }
+                                }
+                            } else if ident == "max_chars_allowance" {
+                                match name_value.lit {
+                                    Lit::Int(litint) => {
+                                        rv.max_chars_allowance = Some(quote!(#litint));
+                                    }
+                                    _ => {
+                                        panic!("Got non integer literal for max_chars_allowance");
                                     }
                                 }
                             } else if ident == "bag_size" {
