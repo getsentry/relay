@@ -1153,8 +1153,8 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketValue};
-    <span class="kw">use </span>relay_quotas::{Quota, QuotaScope};
+    <span class="kw">use </span>relay_metrics::{BucketMetadata, BucketValue};
+    <span class="kw">use </span>relay_quotas::QuotaScope;
     <span class="kw">use </span>smallvec::smallvec;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;

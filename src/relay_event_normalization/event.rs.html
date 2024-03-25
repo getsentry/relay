@@ -3227,12 +3227,6 @@
 <a href="#3225" id="3225">3225</a>
 <a href="#3226" id="3226">3226</a>
 <a href="#3227" id="3227">3227</a>
-<a href="#3228" id="3228">3228</a>
-<a href="#3229" id="3229">3229</a>
-<a href="#3230" id="3230">3230</a>
-<a href="#3231" id="3231">3231</a>
-<a href="#3232" id="3232">3232</a>
-<a href="#3233" id="3233">3233</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -3571,7 +3565,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>user) = user.value_mut() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>user_ip) = user.ip_address.value_mut() {
                 <span class="kw">if </span>user_ip.is_auto() {
-                    <span class="kw-2">*</span>user_ip = client_ip.to_owned();
+                    client_ip.clone_into(user_ip)
                 }
             }
         }
@@ -4338,18 +4332,12 @@
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>itertools::Itertools;
-    <span class="kw">use </span>relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
-        Request, Tags, Values,
-    };
-    <span class="kw">use </span>relay_protocol::{get_value, Annotated, SerializableAnnotated};
+    <span class="kw">use </span>relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
+    <span class="kw">use </span>relay_protocol::{get_value, SerializableAnnotated};
     <span class="kw">use </span>serde_json::json;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use crate</span>::{
-        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-        RawUserAgentInfo,
-    };
+    <span class="kw">use crate</span>::{ClientHints, MeasurementsConfig};
 
     <span class="kw">const </span>IOS_MOBILE_EVENT: <span class="kw-2">&amp;</span>str = <span class="string">r#"
         {

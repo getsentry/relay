@@ -659,6 +659,8 @@
 <a href="#657" id="657">657</a>
 <a href="#658" id="658">658</a>
 <a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -702,9 +704,11 @@
     </span>InternalError,
 }
 
-<span class="kw">mod </span>parser {
-    <span class="attr">#![allow(clippy::upper_case_acronyms)]
-    </span><span class="kw">use </span>pest_derive::Parser;
+<span class="attr">#[allow(unknown_lints)]
+#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::empty_docs)]
+</span><span class="kw">mod </span>parser {
+    <span class="kw">use </span>pest_derive::Parser;
 
     <span class="attr">#[derive(Parser)]
     #[grammar = <span class="string">"selector.pest"</span>]

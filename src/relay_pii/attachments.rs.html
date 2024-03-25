@@ -971,7 +971,6 @@
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
 <a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::iter::FusedIterator;
 
@@ -1921,10 +1920,9 @@
     }
 
     <span class="attr">#[test]
+    #[allow(clippy::trivial_regex)]
     </span><span class="kw">fn </span>test_get_wstr_match() {
-        <span class="attr">#![allow(clippy::trivial_regex)]
-
-        </span><span class="kw">let </span>s = <span class="string">"hello there"</span>;
+        <span class="kw">let </span>s = <span class="string">"hello there"</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>b = Vec::from(<span class="kw-2">&amp;</span><span class="string">b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"</span>[..]);
         <span class="kw">let </span>w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
 

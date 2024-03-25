@@ -416,12 +416,12 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingState};
+    <span class="kw">use </span>relay_event_schema::processor;
     <span class="kw">use </span>relay_event_schema::protocol::{
         CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
         RawStacktrace, User,
     };
-    <span class="kw">use </span>relay_protocol::{Annotated, ErrorKind};
+    <span class="kw">use </span>relay_protocol::Annotated;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;

@@ -954,8 +954,6 @@
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1286,13 +1284,11 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::collections::HashSet;
     <span class="kw">use </span>std::sync::atomic::AtomicU64;
-    <span class="kw">use </span>std::time::Duration;
 
     <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
     <span class="kw">use </span>relay_redis::{redis, RedisConfigOptions};
 
-    <span class="kw">use </span><span class="kw">crate</span>::limiter::EntryId;
     <span class="kw">use </span><span class="kw">crate</span>::redis::{KEY_PREFIX, KEY_VERSION};
     <span class="kw">use crate</span>::{CardinalityScope, SlidingWindow};
 

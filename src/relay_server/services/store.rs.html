@@ -1867,53 +1867,6 @@
 <a href="#1865" id="1865">1865</a>
 <a href="#1866" id="1866">1866</a>
 <a href="#1867" id="1867">1867</a>
-<a href="#1868" id="1868">1868</a>
-<a href="#1869" id="1869">1869</a>
-<a href="#1870" id="1870">1870</a>
-<a href="#1871" id="1871">1871</a>
-<a href="#1872" id="1872">1872</a>
-<a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
-<a href="#1887" id="1887">1887</a>
-<a href="#1888" id="1888">1888</a>
-<a href="#1889" id="1889">1889</a>
-<a href="#1890" id="1890">1890</a>
-<a href="#1891" id="1891">1891</a>
-<a href="#1892" id="1892">1892</a>
-<a href="#1893" id="1893">1893</a>
-<a href="#1894" id="1894">1894</a>
-<a href="#1895" id="1895">1895</a>
-<a href="#1896" id="1896">1896</a>
-<a href="#1897" id="1897">1897</a>
-<a href="#1898" id="1898">1898</a>
-<a href="#1899" id="1899">1899</a>
-<a href="#1900" id="1900">1900</a>
-<a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
-<a href="#1903" id="1903">1903</a>
-<a href="#1904" id="1904">1904</a>
-<a href="#1905" id="1905">1905</a>
-<a href="#1906" id="1906">1906</a>
-<a href="#1907" id="1907">1907</a>
-<a href="#1908" id="1908">1908</a>
-<a href="#1909" id="1909">1909</a>
-<a href="#1910" id="1910">1910</a>
-<a href="#1911" id="1911">1911</a>
-<a href="#1912" id="1912">1912</a>
-<a href="#1913" id="1913">1913</a>
-<a href="#1914" id="1914">1914</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -3261,53 +3214,6 @@
     </span>project_id: ProjectId,
     <span class="doccomment">/// The attachment.
     </span>attachment: ChunkedAttachment,
-}
-
-<span class="doccomment">/// Container payload for chunks of attachments.
-</span><span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>ReplayRecordingChunkKafkaMessage {
-    <span class="doccomment">/// Chunk payload of the replay recording.
-    </span>payload: Bytes,
-    <span class="doccomment">/// The replay id.
-    </span>replay_id: EventId,
-    <span class="doccomment">/// The project id for the current replay.
-    </span>project_id: ProjectId,
-    <span class="doccomment">/// The recording ID within the replay.
-    </span>id: String,
-    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
-    /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
-    </span>chunk_index: usize,
-}
-<span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>ReplayRecordingChunkMeta {
-    <span class="doccomment">/// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    </span>id: String,
-
-    <span class="doccomment">/// Number of chunks. Must be greater than zero.
-    </span>chunks: usize,
-
-    <span class="doccomment">/// The size of the attachment in bytes.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-}
-
-<span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>ReplayRecordingKafkaMessage {
-    replay_id: EventId,
-    <span class="doccomment">/// The key_id for the current recording.
-    </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="doccomment">/// The org id for the current recording.
-    </span>org_id: u64,
-    <span class="doccomment">/// The project id for the current recording.
-    </span>project_id: ProjectId,
-    <span class="doccomment">/// The timestamp of when the recording was Received by relay
-    </span>received: u64,
-    <span class="comment">// Number of days to retain.
-    </span>retention_days: u16,
-    <span class="doccomment">/// The recording attachment.
-    </span>replay_recording: ReplayRecordingChunkMeta,
 }
 
 <span class="attr">#[derive(Debug, Serialize)]

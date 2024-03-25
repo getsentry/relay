@@ -295,6 +295,10 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module takes the types and paths from 'item_collector' module, and will recursively find
 //! all the fields with the specified PII-value, and save those fields with the full path.
 //!
@@ -419,7 +423,11 @@
                 // return to this function after the match statement, we can set them back.
                 </span><span class="kw">let </span>current_type = <span class="self">self</span>.current_type.clone();
                 <span class="kw">let </span>module_path = <span class="self">self</span>.module_path.clone();
-                <span class="self">self</span>.module_path = use_path.rsplit_once(<span class="string">"::"</span>).unwrap().<span class="number">0</span>.to_owned();
+                use_path
+                    .rsplit_once(<span class="string">"::"</span>)
+                    .unwrap()
+                    .<span class="number">0
+                    </span>.clone_into(<span class="kw-2">&amp;mut </span><span class="self">self</span>.module_path);
 
                 <span class="kw">match </span>enum_or_struct {
                     EnumOrStruct::Struct(itemstruct) =&gt; <span class="self">self</span>.visit_item_struct(<span class="kw-2">&amp;</span>itemstruct),

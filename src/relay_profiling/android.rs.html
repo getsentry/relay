@@ -342,6 +342,12 @@
 <a href="#340" id="340">340</a>
 <a href="#341" id="341">341</a>
 <a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
@@ -500,7 +506,10 @@
         profile.metadata.duration_ns = transaction.duration_ns();
         profile.metadata.trace_id = transaction.trace_id;
         profile.metadata.transaction_id = transaction.id;
-        profile.metadata.transaction_name = transaction.name.clone();
+        profile
+            .metadata
+            .transaction_name
+            .clone_from(<span class="kw-2">&amp;</span>transaction.name);
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
     } <span class="kw">else if </span>profile.has_transaction_metadata() {
@@ -542,23 +551,26 @@
     <span class="kw">let </span><span class="kw-2">mut </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = transaction_metadata.get(<span class="string">"transaction"</span>) {
-        profile.metadata.transaction_name = transaction_name.to_owned();
+        transaction_name.clone_into(<span class="kw-2">&amp;mut </span>profile.metadata.transaction_name);
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>transaction) = profile.metadata.transaction {
-            transaction.name = profile.metadata.transaction_name.to_owned();
+            profile
+                .metadata
+                .transaction_name
+                .clone_into(<span class="kw-2">&amp;mut </span>transaction.name);
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = transaction_metadata.get(<span class="string">"release"</span>) {
-        profile.metadata.release = release.to_owned();
+        release.clone_into(<span class="kw-2">&amp;mut </span>profile.metadata.release);
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = transaction_metadata.get(<span class="string">"dist"</span>) {
-        profile.metadata.dist = dist.to_owned();
+        dist.clone_into(<span class="kw-2">&amp;mut </span>profile.metadata.dist);
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = transaction_metadata.get(<span class="string">"environment"</span>) {
-        profile.metadata.environment = environment.to_owned();
+        environment.clone_into(<span class="kw-2">&amp;mut </span>profile.metadata.environment);
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(segment_id) = transaction_metadata.get(<span class="string">"segment_id"</span>) {

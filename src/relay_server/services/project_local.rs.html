@@ -478,7 +478,7 @@
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::services::project::{ProjectState, PublicKeyConfig};
+    <span class="kw">use </span><span class="kw">crate</span>::services::project::PublicKeyConfig;
 
     <span class="doccomment">/// Tests that we can follow the symlinks and read the project file properly.
     </span><span class="attr">#[tokio::test]
@@ -562,8 +562,8 @@
         <span class="kw">let </span>extracted_project_state = load_local_states(temp.path()).<span class="kw">await</span>.unwrap();
 
         <span class="macro">assert_eq!</span>(extracted_project_state.len(), <span class="number">2</span>);
-        <span class="macro">assert!</span>(extracted_project_state.get(<span class="kw-2">&amp;</span>project_key1).is_some());
-        <span class="macro">assert!</span>(extracted_project_state.get(<span class="kw-2">&amp;</span>project_key2).is_some());
+        <span class="macro">assert!</span>(extracted_project_state.contains_key(<span class="kw-2">&amp;</span>project_key1));
+        <span class="macro">assert!</span>(extracted_project_state.contains_key(<span class="kw-2">&amp;</span>project_key2));
     }
 }
 </code></pre></div></section></main></body></html>

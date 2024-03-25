@@ -3237,11 +3237,6 @@
 <a href="#3235" id="3235">3235</a>
 <a href="#3236" id="3236">3236</a>
 <a href="#3237" id="3237">3237</a>
-<a href="#3238" id="3238">3238</a>
-<a href="#3239" id="3239">3239</a>
-<a href="#3240" id="3240">3240</a>
-<a href="#3241" id="3241">3241</a>
-<a href="#3242" id="3242">3242</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6065,21 +6060,16 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>std::env;
 
-    <span class="kw">use </span>chrono::{DateTime, Utc};
     <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
     <span class="kw">use </span>relay_common::glob2::LazyGlob;
     <span class="kw">use </span>relay_dynamic_config::ProjectConfig;
-    <span class="kw">use </span>relay_event_normalization::{
-        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
-    };
-    <span class="kw">use </span>relay_event_schema::protocol::{EventId, TransactionSource};
+    <span class="kw">use </span>relay_event_normalization::{RedactionRule, TransactionNameRule};
+    <span class="kw">use </span>relay_event_schema::protocol::TransactionSource;
     <span class="kw">use </span>relay_pii::DataScrubbingConfig;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
@@ -6090,7 +6080,7 @@
     </span><span class="kw">use </span>{
         relay_dynamic_config::Options,
         relay_metrics::BucketValue,
-        relay_quotas::{Quota, QuotaScope, ReasonCode},
+        relay_quotas::{QuotaScope, ReasonCode},
         relay_test::mock_service,
     };
 

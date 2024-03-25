@@ -294,6 +294,8 @@
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -427,13 +429,15 @@
     <span class="kw">use </span>std::sync::Arc;
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
-    <span class="kw">use </span>relay_event_schema::protocol::{Event, EventId};
+    <span class="attr">#[cfg(not(feature = <span class="string">"processing"</span>))]
+    </span><span class="kw">use </span>relay_dynamic_config::Feature;
+    <span class="kw">use </span>relay_event_schema::protocol::EventId;
     <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
     <span class="kw">use </span>relay_system::Addr;
 
-    <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item};
+    <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{Feature, ProcessEnvelope, ProcessingGroup};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
     <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::create_test_processor;
     <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
