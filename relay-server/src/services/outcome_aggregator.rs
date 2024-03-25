@@ -34,7 +34,7 @@ struct BucketKey {
 pub struct OutcomeAggregator {
     /// Whether or not to produce outcomes.
     ///
-    /// If `true`, all outcomes will be dropped/
+    /// If `true`, all outcomes will be dropped.
     disabled: bool,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
