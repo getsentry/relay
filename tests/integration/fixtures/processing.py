@@ -211,6 +211,8 @@ def category_value(category):
         return 8
     if category == "transaction_indexed":
         return 9
+    if category == "feedback":
+        return 14
     assert False, "invalid category"
 
 
