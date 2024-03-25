@@ -251,13 +251,11 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
         .captures(string)
         .map(|caps| (caps.name("command"), caps.name("args")));
     let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => {
-            command.as_str().to_owned()
-                + " "
-                + get_scrubbed_redis_args(command.as_str(), _args.as_str())
-                    .join(" ")
-                    .as_str()
-        }
+        Some((Some(command), Some(_args))) => format!(
+            "{} {}",
+            command.as_str(),
+            get_scrubbed_redis_args(command.as_str(), _args.as_str()).join(" ")
+        ),
         Some((Some(command), None)) => command.as_str().into(),
         None | Some((None, _)) => "*".into(),
     };
