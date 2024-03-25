@@ -34,8 +34,8 @@ struct BucketKey {
 pub struct OutcomeAggregator {
     /// Whether or not to produce outcomes.
     ///
-    /// If `false`, all outcomes will be dropped/
-    enabled: bool,
+    /// If `true`, all outcomes will be dropped/
+    disabled: bool,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The number of seconds between flushes of all buckets
@@ -50,10 +50,10 @@ pub struct OutcomeAggregator {
 
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
-        let enabled = !matches!(config.emit_outcomes(), EmitOutcomes::None);
+        let disabled = matches!(config.emit_outcomes(), EmitOutcomes::None);
 
         Self {
-            enabled,
+            disabled,
             bucket_interval: config.outcome_aggregator().bucket_interval,
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
@@ -70,7 +70,7 @@ impl OutcomeAggregator {
     }
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
-        if self.mode == AggregationMode::DropEverything {
+        if self.disabled {
             return;
         }
 
