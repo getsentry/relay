@@ -12,7 +12,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
     Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
@@ -26,7 +26,7 @@ use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, MaxChars, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 

@@ -220,7 +220,7 @@ fn process_session(
     }
 
     // Drop the session if metrics have been extracted in this or a prior Relay
-    if metrics_config.should_drop() && item.metrics_extracted() {
+    if item.metrics_extracted() {
         return false;
     }
 
@@ -312,7 +312,7 @@ fn process_session_aggregates(
     }
 
     // Drop the aggregate if metrics have been extracted in this or a prior Relay
-    if metrics_config.should_drop() && item.metrics_extracted() {
+    if item.metrics_extracted() {
         return false;
     }
 
