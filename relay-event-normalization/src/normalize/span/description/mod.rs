@@ -251,7 +251,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
         .captures(string)
         .map(|caps| (caps.name("command"), caps.name("args")));
     let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => {
+        Some((Some(command), Some(keys_and_args))) => {
             command.as_str().to_owned()
                 + " "
                 + get_scrubbed_redis_args(command.as_str(), _args.as_str())
