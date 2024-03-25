@@ -832,6 +832,10 @@ impl CardinalityItem for Bucket {
         self.name.try_namespace()
     }
 
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn to_hash(&self) -> u32 {
         let mut hasher = FnvHasher::default();
         self.name.hash(&mut hasher);

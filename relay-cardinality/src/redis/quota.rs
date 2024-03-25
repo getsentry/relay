@@ -1,3 +1,5 @@
+use core::fmt;
+
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
@@ -8,15 +10,16 @@ use crate::window::Slot;
 use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct QuotaScoping {
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PartialQuotaScoping {
     pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
     pub project_id: Option<ProjectId>,
     window: SlidingWindow,
+    scope: CardinalityScope,
 }
 
-impl QuotaScoping {
+impl PartialQuotaScoping {
     /// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
     ///
     /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
@@ -24,15 +27,17 @@ impl QuotaScoping {
         let (organization_id, project_id) = match limit.scope {
             CardinalityScope::Organization => (Some(scoping.organization_id), None),
             CardinalityScope::Project => (Some(scoping.organization_id), Some(scoping.project_id)),
+            CardinalityScope::Name => (Some(scoping.organization_id), Some(scoping.project_id)),
             // Invalid/unknown scope -> ignore the limit.
             CardinalityScope::Unknown => return None,
         };
 
         Some(Self {
-            window: limit.window,
             namespace: limit.namespace,
             organization_id,
             project_id,
+            window: limit.window,
+            scope: limit.scope,
         })
     }
 
@@ -64,6 +69,25 @@ impl QuotaScoping {
         UnixTimestamp::from_secs(timestamp.as_secs() + shift)
     }
 
+    pub fn full(self, entry: Entry<'_>) -> QuotaScoping {
+        let name = match self.scope {
+            CardinalityScope::Name => Some(fnv32(entry.name)),
+            _ => None,
+        };
+
+        QuotaScoping { parent: self, name }
+    }
+}
+
+/// A quota scoping extracted from a [`CardinalityLimit`], a [`Scoping`]
+/// and a [`CardinalityItem`](crate::CardinalityItem).
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct QuotaScoping {
+    parent: PartialQuotaScoping,
+    name: Option<u32>,
+}
+
+impl QuotaScoping {
     /// Returns the minimum TTL for a Redis key created by [`Self::into_redis_key`].
     pub fn redis_key_ttl(&self) -> u64 {
         self.window.window_seconds
@@ -74,7 +98,37 @@ impl QuotaScoping {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
+        let name = DisplayOptMinus(self.name);
 
-        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
+        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}")
     }
+}
+
+impl std::ops::Deref for QuotaScoping {
+    type Target = PartialQuotaScoping;
+
+    fn deref(&self) -> &Self::Target {
+        &self.parent
+    }
+}
+
+struct DisplayOptMinus<T>(Option<T>);
+
+impl<T: fmt::Display> fmt::Display for DisplayOptMinus<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(inner) = self.0.as_ref() {
+            write!(f, "{inner}-")
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn fnv32(s: &str) -> u32 {
+    use hash32::Hasher;
+    use std::hash::Hash;
+
+    let mut hasher = hash32::FnvHasher::default();
+    s.hash(&mut hasher);
+    hasher.finish32()
 }
