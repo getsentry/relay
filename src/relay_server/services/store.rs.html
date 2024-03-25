@@ -1674,6 +1674,23 @@
 <a href="#1672" id="1672">1672</a>
 <a href="#1673" id="1673">1673</a>
 <a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2209,7 +2226,7 @@
                     metric_encoding = metric.value.encoding().unwrap_or(<span class="string">""</span>),
                 );
             }
-            KafkaMessage::Span(span) =&gt; {
+            KafkaMessage::Span { message: span, .. } =&gt; {
                 <span class="kw">let </span>is_segment = span.is_segment;
                 <span class="kw">let </span>has_parent = span.parent_span_id.is_some();
                 <span class="kw">let </span>platform = VALID_PLATFORMS.iter().find(|p| <span class="kw-2">*</span>p == <span class="kw-2">&amp;</span>span.platform);
@@ -2589,7 +2606,13 @@
         <span class="self">self</span>.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
-            KafkaMessage::Span(span),
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    <span class="string">"project_id"</span>.to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
         )<span class="question-mark">?</span>;
 
         <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
@@ -3098,7 +3121,12 @@
     ReplayEvent(ReplayEventKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
+    Span {
+        <span class="attr">#[serde(skip)]
+        </span>headers: BTreeMap&lt;String, String&gt;,
+        <span class="attr">#[serde(flatten)]
+        </span>message: SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt;,
+    },
     MetricsSummary(MetricsSummaryKafkaMessage&lt;<span class="lifetime">'a</span>&gt;),
     Cogs(CogsKafkaMessage),
 }
@@ -3115,7 +3143,7 @@
             KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">"replay_event"</span>,
             KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">"replay_recording_not_chunked"</span>,
             KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">"check_in"</span>,
-            KafkaMessage::Span(<span class="kw">_</span>) =&gt; <span class="string">"span"</span>,
+            KafkaMessage::Span { .. } =&gt; <span class="string">"span"</span>,
             KafkaMessage::MetricsSummary(<span class="kw">_</span>) =&gt; <span class="string">"metrics_summary"</span>,
             KafkaMessage::Cogs(<span class="kw">_</span>) =&gt; <span class="string">"cogs"</span>,
         }
@@ -3139,7 +3167,7 @@
             <span class="comment">// Random partitioning
             </span><span class="self">Self</span>::Profile(<span class="kw">_</span>)
             | <span class="self">Self</span>::ReplayRecordingNotChunked(<span class="kw">_</span>)
-            | <span class="self">Self</span>::Span(<span class="kw">_</span>)
+            | <span class="self">Self</span>::Span { .. }
             | <span class="self">Self</span>::MetricsSummary(<span class="kw">_</span>)
             | <span class="self">Self</span>::Cogs(<span class="kw">_</span>) =&gt; Uuid::nil(),
 
@@ -3168,6 +3196,12 @@
                 }
                 <span class="prelude-val">None
             </span>}
+            KafkaMessage::Span { headers, .. } =&gt; {
+                <span class="kw">if </span>!headers.is_empty() {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
+                }
+                <span class="prelude-val">None
+            </span>}
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -3181,7 +3215,7 @@
             KafkaMessage::ReplayEvent(message) =&gt; serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span(message) =&gt; serde_json::to_vec(message)
+            KafkaMessage::Span { message, .. } =&gt; serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::MetricsSummary(message) =&gt; serde_json::to_vec(message)
