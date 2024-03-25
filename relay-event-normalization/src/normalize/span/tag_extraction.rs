@@ -145,6 +145,7 @@ impl std::fmt::Display for RenderBlockingStatus {
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
 pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize) {
+    // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
     let Some(spans_vec) = spans.value_mut() else {
         return;
