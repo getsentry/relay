@@ -439,6 +439,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.measurements.score.total.value".into()),
             condition: Some(is_allowed_browser.clone()),
             tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .always(),
@@ -462,6 +465,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.measurements.score.total.value".into()),
             condition: Some(is_allowed_browser.clone()),
             tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .always(),
