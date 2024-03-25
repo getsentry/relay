@@ -1505,43 +1505,6 @@
 <a href="#1503" id="1503">1503</a>
 <a href="#1504" id="1504">1504</a>
 <a href="#1505" id="1505">1505</a>
-<a href="#1506" id="1506">1506</a>
-<a href="#1507" id="1507">1507</a>
-<a href="#1508" id="1508">1508</a>
-<a href="#1509" id="1509">1509</a>
-<a href="#1510" id="1510">1510</a>
-<a href="#1511" id="1511">1511</a>
-<a href="#1512" id="1512">1512</a>
-<a href="#1513" id="1513">1513</a>
-<a href="#1514" id="1514">1514</a>
-<a href="#1515" id="1515">1515</a>
-<a href="#1516" id="1516">1516</a>
-<a href="#1517" id="1517">1517</a>
-<a href="#1518" id="1518">1518</a>
-<a href="#1519" id="1519">1519</a>
-<a href="#1520" id="1520">1520</a>
-<a href="#1521" id="1521">1521</a>
-<a href="#1522" id="1522">1522</a>
-<a href="#1523" id="1523">1523</a>
-<a href="#1524" id="1524">1524</a>
-<a href="#1525" id="1525">1525</a>
-<a href="#1526" id="1526">1526</a>
-<a href="#1527" id="1527">1527</a>
-<a href="#1528" id="1528">1528</a>
-<a href="#1529" id="1529">1529</a>
-<a href="#1530" id="1530">1530</a>
-<a href="#1531" id="1531">1531</a>
-<a href="#1532" id="1532">1532</a>
-<a href="#1533" id="1533">1533</a>
-<a href="#1534" id="1534">1534</a>
-<a href="#1535" id="1535">1535</a>
-<a href="#1536" id="1536">1536</a>
-<a href="#1537" id="1537">1537</a>
-<a href="#1538" id="1538">1538</a>
-<a href="#1539" id="1539">1539</a>
-<a href="#1540" id="1540">1540</a>
-<a href="#1541" id="1541">1541</a>
-<a href="#1542" id="1542">1542</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1685,14 +1648,24 @@
     }
 }
 
-<span class="doccomment">/// Configuration for span tag extraction.
-</span><span class="kw">pub struct </span>Config {
-    <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    </span><span class="kw">pub </span>max_tag_value_size: usize,
+<span class="doccomment">/// Wrapper for [`extract_span_tags`].
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_tags_from_event(event: <span class="kw-2">&amp;mut </span>Event, max_tag_value_size: usize) {
+    <span class="comment">// Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>spans = std::mem::take(<span class="kw-2">&amp;mut </span>event.spans);
+    <span class="kw">let </span><span class="prelude-val">Some</span>(spans_vec) = spans.value_mut() <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size);
+
+    event.spans = spans;
 }
 
-<span class="doccomment">/// Extracts tags from event and spans and materializes them into `span.data`.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_tags(event: <span class="kw-2">&amp;mut </span>Event, config: <span class="kw-2">&amp;</span>Config) {
+<span class="doccomment">/// Extracts tags and measurements from event and spans and materializes them into the spans.
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+</span><span class="kw">pub fn </span>extract_span_tags(event: <span class="kw-2">&amp;</span>Event, spans: <span class="kw-2">&amp;mut </span>[Annotated&lt;Span&gt;], max_tag_value_size: usize) {
     <span class="comment">// TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     </span><span class="kw">let </span>shared_tags = extract_shared_tags(event);
@@ -1701,19 +1674,15 @@
         .is_some_and(|v| v.as_str() == <span class="string">"true"</span>);
     <span class="kw">let </span>start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{
-        <span class="kw">return</span>;
-    };
-
     <span class="kw">let </span>ttid = timestamp_by_op(spans, <span class="string">"ui.load.initial_display"</span>);
     <span class="kw">let </span>ttfd = timestamp_by_op(spans, <span class="string">"ui.load.full_display"</span>);
 
     <span class="kw">for </span>span <span class="kw">in </span>spans {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(span) = span.value_mut().as_mut() <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(span) = span.value_mut() <span class="kw">else </span>{
             <span class="kw">continue</span>;
         };
 
-        <span class="kw">let </span>tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
+        <span class="kw">let </span>tags = extract_tags(span, max_tag_value_size, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -1729,7 +1698,7 @@
 }
 
 <span class="doccomment">/// Extracts tags shared by every span.
-</span><span class="kw">pub fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
+</span><span class="kw">fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
@@ -1810,7 +1779,7 @@
 /// and rely on Sentry conventions and heuristics.
 </span><span class="kw">pub fn </span>extract_tags(
     span: <span class="kw-2">&amp;</span>Span,
-    config: <span class="kw-2">&amp;</span>Config,
+    max_tag_value_size: usize,
     initial_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     full_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     is_mobile: bool,
@@ -1954,7 +1923,7 @@
             span_group.truncate(<span class="number">16</span>);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(ext) = truncated
                     .rsplit(<span class="string">'/'</span>)
@@ -2620,12 +2589,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-        );
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
 
         <span class="kw">let </span>spans = event.spans.value().unwrap();
 
@@ -2687,12 +2651,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-        );
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
 
@@ -2810,12 +2769,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-        );
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
 
         <span class="kw">let </span>span_1 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>span_2 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
@@ -2906,12 +2860,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-        );
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
 
@@ -2968,12 +2917,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-        );
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -3001,16 +2945,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        <span class="kw">let </span>tags = extract_tags(
-            <span class="kw-2">&amp;</span>span,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-            <span class="bool-val">false</span>,
-            <span class="prelude-val">None</span>,
-        );
+        <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::BrowserName),
@@ -3037,16 +2972,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(<span class="prelude-val">Some</span>(description.into()));
 
-        extract_tags(
-            <span class="kw-2">&amp;</span>span,
-            <span class="kw-2">&amp;</span>Config {
-                max_tag_value_size: <span class="number">200</span>,
-            },
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-            <span class="bool-val">false</span>,
-            <span class="prelude-val">None</span>,
-        )
+        extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>)
     }
 
     <span class="attr">#[test]

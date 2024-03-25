@@ -488,6 +488,11 @@
 <a href="#486" id="486">486</a>
 <a href="#487" id="487">487</a>
 <a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -633,7 +638,7 @@
     });
 }
 
-<span class="kw">pub fn </span>extract_from_event(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
+<span class="kw">pub fn </span>extract_from_event(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="comment">// Only extract spans from transactions (not errors).
     </span><span class="kw">if </span>state.event_type() != <span class="prelude-val">Some</span>(EventType::Transaction) {
         <span class="kw">return</span>;
@@ -684,8 +689,14 @@
         <span class="kw">return</span>;
     };
 
-    <span class="kw">let </span>transaction_span = extract_transaction_span(event);
-
+    <span class="kw">let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(
+        event,
+        config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+    ) <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
     <span class="comment">// Add child spans as envelope items.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
         <span class="kw">for </span>span <span class="kw">in </span>child_spans {
@@ -858,9 +869,8 @@
     }
 
     <span class="comment">// Tag extraction:
-    </span><span class="kw">let </span>config = tag_extraction::Config { max_tag_value_size };
-    <span class="kw">let </span>is_mobile = <span class="bool-val">false</span>; <span class="comment">// TODO: find a way to determine is_mobile from a standalone span.
-    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(span, <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, is_mobile, <span class="prelude-val">None</span>);
+    </span><span class="kw">let </span>is_mobile = <span class="bool-val">false</span>; <span class="comment">// TODO: find a way to determine is_mobile from a standalone span.
+    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(span, max_tag_value_size, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, is_mobile, <span class="prelude-val">None</span>);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

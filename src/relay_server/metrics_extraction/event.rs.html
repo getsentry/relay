@@ -1481,6 +1481,30 @@
 <a href="#1479" id="1479">1479</a>
 <a href="#1480" id="1480">1480</a>
 <a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1527,12 +1551,17 @@
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-</span><span class="kw">pub fn </span>extract_metrics(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Bucket&gt; {
+</span><span class="kw">pub fn </span>extract_metrics(
+    event: <span class="kw-2">&amp;</span>Event,
+    config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
+    max_tag_value_size: usize,
+) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
 
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        <span class="kw">let </span>transaction_span = extract_transaction_span(event);
-        metrics.extend(generic::extract_metrics(<span class="kw-2">&amp;</span>transaction_span, config));
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+            metrics.extend(generic::extract_metrics(<span class="kw-2">&amp;</span>transaction_span, config));
+        }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() {
             <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
@@ -1549,6 +1578,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>chrono::{DateTime, Utc};
+    <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     <span class="kw">use </span>relay_event_normalization::{normalize_event, NormalizationConfig};
     <span class="kw">use </span>relay_event_schema::protocol::Timestamp;
@@ -2493,7 +2523,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
     }
 
@@ -2628,7 +2658,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
     }
 
@@ -2689,7 +2719,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -2725,7 +2755,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
 
         <span class="kw">let </span>usage_metrics = metrics
             .into_iter()
@@ -2935,9 +2965,12 @@
                 "type": "transaction",
                 "timestamp": "2021-04-26T08:00:05+0100",
                 "start_timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "my_transaction",
                 "contexts": {
                     "trace": {
-                        "op": "db.query"
+                        "exclusive_time": 5000.0,
+                        "op": "db.query",
+                        "status": "ok"
                     }
                 }
             }
@@ -2954,12 +2987,27 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
 
-        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"c:spans/usage@none"</span>);
-        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"c:spans/count_per_op@none"</span>);
-        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].tags[<span class="string">"span.op"</span>], <span class="string">"db.query"</span>);
+
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"d:spans/exclusive_time@millisecond"</span>);
+        <span class="macro">assert_debug_snapshot!</span>(metrics[<span class="number">1</span>].tags, @<span class="string">r###"
+        {
+            "span.category": "db",
+            "span.op": "db.query",
+            "transaction": "my_transaction",
+            "transaction.op": "db.query",
+        }
+        "###</span>);
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">&amp;*</span>metrics[<span class="number">2</span>].name,
+            <span class="string">"d:spans/exclusive_time_light@millisecond"
+        </span>);
+
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">3</span>].name, <span class="string">"c:spans/count_per_op@none"</span>);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">3</span>].tags[<span class="string">"span.op"</span>], <span class="string">"db.query"</span>);
     }
 }
 </code></pre></div></section></main></body></html>

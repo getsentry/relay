@@ -3237,6 +3237,13 @@
 <a href="#3235" id="3235">3235</a>
 <a href="#3236" id="3236">3236</a>
 <a href="#3237" id="3237">3237</a>
+<a href="#3238" id="3238">3238</a>
+<a href="#3239" id="3239">3239</a>
+<a href="#3240" id="3240">3240</a>
+<a href="#3241" id="3241">3241</a>
+<a href="#3242" id="3242">3242</a>
+<a href="#3243" id="3243">3243</a>
+<a href="#3244" id="3244">3244</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4379,7 +4386,14 @@
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(event, config);
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
+                    event,
+                    config,
+                    <span class="self">self</span>.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Spans)
+                        .max_tag_value_length,
+                );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -4596,7 +4610,7 @@
                 <span class="kw">if </span>state.has_event() {
                     event::scrub(state)<span class="question-mark">?</span>;
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                        span::extract_from_event(state);
+                        span::extract_from_event(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
                     });
                 }
 

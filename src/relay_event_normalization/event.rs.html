@@ -3222,11 +3222,6 @@
 <a href="#3220" id="3220">3220</a>
 <a href="#3221" id="3221">3221</a>
 <a href="#3222" id="3222">3222</a>
-<a href="#3223" id="3223">3223</a>
-<a href="#3224" id="3224">3224</a>
-<a href="#3225" id="3225">3225</a>
-<a href="#3226" id="3226">3226</a>
-<a href="#3227" id="3227">3227</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -3251,7 +3246,7 @@
 <span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::normalize::request;
-<span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
+<span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::extract_span_tags_from_event;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
@@ -3473,12 +3468,7 @@
     }
 
     <span class="kw">if </span>config.enrich_spans {
-        extract_span_tags(
-            event,
-            <span class="kw-2">&amp;</span>tag_extraction::Config {
-                max_tag_value_size: config.max_tag_value_length,
-            },
-        );
+        extract_span_tags_from_event(event, config.max_tag_value_length);
     }
 }
 
