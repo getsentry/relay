@@ -853,6 +853,30 @@
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -861,8 +885,8 @@
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>sqlparser::ast::{
-    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Expr,
-    FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Declare,
+    Expr, FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
     ShowStatementFilter, Statement, TableAlias, TableConstraint, TableFactor, UnaryOperator, Value,
     VisitMut, VisitorMut,
 };
@@ -1262,9 +1286,18 @@
             <span class="comment">// `SAVEPOINT foo` becomes `SAVEPOINT %s`.
             </span>Statement::Savepoint { name } =&gt; <span class="self">Self</span>::erase_name(name),
             Statement::ReleaseSavepoint { name } =&gt; <span class="self">Self</span>::erase_name(name),
-            Statement::Declare { name, query, .. } =&gt; {
-                <span class="self">Self</span>::erase_name(name);
-                <span class="self">self</span>.transform_query(query);
+            Statement::Declare { stmts } =&gt; {
+                <span class="kw">for </span>Declare {
+                    names, for_query, ..
+                } <span class="kw">in </span>stmts
+                {
+                    <span class="kw">for </span>name <span class="kw">in </span>names {
+                        <span class="self">Self</span>::erase_name(name);
+                    }
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(for_query) = for_query {
+                        <span class="self">self</span>.transform_query(for_query.as_mut());
+                    }
+                }
             }
             Statement::Fetch { name, into, .. } =&gt; {
                 <span class="self">Self</span>::erase_name(name);
@@ -1549,6 +1582,21 @@
                 }
             }
             Statement::UnlockTables =&gt; {}
+            Statement::Install { extension_name } | Statement::Load { extension_name } =&gt; {
+                <span class="self">Self</span>::scrub_name(extension_name)
+            }
+            Statement::ShowStatus {
+                filter: <span class="kw">_</span>,
+                global: <span class="kw">_</span>,
+                session: <span class="kw">_</span>,
+            } =&gt; {}
+            Statement::Unload {
+                query: <span class="kw">_</span>,
+                to,
+                with: <span class="kw">_</span>,
+            } =&gt; {
+                <span class="self">Self</span>::scrub_name(to);
+            }
         }
 
         ControlFlow::Continue(())
