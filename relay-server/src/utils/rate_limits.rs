@@ -677,7 +677,7 @@ where
         if summary.user_report_v2_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::UserReportV2);
             let limits = (self.check)(item_scoping, summary.user_report_v2_quantity)?;
-            enforcement.replays = CategoryLimit::new(
+            enforcement.user_reports_v2 = CategoryLimit::new(
                 DataCategory::UserReportV2,
                 summary.user_report_v2_quantity,
                 limits.longest(),
