@@ -513,6 +513,7 @@ mod tests {
                 },
             ),
             platform: ~,
+            was_transaction: true,
             other: {},
         }
         "###);
