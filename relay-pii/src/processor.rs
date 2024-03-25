@@ -472,9 +472,7 @@ mod tests {
         Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
-    use relay_protocol::{
-        assert_annotated_snapshot, get_value, FromValue, Object, Val, Value,
-    };
+    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object, Val, Value};
     use serde_json::json;
 
     use super::*;
