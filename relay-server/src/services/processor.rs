@@ -1140,7 +1140,14 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
+                let metrics = crate::metrics_extraction::event::extract_metrics(
+                    event,
+                    config,
+                    self.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Spans)
+                        .max_tag_value_length,
+                );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -1357,7 +1364,7 @@ impl EnvelopeProcessorService {
                 if state.has_event() {
                     event::scrub(state)?;
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(state);
+                        span::extract_from_event(state, &self.inner.config);
                     });
                 }
 

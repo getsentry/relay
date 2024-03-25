@@ -30,7 +30,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.op": "mYOp",
+            "span.op": "myop",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -48,7 +48,7 @@ expression: metrics
             1.0,
         ),
         tags: {
-            "span.op": "mYOp",
+            "span.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
