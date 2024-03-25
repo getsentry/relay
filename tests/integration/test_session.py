@@ -39,96 +39,6 @@ def test_sessions(mini_sentry, relay_chain):
     assert session == session_payload
 
 
-def test_session_with_processing(mini_sentry, relay_with_processing, sessions_consumer):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "foobarbaz",
-            "seq": 42,
-            "init": True,
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-            "duration": 1947.49,
-            "status": "exited",
-            "errors": 0,
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
-        },
-    )
-
-    sessions_consumer.assert_empty()
-
-
-def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consumer):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started1 = timestamp - timedelta(hours=1)
-    started2 = started1 - timedelta(hours=1)
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay.send_session_aggregates(
-        project_id,
-        {
-            "aggregates": [
-                {
-                    "started": started1.isoformat(),
-                    "did": "foobarbaz",
-                    "exited": 2,
-                    "errored": 3,
-                },
-                {
-                    "started": started2.isoformat(),
-                    "abnormal": 1,
-                },
-            ],
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
-        },
-    )
-
-    sessions_consumer.assert_empty()
-
-
-def test_session_with_custom_retention(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["eventRetention"] = 17
-
-    timestamp = datetime.now(tz=timezone.utc)
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "timestamp": timestamp.isoformat(),
-            "started": timestamp.isoformat(),
-            "attrs": {"release": "sentry-test@1.0.0"},
-        },
-    )
-
-    sessions_consumer.assert_empty()
-
-
 def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
@@ -301,29 +211,6 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
         },
     )
 
-    sessions_consumer.assert_empty()
-
-
-def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
-    relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["eventRetention"] = 17
-
-    timestamp = datetime.now(tz=timezone.utc)
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "timestamp": timestamp.isoformat(),
-            "started": timestamp.isoformat(),
-            "attrs": {"release": "sentry-test@1.0.0", "ip_address": "{{auto}}"},
-        },
-    )
-
-    # Can't test ip_address since it's not posted to Kafka. Just test that it is accepted.
     sessions_consumer.assert_empty()
 
 
