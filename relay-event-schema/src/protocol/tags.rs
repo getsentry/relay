@@ -8,8 +8,8 @@ use crate::protocol::{AsPair, LenientString, PairList};
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TagEntry(
-    #[metastructure(max_chars = "tag_key", allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
-    #[metastructure(max_chars = "tag_value", deny_chars = "\n")] pub Annotated<String>,
+    #[metastructure(max_chars = 200, allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
+    #[metastructure(max_chars = 200, deny_chars = "\n")] pub Annotated<String>,
 );
 
 impl AsPair for TagEntry {
