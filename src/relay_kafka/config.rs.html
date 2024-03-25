@@ -450,14 +450,6 @@
 <a href="#448" id="448">448</a>
 <a href="#449" id="449">449</a>
 <a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -495,8 +487,6 @@
     </span>Outcomes,
     <span class="doccomment">/// Override for billing critical outcomes.
     </span>OutcomesBilling,
-    <span class="doccomment">/// Session health updates.
-    </span>Sessions,
     <span class="doccomment">/// Any metric that is extracted from sessions.
     </span>MetricsSessions,
     <span class="doccomment">/// Generic metrics topic, excluding sessions (release health).
@@ -522,13 +512,12 @@
     /// It will have to be adjusted if the new variants are added.
     </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">'static</span>, <span class="self">Self</span>&gt; {
         <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
-        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">15</span>] = [
+        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">14</span>] = [
             Events,
             Attachments,
             Transactions,
             Outcomes,
             OutcomesBilling,
-            Sessions,
             MetricsSessions,
             MetricsGeneric,
             Profiles,
@@ -561,9 +550,6 @@
     <span class="doccomment">/// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
     </span><span class="attr">#[serde(alias = <span class="string">"outcomes-billing"</span>)]
     </span><span class="kw">pub </span>outcomes_billing: <span class="prelude-ty">Option</span>&lt;TopicAssignment&gt;,
-    <span class="doccomment">/// Session health topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-sessions"</span>)]
-    </span><span class="kw">pub </span>sessions: TopicAssignment,
     <span class="doccomment">/// Topic name for metrics extracted from sessions, aka release health.
     </span><span class="attr">#[serde(alias = <span class="string">"metrics"</span>, alias = <span class="string">"ingest-metrics"</span>)]
     </span><span class="kw">pub </span>metrics_sessions: TopicAssignment,
@@ -602,7 +588,6 @@
             KafkaTopic::Transactions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transactions,
             KafkaTopic::Outcomes =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.outcomes,
             KafkaTopic::OutcomesBilling =&gt; <span class="self">self</span>.outcomes_billing.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.outcomes),
-            KafkaTopic::Sessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sessions,
             KafkaTopic::MetricsSessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_sessions,
             KafkaTopic::MetricsGeneric =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_generic,
             KafkaTopic::Profiles =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiles,
@@ -624,7 +609,6 @@
             transactions: <span class="string">"ingest-transactions"</span>.to_owned().into(),
             outcomes: <span class="string">"outcomes"</span>.to_owned().into(),
             outcomes_billing: <span class="prelude-val">None</span>,
-            sessions: <span class="string">"ingest-sessions"</span>.to_owned().into(),
             metrics_sessions: <span class="string">"ingest-metrics"</span>.to_owned().into(),
             metrics_generic: <span class="string">"ingest-performance-metrics"</span>.to_owned().into(),
             profiles: <span class="string">"profiles"</span>.to_owned().into(),

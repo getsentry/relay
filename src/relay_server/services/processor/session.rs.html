@@ -673,7 +673,7 @@
     }
 
     <span class="comment">// Drop the session if metrics have been extracted in this or a prior Relay
-    </span><span class="kw">if </span>metrics_config.should_drop() &amp;&amp; item.metrics_extracted() {
+    </span><span class="kw">if </span>item.metrics_extracted() {
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
@@ -765,7 +765,7 @@
     }
 
     <span class="comment">// Drop the aggregate if metrics have been extracted in this or a prior Relay
-    </span><span class="kw">if </span>metrics_config.should_drop() &amp;&amp; item.metrics_extracted() {
+    </span><span class="kw">if </span>item.metrics_extracted() {
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
