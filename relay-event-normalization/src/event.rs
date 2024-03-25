@@ -6,9 +6,9 @@ use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::OnceLock;
 
 use itertools::Itertools;
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricResourceIdentifier, MetricUnit,
@@ -28,7 +28,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
-use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
@@ -291,12 +291,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.enrich_spans {
-        extract_span_tags(
-            event,
-            &tag_extraction::Config {
-                max_tag_value_size: config.max_tag_value_length,
-            },
-        );
+        extract_span_tags_from_event(event, config.max_tag_value_length);
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
@@ -438,7 +433,7 @@ pub fn normalize_ip_addresses(
         if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
                 if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
+                    client_ip.clone_into(user_ip)
                 }
             }
         }
@@ -765,7 +760,7 @@ fn normalize_exceptions(event: &mut Event) {
 }
 
 fn normalize_exception(exception: &mut Annotated<Exception>) {
-    static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+    static TYPE_VALUE_RE: OnceLock<Regex> = OnceLock::new();
     let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
     let _ = processor::apply(exception, |exception, meta| {
@@ -1410,17 +1405,13 @@ mod tests {
     use insta::{assert_debug_snapshot, assert_json_snapshot};
     use itertools::Itertools;
     use relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
-        MetricSummary, MetricsSummary, Request, Span, Tags, Values,
+        Breadcrumb, Csp, DebugMeta, DeviceContext, MetricSummary, MetricsSummary, Span, Values,
     };
-    use relay_protocol::{get_value, Annotated, SerializableAnnotated};
+    use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
-    use crate::{
-        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-        RawUserAgentInfo,
-    };
+    use crate::{ClientHints, MeasurementsConfig};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {

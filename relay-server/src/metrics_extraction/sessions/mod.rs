@@ -178,7 +178,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
+    use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
     use relay_metrics::BucketValue;
 
     use super::*;

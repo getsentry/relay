@@ -131,13 +131,15 @@ mod tests {
     use std::sync::Arc;
 
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::{Event, EventId};
+    #[cfg(not(feature = "processing"))]
+    use relay_dynamic_config::Feature;
+    use relay_event_schema::protocol::EventId;
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
-    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{Feature, ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;

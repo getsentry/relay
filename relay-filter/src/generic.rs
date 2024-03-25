@@ -173,11 +173,8 @@ mod tests {
 
     use super::*;
 
-    use crate::generic::{should_filter, MAX_SUPPORTED_VERSION};
-    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
-    use relay_event_schema::protocol::{Event, LenientString};
+    use relay_event_schema::protocol::LenientString;
     use relay_protocol::Annotated;
-    use relay_protocol::RuleCondition;
 
     fn mock_filters() -> GenericFiltersMap {
         vec![

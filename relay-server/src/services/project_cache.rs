@@ -1176,8 +1176,6 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;

@@ -22,15 +22,15 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["env", "wrap_help"] }
-clap_complete = "4.1.1"
-dialoguer = "0.10.0"
-hostname = "0.3.1"
+clap_complete = { workspace = true }
+dialoguer = { workspace = true }
+hostname = { workspace = true }
 once_cell = { workspace = true }
-relay-config = { path = "../relay-config" }
-relay-log = { path = "../relay-log", features = ["init"] }
-relay-server = { path = "../relay-server" }
-relay-statsd = { path = "../relay-statsd" }
+relay-config = { workspace = true }
+relay-log = { workspace = true, features = ["init"] }
+relay-server = { workspace = true }
+relay-statsd = { workspace = true }
 uuid = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-tikv-jemallocator = { version = "0.5.0", features = ["background_threads"] }
+tikv-jemallocator = { workspace = true, features = ["background_threads"] }

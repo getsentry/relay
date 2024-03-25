@@ -422,7 +422,6 @@ def test_minidump_with_processing(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),
@@ -466,7 +465,7 @@ def test_minidump_with_processing_invalid(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "content_type": "application/octet-stream",
+            "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),

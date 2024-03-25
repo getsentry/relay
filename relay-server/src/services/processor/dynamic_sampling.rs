@@ -298,7 +298,7 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::envelope::{ContentType, Envelope, Item, ItemType};
+    use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;

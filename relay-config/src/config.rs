@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryInto;
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
