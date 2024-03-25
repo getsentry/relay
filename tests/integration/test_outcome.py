@@ -593,6 +593,45 @@ def _get_event_payload(event_type):
             },
             "transaction": "hi",
         }
+    elif event_type == "feedback":
+        return {
+            "type": "feedback",
+            "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+            "timestamp": 1597977777.6189718,
+            "dist": "1.12",
+            "platform": "javascript",
+            "environment": "production",
+            "release": 42,
+            "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
+            "sdk": {"name": "name", "version": "veresion"},
+            "user": {
+                "id": "123",
+                "username": "user",
+                "email": "user@site.com",
+                "ip_address": "192.168.11.12",
+            },
+            "request": {
+                "url": None,
+                "headers": {
+                    "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                },
+            },
+            "contexts": {
+                "feedback": {
+                    "message": "test message",
+                    "contact_email": "test@example.com",
+                    "type": "feedback",
+                },
+                "trace": {
+                    "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                },
+                "replay": {
+                    "replay_id": "e2d42047b1c5431c8cba85ee2a8ab25d",
+                },
+            },
+        }
     else:
         raise Exception("Invalid event type")
 
@@ -692,7 +731,8 @@ def _get_span_payload():
 
 
 @pytest.mark.parametrize(
-    "category,is_outcome_expected", [("session", False), ("transaction", True)]
+    "category,is_outcome_expected",
+    [("session", False), ("transaction", True), ("feedback", True)],
 )
 def test_outcomes_rate_limit(
     relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
