@@ -435,7 +435,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{KafkaGauges, KafkaHistograms};
 
 <span class="kw">mod </span>utils;
-<span class="kw">use </span>utils::{CaptureErrorContext, ThreadedProducer};
+<span class="kw">use </span>utils::{Context, ThreadedProducer};
 
 <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
 </span><span class="kw">mod </span>schemas;
@@ -670,7 +670,7 @@
 
                 <span class="kw">let </span>producer = Arc::new(
                     client_config
-                        .create_with_context(CaptureErrorContext)
+                        .create_with_context(Context)
                         .map_err(ClientError::InvalidConfig)<span class="question-mark">?</span>,
                 );
 
@@ -697,7 +697,7 @@
                     }
                     <span class="kw">let </span>producer = Arc::new(
                         client_config
-                            .create_with_context(CaptureErrorContext)
+                            .create_with_context(Context)
                             .map_err(ClientError::InvalidConfig)<span class="question-mark">?</span>,
                     );
                     <span class="self">self</span>.reused_producers
