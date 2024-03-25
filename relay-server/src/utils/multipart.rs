@@ -184,12 +184,15 @@ where
             let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
-            let content_type = match field.content_type() {
-                Some(string) => string.into(),
-                None => ContentType::OctetStream,
-            };
             // Extract the body after the immutable borrow on `file_name` is gone.
-            item.set_payload(content_type, field_data(&mut field, item_limit).await?);
+            if let Some(content_type) = field.content_type() {
+                item.set_payload(
+                    content_type.into(),
+                    field_data(&mut field, item_limit).await?,
+                );
+            } else {
+                item.set_payload_without_content_type(field_data(&mut field, item_limit).await?);
+            }
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             let data = field_data(&mut field, item_limit).await?;

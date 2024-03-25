@@ -45,6 +45,7 @@
 - Do not PII-scrub code locations by default. ([#3116](https://github.com/getsentry/relay/pull/3116))
 - Accept transactions with unfinished spans. ([#3162](https://github.com/getsentry/relay/pull/3162))
 - Don't run validation on renormalization, and don't normalize spans from librelay calls. ([#3214](https://github.com/getsentry/relay/pull/3214))
+- Pass on multipart attachments without content type. ([#3225](https://github.com/getsentry/relay/pull/3225))
 
 **Internal**:
 
