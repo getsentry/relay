@@ -207,7 +207,7 @@ mod tests {
         let input = r#"{"username":42}"#;
         let output = r#"{"username":"42"}"#;
         let user = Annotated::new(User {
-            id: Annotated::new("42".to_string().into()),
+            username: Annotated::new("42".to_string().into()),
             ..User::default()
         });
 
