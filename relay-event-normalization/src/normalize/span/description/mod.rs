@@ -245,11 +245,49 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
         .captures(string)
         .map(|caps| (caps.name("command"), caps.name("args")));
     let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
+        Some((Some(command), Some(keys_and_args))) => {
+            format!(
+                "{} {}",
+                command.as_str(),
+                get_scrubbed_redis_args(keys_and_args.as_str())
+            )
+        }
         Some((Some(command), None)) => command.as_str().into(),
         None | Some((None, _)) => "*".into(),
     };
     Some(scrubbed)
+}
+
+fn get_scrubbed_redis_args(args: &str) -> String {
+    if let Some((first, rest)) = args.trim().split_once(' ').or(Some((args, ""))) {
+        let first_arg = first.trim();
+        if first_arg.starts_with('"') || first_arg.starts_with('\'') {
+            // It's a string literal
+            "*".to_owned()
+        } else {
+            let mut result = parameterize_redis_key(first_arg);
+            if !rest.is_empty() {
+                result.push_str(" *");
+            }
+            result
+        }
+    } else {
+        "*".to_owned()
+    }
+}
+
+fn parameterize_redis_key(key: &str) -> String {
+    if let Some(index) = key.find(':').or(key.find('.')) {
+        let (first_part, _) = key.split_at(index);
+        let mut formatted_key = format!("{first_part}:*");
+        if let Some(last_char) = key.chars().last() {
+            if last_char == '\'' || last_char == '"' {
+                formatted_key.push(last_char);
+            }
+        }
+        return formatted_key;
+    }
+    "*".to_owned()
 }
 
 enum UrlType {
@@ -552,21 +590,42 @@ mod tests {
         cache,
         "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
-        "GET *"
+        "GET abc:*"
     );
 
-    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET *");
+    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
 
     span_description_test!(
         redis_set_quoted,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
-        "SET *"
+        "SET * *"
     );
 
-    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET *");
+    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET * *");
 
-    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
+    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET asdf:*");
+
+    span_description_test!(
+        redis_multi_key,
+        "MGET namespace1:id12 namespace2:id34",
+        "db.redis",
+        "MGET namespace1:* *"
+    );
+
+    span_description_test!(
+        redis_whitespace_key,
+        "GET 'my namespace:id123'",
+        "db.redis",
+        "GET *"
+    );
+
+    span_description_test!(
+        redis_set_value,
+        "SET my_key:id123 value123",
+        "db.redis",
+        "SET my_key:* *"
+    );
 
     span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
 
