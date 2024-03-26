@@ -98,7 +98,12 @@ pub fn extract<G: EventProcessing>(
         if !user_report_v2_ingest {
             return Err(ProcessingError::NoEventPayload);
         }
-        event_from_json_payload(item, Some(EventType::UserReportV2))?
+        let user_report_v2_ingest_topic = project_state.has_feature(Feature::UserReportV2IngestTopic);
+        if user_report_v2_ingest_topic {
+            //TODO:
+        } else {
+            event_from_json_payload(item, Some(EventType::UserReportV2))?
+        }
     } else if let Some(mut item) = raw_security_item {
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();

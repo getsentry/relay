@@ -195,20 +195,25 @@ impl StoreService {
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
+
+        //TODO: how to get feature flag here?
+        let use_ingest_feedback_topic = false; // project_state.has_feature(Feature::UserReportV2IngestTopic);
         let event_item = envelope.get_item_by(|item| {
             matches!(
                 item.ty(),
                 ItemType::Event
                     | ItemType::Transaction
                     | ItemType::Security
-                    | ItemType::UserReportV2
-            )
+                    // | ItemType::UserReportV2
+            )//TODO: use feature flag
         });
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
         } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if (use_ingest_feedback_topic && false) { //TODO:
+            KafkaTopic::Feedback
         } else {
             KafkaTopic::Events
         };
@@ -239,6 +244,10 @@ impl StoreService {
                         start_time,
                         item,
                     )?;
+                }
+                ItemType::UserReportV2 => {
+                    debug_assert!(topic == KafkaTopic::Feedback);
+                    //TODO: produce to feedback topic. Something like self.produce_replay_event
                 }
                 ItemType::Session | ItemType::Sessions => {
                     self.produce_sessions(

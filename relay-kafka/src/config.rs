@@ -55,6 +55,8 @@ pub enum KafkaTopic {
     MetricsSummaries,
     /// COGS measurements topic.
     Cogs,
+    /// Feedback events topic.
+    Feedback,
 }
 
 impl KafkaTopic {
@@ -121,6 +123,8 @@ pub struct TopicAssignments {
     pub metrics_summaries: TopicAssignment,
     /// COGS measurements.
     pub cogs: TopicAssignment,
+    /// Feedback events topic name.
+    pub feedback: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -143,6 +147,7 @@ impl TopicAssignments {
             KafkaTopic::Spans => &self.spans,
             KafkaTopic::MetricsSummaries => &self.metrics_summaries,
             KafkaTopic::Cogs => &self.cogs,
+            KafkaTopic::Feedback => &self.feedback,
         }
     }
 }
@@ -166,6 +171,7 @@ impl Default for TopicAssignments {
             spans: "snuba-spans".to_owned().into(),
             metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
             cogs: "shared-resources-usage".to_owned().into(),
+            feedback: "ingest-feedback-events".to_owned().into(),
         }
     }
 }
