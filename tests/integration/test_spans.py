@@ -42,8 +42,9 @@ def test_span_extraction(
         "projects:span-metrics-extraction-all-modules",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 1,
+        "version": 3,
     }
+
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
 
@@ -143,6 +144,60 @@ def test_span_extraction(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_duplicate_performance_score(mini_sentry, relay):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
+    project_config["config"]["performanceScore"] = {
+        "profiles": [
+            {
+                "name": "Desktop",
+                "scoreComponents": [
+                    {"measurement": "cls", "weight": 1.0, "p10": 0.1, "p50": 0.25},
+                ],
+                "condition": {"op": "and", "inner": []},
+            }
+        ]
+    }
+    project_config["config"]["sampling"] = (
+        {  # Drop everything, to trigger metrics extractino
+            "version": 2,
+            "rules": [
+                {
+                    "id": 1,
+                    "samplingValue": {"type": "sampleRate", "value": 0.0},
+                    "type": "transaction",
+                    "condition": {"op": "and", "inner": []},
+                }
+            ],
+        }
+    )
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event.setdefault("contexts", {})["browser"] = {"name": "Chrome"}
+    event["measurements"] = {"cls": {"value": 0.11}}
+    relay.send_event(project_id, event)
+
+    score_total_seen = 0
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get()
+        for item in envelope.items:
+            if item.type == "metric_buckets":
+                for metric in item.payload.json:
+                    if (
+                        metric["name"]
+                        == "d:transactions/measurements.score.total@ratio"
+                    ):
+                        score_total_seen += 1
+
+    assert score_total_seen == 1
 
 
 def envelope_with_spans(

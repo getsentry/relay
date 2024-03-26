@@ -464,7 +464,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:transactions/measurements.score.total@ratio".into(),
             field: Some("span.measurements.score.total.value".into()),
-            condition: Some(is_allowed_browser.clone()),
+            condition: Some(
+                is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+            ),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")

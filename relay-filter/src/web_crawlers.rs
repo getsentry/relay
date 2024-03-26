@@ -30,7 +30,9 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
         HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
-        Bytespider                  # Bytedance
+        Bytespider|                 # Bytedance
+        Better\sUptime|             # Better Uptime
+        Cloudflare-Healthchecks     # Cloudflare Health Checks
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -115,7 +117,9 @@ mod tests {
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "AdsBot-Google (+http://www.google.com/adsbot.html)",
             "Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)",
-            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"
+            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)",
+            "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            "Mozilla/5.0 (compatible;Cloudflare-Healthchecks/1.0;+https://www.cloudflare.com/; healthcheck-id: 0d1ca23e292c8c14)"
         ];
 
         for banned_user_agent in &user_agents {
