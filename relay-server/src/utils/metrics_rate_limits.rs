@@ -444,8 +444,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::{Bucket, BucketMetadata, BucketValue};
-    use relay_quotas::{Quota, QuotaScope};
+    use relay_metrics::{BucketMetadata, BucketValue};
+    use relay_quotas::QuotaScope;
     use smallvec::smallvec;
 
     use super::*;

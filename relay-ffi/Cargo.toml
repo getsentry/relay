@@ -14,4 +14,4 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-relay-ffi-macros = { path = "../relay-ffi-macros" }
+relay-ffi-macros = { workspace = true }

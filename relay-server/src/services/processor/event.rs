@@ -1,9 +1,9 @@
 //! Event processor related code.
 
 use std::error::Error;
+use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
-use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
@@ -155,7 +155,7 @@ pub fn finalize<G: EventProcessing>(
     };
 
     if !config.processing_enabled() {
-        static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+        static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
         let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
         event
@@ -773,8 +773,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
-
-    use crate::envelope::ContentType;
 
     use super::*;
 

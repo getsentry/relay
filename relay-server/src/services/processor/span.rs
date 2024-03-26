@@ -31,21 +31,12 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 }
 
 /// Creates a span from the transaction and applies tag extraction on it.
-pub fn extract_transaction_span(event: &Event) -> Span {
-    let mut transaction_span: Span = event.into();
+///
+/// Returns `None` when [`tag_extraction::extract_span_tags`] clears the span, which it shouldn't.
+pub fn extract_transaction_span(event: &Event, max_tag_value_size: usize) -> Option<Span> {
+    let mut spans = [Span::from(event).into()];
 
-    let mut shared_tags = tag_extraction::extract_shared_tags(event);
-    if let Some(span_op) = transaction_span.op.value() {
-        shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
-    }
+    tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size);
 
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
-
-    transaction_span
+    spans.into_iter().next().and_then(Annotated::into_value)
 }

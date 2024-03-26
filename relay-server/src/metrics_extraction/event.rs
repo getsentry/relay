@@ -44,12 +44,17 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
+pub fn extract_metrics(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let transaction_span = extract_transaction_span(event);
-        metrics.extend(generic::extract_metrics(&transaction_span, config));
+        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+            metrics.extend(generic::extract_metrics(&transaction_span, config));
+        }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
@@ -66,6 +71,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
+    use insta::assert_debug_snapshot;
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
@@ -1010,7 +1016,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1145,7 +1151,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1206,7 +1212,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1242,7 +1248,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1452,9 +1458,12 @@ mod tests {
                 "type": "transaction",
                 "timestamp": "2021-04-26T08:00:05+0100",
                 "start_timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "my_transaction",
                 "contexts": {
                     "trace": {
-                        "op": "db.query"
+                        "exclusive_time": 5000.0,
+                        "op": "db.query",
+                        "status": "ok"
                     }
                 }
             }
@@ -1471,11 +1480,28 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
-        assert_eq!(metrics.len(), 2);
+        assert_eq!(metrics.len(), 5);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
-        assert_eq!(&*metrics[1].name, "c:spans/count_per_op@none");
-        assert_eq!(&*metrics[1].tags["span.op"], "db.query");
+
+        assert_eq!(&*metrics[1].name, "d:spans/exclusive_time@millisecond");
+        assert_debug_snapshot!(metrics[1].tags, @r###"
+        {
+            "span.category": "db",
+            "span.op": "db.query",
+            "transaction": "my_transaction",
+            "transaction.op": "db.query",
+        }
+        "###);
+        assert_eq!(
+            &*metrics[2].name,
+            "d:spans/exclusive_time_light@millisecond"
+        );
+
+        assert_eq!(&*metrics[3].name, "c:spans/count_per_op@none");
+        assert_eq!(&*metrics[3].tags["span.op"], "db.query");
+
+        assert_eq!(&*metrics[4].name, "d:spans/duration@millisecond");
     }
 }

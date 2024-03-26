@@ -3,7 +3,7 @@
 # Dependencies and their versions must be listed in the Sentry package index.
 # See https://github.com/getsentry/pypi#readme
 
-black==22.10.0
+black==24.3.0
 blinker==1.5
 click==8.0.4
 flake8==6.0.0

@@ -29,7 +29,7 @@ pub struct Span {
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
@@ -60,7 +60,7 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// The origin of the span indicates what created the span (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// ID of a profile that can be associated with the span.
@@ -97,6 +97,10 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
+    /// Whether the span is a segment span that was converted from a transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub was_transaction: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -114,6 +118,7 @@ impl From<&Event> for Span {
             timestamp: event.timestamp.clone(),
             measurements: event.measurements.clone(),
             platform: event.platform.clone(),
+            was_transaction: true.into(),
             ..Default::default()
         };
 
@@ -151,6 +156,7 @@ impl Getter for Span {
                 let timestamp = *self.timestamp.value()?;
                 relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
             }
+            "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(key)?.as_str()?.into()
@@ -264,6 +270,26 @@ pub struct SpanData {
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The input messages to an AI model call
+    #[metastructure(field = "ai.input_messages")]
+    pub ai_input_messages: Annotated<Value>,
+
+    /// The number of tokens used to generate the response to an AI call
+    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
+    pub ai_completion_tokens_used: Annotated<Value>,
+
+    /// The number of tokens used to process a request for an AI call
+    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
+    pub ai_prompt_tokens_used: Annotated<Value>,
+
+    /// The total number of tokens used to for an AI call
+    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
+    pub ai_total_tokens_used: Annotated<Value>,
+
+    /// The responses to an AI model call
+    #[metastructure(field = "ai.responses")]
+    pub ai_responses: Annotated<Value>,
+
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
@@ -350,6 +376,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -433,6 +460,33 @@ mod tests {
     }
 
     #[test]
+    fn test_getter_was_transaction() {
+        let mut span = Span::default();
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(false));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(true));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(true))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
+    }
+
+    #[test]
     fn span_from_event() {
         let event = Annotated::<Event>::from_json(
             r#"{
@@ -507,6 +561,7 @@ mod tests {
                 },
             ),
             platform: ~,
+            was_transaction: true,
             other: {},
         }
         "###);
@@ -571,6 +626,11 @@ mod tests {
             resource_render_blocking_status: ~,
             server_address: ~,
             http_response_status_code: ~,
+            ai_input_messages: ~,
+            ai_completion_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_total_tokens_used: ~,
+            ai_responses: ~,
             thread_name: ~,
             transaction: ~,
             ui_component_name: ~,

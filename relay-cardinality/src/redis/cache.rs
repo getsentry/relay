@@ -196,8 +196,6 @@ impl ScopedCache {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use relay_base_schema::project::ProjectId;
 
     use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};

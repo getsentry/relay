@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use relay_event_schema::processor::{
-    self, BagSize, Chunk, MaxChars, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType,
+    self, BagSize, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
+    Processor, ValueType,
 };
 use relay_event_schema::protocol::{Frame, RawStacktrace};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
@@ -125,11 +125,11 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars);
+            trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+            trim_string(value, meta, bag_size_state.size_remaining, 0);
         }
 
         Ok(())
@@ -264,9 +264,8 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
-    let soft_limit = max_chars.limit();
-    let hard_limit = soft_limit + max_chars.allowance();
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_allowance: usize) {
+    let hard_limit = max_chars + max_chars_allowance;
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
         return;
@@ -280,7 +279,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
             let chunk_chars = chunk.count();
 
             // if the entire chunk fits, just put it in
-            if length + chunk_chars < soft_limit {
+            if length + chunk_chars < max_chars {
                 new_chunks.push(chunk);
                 length += chunk_chars;
                 continue;
@@ -299,7 +298,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
                 Chunk::Text { text } => {
                     let mut remaining = String::new();
                     for c in text.chars() {
-                        if length + 3 < soft_limit {
+                        if length + 3 < max_chars {
                             remaining.push(c);
                         } else {
                             break;
@@ -388,15 +387,13 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
-    use relay_event_schema::processor::MaxChars;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Frame, RawStacktrace,
-        TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, TagEntry, Tags, Values,
     };
-    use relay_protocol::{
-        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
-    };
+    use relay_protocol::{Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
+
+    use crate::MaxChars;
 
     use super::*;
 
@@ -405,7 +402,7 @@ mod tests {
         let mut value =
             Annotated::new("This is my long string I want to have trimmed!".to_string());
         processor::apply(&mut value, |v, m| {
-            trim_string(v, m, MaxChars::Hard(20));
+            trim_string(v, m, 20, 0);
             Ok(())
         })
         .unwrap();
@@ -430,7 +427,7 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
 
         let mut event = Annotated::new(Event {
-            culprit: Annotated::new("x".repeat(300)),
+            logger: Annotated::new("x".repeat(300)),
             ..Default::default()
         });
 
@@ -438,12 +435,25 @@ mod tests {
 
         let mut expected = Annotated::new("x".repeat(300));
         processor::apply(&mut expected, |v, m| {
-            trim_string(v, m, MaxChars::Culprit);
+            trim_string(v, m, MaxChars::Logger.limit(), 0);
             Ok(())
         })
         .unwrap();
 
-        assert_eq!(event.value().unwrap().culprit, expected);
+        assert_eq!(event.value().unwrap().logger, expected);
+    }
+
+    #[test]
+    fn test_max_char_allowance() {
+        let string = "This string requires some allowance to fit!";
+        let mut value = Annotated::new(string.to_owned()); // len == 43
+        processor::apply(&mut value, |v, m| {
+            trim_string(v, m, 40, 5);
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(value, Annotated::new(string.to_owned()));
     }
 
     #[test]

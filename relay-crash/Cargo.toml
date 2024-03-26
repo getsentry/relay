@@ -16,5 +16,5 @@ workspace = true
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.64.0"
-cmake = { version = "0.1.46" }
+bindgen = { workspace = true }
+cmake = { workspace = true }

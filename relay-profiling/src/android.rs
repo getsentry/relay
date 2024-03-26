@@ -164,7 +164,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
         profile.metadata.duration_ns = transaction.duration_ns();
         profile.metadata.trace_id = transaction.trace_id;
         profile.metadata.transaction_id = transaction.id;
-        profile.metadata.transaction_name = transaction.name.clone();
+        profile
+            .metadata
+            .transaction_name
+            .clone_from(&transaction.name);
 
         profile.metadata.transaction = Some(transaction);
     } else if profile.has_transaction_metadata() {
@@ -206,23 +209,26 @@ pub fn parse_android_profile(
     let mut profile = parse_profile(payload)?;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
-        profile.metadata.transaction_name = transaction_name.to_owned();
+        transaction_name.clone_into(&mut profile.metadata.transaction_name);
 
         if let Some(ref mut transaction) = profile.metadata.transaction {
-            transaction.name = profile.metadata.transaction_name.to_owned();
+            profile
+                .metadata
+                .transaction_name
+                .clone_into(&mut transaction.name);
         }
     }
 
     if let Some(release) = transaction_metadata.get("release") {
-        profile.metadata.release = release.to_owned();
+        release.clone_into(&mut profile.metadata.release);
     }
 
     if let Some(dist) = transaction_metadata.get("dist") {
-        profile.metadata.dist = dist.to_owned();
+        dist.clone_into(&mut profile.metadata.dist);
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.metadata.environment = environment.to_owned();
+        environment.clone_into(&mut profile.metadata.environment);
     }
 
     if let Some(segment_id) = transaction_metadata.get("segment_id") {

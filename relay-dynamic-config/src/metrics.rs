@@ -78,9 +78,6 @@ pub struct SessionMetricsConfig {
     ///
     /// Version `0` (default) disables extraction.
     version: u16,
-
-    /// Drop sessions after successfully extracting metrics.
-    drop: bool,
 }
 
 impl SessionMetricsConfig {
@@ -97,11 +94,6 @@ impl SessionMetricsConfig {
     /// Whether or not the abnormal mechanism should be extracted as a tag.
     pub fn should_extract_abnormal_mechanism(&self) -> bool {
         self.version >= EXTRACT_ABNORMAL_MECHANISM_VERSION
-    }
-
-    /// Returns `true` if the session should be dropped after extracting metrics.
-    pub fn should_drop(&self) -> bool {
-        self.drop
     }
 }
 

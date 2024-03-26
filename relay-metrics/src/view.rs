@@ -710,7 +710,6 @@ fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> 
 #[cfg(test)]
 mod tests {
     use insta::assert_json_snapshot;
-    use relay_common::time::UnixTimestamp;
 
     use super::*;
 

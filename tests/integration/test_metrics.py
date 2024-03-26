@@ -634,121 +634,6 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "extract_metrics", [True, False], ids=["extract", "don't extract"]
-)
-@pytest.mark.parametrize(
-    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
-)
-def test_session_metrics_non_processing(
-    mini_sentry, relay, extract_metrics, metrics_extracted
-):
-    """
-    Tests metrics extraction in  a non processing relay
-
-    If and only if the metrics-extraction feature is enabled and the metrics from the session were not already
-    extracted the relay should extract the metrics from the session and mark the session item as "metrics extracted"
-    """
-
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    if extract_metrics:
-        # enable metrics extraction for the project
-        extra_config = {"config": {"sessionMetrics": {"version": 1}}}
-    else:
-        extra_config = {}
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
-
-    relay.send_session(
-        project_id,
-        session_payload,
-        item_headers={"metrics_extracted": metrics_extracted},
-    )
-
-    # Get session envelope
-    first_envelope = mini_sentry.captured_events.get(timeout=2)
-
-    try:
-        second_envelope = mini_sentry.captured_events.get(timeout=2)
-    except Exception:
-        second_envelope = None
-
-    assert first_envelope is not None
-    assert len(first_envelope.items) == 1
-    first_item = first_envelope.items[0]
-
-    if extract_metrics and not metrics_extracted:
-        # here we have not yet extracted metrics and metric extraction is enabled
-        # we expect to have two messages a session message and a metrics message
-        assert second_envelope is not None
-        assert len(second_envelope.items) == 1
-
-        second_item = second_envelope.items[0]
-
-        if first_item.type == "session":
-            session_item = first_item
-            metrics_item = second_item
-        else:
-            session_item = second_item
-            metrics_item = first_item
-
-        # check the metrics item
-        assert metrics_item.type == "metric_buckets"
-
-        session_metrics = json.loads(metrics_item.get_bytes().decode())
-        session_metrics = sorted(session_metrics, key=lambda x: x["name"])
-
-        ts = int(started.timestamp())
-        assert session_metrics == [
-            {
-                "name": "c:sessions/session@none",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                    "session.status": "init",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "c",
-                "value": 1.0,
-            },
-            {
-                "name": "s:sessions/user@none",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "s",
-                "value": [1617781333],
-            },
-        ]
-    else:
-        # either the metrics are already extracted or we have metric extraction disabled
-        # only the session message should be present
-        assert second_envelope is None
-        session_item = first_item
-
-    assert session_item is not None
-    assert session_item.type == "session"
-
-    # we have marked the item as "metrics extracted" properly
-    # already extracted metrics should keep the flag, newly extracted metrics should set the flag
-    assert (
-        session_item.headers.get("metrics_extracted", False) is extract_metrics
-        or metrics_extracted
-    )
-
-
 def test_session_metrics_extracted_only_once(
     mini_sentry, relay, relay_with_processing, metrics_consumer
 ):
@@ -973,7 +858,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -1525,9 +1410,9 @@ def test_span_metrics(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0][
-        "timestamp"
-    ] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
@@ -1545,10 +1430,14 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 6
+    assert len(span_metrics) == 8
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
+        if metric["name"] in (
+            "c:spans/count_per_op@none",
+            "c:spans/usage@none",
+            "d:spans/duration@millisecond",
+        ):
             continue
 
         # Ignore transaction spans
@@ -1657,9 +1546,9 @@ def test_span_metrics_secondary_aggregator(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0][
-        "timestamp"
-    ] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
     transaction["start_timestamp"] = (
         timestamp - timedelta(milliseconds=126)
     ).isoformat()
@@ -1756,91 +1645,6 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
 
     assert "c:transactions/foo@none" in metrics
     assert "c:custom/bar@second" not in metrics
-
-
-@pytest.mark.parametrize(
-    "denied_tag", ["sdk", "release"], ids=["remove sdk tag", "remove release tag"]
-)
-@pytest.mark.parametrize(
-    "denied_names", ["*user*", ""], ids=["deny user", "no denied names"]
-)
-def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    extra_config = {
-        "config": {
-            "sessionMetrics": {"version": 1},
-            "metrics": {
-                "deniedNames": [denied_names],
-                "deniedTags": [{"name": ["*"], "tags": [denied_tag]}],
-            },
-        }
-    }
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
-
-    relay.send_session(
-        project_id,
-        session_payload,
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=2)
-    assert len(envelope.items) == 1
-    first_item = envelope.items[0]
-
-    second_envelope = mini_sentry.captured_events.get(timeout=2)
-    assert len(second_envelope.items) == 1
-    second_item = second_envelope.items[0]
-
-    if first_item.type == "session":
-        metrics_item = second_item
-    else:
-        metrics_item = first_item
-
-    assert metrics_item.type == "metric_buckets"
-
-    session_metrics = json.loads(metrics_item.get_bytes().decode())
-    session_metrics = sorted(session_metrics, key=lambda x: x["name"])
-
-    if denied_names == "*user*":
-        assert len(session_metrics) == 1
-        assert session_metrics[0]["name"] == "c:sessions/session@none"
-    elif denied_names == "":
-        assert len(session_metrics) == 2
-        assert session_metrics[0]["name"] == "c:sessions/session@none"
-        assert session_metrics[1]["name"] == "s:sessions/user@none"
-    else:
-        assert False, "add new else-branch if you add another denied name"
-
-    if denied_tag == "sdk":
-        assert session_metrics[0]["tags"] == {
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-            "session.status": "init",
-        }
-        if denied_names == "":
-            assert session_metrics[1]["tags"] == {
-                "environment": "production",
-                "release": "sentry-test@1.0.0",
-            }
-    elif denied_tag == "release":
-        assert session_metrics[0]["tags"] == {
-            "sdk": "raven-node/2.6.3",
-            "environment": "production",
-            "session.status": "init",
-        }
-        if denied_names == "":
-            assert session_metrics[1]["tags"] == {
-                "sdk": "raven-node/2.6.3",
-                "environment": "production",
-            }
-    else:
-        assert False, "add new else-branch if you add another denied tag"
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))

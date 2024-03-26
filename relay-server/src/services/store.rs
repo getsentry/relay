@@ -8,14 +8,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
-use once_cell::sync::OnceCell;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate, VALID_PLATFORMS,
-};
+use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
@@ -38,9 +35,6 @@ use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
 
-/// The maximum number of individual session updates generated for each aggregate item.
-const MAX_EXPLODED_SESSIONS: usize = 100;
-
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
@@ -52,15 +46,6 @@ pub enum StoreError {
     EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
-}
-
-fn make_distinct_id(s: &str) -> Uuid {
-    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
-    let namespace =
-        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
-
-    s.parse()
-        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
 struct Producer {
@@ -242,15 +227,6 @@ impl StoreService {
                         scoping.organization_id,
                         scoping.project_id,
                         start_time,
-                        item,
-                    )?;
-                }
-                ItemType::Session | ItemType::Sessions => {
-                    self.produce_sessions(
-                        scoping.organization_id,
-                        scoping.project_id,
-                        retention,
-                        client,
                         item,
                     )?;
                 }
@@ -563,7 +539,7 @@ impl StoreService {
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
             }
-            KafkaMessage::Span(span) => {
+            KafkaMessage::Span { message: span, .. } => {
                 let is_segment = span.is_segment;
                 let has_parent = span.parent_span_id.is_some();
                 let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
@@ -668,158 +644,6 @@ impl StoreService {
         self.produce(KafkaTopic::Attachments, organization_id, message)
     }
 
-    fn produce_sessions(
-        &self,
-        org_id: u64,
-        project_id: ProjectId,
-        event_retention: u16,
-        client: Option<&str>,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        match item.ty() {
-            ItemType::Session => {
-                let mut session = match SessionUpdate::parse(&item.payload()) {
-                    Ok(session) => session,
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to store session"
-                        );
-                        return Ok(());
-                    }
-                };
-
-                if session.status == SessionStatus::Errored {
-                    // Individual updates should never have the status `errored`
-                    session.status = SessionStatus::Exited;
-                }
-                self.produce_session_update(org_id, project_id, event_retention, client, session)
-            }
-            ItemType::Sessions => {
-                let aggregates = match SessionAggregates::parse(&item.payload()) {
-                    Ok(aggregates) => aggregates,
-                    Err(_) => return Ok(()),
-                };
-
-                self.produce_sessions_from_aggregate(
-                    org_id,
-                    project_id,
-                    event_retention,
-                    client,
-                    aggregates,
-                )
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn produce_sessions_from_aggregate(
-        &self,
-        org_id: u64,
-        project_id: ProjectId,
-        event_retention: u16,
-        client: Option<&str>,
-        aggregates: SessionAggregates,
-    ) -> Result<(), StoreError> {
-        let SessionAggregates {
-            aggregates,
-            attributes,
-        } = aggregates;
-        let message = SessionKafkaMessage {
-            org_id,
-            project_id,
-            session_id: Uuid::nil(),
-            distinct_id: Uuid::nil(),
-            quantity: 1,
-            seq: 0,
-            received: protocol::datetime_to_timestamp(chrono::Utc::now()),
-            started: 0f64,
-            duration: None,
-            errors: 0,
-            release: attributes.release,
-            environment: attributes.environment,
-            sdk: client.map(str::to_owned),
-            retention_days: event_retention,
-            status: SessionStatus::Exited,
-        };
-
-        if aggregates.len() > MAX_EXPLODED_SESSIONS {
-            relay_log::warn!("aggregated session items exceed threshold");
-        }
-
-        for item in aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
-            let mut message = message.clone();
-            message.started = protocol::datetime_to_timestamp(item.started);
-            message.distinct_id = item
-                .distinct_id
-                .as_deref()
-                .map(make_distinct_id)
-                .unwrap_or_default();
-
-            if item.exited > 0 {
-                message.errors = 0;
-                message.quantity = item.exited;
-                self.send_session_message(org_id, message.clone())?;
-            }
-            if item.errored > 0 {
-                message.errors = 1;
-                message.status = SessionStatus::Errored;
-                message.quantity = item.errored;
-                self.send_session_message(org_id, message.clone())?;
-            }
-            if item.abnormal > 0 {
-                message.errors = 1;
-                message.status = SessionStatus::Abnormal;
-                message.quantity = item.abnormal;
-                self.send_session_message(org_id, message.clone())?;
-            }
-            if item.crashed > 0 {
-                message.errors = 1;
-                message.status = SessionStatus::Crashed;
-                message.quantity = item.crashed;
-                self.send_session_message(org_id, message)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn produce_session_update(
-        &self,
-        org_id: u64,
-        project_id: ProjectId,
-        event_retention: u16,
-        client: Option<&str>,
-        session: SessionUpdate,
-    ) -> Result<(), StoreError> {
-        self.send_session_message(
-            org_id,
-            SessionKafkaMessage {
-                org_id,
-                project_id,
-                session_id: session.session_id,
-                distinct_id: session
-                    .distinct_id
-                    .as_deref()
-                    .map(make_distinct_id)
-                    .unwrap_or_default(),
-                quantity: 1,
-                seq: if session.init { 0 } else { session.sequence },
-                received: protocol::datetime_to_timestamp(session.timestamp),
-                started: protocol::datetime_to_timestamp(session.started),
-                duration: session.duration,
-                status: session.status.clone(),
-                errors: session.errors.clamp(
-                    (session.status == SessionStatus::Crashed) as _,
-                    u16::MAX.into(),
-                ) as _,
-                release: session.attributes.release,
-                environment: session.attributes.environment,
-                sdk: client.map(str::to_owned),
-                retention_days: event_retention,
-            },
-        )
-    }
-
     fn send_metric_message(
         &self,
         namespace: MetricNamespace,
@@ -854,19 +678,6 @@ impl StoreService {
             topic,
             organization_id,
             KafkaMessage::Metric { headers, message },
-        )?;
-        Ok(())
-    }
-
-    fn send_session_message(
-        &self,
-        organization_id: u64,
-        message: SessionKafkaMessage,
-    ) -> Result<(), StoreError> {
-        self.produce(
-            KafkaTopic::Sessions,
-            organization_id,
-            KafkaMessage::Session(message),
         )?;
         Ok(())
     }
@@ -1108,7 +919,13 @@ impl StoreService {
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
-            KafkaMessage::Span(span),
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
         )?;
 
         self.outcome_aggregator.send(TrackOutcome {
@@ -1275,6 +1092,7 @@ struct ChunkedAttachment {
     name: String,
 
     /// Content type of the attachment payload.
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<String>,
 
     /// The Sentry-internal attachment type used in the processing pipeline.
@@ -1373,53 +1191,6 @@ struct AttachmentKafkaMessage {
     project_id: ProjectId,
     /// The attachment.
     attachment: ChunkedAttachment,
-}
-
-/// Container payload for chunks of attachments.
-#[derive(Debug, Serialize)]
-struct ReplayRecordingChunkKafkaMessage {
-    /// Chunk payload of the replay recording.
-    payload: Bytes,
-    /// The replay id.
-    replay_id: EventId,
-    /// The project id for the current replay.
-    project_id: ProjectId,
-    /// The recording ID within the replay.
-    id: String,
-    /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
-    /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
-    chunk_index: usize,
-}
-#[derive(Debug, Serialize)]
-struct ReplayRecordingChunkMeta {
-    /// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    id: String,
-
-    /// Number of chunks. Must be greater than zero.
-    chunks: usize,
-
-    /// The size of the attachment in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-struct ReplayRecordingKafkaMessage {
-    replay_id: EventId,
-    /// The key_id for the current recording.
-    key_id: Option<u64>,
-    /// The org id for the current recording.
-    org_id: u64,
-    /// The project id for the current recording.
-    project_id: ProjectId,
-    /// The timestamp of when the recording was Received by relay
-    received: u64,
-    // Number of days to retain.
-    retention_days: u16,
-    /// The recording attachment.
-    replay_recording: ReplayRecordingChunkMeta,
 }
 
 #[derive(Debug, Serialize)]
@@ -1682,7 +1453,6 @@ enum KafkaMessage<'a> {
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
-    Session(SessionKafkaMessage),
     Metric {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
@@ -1693,7 +1463,12 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage<'a>),
+    Span {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanKafkaMessage<'a>,
+    },
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
     Cogs(CogsKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
@@ -1706,13 +1481,12 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Attachment(_) => "attachment",
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
-            KafkaMessage::Session(_) => "session",
             KafkaMessage::Metric { .. } => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Span(_) => "span",
+            KafkaMessage::Span { .. } => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
             KafkaMessage::Cogs(_) => "cogs",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
@@ -1735,10 +1509,9 @@ impl Message for KafkaMessage<'_> {
             Self::CheckIn(message) => message.routing_key_hint.unwrap_or_else(Uuid::nil),
 
             // Random partitioning
-            Self::Session(_)
-            | Self::Profile(_)
+            Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_)
+            | Self::Span { .. }
             | Self::MetricsSummary(_)
             | Self::Cogs(_)
             | Self::ProfileChunk(_) => Uuid::nil(),
@@ -1768,6 +1541,12 @@ impl Message for KafkaMessage<'_> {
                 }
                 None
             }
+            KafkaMessage::Span { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
+            }
             _ => None,
         }
     }
@@ -1775,16 +1554,13 @@ impl Message for KafkaMessage<'_> {
     /// Serializes the message into its binary format.
     fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError> {
         match self {
-            KafkaMessage::Session(message) => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
             KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span(message) => serde_json::to_vec(message)
+            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)
