@@ -275,15 +275,15 @@ pub struct SpanData {
     pub ai_input_messages: Annotated<Value>,
 
     /// The number of tokens used to generate the response to an AI call
-    #[metastructure(field = "ai.completion_tokens.used")]
+    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
     pub ai_completion_tokens_used: Annotated<Value>,
 
     /// The number of tokens used to process a request for an AI call
-    #[metastructure(field = "ai.prompt_tokens.used")]
+    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
     pub ai_prompt_tokens_used: Annotated<Value>,
 
     /// The total number of tokens used to for an AI call
-    #[metastructure(field = "ai.total_tokens.used")]
+    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
     pub ai_total_tokens_used: Annotated<Value>,
 
     /// The responses to an AI model call
