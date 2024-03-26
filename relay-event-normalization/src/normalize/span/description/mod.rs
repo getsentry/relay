@@ -30,12 +30,6 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 /// Some bundlers attach characters to the end of a filename, try to catch those.
 const MAX_EXTENSION_LENGTH: usize = 10;
 
-const REDIS_COMMAND_SINGLE_KEY: [&str; 13] = [
-    "GET", "SET", "DEL", "EXISTS", "HGET", "HSET", "HDEL", "HEXISTS", "HLEN", "APPEND", "EXISTS",
-    "INCR", "DECR",
-];
-const REDIS_COMMANDS_MULTI_KEY: [&str; 2] = ["MGET", "MDEL"]; // Theres a lot more here, but they have a different format to handle, so we'll address them later
-
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
@@ -255,7 +249,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
             format!(
                 "{} {}",
                 command.as_str(),
-                get_scrubbed_redis_args(command.as_str(), keys_and_args.as_str()).join(" ")
+                get_scrubbed_redis_args(keys_and_args.as_str())
             )
         }
         Some((Some(command), None)) => command.as_str().into(),
@@ -264,61 +258,22 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn get_scrubbed_redis_args(command: &str, args: &str) -> Vec<String> {
-    let split_args = split_string_with_quotes(args);
-    let mut scrubed_keys = get_scrubbed_redis_keys(command, &split_args);
-
-    // If there are other aruguments other than keys (For example the SET command), then add a wildcard to represent the rest of the arguments
-    if split_args.len() > scrubed_keys.len() {
-        scrubed_keys.push("*".to_owned());
-        scrubed_keys
-    } else {
-        scrubed_keys
-    }
-}
-
-fn get_scrubbed_redis_keys(command: &str, split_args: &Vec<String>) -> Vec<String> {
-    let mut scrubed_keys: Vec<String> = Vec::new();
-
-    // Commands like SET namespace:id123 value -> SET namespace:*
-    if REDIS_COMMAND_SINGLE_KEY.contains(&command) {
-        let first_arg = split_args.first().unwrap();
-        let scrubed_key = parameterize_redis_key(first_arg);
-        scrubed_keys.push(scrubed_key);
-    } else if REDIS_COMMANDS_MULTI_KEY.contains(&command) {
-        for arg in split_args {
-            scrubed_keys.push(parameterize_redis_key(arg.as_str()));
-        }
-    }
-    scrubed_keys
-}
-// Splits a string on whitespace but ignores spaces between single and double quotes.
-// There are edge cases with this implementation for example if the quote was escaped, or if there is a double quote within single quotes.
-// This should be fine for auditing purposes
-fn split_string_with_quotes(string: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-
-    for c in string.chars() {
-        if c == ' ' && !in_quotes {
-            if !current.is_empty() {
-                result.push(current.clone());
-                current.clear();
-            }
-        } else if c == '\'' || c == '"' {
-            in_quotes = !in_quotes;
-            current.push(c);
+fn get_scrubbed_redis_args(args: &str) -> String {
+    if let Some((first, rest)) = args.trim().split_once(' ').or(Some((args, ""))) {
+        let first_arg = first.trim();
+        if first_arg.starts_with('"') || first_arg.starts_with('\'') {
+            // It's a string literal
+            "*".to_owned()
         } else {
-            current.push(c);
+            let mut result = parameterize_redis_key(first_arg);
+            if !rest.is_empty() {
+                result.push_str(" *");
+            }
+            result
         }
+    } else {
+        "*".to_owned()
     }
-
-    if !current.is_empty() {
-        result.push(current);
-    }
-
-    result
 }
 
 fn parameterize_redis_key(key: &str) -> String {
@@ -655,14 +610,21 @@ mod tests {
         redis_multi_key,
         "MGET namespace1:id12 namespace2:id34",
         "db.redis",
-        "MGET namespace1:* namespace2:*"
+        "MGET namespace1:* *"
     );
 
     span_description_test!(
         redis_whitespace_key,
         "GET 'my namespace:id123'",
         "db.redis",
-        "GET 'my namespace:*'"
+        "GET *"
+    );
+
+    span_description_test!(
+        redis_set_value,
+        "SET my_key:id123 value123",
+        "db.redis",
+        "SET my_key:* *"
     );
 
     span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
