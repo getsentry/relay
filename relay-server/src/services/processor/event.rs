@@ -395,7 +395,6 @@ pub fn serialize<G: EventProcessing>(
 }
 
 /// Checks if the Event includes unprintable fields.
-#[cfg(feature = "processing")]
 pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
         value.chars().any(|c| {

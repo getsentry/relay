@@ -432,7 +432,6 @@ pub enum RelayCounters {
     ///
     /// This currently checks for `environment` and `release`, for which we know that
     /// some SDKs may send corrupted values.
-    #[cfg(feature = "processing")]
     EventCorrupted,
     /// Number of envelopes accepted in the current time slot.
     ///
@@ -650,7 +649,6 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
-            #[cfg(feature = "processing")]
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
