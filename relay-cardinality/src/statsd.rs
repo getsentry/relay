@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, GaugeMetric, SetMetric, TimerMetric};
+use relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
 pub enum CardinalityLimiterCounters {
@@ -81,7 +81,7 @@ impl TimerMetric for CardinalityLimiterTimers {
     }
 }
 
-pub enum CardinalityLimiterGauges {
+pub enum CardinalityLimiterHistograms {
     /// Amount of hashes sent to Redis to check the cardinality.
     ///
     /// This metric is tagged with:
@@ -96,7 +96,7 @@ pub enum CardinalityLimiterGauges {
     RedisSetCardinality,
 }
 
-impl GaugeMetric for CardinalityLimiterGauges {
+impl HistogramMetric for CardinalityLimiterHistograms {
     fn name(&self) -> &'static str {
         match *self {
             #[cfg(feature = "redis")]
