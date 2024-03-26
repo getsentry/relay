@@ -162,52 +162,10 @@
 <a href="#160" id="160">160</a>
 <a href="#161" id="161">161</a>
 <a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups
 //! and flushed them periodically.
 
 </span><span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::Utc;
@@ -217,7 +175,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Controller, Service, Shutdown};
 
-<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, OutcomeProducer, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
 
@@ -230,27 +188,18 @@
     </span><span class="kw">pub </span>scoping: Scoping,
     <span class="doccomment">/// The outcome.
     </span><span class="kw">pub </span>outcome: Outcome,
-    <span class="doccomment">/// The client ip address.
-    </span><span class="kw">pub </span>remote_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     <span class="doccomment">/// The event's data category.
     </span><span class="kw">pub </span>category: DataCategory,
-}
-
-<span class="attr">#[derive(PartialEq)]
-</span><span class="kw">enum </span>AggregationMode {
-    <span class="doccomment">/// Aggregator drops all outcomes
-    </span>DropEverything,
-    <span class="doccomment">/// Aggregator keeps all outcome fields intact
-    </span>Lossless,
-    <span class="doccomment">/// Aggregator removes fields to improve aggregation
-    </span>Lossy,
 }
 
 <span class="doccomment">/// Aggregates [`Outcome`]s into buckets and flushes them periodically.
 ///
 /// This service handles a single message [`TrackOutcome`].
 </span><span class="kw">pub struct </span>OutcomeAggregator {
-    mode: AggregationMode,
+    <span class="doccomment">/// Whether or not to produce outcomes.
+    ///
+    /// If `true`, all outcomes will be dropped.
+    </span>disabled: bool,
     <span class="doccomment">/// The width of each aggregated bucket in seconds
     </span>bucket_interval: u64,
     <span class="doccomment">/// The number of seconds between flushes of all buckets
@@ -265,14 +214,10 @@
 
 <span class="kw">impl </span>OutcomeAggregator {
     <span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config, outcome_producer: Addr&lt;OutcomeProducer&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>mode = <span class="kw">match </span>config.emit_outcomes() {
-            EmitOutcomes::AsOutcomes =&gt; AggregationMode::Lossless,
-            EmitOutcomes::AsClientReports =&gt; AggregationMode::Lossy,
-            EmitOutcomes::None =&gt; AggregationMode::DropEverything,
-        };
+        <span class="kw">let </span>disabled = <span class="macro">matches!</span>(config.emit_outcomes(), EmitOutcomes::None);
 
         <span class="self">Self </span>{
-            mode,
+            disabled,
             bucket_interval: config.outcome_aggregator().bucket_interval,
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
@@ -289,18 +234,7 @@
     }
 
     <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: TrackOutcome) {
-        <span class="kw">if </span><span class="self">self</span>.mode == AggregationMode::DropEverything {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">let </span>(event_id, remote_addr) = <span class="kw">if </span><span class="self">self</span>.erase_high_cardinality_fields(<span class="kw-2">&amp;</span>msg) {
-            (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-        } <span class="kw">else </span>{
-            (msg.event_id, msg.remote_addr)
-        };
-
-        <span class="kw">if </span>event_id.is_some() {
-            <span class="self">self</span>.outcome_producer.send(msg);
+        <span class="kw">if </span><span class="self">self</span>.disabled {
             <span class="kw">return</span>;
         }
 
@@ -310,7 +244,6 @@
             offset,
             scoping: msg.scoping,
             outcome: msg.outcome,
-            remote_addr,
             category: msg.category,
         };
 
@@ -337,7 +270,6 @@
                 offset,
                 scoping,
                 outcome,
-                remote_addr,
                 category,
             } = bucket_key;
 
@@ -351,27 +283,13 @@
                 scoping,
                 outcome,
                 event_id: <span class="prelude-val">None</span>,
-                remote_addr,
+                remote_addr: <span class="prelude-val">None</span>,
                 category,
                 quantity,
             };
 
             outcome_producer.send(outcome);
         }
-    }
-
-    <span class="doccomment">/// Return true if event_id and remote_addr should be erased
-    </span><span class="kw">fn </span>erase_high_cardinality_fields(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>TrackOutcome) -&gt; bool {
-        <span class="comment">// In lossy mode, always erase
-        </span><span class="macro">matches!</span>(<span class="self">self</span>.mode, AggregationMode::Lossy)
-            || <span class="macro">matches!</span>(
-                <span class="comment">// Always erase high-cardinality fields for specific outcomes:
-                </span>msg.outcome,
-                Outcome::RateLimited(<span class="kw">_</span>)
-                    | Outcome::Invalid(DiscardReason::ProjectId)
-                    | Outcome::FilteredSampling(<span class="kw">_</span>)
-                    | Outcome::Accepted
-            )
     }
 
     <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
