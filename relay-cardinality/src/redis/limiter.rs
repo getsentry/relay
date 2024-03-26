@@ -114,7 +114,7 @@ impl Limiter for RedisSetLimiter {
         let cache = self.cache.read(timestamp); // Acquire a read lock.
         for entry in entries {
             for state in states.iter_mut() {
-                let Some(scope) = state.matches(entry) else {
+                let Some(scope) = state.matching_scope(entry) else {
                     // Entry not relevant for limit.
                     continue;
                 };

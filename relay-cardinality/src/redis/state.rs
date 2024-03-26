@@ -67,7 +67,7 @@ impl<'a> LimitState<'a> {
     }
 
     /// Returns a [`QuotaScoping`] if the `entry` matches the limit contained in the state.
-    pub fn matches(&self, entry: Entry) -> Option<QuotaScoping> {
+    pub fn matching_scope(&self, entry: Entry) -> Option<QuotaScoping> {
         if self.scope.matches(&entry) {
             Some(self.scope.full(entry))
         } else {
@@ -77,7 +77,7 @@ impl<'a> LimitState<'a> {
 
     /// Adds an entry to the state.
     ///
-    /// The `scope` must be extracted from the state with [`Self::matches`] first.
+    /// The `scope` must be extracted from the state with [`Self::matching_scope`] first.
     pub fn add(&mut self, scope: QuotaScoping, entry: RedisEntry) {
         self.sub_scopes.entry(scope).or_default().push(entry)
     }

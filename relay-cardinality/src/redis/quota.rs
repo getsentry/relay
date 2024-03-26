@@ -10,6 +10,9 @@ use crate::window::Slot;
 use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
+///
+/// The partial quota scoping can be used to select/match on cardinality entries
+/// but it needs to be completed into a [`QuotaScoping`] by
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartialQuotaScoping {
     pub namespace: Option<MetricNamespace>,
@@ -20,7 +23,7 @@ pub struct PartialQuotaScoping {
 }
 
 impl PartialQuotaScoping {
-    /// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
+    /// Creates a new [`PartialQuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
     ///
     /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
     pub fn new(scoping: Scoping, limit: &CardinalityLimit) -> Option<Self> {
@@ -69,6 +72,11 @@ impl PartialQuotaScoping {
         UnixTimestamp::from_secs(timestamp.as_secs() + shift)
     }
 
+    /// Creates a [`QuotaScoping`] from the partial scoping and the passed [`Entry`].
+    ///
+    /// This unconditionally creates a quota scoping from the passed entry and
+    /// does not check whether the scoping even applies to the entry. The caller
+    /// needs to ensure this by calling [`Self::matches`] prior to calling `full`.
     pub fn full(self, entry: Entry<'_>) -> QuotaScoping {
         let name = match self.scope {
             CardinalityScope::Name => Some(fnv32(entry.name)),
@@ -80,7 +88,9 @@ impl PartialQuotaScoping {
 }
 
 /// A quota scoping extracted from a [`CardinalityLimit`], a [`Scoping`]
-/// and a [`CardinalityItem`](crate::CardinalityItem).
+/// and completed with a [`CardinalityItem`](crate::CardinalityItem).
+///
+/// The scoping must be created using [`PartialQuotaScoping::full`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct QuotaScoping {
     parent: PartialQuotaScoping,
