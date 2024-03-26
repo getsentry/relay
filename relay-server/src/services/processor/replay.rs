@@ -13,7 +13,6 @@ use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
-use rmp_serde;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, ItemType};

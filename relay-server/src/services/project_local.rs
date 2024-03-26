@@ -193,7 +193,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::services::project::{ProjectState, PublicKeyConfig};
+    use crate::services::project::PublicKeyConfig;
 
     /// Tests that we can follow the symlinks and read the project file properly.
     #[tokio::test]
@@ -277,7 +277,7 @@ mod tests {
         let extracted_project_state = load_local_states(temp.path()).await.unwrap();
 
         assert_eq!(extracted_project_state.len(), 2);
-        assert!(extracted_project_state.get(&project_key1).is_some());
-        assert!(extracted_project_state.get(&project_key2).is_some());
+        assert!(extracted_project_state.contains_key(&project_key1));
+        assert!(extracted_project_state.contains_key(&project_key2));
     }
 }

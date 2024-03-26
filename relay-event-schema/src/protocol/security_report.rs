@@ -8,8 +8,8 @@ use std::fmt::{self, Write};
 
 use chrono::{DateTime, Utc};
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
-use serde::de::{Error, IgnoredAny};
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Error, IgnoredAny};
+use serde::{Deserialize, Deserializer, Serialize};
 use url::Url;
 
 use crate::processor::ProcessValue;
@@ -189,13 +189,13 @@ struct CspRaw {
     effective_directive: Option<String>,
     #[serde(
         default = "CspRaw::default_blocked_uri",
-        alias = "blockedUrl",
+        alias = "blockedURL",
         alias = "blocked-uri"
     )]
     blocked_uri: String,
     #[serde(
         skip_serializing_if = "Option::is_none",
-        alias = "documentUrl",
+        alias = "documentURL",
         alias = "document-uri"
     )]
     document_uri: Option<String>,
@@ -208,9 +208,11 @@ struct CspRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
     referrer: Option<String>,
     #[serde(
+        default,
         skip_serializing_if = "Option::is_none",
         alias = "statusCode",
-        alias = "status-code"
+        alias = "status-code",
+        deserialize_with = "de_opt_num_or_str"
     )]
     status_code: Option<u64>,
     #[serde(
@@ -226,15 +228,19 @@ struct CspRaw {
     )]
     source_file: Option<String>,
     #[serde(
+        default,
         skip_serializing_if = "Option::is_none",
         alias = "lineNumber",
-        alias = "line-number"
+        alias = "line-number",
+        deserialize_with = "de_opt_num_or_str"
     )]
     line_number: Option<u64>,
     #[serde(
+        default,
         skip_serializing_if = "Option::is_none",
         alias = "columnNumber",
-        alias = "column-number"
+        alias = "column-number",
+        deserialize_with = "de_opt_num_or_str"
     )]
     column_number: Option<u64>,
     #[serde(
@@ -248,6 +254,26 @@ struct CspRaw {
 
     #[serde(flatten)]
     other: BTreeMap<String, serde_json::Value>,
+}
+
+fn de_opt_num_or_str<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NumOrStr<'a> {
+        Num(u64),
+        Str(Cow<'a, str>),
+    }
+
+    Option::<NumOrStr>::deserialize(deserializer)?
+        .map(|status_code| match status_code {
+            NumOrStr::Num(num) => Ok(num),
+            NumOrStr::Str(s) => s.parse(),
+        })
+        .transpose()
+        .map_err(de::Error::custom)
 }
 
 impl CspRaw {
@@ -1130,6 +1156,7 @@ pub enum SecurityReportType {
     ExpectCt,
     ExpectStaple,
     Hpkp,
+    Unsupported,
 }
 
 impl SecurityReportType {
@@ -1155,6 +1182,8 @@ impl SecurityReportType {
             Some(SecurityReportType::Csp)
         } else if let Some(CspViolationType::CspViolation) = helper.ty {
             Some(SecurityReportType::Csp)
+        } else if let Some(CspViolationType::Other) = helper.ty {
+            Some(SecurityReportType::Unsupported)
         } else if helper.known_pins.is_some() {
             Some(SecurityReportType::Hpkp)
         } else if helper.expect_staple_report.is_some() {
@@ -1218,7 +1247,8 @@ mod tests {
                 "document-uri": "http://example.com",
                 "violated-directive": "style-src cdn.example.com",
                 "blocked-uri": "http://example.com/lol.css",
-                "effective-directive": "style-src"
+                "effective-directive": "style-src",
+                "status-code": "200"
             }
         }"#;
 
@@ -1248,6 +1278,7 @@ mod tests {
             "effective_directive": "style-src",
             "blocked_uri": "http://example.com/lol.css",
             "document_uri": "http://example.com",
+            "status_code": 200,
             "violated_directive": "style-src cdn.example.com"
           }
         }

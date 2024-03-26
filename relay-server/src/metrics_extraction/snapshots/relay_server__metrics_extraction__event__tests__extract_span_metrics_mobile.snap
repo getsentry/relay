@@ -47,6 +47,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -91,6 +92,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -138,6 +140,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -182,6 +185,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -228,6 +232,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -274,6 +279,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -347,6 +353,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
         Span {
@@ -418,6 +425,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             measurements: ~,
             _metrics_summary: ~,
             platform: ~,
+            was_transaction: ~,
             other: {},
         },
     ],
@@ -425,7 +433,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1619420400),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -437,7 +447,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1619420400),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     59000.0,
@@ -454,7 +466,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1619420400),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -468,7 +482,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1619420400),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -483,7 +499,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -495,7 +513,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     2000.0,
@@ -519,7 +539,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     2000.0,
@@ -539,7 +561,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -554,7 +578,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -569,7 +595,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -581,7 +609,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -604,7 +634,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -623,7 +655,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -637,7 +671,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -652,7 +688,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -664,7 +702,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -690,7 +730,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -712,7 +754,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -727,7 +771,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -742,7 +788,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/duration@millisecond",
+            name: MetricName(
+                "d:spans/duration@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -765,7 +813,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -777,7 +827,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -794,7 +846,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -808,7 +862,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -823,7 +879,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -835,7 +893,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -860,7 +920,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -881,7 +943,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -895,7 +959,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -910,7 +976,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -922,7 +990,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -947,7 +1017,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -968,7 +1040,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -982,7 +1056,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -997,7 +1073,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -1009,7 +1087,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -1034,7 +1114,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -1055,7 +1137,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -1069,7 +1153,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -1084,7 +1170,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/usage@none",
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -1096,7 +1184,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -1119,7 +1209,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "d:spans/exclusive_time_light@millisecond",
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
             value: Distribution(
                 [
                     3000.0,
@@ -1138,7 +1230,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_op@none",
+            name: MetricName(
+                "c:spans/count_per_op@none",
+            ),
             value: Counter(
                 1.0,
             ),
@@ -1152,7 +1246,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
-            name: "c:spans/count_per_segment@none",
+            name: MetricName(
+                "c:spans/count_per_segment@none",
+            ),
             value: Counter(
                 1.0,
             ),

@@ -6,7 +6,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1619420400),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -18,7 +20,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1619420400),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 59000.0,
@@ -26,7 +30,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.op": "mYOp",
+            "span.op": "myop",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -37,12 +41,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1619420400),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
         tags: {
-            "span.op": "mYOp",
+            "span.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -51,7 +57,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -63,7 +71,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -82,7 +92,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -97,7 +109,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -109,7 +123,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -133,7 +149,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -154,7 +172,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -169,7 +189,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -181,7 +203,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -205,7 +229,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -226,7 +252,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -241,7 +269,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -253,7 +283,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -277,7 +309,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -298,7 +332,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -313,7 +349,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -325,7 +363,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -348,7 +388,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -368,7 +410,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -383,7 +427,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -395,7 +441,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -419,7 +467,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -440,7 +490,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -455,7 +507,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -467,7 +521,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -491,7 +547,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -512,7 +570,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -527,7 +587,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -539,7 +601,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -564,7 +628,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -586,7 +652,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -601,7 +669,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -613,7 +683,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -638,7 +710,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -660,7 +734,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -675,7 +751,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -687,7 +765,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -712,7 +792,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -734,7 +816,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -749,7 +833,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -761,7 +847,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -786,7 +874,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -808,7 +898,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -823,7 +915,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -835,7 +929,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -860,7 +956,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -882,7 +980,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -897,7 +997,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -909,7 +1011,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -934,7 +1038,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -956,7 +1062,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -972,7 +1080,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -984,7 +1094,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1009,7 +1121,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1031,7 +1145,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1046,7 +1162,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1058,7 +1176,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1081,7 +1201,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1101,7 +1223,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1117,7 +1241,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1129,7 +1255,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1154,7 +1282,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1176,7 +1306,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1192,7 +1324,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1204,7 +1338,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1227,7 +1363,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1247,7 +1385,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1262,7 +1402,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1274,7 +1416,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1299,7 +1443,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1321,7 +1467,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1337,7 +1485,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1349,7 +1499,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1374,7 +1526,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1396,7 +1550,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1412,7 +1568,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1424,7 +1582,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1447,7 +1607,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1467,7 +1629,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1483,7 +1647,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1495,7 +1661,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1518,7 +1686,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1538,7 +1708,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1554,7 +1726,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1566,7 +1740,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1590,7 +1766,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1611,7 +1789,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1627,7 +1807,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1639,7 +1821,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1658,7 +1842,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1673,7 +1859,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1685,7 +1873,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1709,7 +1899,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1730,7 +1922,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1745,7 +1939,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1757,7 +1953,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1781,7 +1979,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1802,7 +2002,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1817,7 +2019,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1829,7 +2033,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1853,7 +2059,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1874,7 +2082,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1889,7 +2099,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1901,7 +2113,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1925,7 +2139,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1947,7 +2163,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1962,7 +2180,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -1974,7 +2194,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -1993,7 +2215,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2009,7 +2233,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2021,7 +2247,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2044,7 +2272,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2064,7 +2294,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2080,7 +2312,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2092,7 +2326,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2111,7 +2347,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2126,7 +2364,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2138,7 +2378,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2161,7 +2403,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2181,7 +2425,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2197,7 +2443,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2209,7 +2457,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2231,7 +2481,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2250,7 +2502,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2266,7 +2520,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2278,7 +2534,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 15833.532095,
@@ -2297,7 +2555,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255152),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2311,7 +2571,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255136),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2323,7 +2585,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255136),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 1668.516159,
@@ -2342,7 +2606,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1695255136),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2357,7 +2623,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2369,7 +2637,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -2394,7 +2664,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -2417,7 +2689,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
         value: Distribution(
             [
                 36170.0,
@@ -2440,7 +2714,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.decoded_response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
         value: Distribution(
             [
                 128950.0,
@@ -2462,7 +2738,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_transfer_size@byte",
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
         value: Distribution(
             [
                 36470.0,
@@ -2484,7 +2762,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2499,7 +2779,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2511,7 +2793,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -2536,7 +2820,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -2559,7 +2845,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
         value: Distribution(
             [
                 36170.0,
@@ -2582,7 +2870,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.decoded_response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
         value: Distribution(
             [
                 128950.0,
@@ -2604,7 +2894,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_transfer_size@byte",
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
         value: Distribution(
             [
                 36470.0,
@@ -2626,7 +2918,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2641,7 +2935,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2653,7 +2949,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2672,7 +2970,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2687,7 +2987,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2699,7 +3001,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2723,7 +3027,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2744,7 +3050,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2759,7 +3067,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2771,7 +3081,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2795,7 +3107,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2816,7 +3130,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2831,7 +3147,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2843,7 +3161,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2867,7 +3187,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2888,7 +3210,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2903,7 +3227,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2915,7 +3241,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2938,7 +3266,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -2958,7 +3288,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2973,7 +3305,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -2985,7 +3319,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3009,7 +3345,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3030,7 +3368,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3045,7 +3385,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3057,7 +3399,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3082,7 +3426,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3104,7 +3450,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3119,7 +3467,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3131,7 +3481,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3156,7 +3508,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3178,7 +3532,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3193,7 +3549,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3205,7 +3563,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3230,7 +3590,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3252,7 +3614,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3267,7 +3631,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3279,7 +3645,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3304,7 +3672,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3326,7 +3696,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3341,7 +3713,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3353,7 +3727,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3378,7 +3754,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3400,7 +3778,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3415,7 +3795,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3427,7 +3809,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3452,7 +3836,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3474,7 +3860,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3490,7 +3878,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3502,7 +3892,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3527,7 +3919,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3549,7 +3943,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3564,7 +3960,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3576,7 +3974,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3599,7 +3999,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3619,7 +4021,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3635,7 +4039,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3647,7 +4053,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3672,7 +4080,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3694,7 +4104,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3710,7 +4122,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3722,7 +4136,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3745,7 +4161,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3765,7 +4183,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3780,7 +4200,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3792,7 +4214,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3817,7 +4241,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3839,7 +4265,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3855,7 +4283,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3867,7 +4297,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3892,7 +4324,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3914,7 +4348,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3930,7 +4366,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -3942,7 +4380,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3965,7 +4405,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -3985,7 +4427,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4001,7 +4445,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4013,7 +4459,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4036,7 +4484,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4056,7 +4506,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4072,7 +4524,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4084,7 +4538,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4108,7 +4564,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4129,7 +4587,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4145,7 +4605,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4157,7 +4619,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4176,7 +4640,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4191,7 +4657,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4203,7 +4671,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4227,7 +4697,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4248,7 +4720,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4263,7 +4737,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4275,7 +4751,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4299,7 +4777,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4320,7 +4800,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4335,7 +4817,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4347,7 +4831,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4371,7 +4857,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4392,7 +4880,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4407,7 +4897,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4419,7 +4911,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4442,7 +4936,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4463,7 +4959,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4478,7 +4976,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4490,7 +4990,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4514,7 +5016,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 2000.0,
@@ -4536,7 +5040,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4551,7 +5057,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4563,7 +5071,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -4588,7 +5098,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -4611,7 +5123,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
         value: Distribution(
             [
                 36170.0,
@@ -4634,7 +5148,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.decoded_response_content_length@byte",
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
         value: Distribution(
             [
                 128950.0,
@@ -4656,7 +5172,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_transfer_size@byte",
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
         value: Distribution(
             [
                 36470.0,
@@ -4678,7 +5196,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4693,7 +5213,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4705,7 +5227,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -4727,7 +5251,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 477.800131,
@@ -4747,7 +5273,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4762,7 +5290,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1702474613),
         width: 0,
-        name: "c:spans/usage@none",
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
         value: Counter(
             1.0,
         ),
@@ -4774,7 +5304,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1702474613),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
         value: Distribution(
             [
                 32.000065,
@@ -4793,7 +5325,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1702474613),
         width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
         value: Distribution(
             [
                 32.000065,
@@ -4811,7 +5345,9 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1702474613),
         width: 0,
-        name: "c:spans/count_per_op@none",
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
         value: Counter(
             1.0,
         ),

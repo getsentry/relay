@@ -197,7 +197,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, Annotated};
+    use relay_protocol::get_path;
 
     #[test]
     fn parse_span() {

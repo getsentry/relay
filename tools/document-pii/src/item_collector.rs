@@ -8,9 +8,9 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
-use syn::punctuated::Punctuated;
-use syn::visit::Visit;
-use syn::{ItemEnum, ItemStruct, UseTree};
+use syn2::punctuated::Punctuated;
+use syn2::visit::Visit;
+use syn2::{ItemEnum, ItemStruct, UseTree};
 
 use crate::pii_finder::{FieldsWithAttribute, PiiFinder};
 use crate::EnumOrStruct;
@@ -113,9 +113,9 @@ impl AstItemCollector {
         for path in paths {
             self.module_path = module_name_from_file(path)?;
 
-            let syntax_tree: syn::File = {
+            let syntax_tree: syn2::File = {
                 let file_content = fs::read_to_string(path.as_path())?;
-                syn::parse_file(&file_content)?
+                syn2::parse_file(&file_content)?
             };
 
             self.visit_file(&syntax_tree);
@@ -139,7 +139,7 @@ impl<'ast> Visit<'ast> for AstItemCollector {
             .insert(enum_name, EnumOrStruct::Enum(node.clone()));
     }
 
-    fn visit_item_use(&mut self, i: &'ast syn::ItemUse) {
+    fn visit_item_use(&mut self, i: &'ast syn2::ItemUse) {
         let use_statements = usetree_to_paths(&i.tree, &self.module_path)
             .iter()
             .filter(|s| s.contains("relay"))
@@ -171,7 +171,7 @@ fn normalize_type_path(mut path: String, crate_root: &str, module_path: &str) ->
 fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
     let crate_root = module_path.split_once("::").map_or(module_path, |s| s.0);
     let paths = flatten_use_tree(
-        syn::Path {
+        syn2::Path {
             leading_colon: None,
             segments: Punctuated::new(),
         },
@@ -188,7 +188,7 @@ fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
 ///
 /// For example: `use protocol::{Foo, Bar, Baz}` into `[protocol::Foo, protocol::Bar,
 /// protocol::Baz]`.
-fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<String> {
+fn flatten_use_tree(mut leading_path: syn2::Path, use_tree: &UseTree) -> Vec<String> {
     match use_tree {
         UseTree::Path(use_path) => {
             leading_path.segments.push(use_path.ident.clone().into());

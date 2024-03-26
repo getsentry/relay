@@ -1,9 +1,9 @@
 //! Alternative implementation of serializable glob patterns.
 
 use std::fmt;
+use std::sync::OnceLock;
 
 use globset::GlobBuilder;
-use once_cell::sync::OnceCell;
 use regex::bytes::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -16,7 +16,7 @@ fn is_match(globs: &[Regex], message: &[u8]) -> bool {
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
     patterns: Vec<String>,
-    globs: OnceCell<Vec<Regex>>,
+    globs: OnceLock<Vec<Regex>>,
 }
 
 impl GlobPatterns {
@@ -24,7 +24,7 @@ impl GlobPatterns {
     pub fn new(patterns: Vec<String>) -> Self {
         Self {
             patterns,
-            globs: OnceCell::new(),
+            globs: OnceLock::new(),
         }
     }
 

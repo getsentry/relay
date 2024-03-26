@@ -143,7 +143,7 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -185,6 +185,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(state.event_metrics_extracted);
+
+        relay_log::trace!("Adding span to envelope");
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
@@ -192,8 +194,14 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     };
 
-    let transaction_span = extract_transaction_span(event);
-
+    let Some(transaction_span) = extract_transaction_span(
+        event,
+        config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+    ) else {
+        return;
+    };
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
@@ -366,9 +374,8 @@ fn normalize(
     }
 
     // Tag extraction:
-    let config = tag_extraction::Config { max_tag_value_size };
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile, None);
+    let tags = tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

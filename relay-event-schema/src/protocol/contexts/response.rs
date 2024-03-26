@@ -84,8 +84,6 @@ impl super::DefaultContext for ResponseContext {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::Annotated;
-
     use super::*;
     use crate::protocol::{Context, PairList};
 

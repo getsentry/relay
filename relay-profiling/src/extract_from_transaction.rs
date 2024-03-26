@@ -101,7 +101,6 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_event_schema::protocol::Event;
     use relay_protocol::FromValue;
 
     #[test]

@@ -11,7 +11,5 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-relay-event-schema = { path = "../../relay-event-schema", features = [
-    "jsonschema",
-] }
+relay-event-schema = { workspace = true, features = ["jsonschema"] }
 serde_json = { workspace = true }

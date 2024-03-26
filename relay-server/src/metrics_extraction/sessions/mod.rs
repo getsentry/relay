@@ -178,7 +178,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
+    use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
     use relay_metrics::BucketValue;
 
     use super::*;
@@ -479,7 +479,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     135.0,
                 ),
@@ -496,7 +498,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     12.0,
                 ),
@@ -513,7 +517,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     5.0,
                 ),
@@ -530,7 +536,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084960),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     7.0,
                 ),
@@ -547,7 +555,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     15.0,
                 ),
@@ -564,7 +574,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "c:sessions/session@none",
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
                 value: Counter(
                     3.0,
                 ),
@@ -581,7 +593,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1581084961),
                 width: 0,
-                name: "s:sessions/user@none",
+                name: MetricName(
+                    "s:sessions/user@none",
+                ),
                 value: Set(
                     {
                         3097475539,
