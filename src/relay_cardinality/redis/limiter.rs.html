@@ -834,7 +834,7 @@
         script::{CardinalityScript, Status},
         state::{LimitState, RedisEntry},
     },
-    statsd::{CardinalityLimiterGauges, CardinalityLimiterTimers},
+    statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
     CardinalityLimit, <span class="prelude-ty">Result</span>,
 };
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -887,7 +887,7 @@
         <span class="kw">let </span>entries = state.take_entries();
 
         <span class="macro">metric!</span>(
-            gauge(CardinalityLimiterGauges::RedisCheckHashes) = entries.len() <span class="kw">as </span>u64,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() <span class="kw">as </span>u64,
             id = state.id(),
         );
 
@@ -903,7 +903,7 @@
             .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)<span class="question-mark">?</span>;
 
         <span class="macro">metric!</span>(
-            gauge(CardinalityLimiterGauges::RedisSetCardinality) = result.cardinality,
+            histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
             id = state.id(),
         );
 
