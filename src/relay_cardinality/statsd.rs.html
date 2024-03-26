@@ -128,7 +128,7 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Counter metrics for the Relay Cardinality Limiter.
 </span><span class="kw">pub enum </span>CardinalityLimiterCounters {
@@ -211,7 +211,7 @@
     }
 }
 
-<span class="kw">pub enum </span>CardinalityLimiterHistograms {
+<span class="kw">pub enum </span>CardinalityLimiterGauges {
     <span class="doccomment">/// Amount of hashes sent to Redis to check the cardinality.
     ///
     /// This metric is tagged with:
@@ -226,7 +226,7 @@
     </span>RedisSetCardinality,
 }
 
-<span class="kw">impl </span>HistogramMetric <span class="kw">for </span>CardinalityLimiterHistograms {
+<span class="kw">impl </span>GaugeMetric <span class="kw">for </span>CardinalityLimiterGauges {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
