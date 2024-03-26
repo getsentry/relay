@@ -1234,7 +1234,10 @@ impl EnvelopeProcessorService {
                 );
             }
 
+            let is_last_normalize = self.inner.config.processing_enabled();
+
             let normalization_config = NormalizationConfig {
+                is_last_normalize,
                 project_id: Some(state.project_id.value()),
                 client: request_meta.client().map(str::to_owned),
                 key_id,
@@ -1273,6 +1276,7 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
+                remove_other: Some(is_last_normalize),
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1294,6 +1298,9 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
+                if is_last_normalize && event::has_unprintable_fields(event) {
+                    metric!(counter(RelayCounters::EventCorrupted) += 1);
+                }
                 Result::<(), ProcessingError>::Ok(())
             })
         })?;
@@ -1329,7 +1336,6 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
         });
 
@@ -1387,7 +1393,6 @@ impl EnvelopeProcessorService {
             sampling_decision = if sampling_should_drop { "drop" } else { "keep" },
             {
                 if_processing!(self.inner.config, {
-                    event::store(state, &self.inner.config)?;
                     profile::process(state, &self.inner.config);
                 });
 

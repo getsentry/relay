@@ -2,7 +2,7 @@ use std::fs;
 
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-    NormalizationConfig, StoreConfig, StoreProcessor, TransactionValidationConfig,
+    NormalizationConfig, TransactionValidationConfig,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;
@@ -74,11 +74,10 @@ macro_rules! event_snapshot {
 
                 validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
                 validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
-                normalize_event(&mut event, &NormalizationConfig::default());
-
-                let config = StoreConfig::default();
-                let mut processor = StoreProcessor::new(config);
-                process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+                normalize_event(&mut event, &NormalizationConfig {
+                    is_last_normalize: true,
+                    ..Default::default()
+                });
 
                 let pii_config = pii_config();
                 let compiled = pii_config.compiled();

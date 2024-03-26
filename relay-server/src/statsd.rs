@@ -223,10 +223,6 @@ pub enum RelayTimers {
     /// Time in milliseconds spent running light normalization on an event. Light normalization
     /// happens before envelope filtering and metrics extraction.
     EventProcessingLightNormalization,
-    /// Time in milliseconds spent running event processors on an event for normalization. Event
-    /// processing happens before filtering.
-    #[cfg(feature = "processing")]
-    EventProcessingProcess,
     /// Time in milliseconds spent running inbound data filters on an event.
     EventProcessingFiltering,
     /// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -395,8 +391,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingLightNormalization => {
                 "event_processing.light_normalization"
             }
-            #[cfg(feature = "processing")]
-            RelayTimers::EventProcessingProcess => "event_processing.process",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
