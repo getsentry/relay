@@ -2973,7 +2973,7 @@ mod tests {
             Annotated::new(map)
         });
         assert_eq!(user.other, Object::new());
-        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.username, Annotated::new("john".to_string().into()));
         assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 

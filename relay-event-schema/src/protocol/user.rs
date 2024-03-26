@@ -62,7 +62,7 @@ pub struct User {
 
     /// Username of the user.
     #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
-    pub username: Annotated<String>,
+    pub username: Annotated<LenientString>,
 
     /// Human readable name of the user.
     #[metastructure(pii = "true", max_chars = 128, skip_serialization = "empty")]
@@ -163,7 +163,7 @@ mod tests {
             email: Annotated::new("mail@example.org".to_string()),
             ip_address: Annotated::new(IpAddr::auto()),
             name: Annotated::new("John Doe".to_string()),
-            username: Annotated::new("john_doe".to_string()),
+            username: Annotated::new(LenientString("john_doe".to_owned())),
             geo: Annotated::empty(),
             segment: Annotated::new("vip".to_string()),
             data: {
@@ -193,6 +193,19 @@ mod tests {
     fn test_user_lenient_id() {
         let input = r#"{"id":42}"#;
         let output = r#"{"id":"42"}"#;
+        let user = Annotated::new(User {
+            id: Annotated::new("42".to_string().into()),
+            ..User::default()
+        });
+
+        assert_eq!(user, Annotated::from_json(input).unwrap());
+        assert_eq!(output, user.to_json().unwrap());
+    }
+
+    #[test]
+    fn test_user_lenient_username() {
+        let input = r#"{"username":42}"#;
+        let output = r#"{"username":"42"}"#;
         let user = Annotated::new(User {
             id: Annotated::new("42".to_string().into()),
             ..User::default()
