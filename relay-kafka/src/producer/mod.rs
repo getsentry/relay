@@ -23,7 +23,7 @@ use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
 use crate::statsd::{KafkaGauges, KafkaHistograms};
 
 mod utils;
-use utils::{CaptureErrorContext, ThreadedProducer};
+use utils::{Context, ThreadedProducer};
 
 #[cfg(feature = "schemas")]
 mod schemas;
@@ -258,7 +258,7 @@ impl KafkaClientBuilder {
 
                 let producer = Arc::new(
                     client_config
-                        .create_with_context(CaptureErrorContext)
+                        .create_with_context(Context)
                         .map_err(ClientError::InvalidConfig)?,
                 );
 
@@ -285,7 +285,7 @@ impl KafkaClientBuilder {
                     }
                     let producer = Arc::new(
                         client_config
-                            .create_with_context(CaptureErrorContext)
+                            .create_with_context(Context)
                             .map_err(ClientError::InvalidConfig)?,
                     );
                     self.reused_producers

@@ -2,7 +2,6 @@
 //! and flushed them periodically.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -12,7 +11,7 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
-use crate::services::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::services::outcome::{Outcome, OutcomeProducer, TrackOutcome};
 use crate::statsd::RelayTimers;
 use crate::utils::SleepHandle;
 
@@ -25,27 +24,18 @@ struct BucketKey {
     pub scoping: Scoping,
     /// The outcome.
     pub outcome: Outcome,
-    /// The client ip address.
-    pub remote_addr: Option<IpAddr>,
     /// The event's data category.
     pub category: DataCategory,
-}
-
-#[derive(PartialEq)]
-enum AggregationMode {
-    /// Aggregator drops all outcomes
-    DropEverything,
-    /// Aggregator keeps all outcome fields intact
-    Lossless,
-    /// Aggregator removes fields to improve aggregation
-    Lossy,
 }
 
 /// Aggregates [`Outcome`]s into buckets and flushes them periodically.
 ///
 /// This service handles a single message [`TrackOutcome`].
 pub struct OutcomeAggregator {
-    mode: AggregationMode,
+    /// Whether or not to produce outcomes.
+    ///
+    /// If `true`, all outcomes will be dropped.
+    disabled: bool,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The number of seconds between flushes of all buckets
@@ -60,14 +50,10 @@ pub struct OutcomeAggregator {
 
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
-        let mode = match config.emit_outcomes() {
-            EmitOutcomes::AsOutcomes => AggregationMode::Lossless,
-            EmitOutcomes::AsClientReports => AggregationMode::Lossy,
-            EmitOutcomes::None => AggregationMode::DropEverything,
-        };
+        let disabled = matches!(config.emit_outcomes(), EmitOutcomes::None);
 
         Self {
-            mode,
+            disabled,
             bucket_interval: config.outcome_aggregator().bucket_interval,
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
@@ -84,18 +70,7 @@ impl OutcomeAggregator {
     }
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
-        if self.mode == AggregationMode::DropEverything {
-            return;
-        }
-
-        let (event_id, remote_addr) = if self.erase_high_cardinality_fields(&msg) {
-            (None, None)
-        } else {
-            (msg.event_id, msg.remote_addr)
-        };
-
-        if event_id.is_some() {
-            self.outcome_producer.send(msg);
+        if self.disabled {
             return;
         }
 
@@ -105,7 +80,6 @@ impl OutcomeAggregator {
             offset,
             scoping: msg.scoping,
             outcome: msg.outcome,
-            remote_addr,
             category: msg.category,
         };
 
@@ -132,7 +106,6 @@ impl OutcomeAggregator {
                 offset,
                 scoping,
                 outcome,
-                remote_addr,
                 category,
             } = bucket_key;
 
@@ -146,27 +119,13 @@ impl OutcomeAggregator {
                 scoping,
                 outcome,
                 event_id: None,
-                remote_addr,
+                remote_addr: None,
                 category,
                 quantity,
             };
 
             outcome_producer.send(outcome);
         }
-    }
-
-    /// Return true if event_id and remote_addr should be erased
-    fn erase_high_cardinality_fields(&self, msg: &TrackOutcome) -> bool {
-        // In lossy mode, always erase
-        matches!(self.mode, AggregationMode::Lossy)
-            || matches!(
-                // Always erase high-cardinality fields for specific outcomes:
-                msg.outcome,
-                Outcome::RateLimited(_)
-                    | Outcome::Invalid(DiscardReason::ProjectId)
-                    | Outcome::FilteredSampling(_)
-                    | Outcome::Accepted
-            )
     }
 
     fn flush(&mut self) {

@@ -58,7 +58,7 @@ impl<'a> LimitState<'a> {
 
     /// Converts a list of limits with the same scope to a vector of limit states.
     ///
-    /// All invalid/unknown limits are skipped, see also [Self::new].
+    /// All invalid/unknown limits are skipped, see also [`Self::new`].
     pub fn from_limits(scoping: Scoping, limits: &'a [CardinalityLimit]) -> Vec<Self> {
         limits
             .iter()

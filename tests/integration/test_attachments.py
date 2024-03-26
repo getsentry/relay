@@ -63,7 +63,6 @@ def test_attachments_with_processing(
         "attachment": {
             "attachment_type": "event.attachment",
             "chunks": attachment_num_chunks[id1],
-            "content_type": "application/octet-stream",
             "id": id1,
             "name": "foo.txt",
             "size": len(attachment_contents[id1]),
@@ -77,7 +76,6 @@ def test_attachments_with_processing(
         "attachment": {
             "attachment_type": "event.attachment",
             "chunks": attachment_num_chunks[id2],
-            "content_type": "application/octet-stream",
             "id": id2,
             "name": "bar.txt",
             "size": len(attachment_contents[id2]),
@@ -113,7 +111,6 @@ def test_empty_attachments_with_processing(
         "attachment": {
             "attachment_type": "event.attachment",
             "chunks": 0,
-            "content_type": "application/octet-stream",
             "name": "foo.txt",
             "size": 0,
             "rate_limited": False,
