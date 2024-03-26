@@ -356,6 +356,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -436,6 +437,33 @@ mod tests {
             span.get_value("span.measurements.some.value"),
             Some(Val::F64(100.0))
         );
+    }
+
+    #[test]
+    fn test_getter_was_transaction() {
+        let mut span = Span::default();
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(false));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(true));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(true))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
     }
 
     #[test]
