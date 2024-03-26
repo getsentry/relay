@@ -86,6 +86,7 @@ impl RedisSetLimiter {
 
         let results = pipeline.invoke(connection)?;
 
+        debug_assert_eq!(results.len(), scopes.len());
         scopes
             .into_iter()
             .zip(results)

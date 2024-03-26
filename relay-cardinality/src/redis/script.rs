@@ -5,8 +5,6 @@ use relay_redis::{
 
 use crate::Result;
 
-pub struct CardinalityScript(Script);
-
 /// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
 #[derive(Debug, Clone, Copy)]
 pub enum Status {
@@ -17,6 +15,7 @@ pub enum Status {
 }
 
 impl Status {
+    /// Returns `true` if the status is [`Status::Rejected`].
     pub fn is_rejected(&self) -> bool {
         matches!(self, Self::Rejected)
     }
@@ -33,13 +32,19 @@ impl FromRedisValue for Status {
     }
 }
 
+/// Result returned from [`CardinalityScript`].
 #[derive(Debug)]
 pub struct CardinalityScriptResult {
+    /// Cardinality of the limit.
     pub cardinality: u64,
+    /// Status for each hash passed to the script.
     pub statuses: Vec<Status>,
 }
 
 impl CardinalityScriptResult {
+    /// Validates the result against the amount of hashes originally supplied.
+    ///
+    /// This is not necessarily required but recommended.
     pub fn validate(&self, num_hashes: usize) -> Result<()> {
         if num_hashes == self.statuses.len() {
             return Ok(());
@@ -87,11 +92,18 @@ impl FromRedisValue for CardinalityScriptResult {
     }
 }
 
+/// Abstraction over the `cardinality.lua` lua Redis script.
+pub struct CardinalityScript(Script);
+
 impl CardinalityScript {
+    /// Loads the script.
+    ///
+    /// This is somewhat costly and shouldn't be done often.
     pub fn load() -> Self {
         Self(Script::new(include_str!("cardinality.lua")))
     }
 
+    /// Creates a new pipeline to batch multiple script invocations.
     pub fn pipe(&self) -> CardinalityScriptPipeline<'_> {
         CardinalityScriptPipeline {
             script: self,
@@ -99,6 +111,7 @@ impl CardinalityScript {
         }
     }
 
+    /// Makes sure the script is loaded in Redis.
     fn load_redis(&self, con: &mut Connection) -> Result<()> {
         self.0
             .prepare_invoke()
@@ -108,6 +121,7 @@ impl CardinalityScript {
         Ok(())
     }
 
+    /// Returns a [`redis::ScriptInvocation`] with all keys and arguments prepared.
     fn prepare_invocation(
         &self,
         limit: u64,
@@ -132,12 +146,14 @@ impl CardinalityScript {
     }
 }
 
+/// Pipeline to batch multiple [`CardinalityScript`] invocations.
 pub struct CardinalityScriptPipeline<'a> {
     script: &'a CardinalityScript,
     pipe: redis::Pipeline,
 }
 
 impl<'a> CardinalityScriptPipeline<'a> {
+    /// Adds another invocation of the script to the pipeline.
     pub fn add_invocation(
         &mut self,
         limit: u64,
@@ -150,6 +166,9 @@ impl<'a> CardinalityScriptPipeline<'a> {
         self
     }
 
+    /// Invokes the entire pipeline and returns the results.
+    ///
+    /// Returns one result for each script invocation.
     pub fn invoke(&self, con: &mut Connection<'_>) -> Result<Vec<CardinalityScriptResult>> {
         match self.pipe.query(con) {
             Ok(result) => Ok(result),
