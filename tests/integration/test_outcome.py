@@ -564,10 +564,10 @@ def test_outcomes_forwarding_rate_limited(
     outcomes_consumer.assert_empty()
 
 
-def _get_event_payload(event_type):
-    if event_type == "error":
+def _get_event_payload(data_category):
+    if data_category == "error":
         return {"message": "hello"}
-    elif event_type == "transaction":
+    elif data_category == "transaction":
         now = datetime.utcnow()
         return {
             "type": "transaction",
@@ -593,9 +593,9 @@ def _get_event_payload(event_type):
             },
             "transaction": "hi",
         }
-    elif event_type == "feedback":
+    elif data_category == "user_report_v2":
         return {
-            "type": "feedback",
+            "type": "userreportv2",
             "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
             "timestamp": 1597977777.6189718,
             "dist": "1.12",
@@ -732,7 +732,7 @@ def _get_span_payload():
 
 @pytest.mark.parametrize(
     "category,is_outcome_expected",
-    [("session", False), ("transaction", True), ("feedback", True)],
+    [("session", False), ("transaction", True), ("user_report_v2", True)],
 )
 def test_outcomes_rate_limit(
     relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
@@ -757,6 +757,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+    project_config["config"]["features"] = ["organizations:user-feedback-ingest"]
 
     outcomes_consumer = outcomes_consumer()
 
