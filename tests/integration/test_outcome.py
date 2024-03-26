@@ -977,10 +977,10 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     assert outcome == expected_outcome
 
 
-def test_outcomes_do_not_aggregate(
+def test_outcomes_aggregate_inbound_filters(
     relay, relay_with_processing, mini_sentry, outcomes_consumer
 ):
-    """Make sure that certain types are not aggregated"""
+    """Make sure that inbound filters outcomes are aggregated"""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
@@ -1010,18 +1010,18 @@ def test_outcomes_do_not_aggregate(
     for outcome in outcomes:
         del outcome["timestamp"]
 
-    # Results in two outcomes, nothing aggregated:
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "outcome": 1,
-        "reason": "release-version",
-        "category": 1,
-        "quantity": 2,
-    }
-    # Convert to dict to ignore sort order:
-    assert outcomes == [expected_outcome]
+    # Results in a single aggregated outcome:
+    assert outcomes == [
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "release-version",
+            "category": 1,
+            "quantity": 2,
+        }
+    ]
 
 
 def test_graceful_shutdown(relay, mini_sentry):
