@@ -1410,9 +1410,9 @@ def test_span_metrics(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
+    transaction["timestamp"] = transaction["spans"][0][
+        "timestamp"
+    ] = timestamp.isoformat()
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
@@ -1430,10 +1430,14 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 6
+    assert len(span_metrics) == 8
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
+        if metric["name"] in (
+            "c:spans/count_per_op@none",
+            "c:spans/usage@none",
+            "d:spans/duration@millisecond",
+        ):
             continue
 
         # Ignore transaction spans
@@ -1542,9 +1546,9 @@ def test_span_metrics_secondary_aggregator(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
+    transaction["timestamp"] = transaction["spans"][0][
+        "timestamp"
+    ] = timestamp.isoformat()
     transaction["start_timestamp"] = (
         timestamp - timedelta(milliseconds=126)
     ).isoformat()
