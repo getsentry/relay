@@ -11,7 +11,7 @@ use crate::{
         script::{CardinalityScript, CardinalityScriptResult, Status},
         state::{LimitState, RedisEntry},
     },
-    statsd::{CardinalityLimiterGauges, CardinalityLimiterTimers},
+    statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
     CardinalityLimit, Result,
 };
 use relay_common::time::UnixTimestamp;
@@ -80,7 +80,7 @@ impl RedisSetLimiter {
         }
 
         metric!(
-            gauge(CardinalityLimiterGauges::RedisCheckHashes) = num_hashes,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = num_hashes,
             id = state.id(),
         );
 
@@ -92,7 +92,8 @@ impl RedisSetLimiter {
             .zip(results)
             .inspect(|(_, result)| {
                 metric!(
-                    gauge(CardinalityLimiterGauges::RedisSetCardinality) = result.cardinality,
+                    histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
+                        result.cardinality,
                     id = state.id(),
                 );
             })
