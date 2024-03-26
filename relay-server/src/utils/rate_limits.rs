@@ -170,9 +170,6 @@ pub struct EnvelopeSummary {
 
     /// The payload size of this envelope.
     pub payload_size: usize,
-
-    /// The number of user-reports.
-    pub user_report_v2_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -232,7 +229,6 @@ impl EnvelopeSummary {
             ItemType::CheckIn => &mut self.checkin_quantity,
             ItemType::OtelSpan => &mut self.span_quantity,
             ItemType::Span => &mut self.span_quantity,
-            ItemType::UserReportV2 => &mut self.user_report_v2_quantity,
             _ => return,
         };
         *target_quantity += item.quantity();
@@ -672,17 +668,6 @@ where
                 CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
 
             rate_limits.merge(span_limits);
-        }
-
-        if summary.user_report_v2_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::UserReportV2);
-            let limits = (self.check)(item_scoping, summary.user_report_v2_quantity)?;
-            enforcement.user_reports_v2 = CategoryLimit::new(
-                DataCategory::UserReportV2,
-                summary.user_report_v2_quantity,
-                limits.longest(),
-            );
-            rate_limits.merge(limits);
         }
 
         Ok((enforcement, rate_limits))

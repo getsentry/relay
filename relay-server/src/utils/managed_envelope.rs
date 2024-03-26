@@ -504,14 +504,6 @@ impl ManagedEnvelope {
             );
         }
 
-        if self.context.summary.user_report_v2_quantity > 0 {
-            self.track_outcome(
-                outcome.clone(),
-                DataCategory::UserReportV2,
-                self.context.summary.user_report_v2_quantity,
-            );
-        }
-
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
