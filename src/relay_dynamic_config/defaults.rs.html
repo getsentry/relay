@@ -554,6 +554,10 @@
 <a href="#552" id="552">552</a>
 <a href="#553" id="553">553</a>
 <a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -669,7 +673,8 @@
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(<span class="number">0</span>.into()),
         );
 
-    <span class="kw">let </span>app_start_condition = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
+    <span class="kw">let </span>app_start_condition = duration_condition.clone()
+        &amp; RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     <span class="comment">// `exclusive_time_light` is the metric with the most lenient condition.
@@ -956,38 +961,41 @@
             category: DataCategory::Span,
             mri: <span class="string">"d:spans/duration@millisecond"</span>.into(),
             field: <span class="prelude-val">Some</span>(<span class="string">"span.duration"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                duration_condition.clone() &amp; is_mobile.clone() &amp; app_start_condition.clone(),
-            ),
+            condition: <span class="prelude-val">None</span>,
             tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
+                <span class="comment">// All modules:
                 </span>Tag::with_key(<span class="string">"environment"</span>)
                     .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"app_start_type"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"transaction"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"transaction.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                    .always(),
+                <span class="comment">// Mobile module:
+                </span>Tag::with_key(<span class="string">"span.description"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                    .when(app_start_condition.clone()),
+                Tag::with_key(<span class="string">"span.group"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                    .when(app_start_condition.clone()),
+                Tag::with_key(<span class="string">"device.class"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                    .when(app_start_condition.clone()),
+                Tag::with_key(<span class="string">"release"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                    .when(app_start_condition.clone()),
+                Tag::with_key(<span class="string">"os.name"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                    .when(app_start_condition.clone()),
+                Tag::with_key(<span class="string">"app_start_type"</span>)
                     .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
+                    .when(app_start_condition.clone()),
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,

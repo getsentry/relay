@@ -1505,6 +1505,8 @@
 <a href="#1503" id="1503">1503</a>
 <a href="#1504" id="1504">1504</a>
 <a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2989,7 +2991,7 @@
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
 
-        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">5</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"c:spans/usage@none"</span>);
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"d:spans/exclusive_time@millisecond"</span>);
@@ -3008,6 +3010,8 @@
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">3</span>].name, <span class="string">"c:spans/count_per_op@none"</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">3</span>].tags[<span class="string">"span.op"</span>], <span class="string">"db.query"</span>);
+
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">4</span>].name, <span class="string">"d:spans/duration@millisecond"</span>);
     }
 }
 </code></pre></div></section></main></body></html>
