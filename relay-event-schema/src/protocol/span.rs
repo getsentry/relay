@@ -97,6 +97,10 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
+    /// Whether the span is a segment span that was converted from a transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub was_transaction: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -114,6 +118,7 @@ impl From<&Event> for Span {
             timestamp: event.timestamp.clone(),
             measurements: event.measurements.clone(),
             platform: event.platform.clone(),
+            was_transaction: true.into(),
             ..Default::default()
         };
 
@@ -151,6 +156,7 @@ impl Getter for Span {
                 let timestamp = *self.timestamp.value()?;
                 relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
             }
+            "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(key)?.as_str()?.into()
@@ -350,6 +356,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -433,6 +440,33 @@ mod tests {
     }
 
     #[test]
+    fn test_getter_was_transaction() {
+        let mut span = Span::default();
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(false));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(true));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(true))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
+    }
+
+    #[test]
     fn span_from_event() {
         let event = Annotated::<Event>::from_json(
             r#"{
@@ -507,6 +541,7 @@ mod tests {
                 },
             ),
             platform: ~,
+            was_transaction: true,
             other: {},
         }
         "###);
