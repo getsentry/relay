@@ -1580,6 +1580,7 @@ mod tests {
                 measurements: ~,
                 _metrics_summary: ~,
                 platform: ~,
+                was_transaction: ~,
                 other: {},
             },
         ]
@@ -1624,6 +1625,7 @@ mod tests {
                 measurements: ~,
                 _metrics_summary: ~,
                 platform: ~,
+                was_transaction: ~,
                 other: {},
             },
         ]
@@ -1668,6 +1670,7 @@ mod tests {
                 measurements: ~,
                 _metrics_summary: ~,
                 platform: ~,
+                was_transaction: ~,
                 other: {},
             },
         ]

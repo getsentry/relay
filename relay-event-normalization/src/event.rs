@@ -13,7 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricResourceIdentifier, MetricUnit,
 };
-use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
     EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
@@ -33,7 +33,7 @@ use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
     transactions, trimming, user_agent, BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup,
-    PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    MaxChars, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].

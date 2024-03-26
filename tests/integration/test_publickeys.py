@@ -1,6 +1,7 @@
 """
 Tests the publickeys endpoint (/api/0/relays/publickeys/)
 """
+
 import uuid
 import pytest
 from collections import namedtuple

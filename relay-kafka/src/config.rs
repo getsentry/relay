@@ -35,8 +35,6 @@ pub enum KafkaTopic {
     Outcomes,
     /// Override for billing critical outcomes.
     OutcomesBilling,
-    /// Session health updates.
-    Sessions,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
     /// Generic metrics topic, excluding sessions (release health).
@@ -62,13 +60,12 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 15] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
             Outcomes,
             OutcomesBilling,
-            Sessions,
             MetricsSessions,
             MetricsGeneric,
             Profiles,
@@ -101,9 +98,6 @@ pub struct TopicAssignments {
     /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
     #[serde(alias = "outcomes-billing")]
     pub outcomes_billing: Option<TopicAssignment>,
-    /// Session health topic name.
-    #[serde(alias = "ingest-sessions")]
-    pub sessions: TopicAssignment,
     /// Topic name for metrics extracted from sessions, aka release health.
     #[serde(alias = "metrics", alias = "ingest-metrics")]
     pub metrics_sessions: TopicAssignment,
@@ -142,7 +136,6 @@ impl TopicAssignments {
             KafkaTopic::Transactions => &self.transactions,
             KafkaTopic::Outcomes => &self.outcomes,
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
-            KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::MetricsSessions => &self.metrics_sessions,
             KafkaTopic::MetricsGeneric => &self.metrics_generic,
             KafkaTopic::Profiles => &self.profiles,
@@ -164,7 +157,6 @@ impl Default for TopicAssignments {
             transactions: "ingest-transactions".to_owned().into(),
             outcomes: "outcomes".to_owned().into(),
             outcomes_billing: None,
-            sessions: "ingest-sessions".to_owned().into(),
             metrics_sessions: "ingest-metrics".to_owned().into(),
             metrics_generic: "ingest-performance-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
