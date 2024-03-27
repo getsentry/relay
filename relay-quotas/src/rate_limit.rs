@@ -220,10 +220,11 @@ impl RateLimits {
         // Categories are logically a set, but not implemented as such.
         limit.categories.sort();
 
-        let limit_opt = self
-            .limits
-            .iter_mut()
-            .find(|l| l.categories == limit.categories && l.scope == limit.scope);
+        let limit_opt = self.limits.iter_mut().find(|l| {
+            l.categories == limit.categories
+                && l.scope == limit.scope
+                && l.namespace == limit.namespace
+        });
 
         match limit_opt {
             None => self.limits.push(limit),
@@ -680,6 +681,54 @@ mod tests {
               reason_code: None,
               retry_after: RetryAfter(1),
               namespace: None,
+            ),
+          ],
+        )
+        "###);
+    }
+
+    /// Regression test that ensures namespaces are correctly added to rate limits.
+    #[test]
+    fn test_rate_limits_add_namespaces() {
+        let mut rate_limits = RateLimits::new();
+
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::MetricBucket],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+            namespace: Some(MetricNamespace::Custom),
+        });
+
+        // Same scope but different categories
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::MetricBucket],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+            namespace: Some(MetricNamespace::Spans),
+        });
+
+        insta::assert_ron_snapshot!(rate_limits, @r###"
+        RateLimits(
+          limits: [
+            RateLimit(
+              categories: [
+                metric_bucket,
+              ],
+              scope: Organization(42),
+              reason_code: None,
+              retry_after: RetryAfter(1),
+              namespace: Some("custom"),
+            ),
+            RateLimit(
+              categories: [
+                metric_bucket,
+              ],
+              scope: Organization(42),
+              reason_code: None,
+              retry_after: RetryAfter(1),
+              namespace: Some("spans"),
             ),
           ],
         )

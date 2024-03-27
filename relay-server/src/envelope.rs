@@ -31,6 +31,7 @@
 //! ```
 
 use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
+use relay_metrics::MetricNamespace;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -554,6 +555,12 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// Namespace for metric items.
+    ///
+    /// TODO(ja): Doc
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    namespace: Option<MetricNamespace>,
+
     /// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -628,6 +635,7 @@ impl Item {
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                namespace: None,
                 sampled: true,
             },
             payload: Bytes::new(),
@@ -831,6 +839,25 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
+    }
+
+    /// Returns the namespace for metric items.
+    pub fn namespace(&self) -> Option<MetricNamespace> {
+        self.headers.namespace.filter(|_| self.ty().is_metrics())
+    }
+
+    /// Sets the namespace for metric items.
+    ///
+    /// This should not be called for non-metric items.
+    pub fn set_namespace(&mut self, namespace: MetricNamespace) {
+        debug_assert!(
+            self.ty().is_metrics(),
+            "setting namespace on non-metric item"
+        );
+
+        if self.ty().is_metrics() {
+            self.headers.namespace = Some(namespace);
+        }
     }
 
     /// Gets the `sampled` flag.
