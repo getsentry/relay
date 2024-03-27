@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
+import time
 
 import pytest
 import requests
+from requests.exceptions import HTTPError
 import queue
 
 from .test_envelope import generate_transaction_item
@@ -309,6 +311,45 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
+
+
+@pytest.mark.parametrize("ns", [None, "custom", "transactions"])
+def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["metric_bucket"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+            "namespace": ns,
+        }
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
+
+    # Send and ignore first request to populate caches
+    relay.send_metrics(project_id, metrics_payload)
+    time.sleep(1)
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_metrics(project_id, metrics_payload)
+
+    ns_component = ""
+    if ns:
+        ns_component = ":" + ";".join(ns)
+
+    response = excinfo.value.response
+    assert response.status_code == 429
+    assert (
+        response.headers["x-sentry-rate-limits"]
+        == f"60:metric_bucket:organization:static_disabled_quota{ns_component}"
+    )
 
 
 def test_global_metrics(mini_sentry, relay):
