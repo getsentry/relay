@@ -643,7 +643,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -682,7 +682,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -729,7 +729,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
             RateLimit(
               categories: [
@@ -738,7 +738,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
             RateLimit(
               categories: [
@@ -747,7 +747,7 @@ mod tests {
               scope: Project(ProjectId(21)),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -786,7 +786,9 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: Some("custom"),
+              namespace: [
+                "custom",
+              ],
             ),
             RateLimit(
               categories: [
@@ -795,7 +797,9 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: Some("spans"),
+              namespace: [
+                "spans",
+              ],
             ),
           ],
         )
@@ -832,7 +836,7 @@ mod tests {
           scope: Organization(42),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
-          namespace: None,
+          namespace: [],
         )
         "###);
     }
@@ -875,7 +879,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -926,7 +930,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -989,7 +993,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
@@ -1037,7 +1041,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
-              namespace: None,
+              namespace: [],
             ),
             RateLimit(
               categories: [
@@ -1046,7 +1050,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: None,
+              namespace: [],
             ),
           ],
         )
