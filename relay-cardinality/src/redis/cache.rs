@@ -221,7 +221,7 @@ mod tests {
             },
         )
         .unwrap()
-        .full(Entry {
+        .complete(Entry {
             id: EntryId(0),
             namespace: MetricNamespace::Spans,
             name: "foobar",

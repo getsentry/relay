@@ -18,11 +18,11 @@ pub struct LimitState<'a> {
     pub limit: u64,
 
     /// Scoping of the quota.
-    scope: PartialQuotaScoping,
+    partial_scope: PartialQuotaScoping,
     /// Entries grouped by quota scoping.
     ///
     /// Contained scopes are a superset of `scope`.
-    sub_scopes: BTreeMap<QuotaScoping, Vec<RedisEntry>>,
+    scopes: BTreeMap<QuotaScoping, Vec<RedisEntry>>,
 
     /// The original cardinality limit.
     cardinality_limit: &'a CardinalityLimit,
@@ -44,8 +44,8 @@ impl<'a> LimitState<'a> {
     /// Returns `None` if the cardinality limit scope is [`Unknown`](crate::CardinalityScope::Unknown).
     pub fn new(scoping: Scoping, cardinality_limit: &'a CardinalityLimit) -> Option<Self> {
         Some(Self {
-            scope: PartialQuotaScoping::new(scoping, cardinality_limit)?,
-            sub_scopes: BTreeMap::new(),
+            partial_scope: PartialQuotaScoping::new(scoping, cardinality_limit)?,
+            scopes: BTreeMap::new(),
             limit: cardinality_limit.limit,
             cardinality_limit,
             scoping,
@@ -68,8 +68,8 @@ impl<'a> LimitState<'a> {
 
     /// Returns a [`QuotaScoping`] if the `entry` matches the limit contained in the state.
     pub fn matching_scope(&self, entry: Entry) -> Option<QuotaScoping> {
-        if self.scope.matches(&entry) {
-            Some(self.scope.full(entry))
+        if self.partial_scope.matches(&entry) {
+            Some(self.partial_scope.complete(entry))
         } else {
             None
         }
@@ -79,7 +79,7 @@ impl<'a> LimitState<'a> {
     ///
     /// The `scope` must be extracted from the state with [`Self::matching_scope`] first.
     pub fn add(&mut self, scope: QuotaScoping, entry: RedisEntry) {
-        self.sub_scopes.entry(scope).or_default().push(entry)
+        self.scopes.entry(scope).or_default().push(entry)
     }
 
     /// Returns the underlying cardinality limit id.
@@ -94,7 +94,7 @@ impl<'a> LimitState<'a> {
 
     /// Removes all contained scopes and entries and returns them.
     pub fn take_scopes(&mut self) -> impl Iterator<Item = (QuotaScoping, Vec<RedisEntry>)> {
-        std::mem::take(&mut self.sub_scopes).into_iter()
+        std::mem::take(&mut self.scopes).into_iter()
     }
 
     /// Increases the cache hit counter.

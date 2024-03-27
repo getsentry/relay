@@ -1,4 +1,6 @@
-use core::fmt;
+use hash32::Hasher;
+use std::fmt;
+use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
@@ -12,7 +14,8 @@ use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, Sliding
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 ///
 /// The partial quota scoping can be used to select/match on cardinality entries
-/// but it needs to be completed into a [`QuotaScoping`] by
+/// but it needs to be completed into a [`QuotaScoping`] by using
+/// [`PartialQuotaScoping::complete`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartialQuotaScoping {
     pub namespace: Option<MetricNamespace>,
@@ -76,8 +79,8 @@ impl PartialQuotaScoping {
     ///
     /// This unconditionally creates a quota scoping from the passed entry and
     /// does not check whether the scoping even applies to the entry. The caller
-    /// needs to ensure this by calling [`Self::matches`] prior to calling `full`.
-    pub fn full(self, entry: Entry<'_>) -> QuotaScoping {
+    /// needs to ensure this by calling [`Self::matches`] prior to calling `complete`.
+    pub fn complete(self, entry: Entry<'_>) -> QuotaScoping {
         let name = match self.scope {
             CardinalityScope::Name => Some(fnv32(entry.name)),
             _ => None,
@@ -90,7 +93,7 @@ impl PartialQuotaScoping {
 /// A quota scoping extracted from a [`CardinalityLimit`], a [`Scoping`]
 /// and completed with a [`CardinalityItem`](crate::CardinalityItem).
 ///
-/// The scoping must be created using [`PartialQuotaScoping::full`].
+/// The scoping must be created using [`PartialQuotaScoping::complete`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct QuotaScoping {
     parent: PartialQuotaScoping,
@@ -135,9 +138,6 @@ impl<T: fmt::Display> fmt::Display for DisplayOptMinus<T> {
 }
 
 fn fnv32(s: &str) -> u32 {
-    use hash32::Hasher;
-    use std::hash::Hash;
-
     let mut hasher = hash32::FnvHasher::default();
     s.hash(&mut hasher);
     hasher.finish32()
