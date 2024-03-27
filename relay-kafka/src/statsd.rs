@@ -80,6 +80,18 @@ pub enum KafkaGauges {
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     Disconnects,
+
+    /// Maximum internal producer queue latency, in microseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    ProducerQueueLatency,
+
+    /// Maximum internal request queue latency, in microseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    RequestQueueLatency,
 }
 
 impl GaugeMetric for KafkaGauges {
@@ -94,6 +106,8 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
             KafkaGauges::Connects => "kafka.stats.broker.connects",
             KafkaGauges::Disconnects => "kafka.stats.broker.disconnects",
+            KafkaGauges::ProducerQueueLatency => "kafka.stats.broker.int_latency",
+            KafkaGauges::RequestQueueLatency => "kafka.stats.broker.outbuf_latency",
         }
     }
 }
