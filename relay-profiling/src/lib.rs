@@ -11,87 +11,33 @@
 //!
 //! # Envelope
 //!
-//! To send a profile to Relay, the profile is enclosed in an item of type `profile`:
+//! ## Transaction Profiling
+//!
+//! To send a profile of a transaction to Relay, the profile is enclosed in an item of type
+//! `profile`:
 //! ```json
 //! {"type": "profile", "size": ...}
+//! { ... }
+//! ```
+//! ## Continuous Profiling
+//!
+//! For continuous profiling, we expect to receive chunks of profile in an item of type
+//! `profile_chunk`:
+//! ```json
+//! {"type": "profile_chunk"}
 //! { ... }
 //! ```
 //!
 //! # Protocol
 //!
-//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
-//! containing the raw profile. Each platform has their own schema for the profile.
+//! Each item type expects a different format.
 //!
-//! `android` has a specific binary representation of its profile and Relay is responsible to
-//! unpack it before it's forwarded down the line.
-//!
-//! The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks
-//! like this:
-//! ```json
-//! {
-//!     "debug_meta": { ... },
-//!     "device_is_emulator": true,
-//!     "device_locale": "en_US",
-//!     "device_manufacturer": "Apple",
-//!     "device_model": "iPhone14,3",
-//!     "device_os_build_number": "21E258",
-//!     "device_os_name": "iOS",
-//!     "device_os_version": "15.2",
-//!     "device_physical_memory_bytes": 34359738368,
-//!     "duration_ns": "6634284250",
-//!     "platform": "cocoa",
-//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
-//!     "sampled_profile": { ... },
-//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
-//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
-//!     "transaction_name": "iOS_Swift.ViewController",
-//!     "version_code": "1",
-//!     "version_name": "7.14.0"
-//! }
-//! ```
-//!
-//! These are the custom attributes for mobile platforms:
-//! - `device_os_build_number`
-//! - `android_api_level`
-//! - `device_is_emulator`
-//! - `device_locale`
-//! - `device_model`
-//! - `device_manufacturer`
-//! - `device_physical_memory_bytes`
-//!
-//! These are the custom attributes for the `android` platform:
-//! - `build_id`
-//! - `device_cpu_frequencies`
-//!
-//! These are the custom attributes for backend platforms:
-//! - `architecture`
+//! For `Profile` item type, we expect the Sample format v1 or Android format.
+//! For `ProfileChunk` item type, we expect the Sample format v2.
 //!
 //! # Ingestion
 //!
-//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka looking
-//! like this for the `cocoa` platform:
-//! ```json
-//! {
-//!     "debug_meta": { ... },
-//!     "device_is_emulator": true,
-//!     "device_locale": "en_US",
-//!     "device_manufacturer": "Apple",
-//!     "device_model": "iPhone14,3",
-//!     "device_os_build_number": "21E258",
-//!     "device_os_name": "iOS",
-//!     "device_os_version": "15.2",
-//!     "device_physical_memory_bytes": 34359738368,
-//!     "duration_ns": 6634284250,
-//!     "platform": "cocoa",
-//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
-//!     "sampled_profile": { ... },
-//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
-//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
-//!     "transaction_name": "iOS_Swift.ViewController",
-//!     "version_code": "1",
-//!     "version_name": "7.14.0"
-//! }
-//! ```
+//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
 use std::error::Error;
 use std::time::Duration;
@@ -125,7 +71,7 @@ pub type ProfileId = EventId;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
-    #[serde(alias = "profile_id")]
+    #[serde(alias = "profile_id", alias = "chunk_id")]
     event_id: ProfileId,
     platform: String,
     #[serde(default)]
@@ -154,7 +100,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     match profile.version {
         sample::Version::V1 => {
             let d = &mut Deserializer::from_slice(payload);
-            let _: sample::ProfileMetadata = match serde_path_to_error::deserialize(d) {
+            let _: sample::v1::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
                 Err(err) => {
                     relay_log::warn!(
@@ -212,9 +158,9 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
     let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match profile.version {
         sample::Version::V1 => {
-            sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
+            sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        sample::Version::Unknown => match profile.platform.as_str() {
+        _ => match profile.platform.as_str() {
             "android" => {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
@@ -254,6 +200,28 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
     }
 }
 
+pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = match minimal_profile_from_json(payload) {
+        Ok(profile) => profile,
+        Err(err) => {
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                from = "minimal",
+                "invalid profile chunk",
+            );
+            return Err(ProfileError::InvalidJson(err));
+        }
+    };
+    match profile.version {
+        sample::Version::V2 => {
+            let mut profile = sample::v2::parse(payload)?;
+            profile.normalize()?;
+            serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+        }
+        _ => Err(ProfileError::PlatformNotSupported),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,19 +244,19 @@ mod tests {
 
     #[test]
     fn test_expand_profile_with_version() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/sample/v1/valid.json");
         assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 
     #[test]
     fn test_expand_profile_with_version_and_segment_id() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/segment_id.json");
+        let payload = include_bytes!("../tests/fixtures/sample/v1/segment_id.json");
         assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 }

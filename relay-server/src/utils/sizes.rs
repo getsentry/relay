@@ -64,6 +64,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
             ItemType::MetricMeta => config.max_metric_meta_size(),
             ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
+            ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };
 

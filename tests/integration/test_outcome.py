@@ -1163,7 +1163,7 @@ def test_profile_outcomes(
         upstream = relay(upstream, config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1369,7 +1369,7 @@ def test_profile_outcomes_too_many(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1549,7 +1549,7 @@ def test_profile_outcomes_rate_limited(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()

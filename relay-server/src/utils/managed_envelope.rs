@@ -504,6 +504,14 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.profile_chunk_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::ProfileChunk,
+                self.context.summary.profile_chunk_quantity,
+            );
+        }
+
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
