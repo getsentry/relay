@@ -187,14 +187,14 @@
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             KafkaGauges::InFlightCount =&gt; <span class="string">"kafka.in_flight_count"</span>,
-            KafkaGauges::MessageCount =&gt; <span class="string">"kafka.message_count"</span>,
-            KafkaGauges::MessageCountMax =&gt; <span class="string">"kafka.message_count_max"</span>,
-            KafkaGauges::MessageSize =&gt; <span class="string">"kafka.message_size"</span>,
-            KafkaGauges::MessageSizeMax =&gt; <span class="string">"kafka.message_size_max"</span>,
-            KafkaGauges::OutboundBufferRequests =&gt; <span class="string">"kafka.broker.outbuf.requests"</span>,
-            KafkaGauges::OutboundBufferMessages =&gt; <span class="string">"kafka.broker.outbuf.messages"</span>,
-            KafkaGauges::Connects =&gt; <span class="string">"kafka.broker.connects"</span>,
-            KafkaGauges::Disconnects =&gt; <span class="string">"kafka.broker.disconnects"</span>,
+            KafkaGauges::MessageCount =&gt; <span class="string">"kafka.stats.message_count"</span>,
+            KafkaGauges::MessageCountMax =&gt; <span class="string">"kafka.stats.message_count_max"</span>,
+            KafkaGauges::MessageSize =&gt; <span class="string">"kafka.stats.message_size"</span>,
+            KafkaGauges::MessageSizeMax =&gt; <span class="string">"kafka.stats.message_size_max"</span>,
+            KafkaGauges::OutboundBufferRequests =&gt; <span class="string">"kafka.stats.broker.outbuf.requests"</span>,
+            KafkaGauges::OutboundBufferMessages =&gt; <span class="string">"kafka.stats.broker.outbuf.messages"</span>,
+            KafkaGauges::Connects =&gt; <span class="string">"kafka.stats.broker.connects"</span>,
+            KafkaGauges::Disconnects =&gt; <span class="string">"kafka.stats.broker.disconnects"</span>,
         }
     }
 }
