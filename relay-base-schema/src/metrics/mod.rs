@@ -1,9 +1,11 @@
 //! Type definitions for Sentry metrics.
 
 mod mri;
+mod name;
 mod units;
 
 pub use self::mri::*;
+pub use self::name::*;
 pub use self::units::*;
 
 use regex::Regex;
