@@ -2064,6 +2064,13 @@
 <a href="#2062" id="2062">2062</a>
 <a href="#2063" id="2063">2063</a>
 <a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2190,6 +2197,8 @@
     </span>OtelSpan,
     <span class="doccomment">/// UserReport as an Event
     </span>UserReportV2,
+    <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
+    </span>ProfileChunk,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -2240,6 +2249,7 @@
             <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
             <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
+            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::Unknown(<span class="kw">_</span>) =&gt; <span class="string">"unknown"</span>,
         }
     }
@@ -2295,6 +2305,7 @@
             <span class="string">"check_in" </span>=&gt; <span class="self">Self</span>::CheckIn,
             <span class="string">"span" </span>=&gt; <span class="self">Self</span>::Span,
             <span class="string">"otel_span" </span>=&gt; <span class="self">Self</span>::OtelSpan,
+            <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             other =&gt; <span class="self">Self</span>::Unknown(other.to_owned()),
         })
     }
@@ -2756,6 +2767,7 @@
             } <span class="kw">else </span>{
                 DataCategory::Span
             }),
+            ItemType::ProfileChunk =&gt; <span class="prelude-val">Some</span>(DataCategory::ProfileChunk),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -2974,7 +2986,8 @@
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
+            | ItemType::OtelSpan
+            | ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -3010,6 +3023,7 @@
             ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
             ItemType::Span =&gt; <span class="bool-val">false</span>,
             ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
+            ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

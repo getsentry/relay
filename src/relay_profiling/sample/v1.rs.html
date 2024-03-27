@@ -1,6 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/sample.rs`."><title>sample.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/sample/v1.rs`."><title>v1.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_profiling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../relay_profiling/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../relay_profiling/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -988,97 +988,28 @@
 <a href="#986" id="986">986</a>
 <a href="#987" id="987">987</a>
 <a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
-<a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a>
-<a href="#1004" id="1004">1004</a>
-<a href="#1005" id="1005">1005</a>
-<a href="#1006" id="1006">1006</a>
-<a href="#1007" id="1007">1007</a>
-<a href="#1008" id="1008">1008</a>
-<a href="#1009" id="1009">1009</a>
-<a href="#1010" id="1010">1010</a>
-<a href="#1011" id="1011">1011</a>
-<a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
-<a href="#1016" id="1016">1016</a>
-<a href="#1017" id="1017">1017</a>
-<a href="#1018" id="1018">1018</a>
-<a href="#1019" id="1019">1019</a>
-<a href="#1020" id="1020">1020</a>
-<a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
+</pre></div><pre class="rust"><code><span class="doccomment">//! Sample Format V1
+//!
+//! This is a way to send samples collected at regular intervals from our SDKs. We are expecting
+//! one profile per transaction at most and as such, we collect transaction metadata and add it to
+//! the profile in Relay.
+//!
+</span><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 <span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>relay_event_schema::protocol::{Addr, EventId, SpanId};
+<span class="kw">use </span>relay_event_schema::protocol::{EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::error::ProfileError;
 <span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
-<span class="kw">use </span><span class="kw">crate</span>::native_debug_image::NativeDebugImage;
+<span class="kw">use </span><span class="kw">crate</span>::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 <span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, string_is_null_or_empty};
 <span class="kw">use </span><span class="kw">crate</span>::MAX_PROFILE_DURATION;
 
 <span class="kw">const </span>MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() <span class="kw">as </span>u64;
-
-<span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-</span><span class="kw">struct </span>Frame {
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>abs_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(alias = <span class="string">"column"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>colno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attr">#[serde(alias = <span class="string">"file"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>filename: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(alias = <span class="string">"name"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>function: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>in_app: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>instruction_addr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
-    <span class="attr">#[serde(alias = <span class="string">"line"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>module: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>platform: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
-<span class="kw">impl </span>Frame {
-    <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pac_code: u64) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = <span class="self">self</span>.instruction_addr {
-            <span class="self">self</span>.instruction_addr = <span class="prelude-val">Some</span>(Addr(address.<span class="number">0 </span>&amp; pac_code));
-        }
-    }
-}
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>Sample {
@@ -1091,14 +1022,6 @@
     <span class="comment">// cocoa only
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>queue_address: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
-<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">struct </span>ThreadMetadata {
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>name: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>priority: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1259,11 +1182,6 @@
     }
 }
 
-<span class="attr">#[derive(Default, Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">struct </span>DebugMeta {
-    images: Vec&lt;NativeDebugImage&gt;,
-}
-
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>OSMetadata {
     name: String,
@@ -1291,14 +1209,6 @@
     </span>manufacturer: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>model: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
-<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-</span><span class="kw">pub enum </span>Version {
-    <span class="attr">#[default]
-    </span>Unknown,
-    <span class="attr">#[serde(rename = <span class="string">"1"</span>)]
-    </span>V1,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1447,7 +1357,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/sample/v1/valid.json"</span>);
         <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
@@ -1456,7 +1366,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/sample/v1/valid.json"</span>);
         <span class="kw">let </span>profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         <span class="macro">assert!</span>(profile.is_ok());
     }
@@ -1952,7 +1862,7 @@
             <span class="string">"some-random-transaction"</span>.to_string(),
         )]);
 
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../../tests/fixtures/sample/v1/valid.json"</span>);
         <span class="kw">let </span>profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         <span class="macro">assert!</span>(profile_json.is_ok());
 

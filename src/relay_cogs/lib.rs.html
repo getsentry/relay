@@ -197,6 +197,11 @@
 <a href="#195" id="195">195</a>
 <a href="#196" id="196">196</a>
 <a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
 //!
 //! Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
@@ -326,6 +331,10 @@
     </span>CheckIns,
     <span class="doccomment">/// Replays.
     </span>Replays,
+    <span class="doccomment">/// Profiles.
+    ///
+    /// This app feature is for continuous profiling.
+    </span>Profiles,
 
     <span class="doccomment">/// Metric metadata.
     </span>MetricMeta,
@@ -371,6 +380,7 @@
             <span class="self">Self</span>::MetricsCustom =&gt; <span class="string">"metrics_custom"</span>,
             <span class="self">Self</span>::MetricsStats =&gt; <span class="string">"metrics_metric_stats"</span>,
             <span class="self">Self</span>::MetricsUnsupported =&gt; <span class="string">"metrics_unsupported"</span>,
+            <span class="self">Self</span>::Profiles =&gt; <span class="string">"profiles"</span>,
         }
     }
 }

@@ -111,6 +111,7 @@
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -177,6 +178,7 @@
             ItemType::MetricBuckets =&gt; config.max_metric_buckets_size(),
             ItemType::MetricMeta =&gt; config.max_metric_meta_size(),
             ItemType::Span | ItemType::OtelSpan =&gt; config.max_span_size(),
+            ItemType::ProfileChunk =&gt; config.max_profile_size(),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; NO_LIMIT,
         };
 

@@ -348,7 +348,21 @@
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
+//!
+//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
+//! containing the raw Android profile.
+//!
+//! `android` has a specific binary representation of its profile and Relay is responsible to
+//! unpack it before it's forwarded down the line.
+//!
+</span><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
 <span class="kw">use </span>android_trace_log::{AndroidTraceLog, Clock, Vm};
@@ -358,7 +372,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
 <span class="kw">use </span><span class="kw">crate</span>::native_debug_image::NativeDebugImage;
-<span class="kw">use </span><span class="kw">crate</span>::sample::SampleProfile;
+<span class="kw">use </span><span class="kw">crate</span>::sample::v1::SampleProfile;
 <span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
 <span class="kw">use crate</span>::{ProfileError, MAX_PROFILE_DURATION};
@@ -591,7 +605,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip_android() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/roundtrip.json"</span>);
         <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
@@ -602,7 +616,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip_react_native() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/roundtrip.rn.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/roundtrip.rn.json"</span>);
         <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
@@ -613,23 +627,21 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_transaction() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/no_transaction.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/no_transaction.json"</span>);
         <span class="kw">let </span>data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         <span class="macro">assert!</span>(data.is_err());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_invalid_events() {
-        <span class="kw">let </span>payload =
-            <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/remove_invalid_events.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/remove_invalid_events.json"</span>);
         <span class="kw">let </span>data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         <span class="macro">assert!</span>(data.is_err());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_transactions_to_top_level() {
-        <span class="kw">let </span>payload =
-            <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/multiple_transactions.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/multiple_transactions.json"</span>);
 
         <span class="kw">let </span>profile = <span class="kw">match </span>parse_profile(payload) {
             <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">"cannot parse profile: {err:?}"</span>),
@@ -658,7 +670,7 @@
             ),
         ]);
 
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/valid.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/valid.json"</span>);
         <span class="kw">let </span>profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         <span class="macro">assert!</span>(profile_json.is_ok());
 
@@ -680,7 +692,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_timestamp() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/roundtrip.json"</span>);
         <span class="kw">let </span>profile = parse_profile(payload);
 
         <span class="macro">assert!</span>(profile.is_ok());

@@ -262,38 +262,6 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -307,87 +275,33 @@
 //!
 //! # Envelope
 //!
-//! To send a profile to Relay, the profile is enclosed in an item of type `profile`:
+//! ## Transaction Profiling
+//!
+//! To send a profile of a transaction to Relay, the profile is enclosed in an item of type
+//! `profile`:
 //! ```json
 //! {"type": "profile", "size": ...}
+//! { ... }
+//! ```
+//! ## Continuous Profiling
+//!
+//! For continuous profiling, we expect to receive chunks of profile in an item of type
+//! `profile_chunk`:
+//! ```json
+//! {"type": "profile_chunk"}
 //! { ... }
 //! ```
 //!
 //! # Protocol
 //!
-//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
-//! containing the raw profile. Each platform has their own schema for the profile.
+//! Each item type expects a different format.
 //!
-//! `android` has a specific binary representation of its profile and Relay is responsible to
-//! unpack it before it's forwarded down the line.
-//!
-//! The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks
-//! like this:
-//! ```json
-//! {
-//!     "debug_meta": { ... },
-//!     "device_is_emulator": true,
-//!     "device_locale": "en_US",
-//!     "device_manufacturer": "Apple",
-//!     "device_model": "iPhone14,3",
-//!     "device_os_build_number": "21E258",
-//!     "device_os_name": "iOS",
-//!     "device_os_version": "15.2",
-//!     "device_physical_memory_bytes": 34359738368,
-//!     "duration_ns": "6634284250",
-//!     "platform": "cocoa",
-//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
-//!     "sampled_profile": { ... },
-//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
-//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
-//!     "transaction_name": "iOS_Swift.ViewController",
-//!     "version_code": "1",
-//!     "version_name": "7.14.0"
-//! }
-//! ```
-//!
-//! These are the custom attributes for mobile platforms:
-//! - `device_os_build_number`
-//! - `android_api_level`
-//! - `device_is_emulator`
-//! - `device_locale`
-//! - `device_model`
-//! - `device_manufacturer`
-//! - `device_physical_memory_bytes`
-//!
-//! These are the custom attributes for the `android` platform:
-//! - `build_id`
-//! - `device_cpu_frequencies`
-//!
-//! These are the custom attributes for backend platforms:
-//! - `architecture`
+//! For `Profile` item type, we expect the Sample format v1 or Android format.
+//! For `ProfileChunk` item type, we expect the Sample format v2.
 //!
 //! # Ingestion
 //!
-//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka looking
-//! like this for the `cocoa` platform:
-//! ```json
-//! {
-//!     "debug_meta": { ... },
-//!     "device_is_emulator": true,
-//!     "device_locale": "en_US",
-//!     "device_manufacturer": "Apple",
-//!     "device_model": "iPhone14,3",
-//!     "device_os_build_number": "21E258",
-//!     "device_os_name": "iOS",
-//!     "device_os_version": "15.2",
-//!     "device_physical_memory_bytes": 34359738368,
-//!     "duration_ns": 6634284250,
-//!     "platform": "cocoa",
-//!     "profile_id": "ee6851adf6014de8af8ca517217ac481",
-//!     "sampled_profile": { ... },
-//!     "trace_id": "4b45d297ef404fb89e8fdf418c8f38a2",
-//!     "transaction_id": "8c3e0bc0518540b3ad1aa70d08f1ca7a",
-//!     "transaction_name": "iOS_Swift.ViewController",
-//!     "version_code": "1",
-//!     "version_name": "7.14.0"
-//! }
-//! ```
+//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::time::Duration;
@@ -421,7 +335,7 @@
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>MinimalProfile {
-    <span class="attr">#[serde(alias = <span class="string">"profile_id"</span>)]
+    <span class="attr">#[serde(alias = <span class="string">"profile_id"</span>, alias = <span class="string">"chunk_id"</span>)]
     </span>event_id: ProfileId,
     platform: String,
     <span class="attr">#[serde(default)]
@@ -450,7 +364,7 @@
     <span class="kw">match </span>profile.version {
         sample::Version::V1 =&gt; {
             <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(payload);
-            <span class="kw">let _</span>: sample::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
+            <span class="kw">let _</span>: sample::v1::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
                 <span class="prelude-val">Ok</span>(profile) =&gt; profile,
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::warn!</span>(
@@ -508,9 +422,9 @@
     <span class="kw">let </span>transaction_tags = extract_transaction_tags(event);
     <span class="kw">let </span>processed_payload = <span class="kw">match </span>profile.version {
         sample::Version::V1 =&gt; {
-            sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
+            sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        sample::Version::Unknown =&gt; <span class="kw">match </span>profile.platform.as_str() {
+        <span class="kw">_ </span>=&gt; <span class="kw">match </span>profile.platform.as_str() {
             <span class="string">"android" </span>=&gt; {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
@@ -550,6 +464,28 @@
     }
 }
 
+<span class="kw">pub fn </span>expand_profile_chunk(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile = <span class="kw">match </span>minimal_profile_from_json(payload) {
+        <span class="prelude-val">Ok</span>(profile) =&gt; profile,
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="macro">relay_log::warn!</span>(
+                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                from = <span class="string">"minimal"</span>,
+                <span class="string">"invalid profile chunk"</span>,
+            );
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
+        }
+    };
+    <span class="kw">match </span>profile.version {
+        sample::Version::V2 =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>profile = sample::v2::parse(payload)<span class="question-mark">?</span>;
+            profile.normalize()<span class="question-mark">?</span>;
+            serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
+        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
+    }
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -572,19 +508,19 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/sample/v1/valid.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version_and_segment_id() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/sample/segment_id.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/sample/v1/segment_id.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/profiles/android/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/roundtrip.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 }

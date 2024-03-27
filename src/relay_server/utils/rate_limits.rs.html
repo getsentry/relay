@@ -1446,6 +1446,26 @@
 <a href="#1444" id="1444">1444</a>
 <a href="#1445" id="1445">1445</a>
 <a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1562,6 +1582,7 @@
         ItemType::CheckIn =&gt; <span class="prelude-val">None</span>,
         ItemType::Span =&gt; <span class="prelude-val">None</span>,
         ItemType::OtelSpan =&gt; <span class="prelude-val">None</span>,
+        ItemType::ProfileChunk =&gt; <span class="prelude-val">Some</span>(DataCategory::ProfileChunk),
         ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
 }
@@ -1618,6 +1639,9 @@
 
     <span class="doccomment">/// The payload size of this envelope.
     </span><span class="kw">pub </span>payload_size: usize,
+
+    <span class="doccomment">/// The number of profile chunks in this envelope.
+    </span><span class="kw">pub </span>profile_chunk_quantity: usize,
 }
 
 <span class="kw">impl </span>EnvelopeSummary {
@@ -1677,6 +1701,7 @@
             ItemType::CheckIn =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.checkin_quantity,
             ItemType::OtelSpan =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
             ItemType::Span =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
+            ItemType::ProfileChunk =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_chunk_quantity,
             <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
         };
         <span class="kw-2">*</span>target_quantity += item.quantity();
@@ -1765,6 +1790,8 @@
     </span>spans: CategoryLimit,
     <span class="doccomment">/// The combined rate limit for metrics extracted from spans.
     </span>span_metrics: CategoryLimit,
+    <span class="doccomment">/// The combined profile chunk item rate limit.
+    </span>profile_chunks: CategoryLimit,
 }
 
 <span class="kw">impl </span>Enforcement {
@@ -1795,6 +1822,7 @@
             event_metrics,
             spans,
             span_metrics,
+            profile_chunks,
         } = <span class="self">self</span>;
 
         <span class="kw">let </span>limits = [
@@ -1806,6 +1834,7 @@
             event_metrics,
             spans,
             span_metrics,
+            profile_chunks,
         ];
 
         limits
@@ -2112,6 +2141,17 @@
                 CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
 
             rate_limits.merge(span_limits);
+        }
+
+        <span class="kw">if </span>summary.profile_chunk_quantity &gt; <span class="number">0 </span>{
+            <span class="kw">let </span>item_scoping = scoping.item(DataCategory::ProfileChunk);
+            <span class="kw">let </span>profile_chunk_limits = (<span class="self">self</span>.check)(item_scoping, summary.profile_chunk_quantity)<span class="question-mark">?</span>;
+            enforcement.profile_chunks = CategoryLimit::new(
+                DataCategory::ProfileChunk,
+                summary.profile_chunk_quantity,
+                profile_chunk_limits.longest(),
+            );
+            rate_limits.merge(profile_chunk_limits);
         }
 
         <span class="prelude-val">Ok</span>((enforcement, rate_limits))

@@ -3244,6 +3244,34 @@
 <a href="#3242" id="3242">3242</a>
 <a href="#3243" id="3243">3243</a>
 <a href="#3244" id="3244">3244</a>
+<a href="#3245" id="3245">3245</a>
+<a href="#3246" id="3246">3246</a>
+<a href="#3247" id="3247">3247</a>
+<a href="#3248" id="3248">3248</a>
+<a href="#3249" id="3249">3249</a>
+<a href="#3250" id="3250">3250</a>
+<a href="#3251" id="3251">3251</a>
+<a href="#3252" id="3252">3252</a>
+<a href="#3253" id="3253">3253</a>
+<a href="#3254" id="3254">3254</a>
+<a href="#3255" id="3255">3255</a>
+<a href="#3256" id="3256">3256</a>
+<a href="#3257" id="3257">3257</a>
+<a href="#3258" id="3258">3258</a>
+<a href="#3259" id="3259">3259</a>
+<a href="#3260" id="3260">3260</a>
+<a href="#3261" id="3261">3261</a>
+<a href="#3262" id="3262">3262</a>
+<a href="#3263" id="3263">3263</a>
+<a href="#3264" id="3264">3264</a>
+<a href="#3265" id="3265">3265</a>
+<a href="#3266" id="3266">3266</a>
+<a href="#3267" id="3267">3267</a>
+<a href="#3268" id="3268">3268</a>
+<a href="#3269" id="3269">3269</a>
+<a href="#3270" id="3270">3270</a>
+<a href="#3271" id="3271">3271</a>
+<a href="#3272" id="3272">3272</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3336,6 +3364,7 @@
 <span class="kw">mod </span>dynamic_sampling;
 <span class="kw">mod </span>event;
 <span class="kw">mod </span>profile;
+<span class="kw">mod </span>profile_chunk;
 <span class="kw">mod </span>replay;
 <span class="kw">mod </span>report;
 <span class="kw">mod </span>session;
@@ -3411,6 +3440,7 @@
 <span class="macro">processing_group!</span>(ReplayGroup, Replay);
 <span class="macro">processing_group!</span>(CheckInGroup, CheckIn);
 <span class="macro">processing_group!</span>(SpanGroup, Span);
+<span class="macro">processing_group!</span>(ProfileChunkGroup, ProfileChunk);
 <span class="macro">processing_group!</span>(MetricsGroup, Metrics);
 <span class="macro">processing_group!</span>(ForwardUnknownGroup, ForwardUnknown);
 <span class="macro">processing_group!</span>(Ungrouped, Ungrouped);
@@ -3448,6 +3478,8 @@
     </span>Span,
     <span class="doccomment">/// Metrics.
     </span>Metrics,
+    <span class="doccomment">/// ProfileChunk.
+    </span>ProfileChunk,
     <span class="doccomment">/// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     </span>ForwardUnknown,
@@ -3517,6 +3549,16 @@
             grouped_envelopes.push((
                 ProcessingGroup::Metrics,
                 Envelope::from_parts(headers.clone(), metric_items),
+            ))
+        }
+
+        <span class="comment">// Extract profile chunks.
+        </span><span class="kw">let </span>profile_chunk_items =
+            envelope.take_items_by(|item| <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::ProfileChunk));
+        <span class="kw">if </span>!profile_chunk_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::ProfileChunk,
+                Envelope::from_parts(headers.clone(), profile_chunk_items),
             ))
         }
 
@@ -3601,6 +3643,7 @@
             ProcessingGroup::CheckIn =&gt; <span class="string">"check_in"</span>,
             ProcessingGroup::Span =&gt; <span class="string">"span"</span>,
             ProcessingGroup::Metrics =&gt; <span class="string">"metrics"</span>,
+            ProcessingGroup::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             ProcessingGroup::ForwardUnknown =&gt; <span class="string">"forward_unknown"</span>,
             ProcessingGroup::Ungrouped =&gt; <span class="string">"ungrouped"</span>,
         }
@@ -3619,6 +3662,7 @@
             ProcessingGroup::CheckIn =&gt; AppFeature::CheckIns,
             ProcessingGroup::Span =&gt; AppFeature::Spans,
             ProcessingGroup::Metrics =&gt; AppFeature::UnattributedMetrics,
+            ProcessingGroup::ProfileChunk =&gt; AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown =&gt; AppFeature::UnattributedEnvelope,
             ProcessingGroup::Ungrouped =&gt; AppFeature::UnattributedEnvelope,
         }
@@ -4628,6 +4672,17 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>process_profile_chunks(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ProfileChunkGroup&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        profile_chunk::filter(state);
+        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+            profile_chunk::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+        });
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="doccomment">/// Processes standalone items that require an event ID, but do not have an event on the same envelope.
     </span><span class="kw">fn </span>process_standalone(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -4765,6 +4820,7 @@
             ProcessingGroup::Replay =&gt; <span class="macro">run!</span>(process_replays),
             ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins),
             ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_standalone_spans),
+            ProcessingGroup::ProfileChunk =&gt; <span class="macro">run!</span>(process_profile_chunks),
             <span class="comment">// Currently is not used.
             </span>ProcessingGroup::Metrics =&gt; {
                 <span class="comment">// In proxy mode we simply forward the metrics.
