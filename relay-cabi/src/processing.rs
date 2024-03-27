@@ -266,7 +266,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         transaction_name_config: Default::default(), // only supported in relay
         is_renormalize,
         remove_other: config.remove_other.unwrap_or(!is_renormalize),
-        emit_error_events: !is_renormalize,
+        emit_event_errors: !is_renormalize,
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
         max_tag_value_length: usize::MAX,

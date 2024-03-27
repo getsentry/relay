@@ -113,7 +113,7 @@ pub struct NormalizationConfig<'a> {
     pub remove_other: bool,
 
     /// When enabled, adds errors in the meta to the event's errors.
-    pub emit_error_events: bool,
+    pub emit_event_errors: bool,
 
     /// When `true`, infers the device class from CPU and model.
     pub device_class_synthesis_config: bool,
@@ -168,7 +168,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             transaction_name_config: Default::default(),
             is_renormalize: Default::default(),
             remove_other: Default::default(),
-            emit_error_events: Default::default(),
+            emit_event_errors: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
@@ -216,7 +216,7 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
             remove_other::RemoveOtherProcessor.process_event(event, meta, ProcessingState::root());
     }
 
-    if config.emit_error_events {
+    if config.emit_event_errors {
         // Add event errors for top-level keys
         let _ =
             event_error::EmitEventErrors::new().process_event(event, meta, ProcessingState::root());

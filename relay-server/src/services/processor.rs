@@ -1273,7 +1273,7 @@ impl EnvelopeProcessorService {
                     .max_tag_value_length,
                 is_renormalize: false,
                 remove_other: is_last_relay_normalize,
-                emit_error_events: is_last_relay_normalize,
+                emit_event_errors: is_last_relay_normalize,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
