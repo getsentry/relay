@@ -662,7 +662,7 @@
             .user
             .get_or_insert_with(User::default)
             .username
-            .set_value(<span class="prelude-val">Some</span>(username));
+            .set_value(<span class="prelude-val">Some</span>(username.into()));
     }
 
     <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::default);

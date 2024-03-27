@@ -230,6 +230,19 @@
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -294,7 +307,7 @@
 
     <span class="doccomment">/// Username of the user.
     </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
-    </span><span class="kw">pub </span>username: Annotated&lt;String&gt;,
+    </span><span class="kw">pub </span>username: Annotated&lt;LenientString&gt;,
 
     <span class="doccomment">/// Human readable name of the user.
     </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
@@ -395,7 +408,7 @@
             email: Annotated::new(<span class="string">"mail@example.org"</span>.to_string()),
             ip_address: Annotated::new(IpAddr::auto()),
             name: Annotated::new(<span class="string">"John Doe"</span>.to_string()),
-            username: Annotated::new(<span class="string">"john_doe"</span>.to_string()),
+            username: Annotated::new(LenientString(<span class="string">"john_doe"</span>.to_owned())),
             geo: Annotated::empty(),
             segment: Annotated::new(<span class="string">"vip"</span>.to_string()),
             data: {
@@ -427,6 +440,19 @@
         <span class="kw">let </span>output = <span class="string">r#"{"id":"42"}"#</span>;
         <span class="kw">let </span>user = Annotated::new(User {
             id: Annotated::new(<span class="string">"42"</span>.to_string().into()),
+            ..User::default()
+        });
+
+        <span class="macro">assert_eq!</span>(user, Annotated::from_json(input).unwrap());
+        <span class="macro">assert_eq!</span>(output, user.to_json().unwrap());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_user_lenient_username() {
+        <span class="kw">let </span>input = <span class="string">r#"{"username":42}"#</span>;
+        <span class="kw">let </span>output = <span class="string">r#"{"username":"42"}"#</span>;
+        <span class="kw">let </span>user = Annotated::new(User {
+            username: Annotated::new(<span class="string">"42"</span>.to_string().into()),
             ..User::default()
         });
 

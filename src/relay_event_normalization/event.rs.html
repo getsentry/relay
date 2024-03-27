@@ -6197,7 +6197,7 @@
             Annotated::new(map)
         });
         <span class="macro">assert_eq!</span>(user.other, Object::new());
-        <span class="macro">assert_eq!</span>(user.username, Annotated::new(<span class="string">"john"</span>.to_string()));
+        <span class="macro">assert_eq!</span>(user.username, Annotated::new(<span class="string">"john"</span>.to_string().into()));
         <span class="macro">assert_eq!</span>(user.sentry_user, Annotated::new(<span class="string">"id:123456"</span>.to_string()));
     }
 
