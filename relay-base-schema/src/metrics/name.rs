@@ -22,7 +22,7 @@ impl MetricName {
     /// # Examples
     ///
     /// ```
-    /// use relay_metrics::{MetricName, MetricNamespace};
+    /// use relay_base_schema::metrics::{MetricName, MetricNamespace};
     ///
     /// let name = MetricName::from("foo");
     /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
@@ -43,7 +43,7 @@ impl MetricName {
     /// # Examples
     ///
     /// ```
-    /// use relay_metrics::{MetricName, MetricNamespace};
+    /// use relay_base_schema::metrics::{MetricName, MetricNamespace};
     ///
     /// let name = MetricName::from("foo");
     /// assert!(name.try_namespace().is_none());
