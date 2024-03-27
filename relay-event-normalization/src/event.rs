@@ -42,7 +42,7 @@ pub struct NormalizationConfig<'a> {
     /// Whether it's the last normalization step.
     ///
     /// The last normalization run performs a few additional steps that
-    /// shouldn't happen in previous runs, like removing unknown attributes.
+    /// shouldn't happen in previous runs.
     pub is_last_normalize: bool,
 
     /// The identifier of the target project, which gets added to the payload.
@@ -116,6 +116,8 @@ pub struct NormalizationConfig<'a> {
     pub is_renormalize: bool,
 
     /// Overrides the default flag for other removal.
+    ///
+    /// Requires enabling `is_last_normalized`.
     pub remove_other: Option<bool>,
 
     /// When `true`, infers the device class from CPU and model.

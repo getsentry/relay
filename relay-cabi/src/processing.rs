@@ -33,7 +33,7 @@ use crate::core::{RelayBuf, RelayStr};
 /// Configuration for the store step -- validation and normalization.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-pub struct StoreConfig {
+pub struct StoreNormalizer {
     /// The identifier of the target project, which gets added to the payload.
     pub project_id: Option<u64>,
 
@@ -140,9 +140,9 @@ pub struct StoreConfig {
     pub normalize_spans: bool,
 }
 
-impl StoreConfig {
+impl StoreNormalizer {
     /// Helper method to parse *mut StoreConfig -> &StoreConfig
-    pub fn this(&self) -> &Self {
+    fn this(&self) -> &Self {
         self
     }
 }
@@ -151,7 +151,7 @@ impl StoreConfig {
 pub struct RelayGeoIpLookup;
 
 /// The processor that normalizes events for store.
-pub struct RelayStoreConfig;
+pub struct RelayStoreNormalizer;
 
 /// Chunks the given text based on remarks.
 #[no_mangle]
@@ -200,23 +200,23 @@ pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const R
     platforms.as_ptr()
 }
 
-/// Creates a new normalization processor.
+/// Creates a new normalization config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_new(
     config: *const RelayStr,
     _geoip_lookup: *const RelayGeoIpLookup,
-) -> *mut RelayStoreConfig {
-    let config: StoreConfig = serde_json::from_str((*config).as_str())?;
-    Box::into_raw(Box::new(config)) as *mut RelayStoreConfig
+) -> *mut RelayStoreNormalizer {
+    let config: StoreNormalizer = serde_json::from_str((*config).as_str())?;
+    Box::into_raw(Box::new(config)) as *mut RelayStoreNormalizer
 }
 
 /// Frees a `RelayStoreNormalizer`.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_store_normalizer_free(config: *mut RelayStoreConfig) {
+pub unsafe extern "C" fn relay_store_normalizer_free(config: *mut RelayStoreNormalizer) {
     if !config.is_null() {
-        let config = config as *mut StoreConfig;
+        let config = config as *mut StoreNormalizer;
         let _dropped = Box::from_raw(config);
     }
 }
@@ -225,10 +225,10 @@ pub unsafe extern "C" fn relay_store_normalizer_free(config: *mut RelayStoreConf
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
-    config: *mut RelayStoreConfig,
+    config: *mut RelayStoreNormalizer,
     event: *const RelayStr,
 ) -> RelayStr {
-    let config = config as *mut StoreConfig;
+    let config = config as *mut StoreNormalizer;
     let config = (*config).this();
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
 
