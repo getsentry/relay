@@ -33,12 +33,16 @@
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
 <a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Type definitions for Sentry metrics.
 
 </span><span class="kw">mod </span>mri;
+<span class="kw">mod </span>name;
 <span class="kw">mod </span>units;
 
 <span class="kw">pub use </span><span class="self">self</span>::mri::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::name::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::units::<span class="kw-2">*</span>;
 
 <span class="kw">use </span>regex::Regex;

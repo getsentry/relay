@@ -6,7 +6,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["relay",["",[],["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]]],\
 ["relay_auth",["",[],["lib.rs"]]],\
 ["relay_aws_extension",["",[],["aws_extension.rs","lib.rs"]]],\
-["relay_base_schema",["",[["metrics",[],["mod.rs","mri.rs","units.rs"]]],["data_category.rs","events.rs","lib.rs","project.rs","spans.rs"]]],\
+["relay_base_schema",["",[["metrics",[],["mod.rs","mri.rs","name.rs","units.rs"]]],["data_category.rs","events.rs","lib.rs","project.rs","spans.rs"]]],\
 ["relay_cabi",["",[],["auth.rs","codeowners.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]]],\
 ["relay_cardinality",["",[["redis",[],["cache.rs","limiter.rs","mod.rs","quota.rs","script.rs","state.rs"]]],["config.rs","error.rs","lib.rs","limiter.rs","statsd.rs","window.rs"]]],\
 ["relay_cogs",["",[],["cogs.rs","lib.rs","recorder.rs"]]],\
