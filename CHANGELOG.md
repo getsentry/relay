@@ -4,8 +4,11 @@
 
 **Features**:
 
+- Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
+- Drop `event_id` and `remote_addr` from all outcomes. ([#3319](https://github.com/getsentry/relay/pull/3319))
+- Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
 
 **Internal**:
@@ -18,6 +21,7 @@
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
 - Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
+- Collect duration for all spans. ([#3322](https://github.com/getsentry/relay/pull/3322))
 - Add `project_id` as part of the span Kafka message headers. ([#3320](https://github.com/getsentry/relay/pull/3320))
 - Stop producing to sessions topic, the feature is now fully migrated to metrics. ([#3271](https://github.com/getsentry/relay/pull/3271))
 

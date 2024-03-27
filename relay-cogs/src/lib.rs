@@ -127,6 +127,10 @@ pub enum AppFeature {
     CheckIns,
     /// Replays.
     Replays,
+    /// Profiles.
+    ///
+    /// This app feature is for continuous profiling.
+    Profiles,
 
     /// Metric metadata.
     MetricMeta,
@@ -172,6 +176,7 @@ impl AppFeature {
             Self::MetricsCustom => "metrics_custom",
             Self::MetricsStats => "metrics_metric_stats",
             Self::MetricsUnsupported => "metrics_unsupported",
+            Self::Profiles => "profiles",
         }
     }
 }

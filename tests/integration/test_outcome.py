@@ -977,10 +977,10 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     assert outcome == expected_outcome
 
 
-def test_outcomes_do_not_aggregate(
+def test_outcomes_aggregate_inbound_filters(
     relay, relay_with_processing, mini_sentry, outcomes_consumer
 ):
-    """Make sure that certain types are not aggregated"""
+    """Make sure that inbound filters outcomes are aggregated"""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
@@ -1001,42 +1001,27 @@ def test_outcomes_do_not_aggregate(
     outcomes_consumer = outcomes_consumer(timeout=1.2)
 
     # Send empty body twice
-    event_id1 = _send_event(relay)
-    event_id2 = _send_event(relay)
+    _send_event(relay)
+    _send_event(relay)
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 2, outcomes
+    outcomes = outcomes_consumer.get_outcomes(timeout=5)
+    assert len(outcomes) == 1, outcomes
 
     for outcome in outcomes:
         del outcome["timestamp"]
 
-    # Results in two outcomes, nothing aggregated:
-    expected_outcomes = {
-        event_id1: {
+    # Results in a single aggregated outcome:
+    assert outcomes == [
+        {
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
             "outcome": 1,
-            "event_id": event_id1,
-            "remote_addr": "127.0.0.1",
             "reason": "release-version",
             "category": 1,
-            "quantity": 1,
-        },
-        event_id2: {
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
-            "event_id": event_id2,
-            "remote_addr": "127.0.0.1",
-            "reason": "release-version",
-            "category": 1,
-            "quantity": 1,
-        },
-    }
-    # Convert to dict to ignore sort order:
-    assert {x["event_id"]: x for x in outcomes} == expected_outcomes
+            "quantity": 2,
+        }
+    ]
 
 
 def test_graceful_shutdown(relay, mini_sentry):
@@ -1178,7 +1163,7 @@ def test_profile_outcomes(
         upstream = relay(upstream, config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1330,13 +1315,11 @@ def test_profile_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1386,7 +1369,7 @@ def test_profile_outcomes_too_many(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1421,13 +1404,11 @@ def test_profile_outcomes_too_many(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_too_many_profiles",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1508,13 +1489,11 @@ def test_profile_outcomes_data_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "processing-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1570,7 +1549,7 @@ def test_profile_outcomes_rate_limited(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1619,7 +1598,6 @@ def test_profile_outcomes_rate_limited(
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1908,7 +1886,6 @@ def test_span_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_transaction",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
         {
@@ -1919,13 +1896,11 @@ def test_span_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "internal",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id")
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -2096,13 +2071,11 @@ def test_replay_outcomes_item_failed(
 
     expected = {
         "category": 7,
-        "event_id": "515539018c9b4260a6f999572f1661ee",
         "key_id": 123,
         "outcome": 3,
         "project_id": 42,
         "quantity": 2,
         "reason": "invalid_replay",
-        "remote_addr": "127.0.0.1",
         "source": "pop-relay",
     }
     expected["timestamp"] = outcomes[0]["timestamp"]
