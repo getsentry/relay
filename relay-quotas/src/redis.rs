@@ -313,6 +313,7 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
+    use smallvec::smallvec;
 
     use super::*;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
@@ -379,7 +380,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
-                namespace: None,
+                namespace: smallvec![],
             }]
         );
     }
@@ -495,7 +496,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespace: smallvec![],
                     }]
                 );
             } else {
@@ -545,7 +546,7 @@ mod tests {
                         scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespace: smallvec![],
                     }]
                 );
             } else {
@@ -737,7 +738,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespace: smallvec![],
                     }]
                 );
             }
@@ -785,7 +786,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespace: smallvec![],
                     }]
                 );
             } else {

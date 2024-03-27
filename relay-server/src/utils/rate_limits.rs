@@ -35,12 +35,13 @@ pub fn format_rate_limits(rate_limits: &RateLimits) -> String {
 
         if let Some(ref reason_code) = rate_limit.reason_code {
             write!(header, ":{reason_code}").ok();
-        } else if rate_limit.namespace.is_some() {
+        } else if !rate_limit.namespace.is_empty() {
             write!(header, ":").ok();
         }
 
-        if let Some(namespace) = rate_limit.namespace {
-            write!(header, ":{namespace}").ok();
+        for (index, namespace) in rate_limit.namespace.iter().enumerate() {
+            header.push(if index == 0 { ':' } else { ';' });
+            write!(header, "{namespace}").ok();
         }
     }
 
@@ -79,7 +80,13 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             .filter(|s| !s.is_empty())
             .map(ReasonCode::new);
 
-        let namespace = components.next().and_then(|s| s.parse().ok());
+        let namespace = components
+            .next()
+            .unwrap_or("")
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.parse().ok())
+            .collect();
 
         rate_limits.add(RateLimit {
             categories,
@@ -780,7 +787,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
-            namespace: None,
+            namespace: smallvec![],
         });
 
         // Add a more specific rate limit for just one category.
@@ -789,7 +796,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
-            namespace: None,
+            namespace: smallvec![],
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -807,7 +814,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
-            namespace: Some(MetricNamespace::Custom),
+            namespace: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
         });
 
         // Rate limit without reason code.
@@ -816,12 +823,12 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
-            namespace: Some(MetricNamespace::Spans),
+            namespace: smallvec![MetricNamespace::Spans],
         });
 
         let formatted = format_rate_limits(&rate_limits);
         let expected =
-            "42:metric_bucket:organization:my_limit:custom, 42:metric_bucket:organization::spans";
+            "42:metric_bucket:organization:my_limit:custom;spans, 42:metric_bucket:organization::spans";
         assert_eq!(formatted, expected);
     }
 
@@ -862,7 +869,7 @@ mod tests {
                     scope: RateLimitScope::Organization(42),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
-                    namespace: None,
+                    namespace: smallvec![],
                 },
                 RateLimit {
                     categories: smallvec![
@@ -873,7 +880,7 @@ mod tests {
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
-                    namespace: None,
+                    namespace: smallvec![],
                 }
             ]
         );
@@ -892,7 +899,7 @@ mod tests {
         };
 
         // contains "foobar", an unknown scope that should be mapped to Unknown
-        let formatted = "42:metric_bucket:organization::custom";
+        let formatted = "42:metric_bucket:organization::custom;spans";
         let rate_limits: Vec<RateLimit> =
             parse_rate_limits(&scoping, formatted).into_iter().collect();
 
@@ -903,8 +910,8 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
-                namespace: Some(MetricNamespace::Custom),
-            },]
+                namespace: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
+            }]
         );
     }
 
@@ -929,7 +936,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
-                namespace: None,
+                namespace: smallvec![],
             },]
         );
     }
@@ -971,7 +978,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
-            namespace: None,
+            namespace: smallvec![],
         }
     }
 
