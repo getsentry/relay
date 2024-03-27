@@ -205,7 +205,7 @@ mod tests {
         // has to be changed. Though it is probably not a good idea!
         let user = User {
             id: Annotated::new("ident".to_owned().into()),
-            username: Annotated::new("username".to_owned()),
+            username: Annotated::new("username".to_owned().into()),
             email: Annotated::new("email".to_owned()),
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(get_event_user_tag(&user).unwrap(), "id:ident");
 
         let user = User {
-            username: Annotated::new("username".to_owned()),
+            username: Annotated::new("username".to_owned().into()),
             email: Annotated::new("email".to_owned()),
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()

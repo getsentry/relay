@@ -196,7 +196,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             .user
             .get_or_insert_with(User::default)
             .username
-            .set_value(Some(username));
+            .set_value(Some(username.into()));
     }
 
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
