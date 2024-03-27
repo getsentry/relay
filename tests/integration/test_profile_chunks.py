@@ -132,13 +132,11 @@ def test_profile_chunk_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
     profiles_consumer.assert_empty()
