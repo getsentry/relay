@@ -156,6 +156,17 @@ pub struct Options {
     )]
     pub metric_stats_rollout_rate: f32,
 
+    /// Rollout rate for producing to ingest-feedback-topic.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will ingest to the feedback topic
+    #[serde(
+        rename = "feedback.ingest-topic.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub ingest_topic_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

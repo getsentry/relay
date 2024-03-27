@@ -7,11 +7,14 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
+use axum::extract::FromRef;
 use bytes::Bytes;
+use rand::Rng;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
+use relay_dynamic_config::ProjectConfig;
 use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
@@ -185,16 +188,19 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        //TODO: how to get feature flag here?
-        let use_ingest_feedback_topic = false; // project_state.has_feature(Feature::UserReportV2IngestTopic);
+        let mut rng = rand::thread_rng();
+        let use_ingest_feedback_topic = rng.gen::<f32>()
+            < self
+                .global_config
+                .current()
+                .options
+                .ingest_topic_rollout_rate;
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event
-                    | ItemType::Transaction
-                    | ItemType::Security
-                    // | ItemType::UserReportV2
-            )//TODO: use feature flag
+                ItemType::Event | ItemType::Transaction | ItemType::Security // | ItemType::UserReportV2
+            ) || (!use_ingest_feedback_topic && item.ty() == &ItemType::UserReportV2)
         });
         let client = envelope.meta().client();
 
@@ -202,7 +208,7 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if (use_ingest_feedback_topic && false) { //TODO:
+        } else if use_ingest_feedback_topic && (event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2)) {
             KafkaTopic::Feedback
         } else {
             KafkaTopic::Events
