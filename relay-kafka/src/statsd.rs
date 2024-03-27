@@ -86,14 +86,14 @@ impl GaugeMetric for KafkaGauges {
     fn name(&self) -> &'static str {
         match self {
             KafkaGauges::InFlightCount => "kafka.in_flight_count",
-            KafkaGauges::MessageCount => "kafka.message_count",
-            KafkaGauges::MessageCountMax => "kafka.message_count_max",
-            KafkaGauges::MessageSize => "kafka.message_size",
-            KafkaGauges::MessageSizeMax => "kafka.message_size_max",
-            KafkaGauges::OutboundBufferRequests => "kafka.broker.outbuf.requests",
-            KafkaGauges::OutboundBufferMessages => "kafka.broker.outbuf.messages",
-            KafkaGauges::Connects => "kafka.broker.connects",
-            KafkaGauges::Disconnects => "kafka.broker.disconnects",
+            KafkaGauges::MessageCount => "kafka.stats.message_count",
+            KafkaGauges::MessageCountMax => "kafka.stats.message_count_max",
+            KafkaGauges::MessageSize => "kafka.stats.message_size",
+            KafkaGauges::MessageSizeMax => "kafka.stats.message_size_max",
+            KafkaGauges::OutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
+            KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
+            KafkaGauges::Connects => "kafka.stats.broker.connects",
+            KafkaGauges::Disconnects => "kafka.stats.broker.disconnects",
         }
     }
 }
