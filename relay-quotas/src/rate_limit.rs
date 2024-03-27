@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
@@ -157,7 +158,10 @@ pub struct RateLimit {
     /// A marker when this rate limit expires.
     pub retry_after: RetryAfter,
 
-    /// The namespace of this rate limit.
+    /// The metric namespace of this rate limit.
+    ///
+    /// Ignored on all data categories except for [`DataCategory::MetricBucket`]. If empty, this
+    /// rate limit applies to metrics of all namespaces.
     pub namespace: SmallVec<[MetricNamespace; 1]>,
 }
 
@@ -182,7 +186,7 @@ impl RateLimit {
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
     fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
-        if self.namespace.is_empty() {
+        if self.namespace.is_empty() || scoping.category != DataCategory::MetricBucket {
             true
         } else if let Some(namespace) = scoping.namespace {
             self.namespace.contains(&namespace)
