@@ -199,8 +199,11 @@ impl StoreService {
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security // | ItemType::UserReportV2
-            ) || (!use_ingest_feedback_topic && item.ty() == &ItemType::UserReportV2)
+                ItemType::Event
+                    | ItemType::Transaction
+                    | ItemType::Security
+                    | ItemType::UserReportV2
+            )
         });
         let client = envelope.meta().client();
 
@@ -208,7 +211,9 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if use_ingest_feedback_topic && (event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2)) {
+        } else if use_ingest_feedback_topic
+            && (event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2))
+        {
             KafkaTopic::Feedback
         } else {
             KafkaTopic::Events
@@ -240,10 +245,6 @@ impl StoreService {
                         start_time,
                         item,
                     )?;
-                }
-                ItemType::UserReportV2 => {
-                    debug_assert!(topic == KafkaTopic::Feedback);
-                    //TODO: produce to feedback topic. Something like self.produce_replay_event
                 }
                 ItemType::Session | ItemType::Sessions => {
                     self.produce_sessions(
