@@ -1,14 +1,22 @@
+//! Android Format
+//!
+//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
+//! containing the raw Android profile.
+//!
+//! `android` has a specific binary representation of its profile and Relay is responsible to
+//! unpack it before it's forwarded down the line.
+//!
 use std::collections::{BTreeMap, HashMap};
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
 use data_encoding::BASE64_NOPAD;
-use relay_event_schema::protocol::EventId;
+use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
-use crate::sample::SampleProfile;
+use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
@@ -156,7 +164,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
         profile.metadata.duration_ns = transaction.duration_ns();
         profile.metadata.trace_id = transaction.trace_id;
         profile.metadata.transaction_id = transaction.id;
-        profile.metadata.transaction_name = transaction.name.clone();
+        profile
+            .metadata
+            .transaction_name
+            .clone_from(&transaction.name);
 
         profile.metadata.transaction = Some(transaction);
     } else if profile.has_transaction_metadata() {
@@ -198,23 +209,32 @@ pub fn parse_android_profile(
     let mut profile = parse_profile(payload)?;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
-        profile.metadata.transaction_name = transaction_name.to_owned();
+        transaction_name.clone_into(&mut profile.metadata.transaction_name);
 
         if let Some(ref mut transaction) = profile.metadata.transaction {
-            transaction.name = profile.metadata.transaction_name.to_owned();
+            profile
+                .metadata
+                .transaction_name
+                .clone_into(&mut transaction.name);
         }
     }
 
     if let Some(release) = transaction_metadata.get("release") {
-        profile.metadata.release = release.to_owned();
+        release.clone_into(&mut profile.metadata.release);
     }
 
     if let Some(dist) = transaction_metadata.get("dist") {
-        profile.metadata.dist = dist.to_owned();
+        dist.clone_into(&mut profile.metadata.dist);
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.metadata.environment = environment.to_owned();
+        environment.clone_into(&mut profile.metadata.environment);
+    }
+
+    if let Some(segment_id) = transaction_metadata.get("segment_id") {
+        if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = Some(SpanId(segment_id.to_owned()));
+        }
     }
 
     profile.metadata.transaction_metadata = transaction_metadata;
@@ -229,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_android() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -240,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_react_native() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.rn.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.rn.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -251,23 +271,21 @@ mod tests {
 
     #[test]
     fn test_no_transaction() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
+        let payload = include_bytes!("../tests/fixtures/android/no_transaction.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_remove_invalid_events() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
+        let payload = include_bytes!("../tests/fixtures/android/remove_invalid_events.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_transactions_to_top_level() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
+        let payload = include_bytes!("../tests/fixtures/android/multiple_transactions.json");
 
         let profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {err:?}"),
@@ -296,7 +314,7 @@ mod tests {
             ),
         ]);
 
-        let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
+        let payload = include_bytes!("../tests/fixtures/android/valid.json");
         let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
@@ -318,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_timestamp() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
         let profile = parse_profile(payload);
 
         assert!(profile.is_ok());

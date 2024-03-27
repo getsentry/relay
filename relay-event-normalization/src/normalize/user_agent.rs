@@ -11,8 +11,8 @@
 
 use std::borrow::Cow;
 use std::fmt::Write;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_event_schema::protocol::{
     BrowserContext, Context, Contexts, DefaultContext, DeviceContext, Event, HeaderName,
@@ -374,7 +374,7 @@ fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
             continue;
         }
 
-        static UA_RE: OnceCell<Regex> = OnceCell::new();
+        static UA_RE: OnceLock<Regex> = OnceLock::new();
         let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
 
         let captures = regex.captures(item)?;
@@ -449,7 +449,7 @@ impl FromUserAgentInfo for OsContext {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{Headers, PairList, Request};
+    use relay_event_schema::protocol::{PairList, Request};
     use relay_protocol::assert_annotated_snapshot;
 
     use super::*;

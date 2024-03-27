@@ -62,5 +62,4 @@ _make_exceptions()
 
 if TYPE_CHECKING:
     # treat unknown attribute names as exception types
-    def __getattr__(name: str) -> type[RelayError]:
-        ...
+    def __getattr__(name: str) -> type[RelayError]: ...

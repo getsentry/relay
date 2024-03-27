@@ -7,8 +7,8 @@ use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) 
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const RelayStr {
-    static VALID_PLATFORM_STRS: OnceCell<Vec<RelayStr>> = OnceCell::new();
+    static VALID_PLATFORM_STRS: OnceLock<Vec<RelayStr>> = OnceLock::new();
     let platforms = VALID_PLATFORM_STRS
         .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
 

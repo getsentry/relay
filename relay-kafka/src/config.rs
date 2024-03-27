@@ -35,8 +35,6 @@ pub enum KafkaTopic {
     Outcomes,
     /// Override for billing critical outcomes.
     OutcomesBilling,
-    /// Session health updates.
-    Sessions,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
     /// Generic metrics topic, excluding sessions (release health).
@@ -64,13 +62,12 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 15] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
             Outcomes,
             OutcomesBilling,
-            Sessions,
             MetricsSessions,
             MetricsGeneric,
             Profiles,
@@ -90,38 +87,44 @@ impl KafkaTopic {
 #[serde(default)]
 pub struct TopicAssignments {
     /// Simple events topic name.
+    #[serde(alias = "ingest-events")]
     pub events: TopicAssignment,
     /// Events with attachments topic name.
+    #[serde(alias = "ingest-attachments")]
     pub attachments: TopicAssignment,
     /// Transaction events topic name.
+    #[serde(alias = "ingest-transactions")]
     pub transactions: TopicAssignment,
     /// Outcomes topic name.
     pub outcomes: TopicAssignment,
     /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
+    #[serde(alias = "outcomes-billing")]
     pub outcomes_billing: Option<TopicAssignment>,
-    /// Session health topic name.
-    pub sessions: TopicAssignment,
-    /// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
-    pub metrics: TopicAssignment,
-    /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
-    pub metrics_sessions: Option<TopicAssignment>,
+    /// Topic name for metrics extracted from sessions, aka release health.
+    #[serde(alias = "metrics", alias = "ingest-metrics")]
+    pub metrics_sessions: TopicAssignment,
     /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
-    #[serde(alias = "metrics_transactions")]
+    #[serde(alias = "metrics_transactions", alias = "ingest-generic-metrics")]
     pub metrics_generic: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Replay Events topic name.
+    #[serde(alias = "ingest-replay-events")]
     pub replay_events: TopicAssignment,
     /// Recordings topic name.
+    #[serde(alias = "ingest-replay-recordings")]
     pub replay_recordings: TopicAssignment,
     /// Monitor check-ins.
+    #[serde(alias = "ingest-monitors")]
     pub monitors: TopicAssignment,
     /// Standalone spans without a transaction.
+    #[serde(alias = "snuba-spans")]
     pub spans: TopicAssignment,
     /// Summary for metrics collected during a span.
+    #[serde(alias = "snuba-metrics-summaries")]
     pub metrics_summaries: TopicAssignment,
     /// COGS measurements.
+    #[serde(alias = "shared-resources-usage")]
     pub cogs: TopicAssignment,
     /// Feedback events topic name.
     pub feedback: TopicAssignment,
@@ -137,8 +140,7 @@ impl TopicAssignments {
             KafkaTopic::Transactions => &self.transactions,
             KafkaTopic::Outcomes => &self.outcomes,
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
-            KafkaTopic::Sessions => &self.sessions,
-            KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
+            KafkaTopic::MetricsSessions => &self.metrics_sessions,
             KafkaTopic::MetricsGeneric => &self.metrics_generic,
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
@@ -160,9 +162,7 @@ impl Default for TopicAssignments {
             transactions: "ingest-transactions".to_owned().into(),
             outcomes: "outcomes".to_owned().into(),
             outcomes_billing: None,
-            sessions: "ingest-sessions".to_owned().into(),
-            metrics: "ingest-metrics".to_owned().into(),
-            metrics_sessions: None,
+            metrics_sessions: "ingest-metrics".to_owned().into(),
             metrics_generic: "ingest-performance-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
@@ -350,11 +350,11 @@ mod tests {
     #[test]
     fn test_kafka_config() {
         let yaml = r#"
-events: "ingest-events-kafka-topic"
+ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-metrics:
+ingest-metrics:
   shards: 65000
   mapping:
       0:
@@ -366,6 +366,7 @@ metrics:
       45000:
           name: "ingest-metrics-3"
           config: "metrics_3"
+transactions: "ingest-transactions-kafka-topic"
 "#;
 
         let def_config = vec![KafkaConfigParam {
@@ -404,7 +405,8 @@ metrics:
         let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         let events = topics.events;
         let profiles = topics.profiles;
-        let metrics = topics.metrics;
+        let metrics = topics.metrics_sessions;
+        let transactions = topics.transactions;
 
         assert!(matches!(events, TopicAssignment::Primary(_)));
         assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
@@ -418,7 +420,29 @@ metrics:
         let events_config = events
             .kafka_config(&def_config, &second_config)
             .expect("Kafka config for events topic");
-        assert!(matches!(events_config, KafkaConfig::Single { .. }));
+        assert!(matches!(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-events-kafka-topic",
+                    ..
+                }
+            }
+        ));
+
+        // Legacy keys are still supported
+        let transactions_config = transactions
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for transactions topic");
+        assert!(matches!(
+            transactions_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-transactions-kafka-topic",
+                    ..
+                }
+            }
+        ));
 
         let (shards, mapping) =
             if let TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {

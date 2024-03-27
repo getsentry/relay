@@ -1039,9 +1039,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.3.3"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
+checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 
 [[package]]
 name = "debugid"
@@ -1483,7 +1483,6 @@ checksum = "23342abe12aba583913b2e62f22225ff9c950774065e4bfb61a19cd9770fec40"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -2351,9 +2350,9 @@ checksum = "674456280908e444408d2370a6706371f0fe2b4fc9999814ba35e71c6e99c5ce"
 
 [[package]]
 name = "jsonschema"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e48354c4c4f088714424ddf090de1ff84acc82b2f08c192d46d226ae2529a465"
+checksum = "2a071f4f7efc9a9118dfb627a0a94ef247986e1ab8606a4c806ae2b3aa3b6978"
 dependencies = [
  "ahash 0.8.8",
  "anyhow",
@@ -3574,7 +3573,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "relay"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3592,7 +3591,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3609,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3621,7 +3620,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "regex",
  "relay-common",
@@ -3633,7 +3632,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.49"
+version = "0.8.55"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3659,7 +3658,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "criterion",
  "hashbrown 0.14.3",
@@ -3677,11 +3676,11 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "24.2.0"
+version = "24.3.0"
 
 [[package]]
 name = "relay-common"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "chrono",
  "globset",
@@ -3696,7 +3695,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3717,7 +3716,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3725,14 +3724,13 @@ dependencies = [
 
 [[package]]
 name = "relay-dashboard"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "ansi-to-html",
  "futures",
  "gloo-console 0.3.0",
  "gloo-net 0.4.0",
  "instant",
- "once_cell",
  "reqwasm",
  "tokio",
  "wasm-bindgen",
@@ -3744,7 +3742,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -3769,7 +3767,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3779,7 +3777,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3811,7 +3809,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3836,7 +3834,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3844,7 +3842,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -3852,7 +3850,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "indexmap 2.2.5",
  "insta",
@@ -3870,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "relay-jsonschema-derive"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3880,9 +3878,8 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
- "jsonschema",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -3897,7 +3894,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "chrono",
  "console",
@@ -3915,7 +3912,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3945,9 +3942,8 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
- "once_cell",
  "regex",
  "relay-base-schema",
  "serde",
@@ -3959,7 +3955,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "hmac",
  "insta",
@@ -3985,7 +3981,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -4005,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "insta",
  "num-traits",
@@ -4022,7 +4018,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4032,7 +4028,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "hashbrown 0.14.3",
  "insta",
@@ -4050,7 +4046,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "r2d2",
  "redis",
@@ -4061,7 +4057,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "assert-json-diff",
  "bytes",
@@ -4081,7 +4077,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4102,7 +4098,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -4181,7 +4177,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "chrono",
  "enumset",
@@ -4197,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "cadence",
  "crossbeam-channel",
@@ -4209,7 +4205,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "futures",
  "once_cell",
@@ -4220,7 +4216,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4229,7 +4225,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "24.2.0"
+version = "24.3.0"
 dependencies = [
  "once_cell",
  "uaparser",
@@ -4646,13 +4642,15 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.1.12"
+version = "0.1.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de4ca4ac219b3d4931537aec16352fd23cf5c46c3c05045ca086e52552561e27"
+checksum = "f2aa8d4f1264bb54ab249203280f19894e1a3caa353f567ec1711513ca97b3cf"
 dependencies = [
+ "jsonschema",
  "serde",
  "serde_json",
  "serde_yaml 0.9.17",
+ "thiserror",
 ]
 
 [[package]]
@@ -5052,8 +5050,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.43.1"
-source = "git+https://github.com/getsentry/sqlparser-rs?rev=1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3#1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3"
+version = "0.44.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf9c7ff146298ffda83a200f8d5084f08dcee1edfc135fcc1d646a45d50ffd6"
 dependencies = [
  "log",
  "sqlparser_derive",
@@ -5062,7 +5061,8 @@ dependencies = [
 [[package]]
 name = "sqlparser_derive"
 version = "0.2.2"
-source = "git+https://github.com/getsentry/sqlparser-rs?rev=1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3#1bfe51c3db3e5b6bda4f52c56860af378d8ec2d3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01b2e185515564f15375f593fb966b5718bc624ba77fe49fa4616ad619690554"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5439,18 +5439,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.40"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978c9a314bd8dc99be594bc3c175faaa9794be04a5a5e153caba6915336cebac"
+checksum = "6e3de26b0965292219b4287ff031fcba86837900fe9cd2b34ea8ad893c0953d2"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.40"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
+checksum = "268026685b2be38d7103e9e507c938a1fcb3d7e6eb15e87870b617bf37b6d581"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5554,7 +5554,6 @@ dependencies = [
  "signal-hook-registry",
  "socket2 0.5.3",
  "tokio-macros",
- "tracing",
  "windows-sys 0.48.0",
 ]
 

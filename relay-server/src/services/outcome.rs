@@ -6,7 +6,6 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::convert::TryInto;
 use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -81,6 +80,10 @@ impl OutcomeId {
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+
+    pub fn as_u8(self) -> u8 {
+        self.0
+    }
 }
 
 trait TrackOutcomeLike {
@@ -180,7 +183,7 @@ pub enum Outcome {
 
 impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    fn to_outcome_id(&self) -> OutcomeId {
+    pub fn to_outcome_id(&self) -> OutcomeId {
         match self {
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
@@ -194,7 +197,7 @@ impl Outcome {
     }
 
     /// Returns the `reason` code field of this outcome.
-    fn to_reason(&self) -> Option<Cow<str>> {
+    pub fn to_reason(&self) -> Option<Cow<str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
@@ -524,13 +527,12 @@ impl FromMessage<Self> for TrackRawOutcome {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "processing")]
 #[cfg_attr(feature = "processing", derive(thiserror::Error))]
 pub enum OutcomeError {
     #[error("failed to send kafka message")]
-    #[cfg(feature = "processing")]
     SendFailed(ClientError),
     #[error("json serialization error")]
-    #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
 }
 

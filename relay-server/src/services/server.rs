@@ -9,7 +9,8 @@ use relay_config::Config;
 use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
-use tower_http::compression::CompressionLayer;
+use tower_http::compression::predicate::SizeAbove;
+use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
@@ -45,6 +46,13 @@ const KEEPALIVE_RETRIES: u32 = 5;
 /// header within this time, the connection is closed.
 const CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Only compress responses above this configured size, in bytes.
+///
+/// Small responses don't benefit from compression,
+/// additionally the envelope endpoint which returns the event id
+/// should not be compressed due to a bug in the Unity SDK.
+const COMPRESSION_MIN_SIZE: u16 = 128;
+
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         // Inform the user about a removed feature.
@@ -64,6 +72,9 @@ impl Service for HttpServer {
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, service } = self;
+
+        let compression_predicate =
+            SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new());
 
         // Build the router middleware into a single service which runs _after_ routing. Service
         // builder order defines layers added first will be called first. This means:
@@ -86,7 +97,7 @@ impl Service for HttpServer {
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
             .layer(RequestDecompressionLayer::new())
-            .layer(CompressionLayer::new());
+            .layer(CompressionLayer::new().compress_when(compression_predicate));
 
         let router = crate::endpoints::routes(service.config())
             .layer(middleware)

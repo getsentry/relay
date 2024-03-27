@@ -141,14 +141,24 @@ impl std::fmt::Display for RenderBlockingStatus {
     }
 }
 
-/// Configuration for span tag extraction.
-pub struct Config {
-    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_size: usize,
+/// Wrapper for [`extract_span_tags`].
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize) {
+    // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
+    let mut spans = std::mem::take(&mut event.spans);
+    let Some(spans_vec) = spans.value_mut() else {
+        return;
+    };
+    extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size);
+
+    event.spans = spans;
 }
 
-/// Extracts tags from event and spans and materializes them into `span.data`.
-pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
+/// Extracts tags and measurements from event and spans and materializes them into the spans.
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
@@ -157,19 +167,15 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
         .is_some_and(|v| v.as_str() == "true");
     let start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
-    let Some(spans) = event.spans.value_mut() else {
-        return;
-    };
-
     let ttid = timestamp_by_op(spans, "ui.load.initial_display");
     let ttfd = timestamp_by_op(spans, "ui.load.full_display");
 
     for span in spans {
-        let Some(span) = span.value_mut().as_mut() else {
+        let Some(span) = span.value_mut() else {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
+        let tags = extract_tags(span, max_tag_value_size, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -185,7 +191,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 }
 
 /// Extracts tags shared by every span.
-pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
     if let Some(release) = event.release.as_str() {
@@ -266,7 +272,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// and rely on Sentry conventions and heuristics.
 pub fn extract_tags(
     span: &Span,
-    config: &Config,
+    max_tag_value_size: usize,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
@@ -410,7 +416,7 @@ pub fn extract_tags(
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             if span_op.starts_with("resource.") {
                 if let Some(ext) = truncated
                     .rsplit('/')
@@ -479,6 +485,14 @@ pub fn extract_tags(
                 if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
                 {
                     span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
+                }
+                if let Some(environment) =
+                    span.data.value().and_then(|data| data.environment.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                }
+                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
                 }
             }
         }
@@ -765,8 +779,8 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::{get_value, Annotated};
+    use relay_event_schema::protocol::Request;
+    use relay_protocol::get_value;
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};
@@ -1068,12 +1082,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let spans = event.spans.value().unwrap();
 
@@ -1135,12 +1144,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1258,12 +1262,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1354,12 +1353,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1416,12 +1410,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -1449,16 +1438,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            &Config {
-                max_tag_value_size: 200,
-            },
-            None,
-            None,
-            false,
-            None,
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None);
 
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
@@ -1485,16 +1465,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(
-            &span,
-            &Config {
-                max_tag_value_size: 200,
-            },
-            None,
-            None,
-            false,
-            None,
-        )
+        extract_tags(&span, 200, None, None, false, None)
     }
 
     #[test]

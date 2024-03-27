@@ -64,9 +64,9 @@ def processing_config(get_topic_name):
         if not processing.get("redis"):
             processing["redis"] = "redis://127.0.0.1"
 
-        processing[
-            "projectconfig_cache_prefix"
-        ] = f"relay-test-relayconfig-{uuid.uuid4()}"
+        processing["projectconfig_cache_prefix"] = (
+            f"relay-test-relayconfig-{uuid.uuid4()}"
+        )
 
         return options
 
@@ -80,9 +80,9 @@ def relay_with_processing(relay, mini_sentry, processing_config):
     requests to the test ingestion topics
     """
 
-    def inner(options=None):
+    def inner(options=None, **kwargs):
         options = processing_config(options)
-        return relay(mini_sentry, options=options)
+        return relay(mini_sentry, options=options, **kwargs)
 
     return inner
 
@@ -174,7 +174,8 @@ class ConsumerBase:
         test message ends up in the same partition as the message we are checking).
         """
         # First, give Relay a bit of time to process
-        assert self.poll(timeout=0.2) is None
+        rv = self.poll(timeout=0.2)
+        assert rv is None, f"not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")

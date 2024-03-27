@@ -9,13 +9,7 @@ use crate::project::ProjectConfig;
 use crate::Tag;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &[
-    "*clickhouse*",
-    "*compile*",
-    "*mongodb*",
-    "*redis*",
-    "db.orm",
-];
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
 
 /// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &[
@@ -119,7 +113,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
 
-    let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
+    let app_start_condition = duration_condition.clone()
+        & RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     // `exclusive_time_light` is the metric with the most lenient condition.
@@ -129,6 +124,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_interaction
         | is_http.clone())
         & duration_condition.clone();
+
+    let know_modules_condition =
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+            & duration_condition.clone();
 
     [
         MetricSpec {
@@ -142,17 +141,22 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-                    & duration_condition.clone(),
-            ),
+            condition: None,
             tags: vec![
-                // Common tags:
+                // All modules:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(
-                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
-                    ),
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                // Know modules:
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
                     .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
@@ -161,26 +165,17 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .when(is_db.clone()),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .always(),
+                    .when(know_modules_condition.clone()),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
                     .when(is_db.clone() | is_resource.clone() | is_http.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                // Mobile:
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .when(is_mobile.clone()), // filters by `transaction.op:ui.load`
+                    .when(know_modules_condition.clone()),
+                // Mobile module:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
                     .when(is_mobile.clone()),
@@ -209,6 +204,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
                     .when(is_resource.clone()),
+                // HTTP module:
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {
@@ -260,6 +259,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
                     .when(is_resource.clone()),
+                // HTTP module:
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .when(is_http.clone()),
             ],
         },
         MetricSpec {
@@ -398,37 +401,40 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
-            condition: Some(
-                duration_condition.clone() & is_mobile.clone() & app_start_condition.clone(),
-            ),
+            condition: None,
             tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(), // already guarded by condition on metric
+                // All modules:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                // Mobile module:
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .when(app_start_condition.clone()),
                 Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
-                    .always(), // already guarded by condition on metric
+                    .when(app_start_condition.clone()),
             ],
         },
         MetricSpec {
@@ -458,7 +464,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:transactions/measurements.score.total@ratio".into(),
             field: Some("span.measurements.score.total.value".into()),
-            condition: Some(is_allowed_browser.clone()),
+            condition: Some(
+                is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+            ),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")

@@ -23,6 +23,7 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
@@ -94,7 +95,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config, Some(&global_config.options));
+            let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
@@ -142,7 +143,7 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -184,6 +185,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(state.event_metrics_extracted);
+
+        relay_log::trace!("Adding span to envelope");
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
@@ -191,9 +194,14 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         return;
     };
 
-    // Extract transaction as a span.
-    let mut transaction_span: Span = event.into();
-
+    let Some(transaction_span) = extract_transaction_span(
+        event,
+        config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+    ) else {
+        return;
+    };
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
@@ -216,20 +224,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>) {
         }
     }
 
-    // Extract tags to add to this span as well
-    let mut shared_tags = tag_extraction::extract_shared_tags(event);
-
-    if let Some(span_op) = transaction_span.op.value() {
-        shared_tags.insert(tag_extraction::SpanTagKey::SpanOp, span_op.to_owned());
-    }
-
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
     add_span(transaction_span.into());
 }
 
@@ -246,24 +240,24 @@ pub fn maybe_discard_transaction(state: &mut ProcessEnvelopeState<TransactionGro
 #[derive(Clone, Debug)]
 struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
-    pub received_at: DateTime<Utc>,
+    received_at: DateTime<Utc>,
     /// Allowed time range for spans.
-    pub timestamp_range: std::ops::Range<UnixTimestamp>,
+    timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_size: usize,
+    max_tag_value_size: usize,
     /// Configuration for generating performance score measurements for web vitals
-    pub performance_score: Option<&'a PerformanceScoreConfig>,
+    performance_score: Option<&'a PerformanceScoreConfig>,
     /// Configuration for measurement normalization in transaction events.
     ///
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+    measurements: Option<DynamicMeasurementsConfig<'a>>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    pub max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: Option<usize>,
 }
 
 fn get_normalize_span_config<'a>(
@@ -380,9 +374,8 @@ fn normalize(
     }
 
     // Tag extraction:
-    let config = tag_extraction::Config { max_tag_value_size };
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile, None);
+    let tags = tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

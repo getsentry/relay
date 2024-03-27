@@ -22,7 +22,7 @@ pub fn should_filter(event: &Event, config: &ReleasesFilterConfig) -> Result<(),
 #[cfg(test)]
 mod tests {
     use relay_common::glob3::GlobPatterns;
-    use relay_event_schema::protocol::{Event, LenientString};
+    use relay_event_schema::protocol::LenientString;
     use relay_protocol::Annotated;
 
     use super::*;

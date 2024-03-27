@@ -6,27 +6,27 @@ use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event, EventType, Exception,
-    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
-    Tags, Timestamp, User,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext,
+    PerformanceScoreContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::request;
-use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, MaxChars, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
@@ -244,12 +244,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.enrich_spans {
-        extract_span_tags(
-            event,
-            &tag_extraction::Config {
-                max_tag_value_size: config.max_tag_value_length,
-            },
-        );
+        extract_span_tags_from_event(event, config.max_tag_value_length);
     }
 }
 
@@ -336,7 +331,7 @@ pub fn normalize_ip_addresses(
         if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
                 if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
+                    client_ip.clone_into(user_ip)
                 }
             }
         }
@@ -663,7 +658,7 @@ fn normalize_exceptions(event: &mut Event) {
 }
 
 fn normalize_exception(exception: &mut Annotated<Exception>) {
-    static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+    static TYPE_VALUE_RE: OnceLock<Regex> = OnceLock::new();
     let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
     let _ = processor::apply(exception, |exception, meta| {
@@ -818,6 +813,13 @@ pub fn normalize_performance_score(
                     );
                 }
                 if should_add_total {
+                    if let Some(version) = &profile.version {
+                        event
+                            .contexts
+                            .get_or_insert_with(Contexts::new)
+                            .get_or_default::<PerformanceScoreContext>()
+                            .score_profile_version = version.clone().into();
+                    }
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -1096,18 +1098,62 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
-    use relay_event_schema::protocol::{
-        Breadcrumb, Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements,
-        Request, Tags, Values,
-    };
-    use relay_protocol::{get_value, Annotated, SerializableAnnotated};
+    use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
+    use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
-    use crate::{
-        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-        RawUserAgentInfo,
-    };
+    use crate::{ClientHints, MeasurementsConfig};
+
+    const IOS_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.cocoa"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 8240.571022033691,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 8049.345970153808,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
+
+    const ANDROID_MOBILE_EVENT: &str = r#"
+        {
+            "sdk": {"name": "sentry.java.android"},
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 22648,
+                    "unit": "millisecond"
+                },
+                "time_to_full_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                },
+                "time_to_initial_display": {
+                    "value": 22647,
+                    "unit": "millisecond"
+                }
+            }
+        }
+        "#;
 
     #[test]
     fn test_normalize_dist_none() {
@@ -2651,6 +2697,229 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_performance_score_for_mobile_ios_profile() {
+        let mut event = Annotated::<Event>::from_json(IOS_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_compute_performance_score_for_mobile_android_profile() {
+        let mut event = Annotated::<Event>::from_json(ANDROID_MOBILE_EVENT)
+            .unwrap()
+            .0
+            .unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "time_to_initial_display",
+                            "weight": 0.25,
+                            "p10": 1800.0,
+                            "p50": 3000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "time_to_full_display",
+                            "weight": 0.25,
+                            "p10": 2500.0,
+                            "p50": 4000.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_warm",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "app_start_cold",
+                            "weight": 0.25,
+                            "p10": 200.0,
+                            "p50": 500.0,
+                            "optional": true
+                        }
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [
+                            {
+                                "op": "or",
+                                "inner": [
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.cocoa"
+                                    },
+                                    {
+                                        "op": "eq",
+                                        "name": "event.sdk.name",
+                                        "value": "sentry.java.android"
+                                    }
+                                ]
+                            },
+                            {
+                                "op": "eq",
+                                "name": "event.contexts.trace.op",
+                                "value": "ui.load"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {});
+    }
+
+    #[test]
+    fn test_computes_performance_score_and_tags_with_profile_version() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "performance_score": {
+              "score_profile_version": "beta",
+              "type": "performancescore",
+            },
+          },
+          "measurements": {
+            "inp": {
+              "value": 120.0,
+            },
+            "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.weight.inp": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_normalization_removes_reprocessing_context() {
         let json = r#"{
             "contexts": {
@@ -2704,7 +2973,7 @@ mod tests {
             Annotated::new(map)
         });
         assert_eq!(user.other, Object::new());
-        assert_eq!(user.username, Annotated::new("john".to_string()));
+        assert_eq!(user.username, Annotated::new("john".to_string().into()));
         assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
     }
 

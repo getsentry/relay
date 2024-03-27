@@ -1,9 +1,9 @@
 //! Event processor related code.
 
 use std::error::Error;
+use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
-use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
@@ -108,10 +108,12 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
+            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to extract security report"
+                );
+            }
             error
         })?
     } else if let Some(item) = nel_item {
@@ -158,7 +160,7 @@ pub fn finalize<G: EventProcessing>(
     };
 
     if !config.processing_enabled() {
-        static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+        static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
         let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
         event
@@ -517,6 +519,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::CheckIn => false,
         ItemType::Span => false,
         ItemType::OtelSpan => false,
+        ItemType::ProfileChunk => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,
@@ -552,11 +555,18 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityType(bytes));
     };
 
-    let apply_result = match report_type {
-        SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
-        SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+    let (apply_result, event_type) = match report_type {
+        SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::ExpectCt => (
+            ExpectCt::apply_to_event(data, &mut event),
+            EventType::ExpectCt,
+        ),
+        SecurityReportType::ExpectStaple => (
+            ExpectStaple::apply_to_event(data, &mut event),
+            EventType::ExpectStaple,
+        ),
+        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
+        SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
@@ -590,12 +600,7 @@ fn event_from_security_report(
 
     // Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
-    event.ty = Annotated::new(match report_type {
-        SecurityReportType::Csp => EventType::Csp,
-        SecurityReportType::ExpectCt => EventType::ExpectCt,
-        SecurityReportType::ExpectStaple => EventType::ExpectStaple,
-        SecurityReportType::Hpkp => EventType::Hpkp,
-    });
+    event.ty = Annotated::new(event_type);
 
     Ok((Annotated::new(event), len))
 }
@@ -773,8 +778,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
-
-    use crate::envelope::ContentType;
 
     use super::*;
 

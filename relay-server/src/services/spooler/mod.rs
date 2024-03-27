@@ -1274,7 +1274,6 @@ mod tests {
     use rand::Rng;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
-    use sqlx::sqlite::SqliteConnectOptions;
     use sqlx::ConnectOptions;
     use uuid::Uuid;
 

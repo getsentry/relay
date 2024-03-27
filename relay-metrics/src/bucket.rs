@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
+use std::num::NonZeroU32;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -10,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
-    MetricType, SetType,
+    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricName,
+    MetricResourceIdentifier, MetricType, SetType,
 };
 use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
@@ -550,7 +551,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -602,14 +603,16 @@ pub struct Bucket {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
+
+    /// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    #[serde(default, skip_serializing_if = "BucketMetadata::is_default")]
+    pub metadata: BucketMetadata,
 }
 
 impl Bucket {
-    /// Returns the [`MetricNamespace`] of the bucket.
-    pub fn parse_namespace(&self) -> Result<MetricNamespace, ParseMetricError> {
-        MetricResourceIdentifier::parse(&self.name).map(|mri| mri.namespace)
-    }
-
     /// Parses a statsd-compatible payload.
     ///
     /// ```text
@@ -632,9 +635,10 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         for component in components {
@@ -712,19 +716,7 @@ impl Bucket {
 
 impl CardinalityItem for Bucket {
     fn namespace(&self) -> Option<MetricNamespace> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
-
-        Some(mri.namespace)
+        self.name.try_namespace()
     }
 
     fn to_hash(&self) -> u32 {
@@ -732,6 +724,47 @@ impl CardinalityItem for Bucket {
         self.name.hash(&mut hasher);
         self.tags.hash(&mut hasher);
         hasher.finish32()
+    }
+}
+
+/// Relay internal metadata for a metric bucket.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct BucketMetadata {
+    /// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    pub merges: NonZeroU32,
+}
+
+impl BucketMetadata {
+    /// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge.
+    pub fn new() -> Self {
+        Self {
+            merges: NonZeroU32::MIN,
+        }
+    }
+
+    /// Whether the metadata does not contain more information than the default.
+    pub fn is_default(&self) -> bool {
+        let Self { merges } = self;
+        *merges == NonZeroU32::MIN
+    }
+
+    /// Merges another metadata object into the current one.
+    pub fn merge(&mut self, other: Self) {
+        self.merges = self.merges.saturating_add(other.merges.get());
+    }
+}
+
+impl Default for BucketMetadata {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -855,11 +888,16 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:transactions/foo@none",
+            name: MetricName(
+                "c:transactions/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -881,13 +919,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "d:transactions/foo@none",
+            name: MetricName(
+                "d:transactions/foo@none",
+            ),
             value: Distribution(
                 [
                     17.5,
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -927,13 +970,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "s:transactions/foo@none",
+            name: MetricName(
+                "s:transactions/foo@none",
+            ),
             value: Set(
                 {
                     4267882815,
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -977,7 +1025,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 42.0,
@@ -988,6 +1038,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1001,7 +1054,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 25.0,
@@ -1012,6 +1067,9 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1025,11 +1083,16 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:custom/foo@none",
+            name: MetricName(
+                "c:custom/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
         }
         "###);
     }
@@ -1086,7 +1149,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]
@@ -1196,7 +1259,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -1207,6 +1272,9 @@ mod tests {
                 ),
                 tags: {
                     "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
                 },
             },
         ]
@@ -1226,19 +1294,24 @@ mod tests {
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r#"
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                name: MetricName(
+                    "endpoint.hits",
+                ),
                 value: Counter(
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]

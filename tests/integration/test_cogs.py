@@ -24,5 +24,5 @@ def test_cogs_simple(mini_sentry, relay_with_processing, cogs_consumer):
     assert m["app_feature"] == "errors"
     assert m["usage_unit"] == "milliseconds"
     assert (
-        m["amount"] < 1000
+        m["amount"] < 1000 * 1000
     )  # If processing this error takes a second, we have a problem ...

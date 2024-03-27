@@ -124,6 +124,8 @@ pub enum ItemType {
     OtelSpan,
     /// UserReport as an Event
     UserReportV2,
+    /// ProfileChunk is a chunk of a profiling session.
+    ProfileChunk,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -174,6 +176,7 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -229,6 +232,7 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
+            "profile_chunk" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -269,7 +273,7 @@ impl ContentType {
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
-            Self::Envelope => self::CONTENT_TYPE,
+            Self::Envelope => CONTENT_TYPE,
             Self::Other(ref other) => other,
         }
     }
@@ -578,6 +582,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
@@ -586,8 +592,16 @@ pub struct SourceQuantities {
 
 impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
-        self.transactions += other.transactions;
-        self.profiles += other.profiles;
+        let Self {
+            transactions,
+            spans,
+            profiles,
+            buckets,
+        } = self;
+        *transactions += other.transactions;
+        *spans += other.spans;
+        *profiles += other.profiles;
+        *buckets += other.buckets;
     }
 }
 
@@ -640,6 +654,11 @@ impl Item {
         }
     }
 
+    /// True if the item represents any kind of span.
+    pub fn is_span(&self) -> bool {
+        matches!(self.ty(), ItemType::OtelSpan | ItemType::Span)
+    }
+
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
@@ -675,6 +694,7 @@ impl Item {
             } else {
                 DataCategory::Span
             }),
+            ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
     }
@@ -709,19 +729,29 @@ impl Item {
         self.payload.clone()
     }
 
-    /// Sets the payload and content-type of this envelope.
-    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    /// Sets the payload of this envelope item without specifying a content-type.
+    /// Use `set_payload` if you want to define a content-type for the payload.
+    pub fn set_payload_without_content_type<B>(&mut self, payload: B)
     where
         B: Into<Bytes>,
     {
         let mut payload = payload.into();
 
-        let length = std::cmp::min(u32::max_value() as usize, payload.len());
+        let length = std::cmp::min(u32::MAX as usize, payload.len());
         payload.truncate(length);
 
         self.headers.length = Some(length as u32);
-        self.headers.content_type = Some(content_type);
         self.payload = payload;
+    }
+
+    /// Sets the payload and content-type of this envelope item. Use
+    /// `set_payload_without_content_type` if you need to set the payload without a content-type.
+    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    where
+        B: Into<Bytes>,
+    {
+        self.headers.content_type = Some(content_type);
+        self.set_payload_without_content_type(payload);
     }
 
     /// Returns the file name of this item, if it is an attachment.
@@ -883,7 +913,8 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::OtelSpan => false,
+            | ItemType::OtelSpan
+            | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -919,6 +950,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
+            ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

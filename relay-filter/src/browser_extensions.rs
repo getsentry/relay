@@ -44,8 +44,11 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # Firefox message when an extension tries to modify a no-longer-existing DOM node
         # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
         can't\saccess\sdead\sobject|
-        # Crypocurrency related extension errors
-        Cannot\sredefine\sproperty:\s(solana|ethereum)
+        # Cryptocurrency related extension errors solana|ethereum
+        # Googletag is also very similar, caused by adblockers
+        Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
+        # Translation service errors in Chrome on iOS
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -264,6 +267,8 @@ mod tests {
             "TypeError: can't access dead object because dead stuff smells bad",
             "Cannot redefine property: solana",
             "Cannot redefine property: ethereum",
+            "Cannot redefine property: googletag",
+            "undefined is not an object (evaluating 'a.L')",
         ];
 
         for exc_value in &exceptions {

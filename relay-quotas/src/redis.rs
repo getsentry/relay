@@ -307,7 +307,6 @@ impl RedisRateLimiter {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_base_schema::metrics::MetricNamespace;

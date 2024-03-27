@@ -47,7 +47,9 @@ Event {
             ),
         },
         username: Annotated(
-            "hey  man [ip]",
+            LenientString(
+                "hey  man [ip]",
+            ),
             Meta {
                 remarks: [
                     Remark {
