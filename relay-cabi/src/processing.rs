@@ -207,17 +207,17 @@ pub unsafe extern "C" fn relay_store_normalizer_new(
     config: *const RelayStr,
     _geoip_lookup: *const RelayGeoIpLookup,
 ) -> *mut RelayStoreNormalizer {
-    let config: StoreNormalizer = serde_json::from_str((*config).as_str())?;
-    Box::into_raw(Box::new(config)) as *mut RelayStoreNormalizer
+    let normalizer: StoreNormalizer = serde_json::from_str((*config).as_str())?;
+    Box::into_raw(Box::new(normalizer)) as *mut RelayStoreNormalizer
 }
 
 /// Frees a `RelayStoreNormalizer`.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_store_normalizer_free(config: *mut RelayStoreNormalizer) {
-    if !config.is_null() {
-        let config = config as *mut StoreNormalizer;
-        let _dropped = Box::from_raw(config);
+pub unsafe extern "C" fn relay_store_normalizer_free(normalizer: *mut RelayStoreNormalizer) {
+    if !normalizer.is_null() {
+        let normalizer = normalizer as *mut StoreNormalizer;
+        let _dropped = Box::from_raw(normalizer);
     }
 }
 
@@ -225,11 +225,11 @@ pub unsafe extern "C" fn relay_store_normalizer_free(config: *mut RelayStoreNorm
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
-    config: *mut RelayStoreNormalizer,
+    normalizer: *mut RelayStoreNormalizer,
     event: *const RelayStr,
 ) -> RelayStr {
-    let config = config as *mut StoreNormalizer;
-    let config = (*config).this();
+    let normalizer = normalizer as *mut StoreNormalizer;
+    let config = (*normalizer).this();
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
 
     let event_validation_config = EventValidationConfig {
@@ -246,8 +246,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     };
     validate_transaction(&mut event, &tx_validation_config)?;
 
+    let is_renormalize = config.is_renormalize.unwrap_or(false);
+
     let normalization_config = NormalizationConfig {
-        is_last_normalize: true,
         project_id: config.project_id,
         client: config.client.clone(),
         protocol_version: config.protocol_version.clone(),
@@ -263,8 +264,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         breakdowns_config: None, // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
-        is_renormalize: config.is_renormalize.unwrap_or(false),
-        remove_other: config.remove_other,
+        is_renormalize,
+        remove_other: config.remove_other.unwrap_or(!is_renormalize),
+        emit_error_events: !is_renormalize,
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
         max_tag_value_length: usize::MAX,

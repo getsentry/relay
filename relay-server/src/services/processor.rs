@@ -1186,7 +1186,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn light_normalize_event<G: EventProcessing>(
+    fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
@@ -1220,13 +1220,13 @@ impl EnvelopeProcessorService {
                 is_validated: false,
             };
 
-            let is_last_normalize = self.inner.config.processing_enabled();
+            let is_last_relay_normalize = self.inner.config.processing_enabled();
 
             let key_id = state
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
-            if is_last_normalize && key_id.is_none() {
+            if is_last_relay_normalize && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
                     state.managed_envelope.envelope().meta().public_key()
@@ -1234,7 +1234,6 @@ impl EnvelopeProcessorService {
             }
 
             let normalization_config = NormalizationConfig {
-                is_last_normalize,
                 project_id: Some(state.project_id.value()),
                 client: request_meta.client().map(str::to_owned),
                 key_id,
@@ -1273,7 +1272,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                remove_other: Some(is_last_normalize),
+                remove_other: is_last_relay_normalize,
+                emit_error_events: is_last_relay_normalize,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1295,7 +1295,7 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
-                if is_last_normalize && event::has_unprintable_fields(event) {
+                if is_last_relay_normalize && event::has_unprintable_fields(event) {
                     metric!(counter(RelayCounters::EventCorrupted) += 1);
                 }
                 Result::<(), ProcessingError>::Ok(())
@@ -1325,7 +1325,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1360,7 +1360,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         dynamic_sampling::normalize(state);
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 

@@ -1328,8 +1328,8 @@ mod tests {
     }
 
     #[test]
-    fn test_light_normalization_is_idempotent() {
-        // get an event, light normalize it. the result of that must be the same as light normalizing it once more
+    fn test_normalization_is_idempotent() {
+        // get an event, normalize it. the result of that must be the same as normalizing it once more
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
         let mut event = Annotated::new(Event {
@@ -1375,7 +1375,7 @@ mod tests {
         let first = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
-        // Expected some fields (such as timestamps) exist after first light normalization.
+        // Expected some fields (such as timestamps) exist after first normalization.
 
         normalize_event(&mut event, &NormalizationConfig::default());
         let second = remove_received_from_event(&mut event.clone())
@@ -1391,7 +1391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_light_normalize_validates_spans() {
+    fn test_normalize_validates_spans() {
         let event = Annotated::<Event>::from_json(
             r#"
             {
@@ -1413,7 +1413,7 @@ mod tests {
         )
         .unwrap();
 
-        // All incomplete spans should be caught by light normalization:
+        // All incomplete spans should be caught by normalization:
         for span in [
             r#"null"#,
             r#"{
@@ -1486,7 +1486,7 @@ mod tests {
     }
 
     #[test]
-    fn test_geo_in_light_normalize() {
+    fn test_geo_in_normalize() {
         let mut event = Annotated::<Event>::from_json(
             r#"
             {

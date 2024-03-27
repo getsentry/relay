@@ -39,12 +39,6 @@ use crate::{
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
 pub struct NormalizationConfig<'a> {
-    /// Whether it's the last normalization step.
-    ///
-    /// The last normalization run performs a few additional steps that
-    /// shouldn't happen in previous runs.
-    pub is_last_normalize: bool,
-
     /// The identifier of the target project, which gets added to the payload.
     pub project_id: Option<u64>,
 
@@ -116,9 +110,10 @@ pub struct NormalizationConfig<'a> {
     pub is_renormalize: bool,
 
     /// Overrides the default flag for other removal.
-    ///
-    /// Requires enabling `is_last_normalized`.
-    pub remove_other: Option<bool>,
+    pub remove_other: bool,
+
+    /// When enabled, adds errors in the meta to the event's errors.
+    pub emit_error_events: bool,
 
     /// When `true`, infers the device class from CPU and model.
     pub device_class_synthesis_config: bool,
@@ -159,7 +154,6 @@ pub struct NormalizationConfig<'a> {
 impl<'a> Default for NormalizationConfig<'a> {
     fn default() -> Self {
         Self {
-            is_last_normalize: false,
             project_id: Default::default(),
             client: Default::default(),
             key_id: Default::default(),
@@ -174,6 +168,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             transaction_name_config: Default::default(),
             is_renormalize: Default::default(),
             remove_other: Default::default(),
+            emit_error_events: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
@@ -215,13 +210,13 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
             trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 
-    if config.is_last_normalize && config.remove_other.unwrap_or(!is_renormalize) {
+    if config.remove_other {
         // Remove unknown attributes at every level
         let _ =
             remove_other::RemoveOtherProcessor.process_event(event, meta, ProcessingState::root());
     }
 
-    if config.is_last_normalize && !is_renormalize {
+    if config.emit_error_events {
         // Add event errors for top-level keys
         let _ =
             event_error::EmitEventErrors::new().process_event(event, meta, ProcessingState::root());

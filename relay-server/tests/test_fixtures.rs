@@ -75,7 +75,8 @@ macro_rules! event_snapshot {
                 validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
                 validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
                 normalize_event(&mut event, &NormalizationConfig {
-                    is_last_normalize: true,
+                    remove_other: true,
+                    emit_error_events: true,
                     ..Default::default()
                 });
 
