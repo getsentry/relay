@@ -11,12 +11,22 @@ pub enum KafkaCounters {
     /// This metric is tagged with:
     ///  - `topic`: The Kafka topic being produced to.
     ProcessingProduceError,
+
+    /// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.
+    ///
+    /// These errors include, for example, _"UnknownTopic"_ errors when attempting to send a
+    /// message a topic that does not exist.
+    ///
+    /// This metric is tagged with:
+    ///  - `topic`: The Kafka topic being produced to.
+    ProducerEnqueueError,
 }
 
 impl CounterMetric for KafkaCounters {
     fn name(&self) -> &'static str {
         match self {
             Self::ProcessingProduceError => "processing.produce.error",
+            Self::ProducerEnqueueError => "producer.enqueue.error",
         }
     }
 }
