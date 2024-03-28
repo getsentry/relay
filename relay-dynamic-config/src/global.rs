@@ -165,7 +165,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub ingest_topic_rollout_rate: f32,
+    pub feedback_ingest_topic_rollout_rate: f32,
 
     /// All other unknown options.
     #[serde(flatten)]

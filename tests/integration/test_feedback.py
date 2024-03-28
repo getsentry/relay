@@ -1,3 +1,4 @@
+import pytest
 import json
 
 
@@ -42,24 +43,29 @@ def generate_feedback_sdk_event():
     }
 
 
+@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
-    mini_sentry, relay_with_processing, events_consumer
+    mini_sentry, relay_with_processing, events_consumer, feedback_consumer, use_feedback_topic,
 ):
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
-    _events_consumer = events_consumer(timeout=20)
-    feedback = generate_feedback_sdk_event()
+    if use_feedback_topic:
+        mini_sentry.set_option("feedback.ingest-topic.rollout-rate", 1.0)
+        consumer = feedback_consumer(timeout=5)
+    else:
+        mini_sentry.set_option("feedback.ingest-topic.rollout-rate", 0.0)
+        consumer = events_consumer(timeout=5)
 
+    feedback = generate_feedback_sdk_event()
     relay.send_user_feedback(42, feedback)
 
-    replay_event, replay_event_message = _events_consumer.get_event()
-    assert replay_event["type"] == "feedback"
-    # assert replay_event_message["retention_days"] == 90
+    event, message = consumer.get_event()
+    assert event["type"] == "feedback"
 
-    parsed_feedback = json.loads(bytes(replay_event_message["payload"]))
+    parsed_feedback = json.loads(message["payload"])
     # Assert required fields were returned.
     assert parsed_feedback["event_id"]
     assert parsed_feedback["type"] == feedback["type"]

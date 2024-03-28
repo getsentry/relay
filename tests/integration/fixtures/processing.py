@@ -59,6 +59,7 @@ def processing_config(get_topic_name):
                 "profiles": get_topic_name("profiles"),
                 "metrics_summaries": get_topic_name("metrics_summaries"),
                 "cogs": get_topic_name("cogs"),
+                "feedback": get_topic_name("feedback"),
             }
 
         if not processing.get("redis"):
@@ -304,6 +305,13 @@ def replay_events_consumer(kafka_consumer):
 
 
 @pytest.fixture
+def feedback_consumer(kafka_consumer):
+    return lambda timeout=None: FeedbackConsumer(
+        timeout=timeout, *kafka_consumer("feedback")  # Corresponds to key in processing_config["processing"]["topics"]
+    )
+
+
+@pytest.fixture
 def monitors_consumer(kafka_consumer):
     return lambda timeout=None: MonitorsConsumer(
         timeout=timeout, *kafka_consumer("monitors")
@@ -447,6 +455,16 @@ class ReplayEventsConsumer(ConsumerBase):
 
         assert payload["type"] == "replay_event"
         return payload, event
+
+
+class FeedbackConsumer(ConsumerBase):
+    def get_event(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        return json.loads(message_dict["payload"].decode("utf8")), message_dict
 
 
 class MonitorsConsumer(ConsumerBase):

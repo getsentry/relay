@@ -182,6 +182,11 @@ class Sentry(SentryLike):
         self.project_configs[project_id] = ret_val
         return ret_val
 
+    def set_option(self, option_name, value):
+        old_val = self.global_config["options"].get(option_name)
+        self.global_config["options"][option_name] = value
+        return old_val
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():
