@@ -159,8 +159,8 @@ pub struct RateLimit {
 
     /// The metric namespace of this rate limit.
     ///
-    /// Ignored on all data categories except for [`DataCategory::MetricBucket`]. If empty, this
-    /// rate limit applies to metrics of all namespaces.
+    /// Ignored on all data categories except for `MetricBucket`. If empty, this rate limit applies
+    /// to metrics of all namespaces.
     pub namespace: SmallVec<[MetricNamespace; 1]>,
 }
 
