@@ -20,7 +20,7 @@
 - Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Implement metric name based cardinality limits. ([#3313](https://github.com/getsentry/relay/pull/3313))
-- Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282))
+- Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282), [#3350](https://github.com/getsentry/relay/pull/3350))
 - Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
 - Emit outcomes for user feedback events. ([#3026](https://github.com/getsentry/relay/pull/3026))
 - Collect duration for all spans. ([#3322](https://github.com/getsentry/relay/pull/3322))
