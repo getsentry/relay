@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project.rs`."><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project.rs`."><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../relay_server/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -1730,6 +1730,10 @@
 <a href="#1728" id="1728">1728</a>
 <a href="#1729" id="1729">1729</a>
 <a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1745,7 +1749,7 @@
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
 };
-<span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
+<span class="kw">use </span>relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, BroadcastChannel};
@@ -2834,10 +2838,19 @@
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        <span class="kw">let </span>(enforcement, rate_limits) =
+        <span class="kw">let </span>(enforcement, <span class="kw-2">mut </span>rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
         enforcement.track_outcomes(envelope.envelope(), <span class="kw-2">&amp;</span>scoping, outcome_aggregator);
         envelope.update();
+
+        <span class="comment">// Special case: Expose active rate limits for all metric namespaces if there is at least
+        // one metrics item in the Envelope to communicate backoff to SDKs. This is necessary
+        // because `EnvelopeLimiter` cannot not check metrics without parsing item contents.
+        </span><span class="kw">if </span>envelope.envelope().items().any(|i| i.ty().is_metrics()) {
+            <span class="kw">let </span><span class="kw-2">mut </span>metrics_scoping = scoping.item(DataCategory::MetricBucket);
+            metrics_scoping.namespace = MetricNamespaceScoping::Any;
+            rate_limits.merge(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, metrics_scoping));
+        }
 
         <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.envelope().is_empty() {
             <span class="comment">// Individual rate limits have already been issued above
@@ -2910,15 +2923,10 @@
             <span class="kw">return </span>CheckedBuckets::NoScoping(len);
         };
 
-        <span class="kw">let </span>item_scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: <span class="kw-2">&amp;</span>scoping,
-            namespace: <span class="prelude-val">None</span>,
-        };
-
-        <span class="kw">let </span>limits = <span class="self">self
-            </span>.rate_limits()
-            .check_with_quotas(project_state.get_quotas(), item_scoping);
+        <span class="kw">let </span>limits = <span class="self">self</span>.rate_limits().check_with_quotas(
+            project_state.get_quotas(),
+            scoping.item(DataCategory::MetricBucket),
+        );
 
         <span class="kw">if </span>limits.is_limited() {
             <span class="kw">let </span>mode = project_state.get_extraction_mode();

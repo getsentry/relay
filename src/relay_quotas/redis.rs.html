@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/redis.rs`."><title>redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/redis.rs`."><title>redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_quotas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../relay_quotas/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -996,6 +996,8 @@
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
 <a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -1311,10 +1313,12 @@
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_redis::redis::Commands;
     <span class="kw">use </span>relay_redis::RedisConfigOptions;
+    <span class="kw">use </span>smallvec::smallvec;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     <span class="kw">use </span><span class="kw">crate</span>::rate_limit::RateLimitScope;
+    <span class="kw">use </span><span class="kw">crate</span>::MetricNamespaceScoping;
 
     <span class="kw">fn </span>build_rate_limiter() -&gt; RedisRateLimiter {
         <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
@@ -1361,7 +1365,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
@@ -1377,7 +1381,7 @@
                 scope: RateLimitScope::Organization(<span class="number">42</span>),
                 reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                namespace: <span class="prelude-val">None</span>,
+                namespaces: <span class="macro">smallvec!</span>[],
             }]
         );
     }
@@ -1410,7 +1414,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Transactions),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1473,7 +1477,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1493,7 +1497,7 @@
                         scope: RateLimitScope::Organization(<span class="number">42</span>),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                        namespace: <span class="prelude-val">None</span>,
+                        namespaces: <span class="macro">smallvec!</span>[],
                     }]
                 );
             } <span class="kw">else </span>{
@@ -1523,7 +1527,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1543,7 +1547,7 @@
                         scope: RateLimitScope::Global,
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                        namespace: <span class="prelude-val">None</span>,
+                        namespaces: <span class="macro">smallvec!</span>[],
                     }]
                 );
             } <span class="kw">else </span>{
@@ -1573,7 +1577,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1624,7 +1628,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1668,7 +1672,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
@@ -1713,7 +1717,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1735,7 +1739,7 @@
                         scope: RateLimitScope::Organization(<span class="number">42</span>),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"project_quota1"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                        namespace: <span class="prelude-val">None</span>,
+                        namespaces: <span class="macro">smallvec!</span>[],
                     }]
                 );
             }
@@ -1763,7 +1767,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
@@ -1783,7 +1787,7 @@
                         scope: RateLimitScope::Organization(<span class="number">42</span>),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                        namespace: <span class="prelude-val">None</span>,
+                        namespaces: <span class="macro">smallvec!</span>[],
                     }]
                 );
             } <span class="kw">else </span>{
@@ -1813,7 +1817,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">123_123_123</span>);
@@ -1842,7 +1846,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">234_531</span>);
@@ -1871,7 +1875,7 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
             },
-            namespace: <span class="prelude-val">None</span>,
+            namespace: MetricNamespaceScoping::None,
         };
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">234_531</span>);

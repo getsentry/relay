@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/rate_limits.rs`."><title>rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0 (aedd173a2 2024-03-17)" data-channel="1.77.0" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/rate_limits.rs`."><title>rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../relay_server/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -1466,6 +1466,103 @@
 <a href="#1464" id="1464">1464</a>
 <a href="#1465" id="1465">1465</a>
 <a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1503,6 +1600,13 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>reason_code) = rate_limit.reason_code {
             <span class="macro">write!</span>(header, <span class="string">":{reason_code}"</span>).ok();
+        } <span class="kw">else if </span>!rate_limit.namespaces.is_empty() {
+            <span class="macro">write!</span>(header, <span class="string">":"</span>).ok(); <span class="comment">// delimits the empty reason code for namespaces
+        </span>}
+
+        <span class="kw">for </span>(index, namespace) <span class="kw">in </span>rate_limit.namespaces.iter().enumerate() {
+            header.push(<span class="kw">if </span>index == <span class="number">0 </span>{ <span class="string">':' </span>} <span class="kw">else </span>{ <span class="string">';' </span>});
+            <span class="macro">write!</span>(header, <span class="string">"{namespace}"</span>).ok();
         }
     }
 
@@ -1536,14 +1640,25 @@
         <span class="kw">let </span>quota_scope = QuotaScope::from_name(components.next().unwrap_or(<span class="string">""</span>));
         <span class="kw">let </span>scope = RateLimitScope::for_quota(scoping, quota_scope);
 
-        <span class="kw">let </span>reason_code = components.next().map(ReasonCode::new);
+        <span class="kw">let </span>reason_code = components
+            .next()
+            .filter(|s| !s.is_empty())
+            .map(ReasonCode::new);
+
+        <span class="kw">let </span>namespace = components
+            .next()
+            .unwrap_or(<span class="string">""</span>)
+            .split(<span class="string">';'</span>)
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.parse().ok())
+            .collect();
 
         rate_limits.add(RateLimit {
             categories,
             scope,
             reason_code,
             retry_after,
-            namespace: <span class="prelude-val">None</span>,
+            namespaces: namespace,
         });
     }
 
@@ -2217,6 +2332,7 @@
 
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_dynamic_config::TransactionMetricsConfig;
+    <span class="kw">use </span>relay_metrics::MetricNamespace;
     <span class="kw">use </span>relay_quotas::RetryAfter;
     <span class="kw">use </span>smallvec::smallvec;
 
@@ -2236,7 +2352,7 @@
             scope: RateLimitScope::Organization(<span class="number">42</span>),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">42</span>),
-            namespace: <span class="prelude-val">None</span>,
+            namespaces: <span class="macro">smallvec!</span>[],
         });
 
         <span class="comment">// Add a more specific rate limit for just one category.
@@ -2245,11 +2361,39 @@
             scope: RateLimitScope::Project(ProjectId::new(<span class="number">21</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">4711</span>),
-            namespace: <span class="prelude-val">None</span>,
+            namespaces: <span class="macro">smallvec!</span>[],
         });
 
         <span class="kw">let </span>formatted = format_rate_limits(<span class="kw-2">&amp;</span>rate_limits);
         <span class="kw">let </span>expected = <span class="string">"42::organization:my_limit, 4711:transaction;security:project"</span>;
+        <span class="macro">assert_eq!</span>(formatted, expected);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_format_rate_limits_namespace() {
+        <span class="kw">let </span><span class="kw-2">mut </span>rate_limits = RateLimits::new();
+
+        <span class="comment">// Rate limit with reason code and namespace.
+        </span>rate_limits.add(RateLimit {
+            categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
+            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
+            retry_after: RetryAfter::from_secs(<span class="number">42</span>),
+            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom, MetricNamespace::Spans],
+        });
+
+        <span class="comment">// Rate limit without reason code.
+        </span>rate_limits.add(RateLimit {
+            categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
+            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            reason_code: <span class="prelude-val">None</span>,
+            retry_after: RetryAfter::from_secs(<span class="number">42</span>),
+            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Spans],
+        });
+
+        <span class="kw">let </span>formatted = format_rate_limits(<span class="kw-2">&amp;</span>rate_limits);
+        <span class="kw">let </span>expected =
+            <span class="string">"42:metric_bucket:organization:my_limit:custom;spans, 42:metric_bucket:organization::spans"</span>;
         <span class="macro">assert_eq!</span>(formatted, expected);
     }
 
@@ -2290,7 +2434,7 @@
                     scope: RateLimitScope::Organization(<span class="number">42</span>),
                     reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
                     retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                    namespace: <span class="prelude-val">None</span>,
+                    namespaces: <span class="macro">smallvec!</span>[],
                 },
                 RateLimit {
                     categories: <span class="macro">smallvec!</span>[
@@ -2301,13 +2445,64 @@
                     scope: RateLimitScope::Project(ProjectId::new(<span class="number">21</span>)),
                     reason_code: <span class="prelude-val">None</span>,
                     retry_after: rate_limits[<span class="number">1</span>].retry_after,
-                    namespace: <span class="prelude-val">None</span>,
+                    namespaces: <span class="macro">smallvec!</span>[],
                 }
             ]
         );
 
         <span class="macro">assert_eq!</span>(<span class="number">42</span>, rate_limits[<span class="number">0</span>].retry_after.remaining_seconds());
         <span class="macro">assert_eq!</span>(<span class="number">4711</span>, rate_limits[<span class="number">1</span>].retry_after.remaining_seconds());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_rate_limits_namespace() {
+        <span class="kw">let </span>scoping = Scoping {
+            organization_id: <span class="number">42</span>,
+            project_id: ProjectId::new(<span class="number">21</span>),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
+            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
+        };
+
+        <span class="kw">let </span>formatted = <span class="string">"42:metric_bucket:organization::custom;spans"</span>;
+        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; =
+            parse_rate_limits(<span class="kw-2">&amp;</span>scoping, formatted).into_iter().collect();
+
+        <span class="macro">assert_eq!</span>(
+            rate_limits,
+            <span class="macro">vec!</span>[RateLimit {
+                categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
+                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                reason_code: <span class="prelude-val">None</span>,
+                retry_after: rate_limits[<span class="number">0</span>].retry_after,
+                namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom, MetricNamespace::Spans],
+            }]
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_rate_limits_empty_namespace() {
+        <span class="kw">let </span>scoping = Scoping {
+            organization_id: <span class="number">42</span>,
+            project_id: ProjectId::new(<span class="number">21</span>),
+            project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
+            key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
+        };
+
+        <span class="comment">// notice the trailing colon
+        </span><span class="kw">let </span>formatted = <span class="string">"42:metric_bucket:organization:some_reason:"</span>;
+        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; =
+            parse_rate_limits(<span class="kw-2">&amp;</span>scoping, formatted).into_iter().collect();
+
+        <span class="macro">assert_eq!</span>(
+            rate_limits,
+            <span class="macro">vec!</span>[RateLimit {
+                categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
+                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"some_reason"</span>)),
+                retry_after: rate_limits[<span class="number">0</span>].retry_after,
+                namespaces: <span class="macro">smallvec!</span>[],
+            }]
+        );
     }
 
     <span class="attr">#[test]
@@ -2319,8 +2514,7 @@
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
         };
 
-        <span class="comment">// contains "foobar", an unknown scope that should be mapped to Unknown
-        </span><span class="kw">let </span>formatted = <span class="string">"42:foo;bar:organization"</span>;
+        <span class="kw">let </span>formatted = <span class="string">"42:foo;bar:organization"</span>;
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; =
             parse_rate_limits(<span class="kw-2">&amp;</span>scoping, formatted).into_iter().collect();
 
@@ -2331,7 +2525,7 @@
                 scope: RateLimitScope::Organization(<span class="number">42</span>),
                 reason_code: <span class="prelude-val">None</span>,
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
-                namespace: <span class="prelude-val">None</span>,
+                namespaces: <span class="macro">smallvec!</span>[],
             },]
         );
     }
@@ -2373,7 +2567,7 @@
             scope: RateLimitScope::Organization(<span class="number">42</span>),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">60</span>),
-            namespace: <span class="prelude-val">None</span>,
+            namespaces: <span class="macro">smallvec!</span>[],
         }
     }
 
