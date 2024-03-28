@@ -123,6 +123,8 @@
 <a href="#121" id="121">121</a>
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric};
 
 <span class="kw">pub enum </span>KafkaCounters {
@@ -143,7 +145,8 @@
     /// message a topic that does not exist.
     ///
     /// This metric is tagged with:
-    ///  - `topic`: The Kafka topic being produced to.
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
     </span>ProducerEnqueueError,
 }
 
@@ -177,7 +180,8 @@
     /// See &lt;https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7&gt;.
     ///
     /// This metric is tagged with:
-    /// - `topic`
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
     </span>InFlightCount,
 
     <span class="doccomment">/// The current number of messages in producer queues.
