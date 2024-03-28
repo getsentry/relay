@@ -3661,6 +3661,7 @@ name = "relay-cardinality"
 version = "24.3.0"
 dependencies = [
  "criterion",
+ "hash32",
  "hashbrown 0.14.3",
  "parking_lot",
  "relay-base-schema",
