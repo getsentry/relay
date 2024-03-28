@@ -2,7 +2,7 @@ use hash32::Hasher;
 use std::fmt;
 use std::hash::Hash;
 
-use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::metrics::{MetricName, MetricNamespace};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 
@@ -18,9 +18,9 @@ use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, Sliding
 /// [`PartialQuotaScoping::complete`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PartialQuotaScoping {
-    pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
     pub project_id: Option<ProjectId>,
+    pub namespace: Option<MetricNamespace>,
     window: SlidingWindow,
     scope: CardinalityScope,
 }
@@ -39,9 +39,9 @@ impl PartialQuotaScoping {
         };
 
         Some(Self {
-            namespace: limit.namespace,
             organization_id,
             project_id,
+            namespace: limit.namespace,
             window: limit.window,
             scope: limit.scope,
         })
@@ -82,7 +82,7 @@ impl PartialQuotaScoping {
     /// needs to ensure this by calling [`Self::matches`] prior to calling `complete`.
     pub fn complete(self, entry: Entry<'_>) -> QuotaScoping {
         let name = match self.scope {
-            CardinalityScope::Name => Some(fnv32(entry.name)),
+            CardinalityScope::Name => Some(entry.name.clone()),
             _ => None,
         };
 
@@ -94,24 +94,25 @@ impl PartialQuotaScoping {
 /// and completed with a [`CardinalityItem`](crate::CardinalityItem).
 ///
 /// The scoping must be created using [`PartialQuotaScoping::complete`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+/// and a [`CardinalityItem`](crate::CardinalityItem).
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct QuotaScoping {
     parent: PartialQuotaScoping,
-    name: Option<u32>,
+    pub name: Option<MetricName>,
 }
 
 impl QuotaScoping {
-    /// Returns the minimum TTL for a Redis key created by [`Self::into_redis_key`].
+    /// Returns the minimum TTL for a Redis key created by [`Self::to_redis_key`].
     pub fn redis_key_ttl(&self) -> u64 {
         self.window.window_seconds
     }
 
     /// Turns the scoping into a Redis key for the passed slot.
-    pub fn into_redis_key(self, slot: Slot) -> String {
+    pub fn to_redis_key(&self, slot: Slot) -> String {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
-        let name = DisplayOptMinus(self.name);
+        let name = DisplayOptMinus(self.name.as_deref().map(fnv32));
 
         format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}")
     }
@@ -122,6 +123,34 @@ impl std::ops::Deref for QuotaScoping {
 
     fn deref(&self) -> &Self::Target {
         &self.parent
+    }
+}
+
+// Required for hashbrown's `entry_ref`.
+impl From<&QuotaScoping> for QuotaScoping {
+    fn from(value: &QuotaScoping) -> Self {
+        value.clone()
+    }
+}
+
+impl fmt::Debug for QuotaScoping {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let PartialQuotaScoping {
+            organization_id,
+            project_id,
+            namespace,
+            window,
+            scope,
+        } = &self.parent;
+
+        f.debug_struct("QuotaScoping")
+            .field("organization_id", organization_id)
+            .field("project_id", project_id)
+            .field("namespace", namespace)
+            .field("window", window)
+            .field("scope", scope)
+            .field("name", &self.name)
+            .finish()
     }
 }
 

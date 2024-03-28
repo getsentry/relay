@@ -13,6 +13,7 @@ use crate::{
 ///
 /// Also tracks amount of cache hits and misses as well as amount of
 /// items accepted and rejected. These metrics are reported via statsd on drop.
+#[derive(Debug)]
 pub struct LimitState<'a> {
     /// The limit of the quota.
     pub limit: u64,
