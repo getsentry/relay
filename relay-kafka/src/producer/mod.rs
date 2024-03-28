@@ -391,6 +391,7 @@ impl Producer {
             self.last_report.replace(Instant::now());
             metric!(
                 gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
+                variant = variant,
                 topic = topic_name
             );
         }
@@ -407,6 +408,7 @@ impl Producer {
                 );
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
+                    variant = variant,
                     topic = topic_name
                 );
                 ClientError::SendFailed(error)
