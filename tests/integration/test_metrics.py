@@ -340,12 +340,10 @@ def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
     with pytest.raises(HTTPError) as excinfo:
         relay.send_metrics(project_id, metrics_payload)
 
-    ns_component = ""
-    if ns:
-        ns_component = ":" + ";".join(ns)
-
     response = excinfo.value.response
     assert response.status_code == 429
+
+    ns_component = ":" + ns if ns is not None else ""
     assert (
         response.headers["x-sentry-rate-limits"]
         == f"60:metric_bucket:organization:static_disabled_quota{ns_component}"

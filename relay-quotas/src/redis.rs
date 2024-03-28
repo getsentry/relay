@@ -318,6 +318,7 @@ mod tests {
     use super::*;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
+    use crate::MetricNamespaceScoping;
 
     fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
@@ -364,7 +365,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -413,7 +414,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: Some(MetricNamespace::Transactions),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -476,7 +477,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -526,7 +527,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -576,7 +577,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -627,7 +628,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -671,7 +672,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -716,7 +717,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -766,7 +767,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -816,7 +817,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
@@ -845,7 +846,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -874,7 +875,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);

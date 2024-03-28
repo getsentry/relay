@@ -252,7 +252,7 @@ mod tests {
     use relay_common::time::UnixTimestamp;
     use relay_redis::{RedisConfigOptions, RedisPool};
 
-    use crate::{DataCategories, ItemScoping, Quota, QuotaScope, Scoping};
+    use crate::{DataCategories, Quota, QuotaScope, Scoping};
 
     fn build_redis_pool() -> RedisPool {
         let url = std::env::var("RELAY_REDIS_URL")
@@ -284,11 +284,7 @@ mod tests {
     }
 
     fn build_redis_quota<'a>(quota: &'a Quota, scoping: &'a Scoping) -> RedisQuota<'a> {
-        let scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping,
-            namespace: None,
-        };
+        let scoping = scoping.item(DataCategory::MetricBucket);
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
     }
 
@@ -470,18 +466,14 @@ mod tests {
         let ts = UnixTimestamp::now();
         let quota = build_quota(window, limit);
         let scoping = build_scoping();
-        let scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-            namespace: None,
-        };
+        let item_scoping = scoping.item(DataCategory::MetricBucket);
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
 
         let rl = GlobalRateLimits::default();
 
-        let redis_quota = [RedisQuota::new(&quota, scoping, ts).unwrap()];
+        let redis_quota = [RedisQuota::new(&quota, item_scoping, ts).unwrap()];
         assert!(rl
             .filter_rate_limited(&mut client, &redis_quota, 200)
             .unwrap()
@@ -494,7 +486,10 @@ mod tests {
 
         // Fast forward time.
         let redis_quota =
-            [RedisQuota::new(&quota, scoping, ts + Duration::from_secs(window + 1)).unwrap()];
+            [
+                RedisQuota::new(&quota, item_scoping, ts + Duration::from_secs(window + 1))
+                    .unwrap(),
+            ];
         assert!(rl
             .filter_rate_limited(&mut client, &redis_quota, 200)
             .unwrap()
@@ -513,11 +508,8 @@ mod tests {
         let timestamp = UnixTimestamp::now();
 
         let mut quota = build_quota(100, limit);
-        let scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &build_scoping(),
-            namespace: None,
-        };
+        let scoping = build_scoping();
+        let item_scoping = scoping.item(DataCategory::MetricBucket);
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
@@ -527,7 +519,7 @@ mod tests {
         let quantity = 2;
         let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
-            let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+            let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
             assert!(rl
                 .filter_rate_limited(&mut client, &[redis_quota], quantity)
                 .unwrap()
@@ -539,7 +531,7 @@ mod tests {
         let rl = GlobalRateLimits::default();
 
         quota.limit = Some(redis_threshold);
-        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
 
         assert!(!rl
             .filter_rate_limited(&mut client, &[redis_quota], quantity)

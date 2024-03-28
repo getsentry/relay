@@ -36,8 +36,60 @@ impl Scoping {
         ItemScoping {
             category,
             scoping: self,
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }
+    }
+
+    /// Returns an `ItemScoping` for metric buckets in this scope.
+    ///
+    /// The item scoping will contain a reference to this scope, the category
+    /// [`MetricBucket](DataCategory::MetricBucket), and the information passed to this function.
+    /// This is a cheap operation to allow rate limiting for an individual item.
+    pub fn metric_bucket(&self, namespace: MetricNamespace) -> ItemScoping<'_> {
+        ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: self,
+            namespace: MetricNamespaceScoping::Some(namespace),
+        }
+    }
+}
+
+/// Item scoping of metric namespaces.
+///
+/// This enum is used in [`ItemScoping`] to declare the contents of an item's metric namespace.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Hash, PartialOrd)]
+pub enum MetricNamespaceScoping {
+    /// This item does not contain metrics of any namespace. This should only be used for non-metric
+    /// items.
+    #[default]
+    None,
+
+    /// This item contains metrics of a specific namespace.
+    Some(MetricNamespace),
+
+    /// This item contains metrics of any namespace.
+    ///
+    /// The namespace of metrics contained in this item is not known. This can be used to check rate
+    /// limits or quotas of any namespace.
+    Any,
+}
+
+impl MetricNamespaceScoping {
+    /// Returns `true` if the given namespace matches the namespace of the item.
+    ///
+    /// If the self is `Any`, this method returns `true` for any namespace.
+    pub fn matches(&self, namespace: MetricNamespace) -> bool {
+        match self {
+            Self::None => false,
+            Self::Some(ns) => *ns == namespace,
+            Self::Any => true,
+        }
+    }
+}
+
+impl From<MetricNamespace> for MetricNamespaceScoping {
+    fn from(namespace: MetricNamespace) -> Self {
+        Self::Some(namespace)
     }
 }
 
@@ -55,7 +107,7 @@ pub struct ItemScoping<'a> {
     pub scoping: &'a Scoping,
 
     /// Namespace if applicable. `None` matches any namespace.
-    pub namespace: Option<MetricNamespace>,
+    pub namespace: MetricNamespaceScoping,
 }
 
 impl AsRef<Scoping> for ItemScoping<'_> {
@@ -91,6 +143,17 @@ impl ItemScoping<'_> {
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
         categories.is_empty() || categories.iter().any(|cat| *cat == self.category)
+    }
+
+    /// Returns `true` if the rate limit namespace matches the namespace of the item.
+    ///
+    /// If the list of namespaces is empty, this method returns `true`.
+    pub(crate) fn matches_namespaces<'a, I>(&self, namespaces: I) -> bool
+    where
+        I: IntoIterator<Item = &'a MetricNamespace>,
+    {
+        let mut iter = namespaces.into_iter().peekable();
+        iter.peek().is_none() || iter.any(|ns| self.namespace.matches(*ns))
     }
 }
 
@@ -312,11 +375,6 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
-        // Accept all types of namespaces if none are configured in the quota.
-        if self.namespace.is_some() && self.namespace != scoping.namespace {
-            return false;
-        }
-
         if self.scope == QuotaScope::Global {
             return true;
         }
@@ -340,7 +398,9 @@ impl Quota {
 
     /// Checks whether the quota's constraints match the current item.
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
-        self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
+        self.matches_scope(scoping)
+            && scoping.matches_categories(&self.categories)
+            && scoping.matches_namespaces(&self.namespace)
     }
 }
 
@@ -654,7 +714,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -679,7 +739,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -704,7 +764,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -715,7 +775,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -740,7 +800,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -765,7 +825,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -776,7 +836,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -801,7 +861,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -812,7 +872,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -837,7 +897,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -848,7 +908,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(0),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -859,7 +919,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 }

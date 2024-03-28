@@ -2,7 +2,6 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
@@ -181,18 +180,7 @@ impl RateLimit {
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(&self.categories)
-            && self.matches_namespace(scoping)
-    }
-
-    /// Returns `true` if the rate limit namespace matches the namespace of the item.
-    fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
-        if self.namespace.is_empty() || scoping.category != DataCategory::MetricBucket {
-            true
-        } else if let Some(namespace) = scoping.namespace {
-            self.namespace.contains(&namespace)
-        } else {
-            false
-        }
+            && scoping.matches_namespaces(&self.namespace)
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
@@ -381,6 +369,7 @@ mod tests {
 
     use super::*;
     use crate::quota::DataCategory;
+    use crate::MetricNamespaceScoping;
 
     #[test]
     fn test_parse_retry_after() {
@@ -445,7 +434,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -456,7 +445,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -478,7 +467,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -489,7 +478,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -511,7 +500,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -522,7 +511,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -546,13 +535,13 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Custom),
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
-            namespace: Some(MetricNamespace::Spans),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
         let general_rate_limit = RateLimit {
@@ -566,13 +555,13 @@ mod tests {
         assert!(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
-            namespace: Some(MetricNamespace::Spans),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
         assert!(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -596,7 +585,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -607,7 +596,7 @@ mod tests {
                 project_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         }));
     }
 
@@ -916,7 +905,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         });
 
         // Check that the error limit is applied
@@ -967,7 +956,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let quotas = &[Quota {

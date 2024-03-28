@@ -56,7 +56,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -1966,6 +1966,8 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
+        use relay_quotas::RateLimits;
+
         relay_log::trace!("handle_rate_limit_buckets");
         let RateLimitBuckets { mut bucket_limiter } = message;
 
@@ -1978,44 +1980,31 @@ impl EnvelopeProcessorService {
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
+            let mut rate_limits = RateLimits::new();
 
-            let merged_rate_limits = [DataCategory::Transaction, DataCategory::Span]
-                .into_iter()
-                .flat_map(|category| {
-                    bucket_limiter.count(category).and_then(|count| {
-                        rate_limiter
-                            .is_rate_limited(
-                                quotas,
-                                ItemScoping {
-                                    category,
-                                    scoping: &scoping,
-                                    namespace: None,
-                                },
-                                count,
-                                over_accept_once,
-                            )
-                            .map_err(|e| {
-                                relay_log::error!(error = &e as &dyn Error);
-                            })
-                            // don't limit if there was a redis error (keep user data if budget is unknown)
-                            .ok()
-                    })
-                })
-                .reduce(|mut a, b| {
-                    a.merge(b);
-                    a
-                });
+            for category in [DataCategory::Transaction, DataCategory::Span] {
+                if let Some(count) = bucket_limiter.count(category) {
+                    match rate_limiter.is_rate_limited(
+                        quotas,
+                        scoping.item(category),
+                        count,
+                        over_accept_once,
+                    ) {
+                        Ok(limits) => rate_limits.merge(limits),
+                        Err(e) => relay_log::error!(error = &e as &dyn Error),
+                    }
+                }
+            }
 
-            if let Some(merged_rate_limits) = merged_rate_limits {
+            if rate_limits.is_limited() {
                 let was_enforced = bucket_limiter
-                    .enforce_limits(&merged_rate_limits, self.inner.outcome_aggregator.clone());
+                    .enforce_limits(&rate_limits, self.inner.outcome_aggregator.clone());
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
-                    self.inner.project_cache.send(UpdateRateLimits::new(
-                        scoping.project_key,
-                        merged_rate_limits,
-                    ));
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
                 }
             }
         }
@@ -2050,12 +2039,7 @@ impl EnvelopeProcessorService {
         buckets_by_ns
             .into_iter()
             .filter_map(|(namespace, buckets)| {
-                let item_scoping = ItemScoping {
-                    category: DataCategory::MetricBucket,
-                    scoping: &scoping,
-                    namespace: Some(namespace),
-                };
-
+                let item_scoping = scoping.metric_bucket(namespace);
                 (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
                     .then_some(buckets)
             })

@@ -5,7 +5,7 @@ use relay_common::time::UnixTimestamp;
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
 };
-use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
@@ -388,13 +388,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> bool {
         for category in [DataCategory::Transaction, DataCategory::Span] {
-            let item_scoping = ItemScoping {
-                category,
-                scoping: &self.scoping,
-                namespace: None,
-            };
             let active_rate_limits =
-                rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+                rate_limits.check_with_quotas(self.quotas.as_ref(), self.scoping.item(category));
 
             // If a rate limit is active, discard relevant buckets.
             if let Some(limit) = active_rate_limits.longest() {
@@ -407,13 +402,10 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 return true;
             } else if category == DataCategory::Transaction {
                 // Also check profiles:
-                let item_scoping = ItemScoping {
-                    category: DataCategory::Profile,
-                    scoping: &self.scoping,
-                    namespace: None,
-                };
-                let active_rate_limits =
-                    rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+                let active_rate_limits = rate_limits.check_with_quotas(
+                    self.quotas.as_ref(),
+                    self.scoping.item(DataCategory::Profile),
+                );
 
                 if let Some(limit) = active_rate_limits.longest() {
                     self.strip_profiles();
