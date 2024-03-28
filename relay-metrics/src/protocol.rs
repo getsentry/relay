@@ -4,7 +4,7 @@ use hash32::{FnvHasher, Hasher as _};
 
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
-    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricNamespace,
+    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricName, MetricNamespace,
     MetricResourceIdentifier, MetricType, MetricUnit, ParseMetricError, ParseMetricUnitError,
 };
 #[doc(inline)]

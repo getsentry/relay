@@ -1,7 +1,9 @@
 //! Relay Cardinality Limiter
 
+use std::collections::BTreeMap;
+
 use hashbrown::HashSet;
-use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::metrics::{MetricName, MetricNamespace};
 use relay_base_schema::project::ProjectId;
 use relay_statsd::metric;
 
@@ -19,10 +21,45 @@ pub struct Scoping {
     pub project_id: ProjectId,
 }
 
-/// Accumulator of all cardinality limiter rejections.
-pub trait Rejections<'a> {
+/// Cardinality report for a specific limit.
+///
+/// Contains scoping information for the enforced limit and the current cardinality.
+/// If all of the scoping information is `None`, the limit is a global cardinality limit.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CardinalityReport {
+    /// Organization id for which the cardinality limit was applied.
+    ///
+    /// Only available if the the limit was at least scoped to
+    /// [`CardinalityScope::Organization`](crate::CardinalityScope::Organization).
+    pub organization_id: Option<OrganizationId>,
+    /// Project id for which the cardinality limit was applied.
+    ///
+    /// Only available if the the limit was at least scoped to
+    /// [`CardinalityScope::Project`](crate::CardinalityScope::Project).
+    pub project_id: Option<ProjectId>,
+    /// Project id for which the cardinality limit was applied.
+    ///
+    /// Only available if the the limit was at least scoped to
+    /// [`CardinalityScope::Name`](crate::CardinalityScope::Name).
+    pub name: Option<MetricName>,
+
+    /// The current cardinality.
+    pub cardinality: u64,
+}
+
+/// Accumulator of all cardinality limiter decisions.
+pub trait Reporter<'a> {
     /// Called for ever [`Entry`] which was rejected from the [`Limiter`].
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId);
+
+    /// Called for every individual limit applied.
+    ///
+    /// The callback can be called multiple times with different reports
+    /// for the same `limit` or not at all if there was no change in cardinality.
+    ///
+    /// For example, with a name scoped limit can be called once for every
+    /// metric name matching the limit.
+    fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport);
 }
 
 /// Limiter responsible to enforce limits.
@@ -30,16 +67,16 @@ pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<'a, E, R>(
+    fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
         entries: E,
-        rejections: &mut R,
+        reporter: &mut R,
     ) -> Result<()>
     where
-        E: IntoIterator<Item = Entry>,
-        R: Rejections<'a>;
+        E: IntoIterator<Item = Entry<'b>>,
+        R: Reporter<'a>;
 }
 
 /// Unit of operation for the cardinality limiter.
@@ -51,16 +88,21 @@ pub trait CardinalityItem {
     ///
     /// If this method returns `None` the item is automatically rejected.
     fn namespace(&self) -> Option<MetricNamespace>;
+
+    /// Name of the item.
+    fn name(&self) -> &MetricName;
 }
 
 /// A single entry to check cardinality for.
 #[derive(Clone, Copy, Debug)]
-pub struct Entry {
+pub struct Entry<'a> {
     /// Opaque entry Id, used to keep track of indices and buckets.
     pub id: EntryId,
 
-    /// Metric namespace to which the cardinality limit is scoped.
+    /// Metric namespace to which the cardinality limit can be scoped.
     pub namespace: MetricNamespace,
+    /// Name to which the cardinality limit can be scoped.
+    pub name: &'a MetricName,
     /// Hash of the metric name and tags.
     pub hash: u32,
 }
@@ -73,12 +115,13 @@ pub struct Entry {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct EntryId(pub usize);
 
-impl Entry {
+impl<'a> Entry<'a> {
     /// Creates a new entry.
-    pub fn new(id: EntryId, namespace: MetricNamespace, hash: u32) -> Self {
+    pub fn new(id: EntryId, namespace: MetricNamespace, name: &'a MetricName, hash: u32) -> Self {
         Self {
             id,
             namespace,
+            name,
             hash,
         }
     }
@@ -112,10 +155,15 @@ impl<T: Limiter> CardinalityLimiter<T> {
 
         metric!(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             let entries = items.iter().enumerate().filter_map(|(id, item)| {
-                Some(Entry::new(EntryId(id), item.namespace()?, item.to_hash()))
+                Some(Entry::new(
+                    EntryId(id),
+                    item.namespace()?,
+                    item.name(),
+                    item.to_hash(),
+                ))
             });
 
-            let mut rejections = RejectionTracker::default();
+            let mut rejections = DefaultReporter::default();
             if let Err(err) =
                 self.limiter
                     .check_cardinality_limits(scoping, limits, entries, &mut rejections)
@@ -140,35 +188,50 @@ impl<T: Limiter> CardinalityLimiter<T> {
 ///
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
-struct RejectionTracker<'a> {
-    limits: HashSet<&'a CardinalityLimit>,
+struct DefaultReporter<'a> {
+    exceeded_limits: HashSet<&'a CardinalityLimit>,
     entries: HashSet<usize>,
+    reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
-impl<'a> Rejections<'a> for RejectionTracker<'a> {
+impl<'a> Reporter<'a> for DefaultReporter<'a> {
     #[inline(always)]
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
-        self.limits.insert(limit);
+        self.exceeded_limits.insert(limit);
         if !limit.passive {
             self.entries.insert(entry_id.0);
         }
+    }
+
+    #[inline(always)]
+    fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
+        if !limit.report {
+            return;
+        }
+        self.reports.entry(limit).or_default().push(report);
     }
 }
 
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
 #[derive(Debug)]
 pub struct CardinalityLimits<'a, T> {
+    /// The source.
     source: Vec<T>,
+    /// List of rejected item indices pointing into `source`.
     rejections: HashSet<usize>,
-    limits: HashSet<&'a CardinalityLimit>,
+    /// All non-passive exceeded limits.
+    exceeded_limits: HashSet<&'a CardinalityLimit>,
+    /// Generated cardinality reports.
+    reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
 impl<'a, T> CardinalityLimits<'a, T> {
-    fn new(source: Vec<T>, rejections: RejectionTracker<'a>) -> Self {
+    fn new(source: Vec<T>, reporter: DefaultReporter<'a>) -> Self {
         Self {
             source,
-            rejections: rejections.entries,
-            limits: rejections.limits,
+            rejections: reporter.entries,
+            exceeded_limits: reporter.exceeded_limits,
+            reports: reporter.reports,
         }
     }
 
@@ -181,7 +244,15 @@ impl<'a, T> CardinalityLimits<'a, T> {
     ///
     /// This includes passive limits.
     pub fn exceeded_limits(&self) -> &HashSet<&'a CardinalityLimit> {
-        &self.limits
+        &self.exceeded_limits
+    }
+
+    /// Returns all cardinality reports grouped by the cardinality limit.
+    ///
+    /// Cardinality reports are generated for all cardinality limits with reporting enabled
+    /// and the current cardinality changed.
+    pub fn cardinality_reports(&self) -> &BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>> {
+        &self.reports
     }
 
     /// Recovers the original list of items passed to the cardinality limiter.
@@ -222,10 +293,11 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     struct Item {
         hash: u32,
         namespace: Option<MetricNamespace>,
+        name: MetricName,
     }
 
     impl Item {
@@ -233,6 +305,7 @@ mod tests {
             Self {
                 hash,
                 namespace: namespace.into(),
+                name: MetricName::from("foobar"),
             }
         }
     }
@@ -245,12 +318,17 @@ mod tests {
         fn namespace(&self) -> Option<MetricNamespace> {
             self.namespace
         }
+
+        fn name(&self) -> &MetricName {
+            &self.name
+        }
     }
 
     fn build_limits() -> [CardinalityLimit; 1] {
         [CardinalityLimit {
             id: "limit".to_owned(),
             passive: false,
+            report: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 360,
@@ -284,7 +362,8 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 3]),
-            limits: HashSet::new(),
+            exceeded_limits: HashSet::new(),
+            reports: BTreeMap::new(),
         };
         assert_rejected(&limits, ['a', 'b', 'd']);
         assert!(limits.has_rejections());
@@ -293,7 +372,8 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([]),
-            limits: HashSet::new(),
+            exceeded_limits: HashSet::new(),
+            reports: BTreeMap::new(),
         };
         assert_rejected(&limits, []);
         assert!(!limits.has_rejections());
@@ -302,7 +382,8 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 2, 3, 4]),
-            limits: HashSet::new(),
+            exceeded_limits: HashSet::new(),
+            reports: BTreeMap::new(),
         };
         assert!(limits.has_rejections());
         assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
@@ -314,7 +395,7 @@ mod tests {
         struct RejectAllLimiter;
 
         impl Limiter for RejectAllLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -322,8 +403,8 @@ mod tests {
                 rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
-                T: Rejections<'a>,
+                I: IntoIterator<Item = Entry<'b>>,
+                T: Reporter<'a>,
             {
                 for entry in entries {
                     rejections.reject(&limits[0], entry.id);
@@ -356,16 +437,16 @@ mod tests {
         struct AcceptAllLimiter;
 
         impl Limiter for AcceptAllLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 _limits: &'a [CardinalityLimit],
                 _entries: I,
-                _rejections: &mut T,
+                _reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
-                T: Rejections<'a>,
+                I: IntoIterator<Item = Entry<'b>>,
+                T: Reporter<'a>,
             {
                 Ok(())
             }
@@ -390,23 +471,23 @@ mod tests {
         struct RejectEvenLimiter;
 
         impl Limiter for RejectEvenLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 scoping: Scoping,
                 limits: &'a [CardinalityLimit],
                 entries: I,
-                rejections: &mut T,
+                reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
-                T: Rejections<'a>,
+                I: IntoIterator<Item = Entry<'b>>,
+                T: Reporter<'a>,
             {
                 assert_eq!(scoping, build_scoping());
                 assert_eq!(limits, &build_limits());
 
                 for entry in entries {
                     if entry.id.0 % 2 == 0 {
-                        rejections.reject(&limits[0], entry.id);
+                        reporter.reject(&limits[0], entry.id);
                     }
                 }
 
@@ -445,19 +526,19 @@ mod tests {
         struct RejectLimits;
 
         impl Limiter for RejectLimits {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
                 entries: I,
-                rejections: &mut T,
+                reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
-                T: Rejections<'a>,
+                I: IntoIterator<Item = Entry<'b>>,
+                T: Reporter<'a>,
             {
                 for entry in entries {
-                    rejections.reject(&limits[entry.id.0 % limits.len()], entry.id);
+                    reporter.reject(&limits[entry.id.0 % limits.len()], entry.id);
                 }
                 Ok(())
             }
@@ -468,6 +549,7 @@ mod tests {
             CardinalityLimit {
                 id: "limit_passive".to_owned(),
                 passive: false,
+                report: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -479,6 +561,7 @@ mod tests {
             CardinalityLimit {
                 id: "limit_enforced".to_owned(),
                 passive: true,
+                report: false,
                 window: SlidingWindow {
                     window_seconds: 3600,
                     granularity_seconds: 360,
@@ -522,6 +605,128 @@ mod tests {
                 Item::new(3, MetricNamespace::Custom),
                 Item::new(5, MetricNamespace::Custom),
             ]
+        );
+    }
+
+    #[test]
+    fn test_cardinality_report() {
+        struct CreateReports;
+
+        impl Limiter for CreateReports {
+            fn check_cardinality_limits<'a, 'b, I, T>(
+                &self,
+                scoping: Scoping,
+                limits: &'a [CardinalityLimit],
+                _entries: I,
+                reporter: &mut T,
+            ) -> Result<()>
+            where
+                I: IntoIterator<Item = Entry<'b>>,
+                T: Reporter<'a>,
+            {
+                reporter.cardinality(
+                    &limits[0],
+                    CardinalityReport {
+                        organization_id: Some(scoping.organization_id),
+                        project_id: Some(scoping.project_id),
+                        name: Some(MetricName::from("foo")),
+                        cardinality: 1,
+                    },
+                );
+
+                reporter.cardinality(
+                    &limits[0],
+                    CardinalityReport {
+                        organization_id: Some(scoping.organization_id),
+                        project_id: Some(scoping.project_id),
+                        name: Some(MetricName::from("bar")),
+                        cardinality: 2,
+                    },
+                );
+
+                reporter.cardinality(
+                    &limits[2],
+                    CardinalityReport {
+                        organization_id: Some(scoping.organization_id),
+                        project_id: Some(scoping.project_id),
+                        name: None,
+                        cardinality: 3,
+                    },
+                );
+
+                Ok(())
+            }
+        }
+
+        let window = SlidingWindow {
+            window_seconds: 3600,
+            granularity_seconds: 360,
+        };
+
+        let limits = &[
+            CardinalityLimit {
+                id: "report".to_owned(),
+                passive: false,
+                report: true,
+                window,
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+            CardinalityLimit {
+                id: "no_report".to_owned(),
+                passive: false,
+                report: false,
+                window,
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+            CardinalityLimit {
+                id: "report_again".to_owned(),
+                passive: true,
+                report: true,
+                window,
+                limit: 10_000,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+        ];
+        let scoping = build_scoping();
+        let items = vec![Item::new(0, MetricNamespace::Custom)];
+
+        let limiter = CardinalityLimiter::new(CreateReports);
+        let limited = limiter
+            .check_cardinality_limits(scoping, limits, items)
+            .unwrap();
+
+        let reports = limited.cardinality_reports();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(
+            reports.get(&limits[0]).unwrap(),
+            &[
+                CardinalityReport {
+                    organization_id: Some(scoping.organization_id),
+                    project_id: Some(scoping.project_id),
+                    name: Some(MetricName::from("foo")),
+                    cardinality: 1
+                },
+                CardinalityReport {
+                    organization_id: Some(scoping.organization_id),
+                    project_id: Some(scoping.project_id),
+                    name: Some(MetricName::from("bar")),
+                    cardinality: 2
+                }
+            ]
+        );
+        assert_eq!(
+            reports.get(&limits[2]).unwrap(),
+            &[CardinalityReport {
+                organization_id: Some(scoping.organization_id),
+                project_id: Some(scoping.project_id),
+                name: None,
+                cardinality: 3
+            }]
         );
     }
 }

@@ -11,7 +11,7 @@ use anyhow::{format_err, Context, Result};
 use clap::Parser;
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-    NormalizationConfig, StoreConfig, StoreProcessor, TransactionValidationConfig,
+    NormalizationConfig, TransactionValidationConfig,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;
@@ -89,10 +89,6 @@ impl Cli {
             validate_transaction(&mut event, &TransactionValidationConfig::default())
                 .map_err(|e| format_err!("{e}"))?;
             normalize_event(&mut event, &NormalizationConfig::default());
-            let mut processor = StoreProcessor::new(StoreConfig::default());
-            process_value(&mut event, &mut processor, ProcessingState::root())
-                .map_err(|e| format_err!("{e}"))
-                .with_context(|| "failed to store process event")?;
         }
 
         if self.debug {

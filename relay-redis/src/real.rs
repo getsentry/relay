@@ -73,8 +73,8 @@ impl ConnectionLike for Connection<'_> {
 }
 
 enum PooledClientInner {
-    Cluster(PooledConnection<redis::cluster::ClusterClient>),
-    Single(PooledConnection<redis::Client>),
+    Cluster(Box<PooledConnection<redis::cluster::ClusterClient>>),
+    Single(Box<PooledConnection<redis::Client>>),
 }
 
 /// A pooled Redis client.
@@ -196,10 +196,10 @@ impl RedisPool {
     pub fn client(&self) -> Result<PooledClient, RedisError> {
         let inner = match self.inner {
             RedisPoolInner::Cluster(ref pool) => {
-                PooledClientInner::Cluster(pool.get().map_err(RedisError::Pool)?)
+                PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)?))
             }
             RedisPoolInner::Single(ref pool) => {
-                PooledClientInner::Single(pool.get().map_err(RedisError::Pool)?)
+                PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)?))
             }
         };
 

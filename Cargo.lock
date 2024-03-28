@@ -199,6 +199,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d301b3b94cb4b2f23d7917810addbbaff90738e0ca2be692bd027e70d7e0330c"
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2764,9 +2770,9 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
+checksum = "608e7659b5c3d7cba262d894801b9ec9d00de989e8a82bd4bef91d08da45cdc0"
 dependencies = [
  "autocfg",
  "num-integer",
@@ -2840,9 +2846,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.15"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
+checksum = "da0df0e5185db44f69b44f26786fe401b6c293d1907744beaa7fa62b2e5a517a"
 dependencies = [
  "autocfg",
  "libm",
@@ -3492,20 +3498,22 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff5d95dd18a4d76650f0c2607ed8ebdbf63baf9cb934e1c233cd220c694db1d7"
+version = "0.25.2"
+source = "git+https://github.com/getsentry/redis-rs.git?rev=6201a8c9f8766c4e580deef6834365ec631ce9f8#6201a8c9f8766c4e580deef6834365ec631ce9f8"
 dependencies = [
+ "arc-swap",
  "combine",
  "crc16",
  "itoa",
  "native-tls",
+ "num-bigint",
  "percent-encoding",
  "r2d2",
  "rand",
  "ryu",
  "sha1_smol",
- "socket2 0.4.9",
+ "socket2 0.5.3",
+ "tokio",
  "url",
 ]
 
@@ -3661,6 +3669,7 @@ name = "relay-cardinality"
 version = "24.3.0"
 dependencies = [
  "criterion",
+ "hash32",
  "hashbrown 0.14.3",
  "parking_lot",
  "relay-base-schema",

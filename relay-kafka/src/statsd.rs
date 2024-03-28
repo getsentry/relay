@@ -11,12 +11,23 @@ pub enum KafkaCounters {
     /// This metric is tagged with:
     ///  - `topic`: The Kafka topic being produced to.
     ProcessingProduceError,
+
+    /// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.
+    ///
+    /// These errors include, for example, _"UnknownTopic"_ errors when attempting to send a
+    /// message a topic that does not exist.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
+    ProducerEnqueueError,
 }
 
 impl CounterMetric for KafkaCounters {
     fn name(&self) -> &'static str {
         match self {
             Self::ProcessingProduceError => "processing.produce.error",
+            Self::ProducerEnqueueError => "producer.enqueue.error",
         }
     }
 }
@@ -42,7 +53,8 @@ pub enum KafkaGauges {
     /// See <https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7>.
     ///
     /// This metric is tagged with:
-    /// - `topic`
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
     InFlightCount,
 
     /// The current number of messages in producer queues.
@@ -80,20 +92,34 @@ pub enum KafkaGauges {
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     Disconnects,
+
+    /// Maximum internal producer queue latency, in microseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    ProducerQueueLatency,
+
+    /// Maximum internal request queue latency, in microseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    RequestQueueLatency,
 }
 
 impl GaugeMetric for KafkaGauges {
     fn name(&self) -> &'static str {
         match self {
             KafkaGauges::InFlightCount => "kafka.in_flight_count",
-            KafkaGauges::MessageCount => "kafka.message_count",
-            KafkaGauges::MessageCountMax => "kafka.message_count_max",
-            KafkaGauges::MessageSize => "kafka.message_size",
-            KafkaGauges::MessageSizeMax => "kafka.message_size_max",
-            KafkaGauges::OutboundBufferRequests => "kafka.broker.outbuf.requests",
-            KafkaGauges::OutboundBufferMessages => "kafka.broker.outbuf.messages",
-            KafkaGauges::Connects => "kafka.broker.connects",
-            KafkaGauges::Disconnects => "kafka.broker.disconnects",
+            KafkaGauges::MessageCount => "kafka.stats.message_count",
+            KafkaGauges::MessageCountMax => "kafka.stats.message_count_max",
+            KafkaGauges::MessageSize => "kafka.stats.message_size",
+            KafkaGauges::MessageSizeMax => "kafka.stats.message_size_max",
+            KafkaGauges::OutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
+            KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
+            KafkaGauges::Connects => "kafka.stats.broker.connects",
+            KafkaGauges::Disconnects => "kafka.stats.broker.disconnects",
+            KafkaGauges::ProducerQueueLatency => "kafka.stats.broker.int_latency",
+            KafkaGauges::RequestQueueLatency => "kafka.stats.broker.outbuf_latency",
         }
     }
 }

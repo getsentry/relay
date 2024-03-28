@@ -59,6 +59,7 @@ class DataCategory(IntEnum):
             DataCategory.ERROR,
             DataCategory.TRANSACTION,
             DataCategory.SECURITY,
+            DataCategory.USER_REPORT_V2,
         ]
 
     @classmethod
