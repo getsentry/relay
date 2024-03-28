@@ -20,7 +20,7 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
-use crate::statsd::{KafkaGauges, KafkaHistograms, KafkaCounters};
+use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
 use utils::{Context, ThreadedProducer};
