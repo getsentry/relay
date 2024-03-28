@@ -159,7 +159,7 @@ pub struct Options {
     /// Rollout rate for producing to ingest-feedback-topic.
     ///
     /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all organizations will ingest to the feedback topic
+    /// If set to `1.0` all organizations will ingest to the feedback topic.
     #[serde(
         rename = "feedback.ingest-topic.rollout-rate",
         deserialize_with = "default_on_error",
