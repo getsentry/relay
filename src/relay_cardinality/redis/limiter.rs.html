@@ -887,6 +887,10 @@
 <a href="#885" id="885">885</a>
 <a href="#886" id="886">886</a>
 <a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1045,6 +1049,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="kw">for </span><span class="kw-2">mut </span>state <span class="kw">in </span>states {
+            <span class="kw">if </span>state.is_empty() {
+                <span class="kw">continue</span>;
+            }
+
             <span class="kw">let </span>results = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
                 <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;mut </span>state, timestamp)
             })<span class="question-mark">?</span>;
