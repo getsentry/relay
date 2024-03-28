@@ -9,7 +9,6 @@ use std::time::Instant;
 
 use axum::extract::FromRef;
 use bytes::Bytes;
-use rand::Rng;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
@@ -188,13 +187,12 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let mut rng = rand::thread_rng();
-        let use_ingest_feedback_topic = rng.gen::<f32>()
-            < self
-                .global_config
-                .current()
-                .options
-                .ingest_topic_rollout_rate;
+        let use_ingest_feedback_topic = self
+            .global_config
+            .current()
+            .options
+            .ingest_topic_rollout_rate
+            > 0.0;
 
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
