@@ -51,19 +51,19 @@ def test_feedback_event_with_processing(
     feedback_consumer,
     use_feedback_topic,
 ):
-    relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
     if use_feedback_topic:
-        mini_sentry.set_option("feedback.ingest-topic.rollout-rate", 1.0)
-        consumer = feedback_consumer(timeout=5)
+        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
+        consumer = feedback_consumer(timeout=20)
     else:
-        mini_sentry.set_option("feedback.ingest-topic.rollout-rate", 0.0)
-        consumer = events_consumer(timeout=5)
+        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
+        consumer = events_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
+    relay = relay_with_processing()
     relay.send_user_feedback(42, feedback)
 
     event, message = consumer.get_event()
