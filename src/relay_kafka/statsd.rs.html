@@ -99,6 +99,16 @@
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric};
 
 <span class="kw">pub enum </span>KafkaCounters {
@@ -112,12 +122,22 @@
     /// This metric is tagged with:
     ///  - `topic`: The Kafka topic being produced to.
     </span>ProcessingProduceError,
+
+    <span class="doccomment">/// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.
+    ///
+    /// These errors include, for example, _"UnknownTopic"_ errors when attempting to send a
+    /// message a topic that does not exist.
+    ///
+    /// This metric is tagged with:
+    ///  - `topic`: The Kafka topic being produced to.
+    </span>ProducerEnqueueError,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>KafkaCounters {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::ProcessingProduceError =&gt; <span class="string">"processing.produce.error"</span>,
+            <span class="self">Self</span>::ProducerEnqueueError =&gt; <span class="string">"producer.enqueue.error"</span>,
         }
     }
 }
