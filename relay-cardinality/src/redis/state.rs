@@ -82,6 +82,15 @@ impl<'a> LimitState<'a> {
         self.scopes.entry(scope).or_default().push(entry)
     }
 
+    /// Returns `true` if this state does not contain any entries.
+    ///
+    /// The state can be empty if:
+    /// - there are no entries matching this limit.
+    /// - all entries matching this limit were already handled by the cache.
+    pub fn is_empty(&self) -> bool {
+        self.scopes.is_empty()
+    }
+
     /// Returns the underlying cardinality limit id.
     pub fn id(&self) -> &'a str {
         &self.cardinality_limit.id
