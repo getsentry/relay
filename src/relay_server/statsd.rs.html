@@ -753,14 +753,6 @@
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -986,10 +978,6 @@
     <span class="doccomment">/// Time in milliseconds spent running light normalization on an event. Light normalization
     /// happens before envelope filtering and metrics extraction.
     </span>EventProcessingLightNormalization,
-    <span class="doccomment">/// Time in milliseconds spent running event processors on an event for normalization. Event
-    /// processing happens before filtering.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>EventProcessingProcess,
     <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.
     </span>EventProcessingFiltering,
     <span class="doccomment">/// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -1158,8 +1146,6 @@
             RelayTimers::EventProcessingLightNormalization =&gt; {
                 <span class="string">"event_processing.light_normalization"
             </span>}
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>RelayTimers::EventProcessingProcess =&gt; <span class="string">"event_processing.process"</span>,
             RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
@@ -1201,7 +1187,6 @@
     ///
     /// This currently checks for `environment` and `release`, for which we know that
     /// some SDKs may send corrupted values.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>EventCorrupted,
     <span class="doccomment">/// Number of envelopes accepted in the current time slot.
     ///
@@ -1419,8 +1404,7 @@
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
+            RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
             RelayCounters::BufferWrites =&gt; <span class="string">"buffer.writes"</span>,

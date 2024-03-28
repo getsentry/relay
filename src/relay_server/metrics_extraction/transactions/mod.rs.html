@@ -2320,8 +2320,8 @@
 
     <span class="comment">// The platform tag should not increase dimensionality in most cases, because most
     // transactions are specific to one platform.
-    // NOTE: we might want to reconsider light normalization a little and include the
-    // `relay_event_normalization::is_valid_platform` into light normalization.
+    // NOTE: we might want to reconsider normalization a little and include the
+    // `relay_event_normalization::is_valid_platform` into normalization.
     </span><span class="kw">let </span>platform = <span class="kw">match </span>event.platform.as_str() {
         <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>relay_event_normalization::is_valid_platform(platform) =&gt; platform,
         <span class="kw">_ </span>=&gt; <span class="string">"other"</span>,
@@ -2331,7 +2331,7 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
         <span class="comment">// We assume that the trace context status is automatically set to unknown inside of the
-        // light event normalization step.
+        // normalization step.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status) = trace_context.status.value() {
             tags.insert(CommonTag::TransactionStatus, status.to_string());
         }
@@ -3677,7 +3677,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_tags() {
-        <span class="comment">// Status is normalized upstream in the light normalization step.
+        <span class="comment">// Status is normalized upstream in the normalization step.
         </span><span class="kw">let </span>json = <span class="string">r#"
         {
             "type": "transaction",

@@ -3272,6 +3272,38 @@
 <a href="#3270" id="3270">3270</a>
 <a href="#3271" id="3271">3271</a>
 <a href="#3272" id="3272">3272</a>
+<a href="#3273" id="3273">3273</a>
+<a href="#3274" id="3274">3274</a>
+<a href="#3275" id="3275">3275</a>
+<a href="#3276" id="3276">3276</a>
+<a href="#3277" id="3277">3277</a>
+<a href="#3278" id="3278">3278</a>
+<a href="#3279" id="3279">3279</a>
+<a href="#3280" id="3280">3280</a>
+<a href="#3281" id="3281">3281</a>
+<a href="#3282" id="3282">3282</a>
+<a href="#3283" id="3283">3283</a>
+<a href="#3284" id="3284">3284</a>
+<a href="#3285" id="3285">3285</a>
+<a href="#3286" id="3286">3286</a>
+<a href="#3287" id="3287">3287</a>
+<a href="#3288" id="3288">3288</a>
+<a href="#3289" id="3289">3289</a>
+<a href="#3290" id="3290">3290</a>
+<a href="#3291" id="3291">3291</a>
+<a href="#3292" id="3292">3292</a>
+<a href="#3293" id="3293">3293</a>
+<a href="#3294" id="3294">3294</a>
+<a href="#3295" id="3295">3295</a>
+<a href="#3296" id="3296">3296</a>
+<a href="#3297" id="3297">3297</a>
+<a href="#3298" id="3298">3298</a>
+<a href="#3299" id="3299">3299</a>
+<a href="#3300" id="3300">3300</a>
+<a href="#3301" id="3301">3301</a>
+<a href="#3302" id="3302">3302</a>
+<a href="#3303" id="3303">3303</a>
+<a href="#3304" id="3304">3304</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4476,7 +4508,7 @@
         </span><span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>light_normalize_event&lt;G: EventProcessing&gt;(
+    <span class="kw">fn </span>normalize_event&lt;G: EventProcessing&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
@@ -4509,8 +4541,32 @@
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
                 is_validated: <span class="bool-val">false</span>,
             };
+
+            <span class="kw">let </span>is_last_relay_normalize = <span class="self">self</span>.inner.config.processing_enabled();
+
+            <span class="kw">let </span>key_id = state
+                .project_state
+                .get_public_key_config()
+                .and_then(|key| <span class="prelude-val">Some</span>(key.numeric_id<span class="question-mark">?</span>.to_string()));
+            <span class="kw">if </span>is_last_relay_normalize &amp;&amp; key_id.is_none() {
+                <span class="macro">relay_log::error!</span>(
+                    <span class="string">"project state for key {} is missing key id"</span>,
+                    state.managed_envelope.envelope().meta().public_key()
+                );
+            }
+
             <span class="kw">let </span>normalization_config = NormalizationConfig {
+                project_id: <span class="prelude-val">Some</span>(state.project_id.value()),
+                client: request_meta.client().map(str::to_owned),
+                key_id,
+                protocol_version: <span class="prelude-val">Some</span>(request_meta.version().to_string()),
+                grouping_config: state.project_state.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                client_sample_rate: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.sample_rate),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
@@ -4538,6 +4594,8 @@
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
+                remove_other: is_last_relay_normalize,
+                emit_event_errors: is_last_relay_normalize,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
@@ -4546,6 +4604,11 @@
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: <span class="bool-val">true</span>,
+                replay_id: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.replay_id),
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -4554,6 +4617,9 @@
                 validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
                     .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 normalize_event(event, <span class="kw-2">&amp;</span>normalization_config);
+                <span class="kw">if </span>is_last_relay_normalize &amp;&amp; event::has_unprintable_fields(event) {
+                    <span class="macro">metric!</span>(counter(RelayCounters::EventCorrupted) += <span class="number">1</span>);
+                }
                 <span class="prelude-ty">Result</span>::&lt;(), ProcessingError&gt;::Ok(())
             })
         })<span class="question-mark">?</span>;
@@ -4581,7 +4647,7 @@
         });
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
+        <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
@@ -4589,7 +4655,6 @@
         }
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
 
@@ -4617,7 +4682,7 @@
         });
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
+        <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
         dynamic_sampling::normalize(state);
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
@@ -4647,7 +4712,6 @@
             sampling_decision = <span class="kw">if </span>sampling_should_drop { <span class="string">"drop" </span>} <span class="kw">else </span>{ <span class="string">"keep" </span>},
             {
                 <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                    event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
                     profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
                 });
 
