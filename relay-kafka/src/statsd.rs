@@ -18,7 +18,8 @@ pub enum KafkaCounters {
     /// message a topic that does not exist.
     ///
     /// This metric is tagged with:
-    ///  - `topic`: The Kafka topic being produced to.
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
     ProducerEnqueueError,
 }
 
@@ -52,7 +53,8 @@ pub enum KafkaGauges {
     /// See <https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7>.
     ///
     /// This metric is tagged with:
-    /// - `topic`
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `variant`: The Kafka message variant.
     InFlightCount,
 
     /// The current number of messages in producer queues.
