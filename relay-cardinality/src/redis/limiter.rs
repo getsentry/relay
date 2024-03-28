@@ -156,6 +156,10 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for mut state in states {
+            if state.is_empty() {
+                continue;
+            }
+
             let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
                 self.check_limits(&mut connection, &mut state, timestamp)
             })?;
