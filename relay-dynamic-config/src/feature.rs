@@ -28,11 +28,6 @@ pub enum Feature {
     /// Serialized as `organizations:user-feedback-ingest`.
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
-    /// Enables producing User Feedback (v2) to its own Kafka topic.
-    ///
-    /// Serialized as `organizations:user-feedback-ingest-topic`.
-    #[serde(rename = "organizations:user-feedback-ingest-topic")]
-    UserReportV2IngestTopic,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

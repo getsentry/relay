@@ -7,13 +7,11 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::extract::FromRef;
 use bytes::Bytes;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_dynamic_config::ProjectConfig;
 use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
