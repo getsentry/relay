@@ -54,7 +54,8 @@ pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
 ///  - Double quote is escaped as `\"`.
 ///  - Backslash is escaped as `\\`.
 ///  - All other characters are are given unicode escapes in the form `\u{XXXX}`.
-pub fn escape_tag_value(raw: &str) -> String {
+#[allow(unused)]
+pub(crate) fn escape_tag_value(raw: &str) -> String {
     use std::fmt::Write;
     let mut escaped = String::with_capacity(raw.len());
 
@@ -81,7 +82,7 @@ pub fn escape_tag_value(raw: &str) -> String {
 ///
 /// ASCII control characters are stripped from the resulting string. This is equivalent to
 /// [`validate_tag_value`].
-pub fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
+pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
     let mut unescaped = unescaper::unescape(escaped)?;
     validate_tag_value(&mut unescaped);
     Ok(unescaped)
