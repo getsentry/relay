@@ -33,7 +33,9 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
+use crate::utils::{
+    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope,
+};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -184,6 +186,15 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
+
+        let ingest_feedback_topic_rollout_rate = self
+            .global_config
+            .current()
+            .options
+            .ingest_topic_rollout_rate;
+        let use_ingest_feedback_topic =
+            is_rolled_out(scoping.organization_id, ingest_feedback_topic_rollout_rate);
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
@@ -199,6 +210,10 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if use_ingest_feedback_topic
+            && (event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2))
+        {
+            KafkaTopic::Feedback
         } else {
             KafkaTopic::Events
         };
