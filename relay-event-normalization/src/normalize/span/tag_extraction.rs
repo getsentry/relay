@@ -1284,6 +1284,52 @@ LIMIT 1
     }
 
     #[test]
+    fn test_http_client_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1711007391.89278,
+                        "start_timestamp": 1711007391.891537,
+                        "exclusive_time": 1.243114,
+                        "description": "POST http://127.0.0.1:10007/data",
+                        "op": "http.client",
+                        "span_id": "8e635823db6a742a",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "POST",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://127.0.0.1:10007/data"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+
+        assert_eq!(
+            tags_1.get("domain").unwrap().as_str(),
+            Some("127.0.0.1:10007")
+        );
+    }
+
+    #[test]
     fn test_mobile_specific_tags() {
         let json = r#"
             {
