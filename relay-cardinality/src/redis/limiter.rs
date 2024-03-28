@@ -66,6 +66,7 @@ impl RedisSetLimiter {
         let mut num_hashes: u64 = 0;
 
         let mut pipeline = self.script.pipe();
+        let mut results = Vec::new();
         for (scope, entries) in &scopes {
             let keys = scope.slots(timestamp).map(|slot| scope.to_redis_key(slot));
 
@@ -75,6 +76,11 @@ impl RedisSetLimiter {
             // The expiry is a off by `window.granularity_seconds`,
             // but since this is only used for cleanup, this is not an issue.
             pipeline.add_invocation(limit, scope.redis_key_ttl(), hashes, keys);
+
+            results.push(CardinalityScriptResult {
+                cardinality: 123,
+                statuses: vec![Status::Accepted; entries.len()],
+            });
         }
 
         metric!(
@@ -82,7 +88,8 @@ impl RedisSetLimiter {
             id = state.id(),
         );
 
-        let results = pipeline.invoke(connection)?;
+        // let results = pipeline.invoke(connection)?;
+        //let results = std::iter::repeat(CardinalityScriptResult)
 
         debug_assert_eq!(results.len(), scopes.len());
         scopes
