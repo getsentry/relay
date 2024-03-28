@@ -44,7 +44,7 @@ pub struct CardinalityReport {
     pub name: Option<MetricName>,
 
     /// The current cardinality.
-    pub cardinality: u64,
+    pub cardinality: u32,
 }
 
 /// Accumulator of all cardinality limiter decisions.
