@@ -184,6 +184,7 @@
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_statsd::metric;
@@ -199,6 +200,7 @@
 ///
 /// Also tracks amount of cache hits and misses as well as amount of
 /// items accepted and rejected. These metrics are reported via statsd on drop.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>LimitState&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The limit of the quota.
     </span><span class="kw">pub </span>limit: u64,

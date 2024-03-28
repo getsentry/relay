@@ -395,6 +395,7 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
@@ -449,13 +450,13 @@
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    </span><span class="kw">pub fn </span>update(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScoping, timestamp: UnixTimestamp) -&gt; CacheUpdate&lt;<span class="lifetime">'_</span>&gt; {
+    </span><span class="kw">pub fn </span>update(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>QuotaScoping, timestamp: UnixTimestamp) -&gt; CacheUpdate&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.inner.write();
 
         inner.vacuum(timestamp);
 
         <span class="kw">let </span>slot = scope.active_slot(timestamp);
-        <span class="kw">let </span>cache = inner.cache.entry(scope).or_default();
+        <span class="kw">let </span>cache = inner.cache.entry_ref(scope).or_default();
 
         <span class="comment">// If the slot is older, don't do anything and give up the lock early.
         </span><span class="kw">if </span>slot &lt; cache.current_slot {
@@ -493,8 +494,8 @@
         <span class="self">Self </span>{ inner, timestamp }
     }
 
-    <span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScoping, hash: u32, limit: u64) -&gt; CacheOutcome {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(cache) = <span class="self">self</span>.inner.cache.get(<span class="kw-2">&amp;</span>scope) <span class="kw">else </span>{
+    <span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>QuotaScoping, hash: u32, limit: u64) -&gt; CacheOutcome {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(cache) = <span class="self">self</span>.inner.cache.get(scope) <span class="kw">else </span>{
             <span class="kw">return </span>CacheOutcome::Unknown;
         };
 
@@ -510,8 +511,8 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CacheUpdate&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    </span><span class="kw">fn </span>new(inner: RwLockWriteGuard&lt;<span class="lifetime">'a</span>, Inner&gt;, key: QuotaScoping) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(<span class="kw-2">&amp;</span>key)).ok())
+    </span><span class="kw">fn </span>new(inner: RwLockWriteGuard&lt;<span class="lifetime">'a</span>, Inner&gt;, key: <span class="kw-2">&amp;</span>QuotaScoping) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(key)).ok())
     }
 
     <span class="doccomment">/// Creates a new noop [`CacheUpdate`] which does not require a lock.
@@ -593,7 +594,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+    <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
 
     <span class="kw">use </span><span class="kw">crate</span>::limiter::{Entry, EntryId};
@@ -611,6 +612,7 @@
             <span class="kw-2">&amp;</span>CardinalityLimit {
                 id: String::new(),
                 passive: <span class="bool-val">false</span>,
+                report: <span class="bool-val">false</span>,
                 window,
                 limit: <span class="number">100</span>,
                 scope: CardinalityScope::Organization,
@@ -621,7 +623,7 @@
         .complete(Entry {
             id: EntryId(<span class="number">0</span>),
             namespace: MetricNamespace::Spans,
-            name: <span class="string">"foobar"</span>,
+            name: <span class="kw-2">&amp;</span>MetricName::from(<span class="string">"foobar"</span>),
             hash: <span class="number">123</span>,
         })
     }
@@ -640,11 +642,11 @@
 
         {
             <span class="kw">let </span>cache = cache.read(now);
-            <span class="macro">assert_eq!</span>(cache.check(scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
         }
 
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope, now);
+            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope, now);
             cache.accept(<span class="number">1</span>);
             cache.accept(<span class="number">2</span>);
         }
@@ -652,37 +654,37 @@
         {
             <span class="kw">let </span>r1 = cache.read(now);
             <span class="comment">// All in cache, no matter the limit.
-            </span><span class="macro">assert_eq!</span>(r1.check(scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(r1.check(scope, <span class="number">1</span>, <span class="number">2</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(r1.check(scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Accepted);
+            </span><span class="macro">assert_eq!</span>(r1.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(r1.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">2</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(r1.check(<span class="kw-2">&amp;</span>scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Accepted);
 
             <span class="comment">// Not in cache, depends on limit and amount of items in the cache.
-            </span><span class="macro">assert_eq!</span>(r1.check(scope, <span class="number">3</span>, <span class="number">3</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(r1.check(scope, <span class="number">3</span>, <span class="number">2</span>), CacheOutcome::Rejected);
+            </span><span class="macro">assert_eq!</span>(r1.check(<span class="kw-2">&amp;</span>scope, <span class="number">3</span>, <span class="number">3</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(r1.check(<span class="kw-2">&amp;</span>scope, <span class="number">3</span>, <span class="number">2</span>), CacheOutcome::Rejected);
 
             <span class="comment">// Read concurrently from a future slot.
             </span><span class="kw">let </span>r2 = cache.read(future);
-            <span class="macro">assert_eq!</span>(r2.check(scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(r2.check(scope, <span class="number">2</span>, <span class="number">2</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(r2.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(r2.check(<span class="kw-2">&amp;</span>scope, <span class="number">2</span>, <span class="number">2</span>), CacheOutcome::Unknown);
         }
 
         {
             <span class="comment">// Move the cache into the future.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope, future);
+            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope, future);
             cache.accept(<span class="number">1</span>);
         }
 
         {
             <span class="kw">let </span>future = cache.read(future);
             <span class="comment">// The future only contains `1`.
-            </span><span class="macro">assert_eq!</span>(future.check(scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(future.check(scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Rejected);
+            </span><span class="macro">assert_eq!</span>(future.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(future.check(<span class="kw-2">&amp;</span>scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Rejected);
 
             <span class="kw">let </span>past = cache.read(now);
             <span class="comment">// The cache has no information about the past.
-            </span><span class="macro">assert_eq!</span>(past.check(scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(past.check(scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(past.check(scope, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
+            </span><span class="macro">assert_eq!</span>(past.check(<span class="kw-2">&amp;</span>scope, <span class="number">1</span>, <span class="number">1</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(past.check(<span class="kw-2">&amp;</span>scope, <span class="number">2</span>, <span class="number">1</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(past.check(<span class="kw-2">&amp;</span>scope, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
         }
     }
 
@@ -700,26 +702,26 @@
         <span class="kw">let </span>now = UnixTimestamp::now();
 
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope1, now);
+            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope1, now);
             cache.accept(<span class="number">1</span>);
         }
 
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope2, now);
+            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope2, now);
             cache.accept(<span class="number">1</span>);
             cache.accept(<span class="number">2</span>);
         }
 
         {
             <span class="kw">let </span>cache = cache.read(now);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">1</span>, <span class="number">99</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">2</span>, <span class="number">99</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">3</span>, <span class="number">1</span>), CacheOutcome::Rejected);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">1</span>, <span class="number">99</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">2</span>, <span class="number">99</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">3</span>, <span class="number">2</span>), CacheOutcome::Rejected);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">1</span>, <span class="number">99</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">2</span>, <span class="number">99</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">3</span>, <span class="number">1</span>), CacheOutcome::Rejected);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">1</span>, <span class="number">99</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">2</span>, <span class="number">99</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">3</span>, <span class="number">99</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">3</span>, <span class="number">2</span>), CacheOutcome::Rejected);
         }
     }
 
@@ -740,53 +742,53 @@
         <span class="kw">let </span>future = now + Duration::from_secs(vacuum_interval.as_secs() * <span class="number">3</span>);
 
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope1, now);
+            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope1, now);
             cache.accept(<span class="number">10</span>);
         }
 
         {
-            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope2, now);
+            <span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope2, now);
             cache.accept(<span class="number">20</span>);
         }
 
         {
             <span class="comment">// Verify entries.
             </span><span class="kw">let </span>cache = cache.read(now);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Accepted);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">20</span>, <span class="number">100</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">20</span>, <span class="number">100</span>), CacheOutcome::Accepted);
         }
 
         {
             <span class="comment">// Fast forward time a little bit and stay within all bounds.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope2, in_interval);
+            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope2, in_interval);
             cache.accept(<span class="number">21</span>);
         }
 
         {
             <span class="comment">// Verify entries with old timestamp, values should still be there.
             </span><span class="kw">let </span>cache = cache.read(now);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Accepted);
         }
 
         {
             <span class="comment">// Fast forward time far in the future, should vacuum old values.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(scope2, future);
+            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope2, future);
             cache.accept(<span class="number">22</span>);
         }
 
         {
             <span class="comment">// Verify that there is no data with the original timestamp.
             </span><span class="kw">let </span>cache = cache.read(now);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope1, <span class="number">11</span>, <span class="number">100</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">20</span>, <span class="number">100</span>), CacheOutcome::Unknown);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">21</span>, <span class="number">100</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">10</span>, <span class="number">100</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope1, <span class="number">11</span>, <span class="number">100</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">20</span>, <span class="number">100</span>), CacheOutcome::Unknown);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">21</span>, <span class="number">100</span>), CacheOutcome::Unknown);
         }
 
         {
             <span class="comment">// Make sure the new/current values are cached.
             </span><span class="kw">let </span>cache = cache.read(future);
-            <span class="macro">assert_eq!</span>(cache.check(scope2, <span class="number">22</span>, <span class="number">100</span>), CacheOutcome::Accepted);
+            <span class="macro">assert_eq!</span>(cache.check(<span class="kw-2">&amp;</span>scope2, <span class="number">22</span>, <span class="number">100</span>), CacheOutcome::Accepted);
         }
     }
 }
