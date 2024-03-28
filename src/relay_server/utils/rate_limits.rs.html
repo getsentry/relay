@@ -1563,6 +1563,10 @@
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
 <a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1905,6 +1909,8 @@
     </span>spans: CategoryLimit,
     <span class="doccomment">/// The combined rate limit for metrics extracted from spans.
     </span>span_metrics: CategoryLimit,
+    <span class="doccomment">/// The combined rate limit for user-reports.
+    </span>user_reports_v2: CategoryLimit,
     <span class="doccomment">/// The combined profile chunk item rate limit.
     </span>profile_chunks: CategoryLimit,
 }
@@ -1937,6 +1943,7 @@
             event_metrics,
             spans,
             span_metrics,
+            user_reports_v2,
             profile_chunks,
         } = <span class="self">self</span>;
 
@@ -1949,6 +1956,7 @@
             event_metrics,
             spans,
             span_metrics,
+            user_reports_v2,
             profile_chunks,
         ];
 

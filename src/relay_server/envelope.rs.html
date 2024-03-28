@@ -2751,7 +2751,7 @@
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
-            ItemType::UserReportV2 =&gt; <span class="prelude-val">None</span>,
+            ItemType::UserReportV2 =&gt; <span class="prelude-val">Some</span>(DataCategory::UserReportV2),
             ItemType::Profile =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span>indexed {
                 DataCategory::ProfileIndexed
             } <span class="kw">else </span>{
