@@ -75,6 +75,18 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>rdkafka::producer::{DeliveryResult, ProducerContext};
@@ -97,7 +109,7 @@
         <span class="macro">relay_statsd::metric!</span>(gauge(KafkaGauges::MessageSize) = statistics.msg_size);
         <span class="macro">relay_statsd::metric!</span>(gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max);
 
-        <span class="kw">for </span>broker <span class="kw">in </span>statistics.brokers.values() {
+        <span class="kw">for </span>(<span class="kw">_</span>, broker) <span class="kw">in </span>statistics.brokers {
             <span class="macro">relay_statsd::metric!</span>(
                 gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt <span class="kw">as </span>u64,
                 broker_name = <span class="kw-2">&amp;</span>broker.name
@@ -115,6 +127,18 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(disconnects) = broker.disconnects {
                 <span class="macro">relay_statsd::metric!</span>(
                     gauge(KafkaGauges::Disconnects) = disconnects <span class="kw">as </span>u64,
+                    broker_name = <span class="kw-2">&amp;</span>broker.name
+                );
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(int_latency) = broker.int_latency {
+                <span class="macro">relay_statsd::metric!</span>(
+                    gauge(KafkaGauges::ProducerQueueLatency) = int_latency.max <span class="kw">as </span>u64,
+                    broker_name = <span class="kw-2">&amp;</span>broker.name
+                );
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(outbuf_latency) = broker.outbuf_latency {
+                <span class="macro">relay_statsd::metric!</span>(
+                    gauge(KafkaGauges::RequestQueueLatency) = outbuf_latency.max <span class="kw">as </span>u64,
                     broker_name = <span class="kw-2">&amp;</span>broker.name
                 );
             }
