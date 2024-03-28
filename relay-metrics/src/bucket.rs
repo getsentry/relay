@@ -719,7 +719,7 @@ impl CardinalityItem for Bucket {
         self.name.try_namespace()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &MetricName {
         &self.name
     }
 
