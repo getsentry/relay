@@ -114,7 +114,10 @@ impl QuotaScoping {
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
         let name = DisplayOptMinus(self.name.as_deref().map(fnv32));
 
-        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}")
+        use std::fmt::Write;
+        let mut key = String::with_capacity(300);
+        write!(&mut key, "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}").unwrap();
+        key
     }
 }
 

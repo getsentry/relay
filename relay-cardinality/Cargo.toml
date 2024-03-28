@@ -34,10 +34,6 @@ criterion = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 
-[profile.bench]
-debug = true
-
-
 [[bench]]
 name = "redis"
 harness = false

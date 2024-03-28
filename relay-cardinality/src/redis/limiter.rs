@@ -62,11 +62,14 @@ impl RedisSetLimiter {
         let limit = state.limit;
 
         let scopes = state.take_scopes();
+        if scopes.is_empty() {
+            return Ok(Vec::new());
+        }
 
         let mut num_hashes: u64 = 0;
 
         let mut pipeline = self.script.pipe();
-        let mut results = Vec::new();
+        // let mut results = Vec::new();
         for (scope, entries) in &scopes {
             let keys = scope.slots(timestamp).map(|slot| scope.to_redis_key(slot));
 
@@ -77,10 +80,10 @@ impl RedisSetLimiter {
             // but since this is only used for cleanup, this is not an issue.
             pipeline.add_invocation(limit, scope.redis_key_ttl(), hashes, keys);
 
-            results.push(CardinalityScriptResult {
-                cardinality: 123,
-                statuses: vec![Status::Accepted; entries.len()],
-            });
+            // results.push(CardinalityScriptResult {
+            //     cardinality: 123,
+            //     statuses: vec![Status::Accepted; entries.len()],
+            // });
         }
 
         metric!(
@@ -88,8 +91,9 @@ impl RedisSetLimiter {
             id = state.id(),
         );
 
-        // let results = pipeline.invoke(connection)?;
-        //let results = std::iter::repeat(CardinalityScriptResult)
+        let start = std::time::Instant::now();
+        let results = pipeline.invoke(connection)?;
+        println!("invoke {:?} {num_hashes} {}", start.elapsed(), scopes.len());
 
         debug_assert_eq!(results.len(), scopes.len());
         scopes
@@ -310,9 +314,7 @@ mod tests {
         }
 
         fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
-            let reports = self.reports.entry(limit.clone()).or_default();
-            reports.push(report);
-            reports.sort();
+            self.reports.entry(limit.clone()).or_default().push(report);
         }
     }
 
@@ -386,6 +388,9 @@ mod tests {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)
                 .unwrap();
+            for report in reporter.reports.values_mut() {
+                report.sort();
+            }
             reporter
         }
     }
@@ -629,6 +634,54 @@ mod tests {
             .collect::<Vec<_>>();
 
         let rejected = limiter.test_limits(scoping, limits, entries);
+        assert_eq!(rejected.len(), 20_000);
+    }
+
+    #[test]
+    fn test_limiter_big_limit_names() {
+        let limiter = build_limiter();
+
+        let scoping = new_scoping(&limiter);
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            passive: false,
+            report: false,
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 100_000,
+            scope: CardinalityScope::Name,
+            namespace: Some(Custom),
+        }];
+
+        let names = (0..10_000)
+            .map(|i| MetricName::from(format!("foo{i}")))
+            .collect::<Vec<_>>();
+
+        let entries = (0..100_000)
+            .map(|i| {
+                Entry::new(
+                    EntryId(i as usize),
+                    Custom,
+                    &names[i as usize % names.len()],
+                    i,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let e2 = entries.clone();
+
+        use std::time::Instant;
+        let start = Instant::now();
+
+        let rejected = limiter.test_limits(scoping, limits, entries);
+        println!("{:?}", start.elapsed());
+        // println!("{:?}", limiter.cache);
+
+        let rejected = limiter.test_limits2(scoping, limits, e2);
+        println!("{:?}", start.elapsed());
+
         assert_eq!(rejected.len(), 20_000);
     }
 

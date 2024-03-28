@@ -184,10 +184,10 @@ pub fn bench_simple(c: &mut Criterion) {
     ];
 
     let names: &[Params] = &[
-        // Params::new(10_000, 50, 10_000, 1),
+        Params::new(10_000, 1, 50_000, 1),
         // Params::new(10_000, 50, 10_000, 2),
         // Params::new(10_000, 50, 10_000, 1000),
-        Params::new(10_000, 50, 10_000, 10_000),
+        Params::new(10_000, 1, 50_000, 50_000),
     ];
 
     let redis = build_redis();
