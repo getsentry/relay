@@ -186,15 +186,14 @@ impl<T: Limiter> CardinalityLimiter<T> {
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
 struct DefaultReporter<'a> {
-    limits: HashSet<&'a CardinalityLimit>,
+    limits: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
     entries: HashSet<usize>,
-    reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
 impl<'a> Reporter<'a> for DefaultReporter<'a> {
     #[inline(always)]
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
-        self.limits.insert(limit);
+        self.limits.entry(limit).or_default();
         if !limit.passive {
             self.entries.insert(entry_id.0);
         }
@@ -205,7 +204,7 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
         if !limit.report {
             return;
         }
-        self.reports.entry(limit).or_default().push(report);
+        self.limits.entry(limit).or_default().push(report);
     }
 }
 
@@ -214,8 +213,7 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
 pub struct CardinalityLimits<'a, T> {
     source: Vec<T>,
     rejections: HashSet<usize>,
-    limits: HashSet<&'a CardinalityLimit>,
-    reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
+    limits: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
 impl<'a, T> CardinalityLimits<'a, T> {
@@ -224,7 +222,6 @@ impl<'a, T> CardinalityLimits<'a, T> {
             source,
             rejections: reporter.entries,
             limits: reporter.limits,
-            reports: reporter.reports,
         }
     }
 
@@ -236,16 +233,23 @@ impl<'a, T> CardinalityLimits<'a, T> {
     /// Returns all id's of cardinality limits which were exceeded.
     ///
     /// This includes passive limits.
-    pub fn exceeded_limits(&self) -> &HashSet<&'a CardinalityLimit> {
-        &self.limits
+    pub fn exceeded_limits(
+        &self,
+    ) -> impl Iterator<Item = &'a CardinalityLimit> + ExactSizeIterator + '_ {
+        self.limits.keys().copied()
     }
 
     /// Returns all cardinality reports grouped by the cardinality limit.
     ///
     /// Cardinality reports are generated for all cardinality limits with reporting enabled
     /// and the current cardinality changed.
-    pub fn cardinality_reports(&self) -> &BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>> {
-        &self.reports
+    pub fn cardinality_reports(
+        &self,
+    ) -> impl Iterator<Item = (&'a CardinalityLimit, &[CardinalityReport])> {
+        self.limits
+            .iter()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(k, v)| (*k, v.as_slice()))
     }
 
     /// Recovers the original list of items passed to the cardinality limiter.
@@ -355,8 +359,7 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 3]),
-            limits: HashSet::new(),
-            reports: BTreeMap::new(),
+            limits: BTreeMap::new(),
         };
         assert_rejected(&limits, ['a', 'b', 'd']);
         assert!(limits.has_rejections());
@@ -365,8 +368,7 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([]),
-            limits: HashSet::new(),
-            reports: BTreeMap::new(),
+            limits: BTreeMap::new(),
         };
         assert_rejected(&limits, []);
         assert!(!limits.has_rejections());
@@ -375,8 +377,7 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 2, 3, 4]),
-            limits: HashSet::new(),
-            reports: BTreeMap::new(),
+            limits: BTreeMap::new(),
         };
         assert!(limits.has_rejections());
         assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
@@ -421,7 +422,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
+        assert!(result.exceeded_limits().eq([&limits[0]]));
         assert!(result.into_accepted().is_empty());
     }
 
@@ -578,7 +579,10 @@ mod tests {
             .unwrap();
 
         assert!(limited.has_rejections());
-        assert_eq!(limited.exceeded_limits(), &limits.iter().collect());
+        assert_eq!(
+            limited.exceeded_limits().collect::<HashSet<_>>(),
+            limits.into_iter().collect()
+        );
 
         // All passive items and no enforced (passive = False) should be accepted.
         let rejected = limited.rejected().collect::<HashSet<_>>();
@@ -693,7 +697,7 @@ mod tests {
             .check_cardinality_limits(scoping, limits, items)
             .unwrap();
 
-        let reports = limited.cardinality_reports();
+        let reports = limited.cardinality_reports().collect::<BTreeMap<_, _>>();
         assert_eq!(reports.len(), 2);
         assert_eq!(
             reports.get(&limits[0]).unwrap(),
