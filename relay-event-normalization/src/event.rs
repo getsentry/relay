@@ -278,7 +278,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_breadcrumbs(event);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
-    normalize_platform_and_level(event);
 
     // TODO: Consider moving to store normalization
     if config.device_class_synthesis_config {
@@ -575,18 +574,6 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
             *dist = trimmed.to_string();
         }
         Ok(())
-    });
-}
-
-/// Defaults the `platform` and `level` required attributes.
-fn normalize_platform_and_level(event: &mut Event) {
-    // The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it's put here since only light
-    // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
-    // on some normalized data.
-    event.platform.get_or_insert_with(|| "other".to_string());
-    event.level.get_or_insert_with(|| match event.ty.value() {
-        Some(EventType::Transaction) => Level::Info,
-        _ => Level::Error,
     });
 }
 
@@ -1519,38 +1506,39 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+        let Annotated(Some(mut event), mut meta) = Annotated::<Event>::from_json(json).unwrap()
+        else {
+            panic!("Invalid transaction json");
+        };
 
-        normalize_platform_and_level(&mut event);
+        normalize_default_attributes(&mut event, &mut meta, &NormalizationConfig::default());
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
-        {
-          "level": "info",
-          "type": "transaction",
-          "platform": "other",
-        }
-        "###);
+        assert_eq!(event.level.value().unwrap().to_string(), "info");
+        assert_eq!(event.ty.value().unwrap().to_string(), "transaction");
+        assert_eq!(event.platform.value().unwrap().to_owned(), "other");
     }
 
     #[test]
     fn test_normalize_platform_and_level_with_error_event() {
         let json = r#"
         {
-            "type": "error"
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            }
         }
         "#;
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+        let Annotated(Some(mut event), mut meta) = Annotated::<Event>::from_json(json).unwrap()
+        else {
+            panic!("Invalid error json");
+        };
 
-        normalize_platform_and_level(&mut event);
+        normalize_default_attributes(&mut event, &mut meta, &NormalizationConfig::default());
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
-        {
-          "level": "error",
-          "type": "error",
-          "platform": "other",
-        }
-        "###);
+        assert_eq!(event.level.value().unwrap().to_string(), "error");
+        assert_eq!(event.ty.value().unwrap().to_string(), "error");
+        assert_eq!(event.platform.value().unwrap().to_owned(), "other");
     }
 
     #[test]
