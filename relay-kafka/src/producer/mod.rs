@@ -402,8 +402,8 @@ impl Producer {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
                     tags.variant = variant,
-                    "error sending kafka message to topic {}",
-                    topic_name
+                    tags.topic = topic_name,
+                    "error sending kafka message",
                 );
                 metric!(
                     counter(KafkaCounters::ProducerEnqueueError) += 1,
