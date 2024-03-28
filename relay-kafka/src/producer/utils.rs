@@ -20,7 +20,7 @@ impl ClientContext for Context {
         relay_statsd::metric!(gauge(KafkaGauges::MessageSize) = statistics.msg_size);
         relay_statsd::metric!(gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max);
 
-        for (_, broker) in statistics.brokers {
+        for broker in statistics.brokers.values() {
             relay_statsd::metric!(
                 gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt as u64,
                 broker_name = &broker.name
@@ -41,7 +41,7 @@ impl ClientContext for Context {
                     broker_name = &broker.name
                 );
             }
-            if let Some(int_latency) = broker.int_latency {
+            if let Some(int_latency) = &broker.int_latency {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::ProducerQueueLatency) = int_latency.max as u64,
                     broker_name = &broker.name

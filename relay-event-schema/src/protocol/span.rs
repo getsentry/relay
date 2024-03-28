@@ -1,3 +1,5 @@
+mod conversion;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -107,38 +109,38 @@ pub struct Span {
     pub other: Object<Value>,
 }
 
-impl From<&Event> for Span {
-    fn from(event: &Event) -> Self {
-        let mut span = Self {
-            _metrics_summary: event._metrics_summary.clone(),
-            description: event.transaction.clone(),
-            is_segment: Some(true).into(),
-            received: event.received.clone(),
-            start_timestamp: event.start_timestamp.clone(),
-            timestamp: event.timestamp.clone(),
-            measurements: event.measurements.clone(),
-            platform: event.platform.clone(),
-            was_transaction: true.into(),
-            ..Default::default()
-        };
+// impl From<&Event> for Span {
+//     fn from(event: &Event) -> Self {
+//         let mut span = Self {
+//             _metrics_summary: event._metrics_summary.clone(),
+//             description: event.transaction.clone(),
+//             is_segment: Some(true).into(),
+//             received: event.received.clone(),
+//             start_timestamp: event.start_timestamp.clone(),
+//             timestamp: event.timestamp.clone(),
+//             measurements: event.measurements.clone(),
+//             platform: event.platform.clone(),
+//             was_transaction: true.into(),
+//             ..Default::default()
+//         };
 
-        if let Some(trace_context) = event.context::<TraceContext>().cloned() {
-            span.exclusive_time = trace_context.exclusive_time;
-            span.op = trace_context.op;
-            span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
-            span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
-            span.trace_id = trace_context.trace_id;
-        }
+//         if let Some(trace_context) = event.context::<TraceContext>().cloned() {
+//             span.exclusive_time = trace_context.exclusive_time;
+//             span.op = trace_context.op;
+//             span.parent_span_id = trace_context.parent_span_id;
+//             span.segment_id = trace_context.span_id; // a transaction is a segment
+//             span.span_id = trace_context.span_id;
+//             span.status = trace_context.status;
+//             span.trace_id = trace_context.trace_id;
+//         }
 
-        if let Some(profile_context) = event.context::<ProfileContext>() {
-            span.profile_id = profile_context.profile_id.clone();
-        }
+//         if let Some(profile_context) = event.context::<ProfileContext>() {
+//             span.profile_id = profile_context.profile_id.clone();
+//         }
 
-        span
-    }
-}
+//         span
+//     }
+// }
 
 impl Getter for Span {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
