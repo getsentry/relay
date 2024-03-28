@@ -1202,7 +1202,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn light_normalize_event<G: EventProcessing>(
+    fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
@@ -1235,8 +1235,32 @@ impl EnvelopeProcessorService {
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 is_validated: false,
             };
+
+            let is_last_relay_normalize = self.inner.config.processing_enabled();
+
+            let key_id = state
+                .project_state
+                .get_public_key_config()
+                .and_then(|key| Some(key.numeric_id?.to_string()));
+            if is_last_relay_normalize && key_id.is_none() {
+                relay_log::error!(
+                    "project state for key {} is missing key id",
+                    state.managed_envelope.envelope().meta().public_key()
+                );
+            }
+
             let normalization_config = NormalizationConfig {
+                project_id: Some(state.project_id.value()),
+                client: request_meta.client().map(str::to_owned),
+                key_id,
+                protocol_version: Some(request_meta.version().to_string()),
+                grouping_config: state.project_state.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                client_sample_rate: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.sample_rate),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
@@ -1264,6 +1288,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
+                remove_other: is_last_relay_normalize,
+                emit_event_errors: is_last_relay_normalize,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1272,6 +1298,11 @@ impl EnvelopeProcessorService {
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: true,
+                replay_id: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.replay_id),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -1280,6 +1311,9 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
+                if is_last_relay_normalize && event::has_unprintable_fields(event) {
+                    metric!(counter(RelayCounters::EventCorrupted) += 1);
+                }
                 Result::<(), ProcessingError>::Ok(())
             })
         })?;
@@ -1307,7 +1341,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1315,7 +1349,6 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
         });
 
@@ -1343,7 +1376,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         dynamic_sampling::normalize(state);
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
@@ -1373,7 +1406,6 @@ impl EnvelopeProcessorService {
             sampling_decision = if sampling_should_drop { "drop" } else { "keep" },
             {
                 if_processing!(self.inner.config, {
-                    event::store(state, &self.inner.config)?;
                     profile::process(state, &self.inner.config);
                 });
 

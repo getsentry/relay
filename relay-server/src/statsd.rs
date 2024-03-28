@@ -223,10 +223,6 @@ pub enum RelayTimers {
     /// Time in milliseconds spent running light normalization on an event. Light normalization
     /// happens before envelope filtering and metrics extraction.
     EventProcessingLightNormalization,
-    /// Time in milliseconds spent running event processors on an event for normalization. Event
-    /// processing happens before filtering.
-    #[cfg(feature = "processing")]
-    EventProcessingProcess,
     /// Time in milliseconds spent running inbound data filters on an event.
     EventProcessingFiltering,
     /// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -395,8 +391,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingLightNormalization => {
                 "event_processing.light_normalization"
             }
-            #[cfg(feature = "processing")]
-            RelayTimers::EventProcessingProcess => "event_processing.process",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
@@ -438,7 +432,6 @@ pub enum RelayCounters {
     ///
     /// This currently checks for `environment` and `release`, for which we know that
     /// some SDKs may send corrupted values.
-    #[cfg(feature = "processing")]
     EventCorrupted,
     /// Number of envelopes accepted in the current time slot.
     ///
@@ -656,7 +649,6 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
-            #[cfg(feature = "processing")]
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
