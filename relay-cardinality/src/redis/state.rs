@@ -87,7 +87,7 @@ impl<'a> LimitState<'a> {
     /// The state can be empty if:
     /// - there are no entries matching this limit.
     /// - all entries matching this limit were already handled by the cache.
-    pub fn is_empty(&mut self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.scopes.is_empty()
     }
 
