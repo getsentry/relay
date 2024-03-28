@@ -161,7 +161,7 @@ pub struct RateLimit {
     ///
     /// Ignored on all data categories except for `MetricBucket`. If empty, this rate limit applies
     /// to metrics of all namespaces.
-    pub namespace: SmallVec<[MetricNamespace; 1]>,
+    pub namespaces: SmallVec<[MetricNamespace; 1]>,
 }
 
 impl RateLimit {
@@ -172,7 +172,7 @@ impl RateLimit {
             scope: RateLimitScope::for_quota(scoping, quota.scope),
             reason_code: quota.reason_code.clone(),
             retry_after,
-            namespace: quota.namespace.into_iter().collect(),
+            namespaces: quota.namespace.into_iter().collect(),
         }
     }
 
@@ -180,7 +180,7 @@ impl RateLimit {
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(&self.categories)
-            && scoping.matches_namespaces(&self.namespace)
+            && scoping.matches_namespaces(&self.namespaces)
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
@@ -225,10 +225,10 @@ impl RateLimits {
                 scope,
                 reason_code: _,
                 retry_after: _,
-                namespace,
+                namespaces: namespace,
             } = &limit;
 
-            *categories == l.categories && *scope == l.scope && *namespace == l.namespace
+            *categories == l.categories && *scope == l.scope && *namespace == l.namespaces
         });
 
         match limit_opt {
@@ -423,7 +423,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -456,7 +456,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -489,7 +489,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -522,7 +522,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![MetricNamespace::Custom],
+            namespaces: smallvec![MetricNamespace::Custom],
         };
 
         let scoping = Scoping {
@@ -549,7 +549,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![], // all namespaces
+            namespaces: smallvec![], // all namespaces
         };
 
         assert!(general_rate_limit.matches(ItemScoping {
@@ -574,7 +574,7 @@ mod tests {
             ),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         };
 
         assert!(rate_limit.matches(ItemScoping {
@@ -609,7 +609,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // longer rate limit shadows shorter one
@@ -618,7 +618,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r###"
@@ -632,7 +632,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -648,7 +648,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(10),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // shorter rate limit is shadowed by existing one
@@ -657,7 +657,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r###"
@@ -671,7 +671,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -687,7 +687,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Same scope but different categories
@@ -696,7 +696,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Same categories but different scope
@@ -705,7 +705,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r###"
@@ -718,7 +718,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
             RateLimit(
               categories: [
@@ -727,7 +727,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
             RateLimit(
               categories: [
@@ -736,7 +736,7 @@ mod tests {
               scope: Project(ProjectId(21)),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -753,16 +753,16 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![MetricNamespace::Custom],
+            namespaces: smallvec![MetricNamespace::Custom],
         });
 
-        // Same scope but different categories
+        // Same category but different namespaces
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::MetricBucket],
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![MetricNamespace::Spans],
+            namespaces: smallvec![MetricNamespace::Spans],
         });
 
         insta::assert_ron_snapshot!(rate_limits, @r###"
@@ -775,7 +775,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [
+              namespaces: [
                 "custom",
               ],
             ),
@@ -786,7 +786,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [
+              namespaces: [
                 "spans",
               ],
             ),
@@ -804,7 +804,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Distinct scope to prevent deduplication
@@ -813,7 +813,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         let rate_limit = rate_limits.longest().unwrap();
@@ -825,7 +825,7 @@ mod tests {
           scope: Organization(42),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
-          namespace: [],
+          namespaces: [],
         )
         "###);
     }
@@ -840,7 +840,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Inactive error limit with distinct scope
@@ -849,7 +849,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(0),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Sanity check before running `clean_expired`
@@ -868,7 +868,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -885,7 +885,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Active transaction limit
@@ -894,7 +894,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         let applied_limits = rate_limits.check(ItemScoping {
@@ -919,7 +919,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -936,7 +936,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         // Active transaction limit
@@ -945,7 +945,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         let item_scoping = ItemScoping {
@@ -982,7 +982,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )
@@ -999,7 +999,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         rate_limits1.add(RateLimit {
@@ -1007,7 +1007,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         rate_limits2.add(RateLimit {
@@ -1015,7 +1015,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
-            namespace: smallvec![],
+            namespaces: smallvec![],
         });
 
         rate_limits1.merge(rate_limits2);
@@ -1030,7 +1030,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
-              namespace: [],
+              namespaces: [],
             ),
             RateLimit(
               categories: [
@@ -1039,7 +1039,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespace: [],
+              namespaces: [],
             ),
           ],
         )

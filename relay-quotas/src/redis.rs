@@ -381,7 +381,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
-                namespace: smallvec![],
+                namespaces: smallvec![],
             }]
         );
     }
@@ -497,7 +497,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: smallvec![],
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
@@ -547,7 +547,7 @@ mod tests {
                         scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: smallvec![],
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
@@ -739,7 +739,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: smallvec![],
+                        namespaces: smallvec![],
                     }]
                 );
             }
@@ -787,7 +787,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: smallvec![],
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
