@@ -1,3 +1,4 @@
+import contextlib
 import json
 import signal
 import time
@@ -9,6 +10,7 @@ from queue import Empty
 
 import pytest
 import requests
+from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_metrics import metrics_by_name
@@ -1673,9 +1675,13 @@ def test_global_rate_limit(
     assert_metrics_outcomes(metric_bucket_limit, 0)
 
     # Send more once the limit is hit and make sure they are rejected.
-    for _ in range(2):
+    send_buckets(1)
+    assert_metrics_outcomes(0, 1)
+
+    # Subsequent requests should expose the rate limit via 429
+    with pytest.raises(HTTPError, match="429 Client Error"):
         send_buckets(1)
-        assert_metrics_outcomes(0, 1)
+    assert_metrics_outcomes(0, 1)
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -1935,6 +1941,7 @@ def test_global_rate_limit_by_namespace(
 
     global_reason_code = "global rate limit hit"
     transaction_reason_code = "global rate limit for transactions hit"
+    expect_429 = False
 
     unique_id = str(uuid.uuid4())
     projectconfig["config"]["quotas"] = [
@@ -1978,7 +1985,14 @@ def test_global_rate_limit_by_namespace(
             envelope.add_item(
                 Item(payload=PayloadRef(json=bucket), type="metric_buckets")
             )
-            relay.send_envelope(project_id, envelope)
+
+            maybe_raises = (
+                pytest.raises(HTTPError, match="429 Client Error")
+                if expect_429
+                else contextlib.nullcontext()
+            )
+            with maybe_raises:
+                relay.send_envelope(project_id, envelope)
 
         time.sleep(3)
 
@@ -1994,7 +2008,9 @@ def test_global_rate_limit_by_namespace(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
+    # The next request will trigger a rate limit, AFTER this request we should get 429s
     send_buckets(1, transaction_name, transaction_value, "d")
+    expect_429 = True
 
     # assert we hit the transaction throughput limit configured.
     outcomes = outcomes_consumer.get_outcomes()
