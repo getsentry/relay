@@ -22,6 +22,9 @@ pub struct Scoping {
 }
 
 /// Cardinality report for a specific limit.
+///
+/// Contains scoping information for the enforced limit and the current cardinality.
+/// If all of the scoping information is `None`, the limit is a global cardinality limit.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CardinalityReport {
     /// Organization id for which the cardinality limit was applied.
