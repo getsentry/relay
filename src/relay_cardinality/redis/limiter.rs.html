@@ -822,6 +822,43 @@
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
 <a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -831,6 +868,7 @@
     limiter::{Entry, Limiter, Rejections, Scoping},
     redis::{
         cache::{Cache, CacheOutcome},
+        quota::QuotaScoping,
         script::{CardinalityScript, Status},
         state::{LimitState, RedisEntry},
     },
@@ -879,12 +917,12 @@
     </span><span class="kw">fn </span>check_limits(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         con: <span class="kw-2">&amp;mut </span>Connection,
-        state: <span class="kw-2">&amp;mut </span>LimitState&lt;<span class="lifetime">'_</span>&gt;,
+        state: <span class="kw-2">&amp;</span>LimitState&lt;<span class="lifetime">'_</span>&gt;,
+        scope: QuotaScoping,
+        entries: Vec&lt;RedisEntry&gt;,
         timestamp: UnixTimestamp,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedLimits&gt; {
-        <span class="kw">let </span>scope = state.scope;
         <span class="kw">let </span>limit = state.limit;
-        <span class="kw">let </span>entries = state.take_entries();
 
         <span class="macro">metric!</span>(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() <span class="kw">as </span>u64,
@@ -915,7 +953,7 @@
 }
 
 <span class="kw">impl </span>Limiter <span class="kw">for </span>RedisSetLimiter {
-    <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, E, R&gt;(
+    <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -923,7 +961,7 @@
         rejections: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
-        </span>E: IntoIterator&lt;Item = Entry&gt;,
+        </span>E: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
         R: Rejections&lt;<span class="lifetime">'a</span>&gt;,
     {
         <span class="attr">#[cfg(not(test))]
@@ -937,12 +975,12 @@
         <span class="kw">let </span>cache = <span class="self">self</span>.cache.read(timestamp); <span class="comment">// Acquire a read lock.
         </span><span class="kw">for </span>entry <span class="kw">in </span>entries {
             <span class="kw">for </span>state <span class="kw">in </span>states.iter_mut() {
-                <span class="kw">if </span>!state.scope.matches(<span class="kw-2">&amp;</span>entry) {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(scope) = state.matching_scope(entry) <span class="kw">else </span>{
                     <span class="comment">// Entry not relevant for limit.
                     </span><span class="kw">continue</span>;
-                }
+                };
 
-                <span class="kw">match </span>cache.check(state.scope, entry.hash, state.limit) {
+                <span class="kw">match </span>cache.check(scope, entry.hash, state.limit) {
                     CacheOutcome::Accepted =&gt; {
                         <span class="comment">// Accepted already, nothing to do.
                         </span>state.cache_hit();
@@ -956,7 +994,7 @@
                     }
                     CacheOutcome::Unknown =&gt; {
                         <span class="comment">// Add the entry to the state -&gt; needs to be checked with Redis.
-                        </span>state.entries.push(RedisEntry::new(entry.id, entry.hash));
+                        </span>state.add(scope, RedisEntry::new(entry.id, entry.hash));
                         state.cache_miss();
                     }
                 }
@@ -968,29 +1006,27 @@
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="kw">for </span><span class="kw-2">mut </span>state <span class="kw">in </span>states {
-            <span class="kw">if </span>state.entries.is_empty() {
-                <span class="kw">continue</span>;
-            }
+            <span class="kw">for </span>(scope, entries) <span class="kw">in </span>state.take_scopes() {
+                <span class="kw">let </span>results = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
+                    <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;</span>state, scope, entries, timestamp)
+                })<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>results = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
-                <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;mut </span>state, timestamp)
-            })<span class="question-mark">?</span>;
-
-            <span class="comment">// This always acquires a write lock, but we only hit this
-            // if we previously didn't satisfy the request from the cache,
-            // -&gt; there is a very high chance we actually need the lock.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(state.scope, timestamp); <span class="comment">// Acquire a write lock.
-            </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
-                <span class="kw">if </span>status.is_rejected() {
-                    rejections.reject(state.cardinality_limit(), entry.id);
-                    state.rejected();
-                } <span class="kw">else </span>{
-                    cache.accept(entry.hash);
-                    state.accepted();
+                <span class="comment">// This always acquires a write lock, but we only hit this
+                // if we previously didn't satisfy the request from the cache,
+                // -&gt; there is a very high chance we actually need the lock.
+                </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(scope, timestamp); <span class="comment">// Acquire a write lock.
+                </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
+                    <span class="kw">if </span>status.is_rejected() {
+                        rejections.reject(state.cardinality_limit(), entry.id);
+                        state.rejected();
+                    } <span class="kw">else </span>{
+                        cache.accept(entry.hash);
+                        state.accepted();
+                    }
                 }
-            }
-            drop(cache); <span class="comment">// Give up the cache lock!
-        </span>}
+                drop(cache); <span class="comment">// Give up the cache lock!
+            </span>}
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1020,7 +1056,7 @@
     <span class="kw">use </span>std::collections::HashSet;
     <span class="kw">use </span>std::sync::atomic::AtomicU64;
 
-    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace::<span class="kw-2">*</span>;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
     <span class="kw">use </span>relay_redis::{redis, RedisConfigOptions};
 
@@ -1063,6 +1099,12 @@
 
     <span class="attr">#[derive(Debug, Default, PartialEq, Eq)]
     </span><span class="kw">struct </span>Rejections(HashSet&lt;EntryId&gt;);
+
+    <span class="kw">impl </span>Rejections {
+        <span class="kw">fn </span>contains_any(<span class="kw-2">&amp;</span><span class="self">self</span>, ids: <span class="kw">impl </span>IntoIterator&lt;Item = usize&gt;) -&gt; bool {
+            ids.into_iter().any(|id| <span class="self">self</span>.<span class="number">0</span>.contains(<span class="kw-2">&amp;</span>EntryId(id)))
+        }
+    }
 
     <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; <span class="kw">super</span>::Rejections&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>Rejections {
         <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, entry_id: EntryId) {
@@ -1128,14 +1170,14 @@
                 .collect()
         }
 
-        <span class="kw">fn </span>test_limits&lt;I&gt;(
+        <span class="kw">fn </span>test_limits&lt;<span class="lifetime">'a</span>, I&gt;(
             <span class="kw-2">&amp;</span><span class="self">self</span>,
             scoping: Scoping,
-            limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
+            limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
             entries: I,
         ) -&gt; Rejections
         <span class="kw">where
-            </span>I: IntoIterator&lt;Item = Entry&gt;,
+            </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'a</span>&gt;&gt;,
         {
             <span class="kw">let </span><span class="kw-2">mut </span>outcomes = Rejections::default();
             <span class="self">self</span>.check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>outcomes)
@@ -1149,12 +1191,12 @@
         <span class="kw">let </span>limiter = build_limiter();
 
         <span class="kw">let </span>entries = [
-            Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>),
-            Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>),
-            Entry::new(EntryId(<span class="number">2</span>), MetricNamespace::Custom, <span class="number">2</span>),
-            Entry::new(EntryId(<span class="number">3</span>), MetricNamespace::Custom, <span class="number">3</span>),
-            Entry::new(EntryId(<span class="number">4</span>), MetricNamespace::Custom, <span class="number">4</span>),
-            Entry::new(EntryId(<span class="number">5</span>), MetricNamespace::Custom, <span class="number">5</span>),
+            Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>),
+            Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="string">"b"</span>, <span class="number">1</span>),
+            Entry::new(EntryId(<span class="number">2</span>), Custom, <span class="string">"c"</span>, <span class="number">2</span>),
+            Entry::new(EntryId(<span class="number">3</span>), Custom, <span class="string">"d"</span>, <span class="number">3</span>),
+            Entry::new(EntryId(<span class="number">4</span>), Custom, <span class="string">"e"</span>, <span class="number">4</span>),
+            Entry::new(EntryId(<span class="number">5</span>), Custom, <span class="string">"f"</span>, <span class="number">5</span>),
         ];
 
         <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
@@ -1167,7 +1209,7 @@
             },
             limit: <span class="number">5</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         };
 
         <span class="comment">// 6 items, limit is 5 -&gt; 1 rejection.
@@ -1184,6 +1226,38 @@
         </span>limit.limit = <span class="number">6</span>;
         <span class="kw">let </span>rejected3 = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit], entries);
         <span class="macro">assert_eq!</span>(rejected3.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_name_limit() {
+        <span class="kw">let </span>limiter = build_limiter();
+
+        <span class="kw">let </span>entries = [
+            Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>),
+            Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="string">"a"</span>, <span class="number">1</span>),
+            Entry::new(EntryId(<span class="number">2</span>), Custom, <span class="string">"a"</span>, <span class="number">2</span>),
+            Entry::new(EntryId(<span class="number">3</span>), Custom, <span class="string">"b"</span>, <span class="number">3</span>),
+            Entry::new(EntryId(<span class="number">4</span>), Custom, <span class="string">"b"</span>, <span class="number">4</span>),
+            Entry::new(EntryId(<span class="number">5</span>), Custom, <span class="string">"b"</span>, <span class="number">5</span>),
+        ];
+
+        <span class="kw">let </span>scoping = new_scoping(<span class="kw-2">&amp;</span>limiter);
+        <span class="kw">let </span>limit = CardinalityLimit {
+            id: <span class="string">"limit"</span>.to_owned(),
+            passive: <span class="bool-val">false</span>,
+            window: SlidingWindow {
+                window_seconds: <span class="number">3600</span>,
+                granularity_seconds: <span class="number">360</span>,
+            },
+            limit: <span class="number">2</span>,
+            scope: CardinalityScope::Name,
+            namespace: <span class="prelude-val">Some</span>(Custom),
+        };
+
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">2</span>);
+        <span class="macro">assert!</span>(rejected.contains_any([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]));
+        <span class="macro">assert!</span>(rejected.contains_any([<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]));
     }
 
     <span class="attr">#[test]
@@ -1211,15 +1285,15 @@
             },
             limit: <span class="number">1</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
-        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>)];
+        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>)];
         <span class="macro">assert!</span>(limiter.test_limits(scoping1, limits, entries1).is_empty());
         <span class="macro">assert!</span>(limiter.test_limits(scoping2, limits, entries1).is_empty());
 
         <span class="comment">// Make sure `entries2` is not accepted.
-        </span><span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>)];
+        </span><span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="string">"a"</span>, <span class="number">1</span>)];
         <span class="macro">assert_eq!</span>(limiter.test_limits(scoping1, limits, entries2).len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(limiter.test_limits(scoping2, limits, entries2).len(), <span class="number">1</span>);
 
@@ -1272,17 +1346,17 @@
             },
             limit: <span class="number">10_000</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
         <span class="kw">let </span>entries = (<span class="number">0</span>..<span class="number">50</span>)
-            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), Custom, <span class="string">"a"</span>, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
         <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
 
         <span class="kw">let </span>entries = (<span class="number">100</span>..<span class="number">150</span>)
-            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), Custom, <span class="string">"a"</span>, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
         <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
@@ -1302,11 +1376,11 @@
             },
             limit: <span class="number">80_000</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
         <span class="kw">let </span>entries = (<span class="number">0</span>..<span class="number">100_000</span>)
-            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), Custom, <span class="string">"a"</span>, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
@@ -1328,11 +1402,11 @@
             window,
             limit: <span class="number">1</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
-        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>)];
-        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>)];
+        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>)];
+        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="string">"b"</span>, <span class="number">1</span>)];
 
         <span class="comment">// 1 item and limit is 1 -&gt; No rejections.
         </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
@@ -1377,9 +1451,9 @@
             namespace: <span class="prelude-val">None</span>,
         }];
 
-        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>)];
-        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Spans, <span class="number">1</span>)];
-        <span class="kw">let </span>entries3 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Transactions, <span class="number">2</span>)];
+        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>)];
+        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), Spans, <span class="string">"b"</span>, <span class="number">1</span>)];
+        <span class="kw">let </span>entries3 = [Entry::new(EntryId(<span class="number">0</span>), Transactions, <span class="string">"c"</span>, <span class="number">2</span>)];
 
         <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
         <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
@@ -1406,7 +1480,7 @@
                 },
                 limit: <span class="number">1</span>,
                 scope: CardinalityScope::Organization,
-                namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+                namespace: <span class="prelude-val">Some</span>(Custom),
             },
             CardinalityLimit {
                 id: <span class="string">"limit2"</span>.to_owned(),
@@ -1417,7 +1491,7 @@
                 },
                 limit: <span class="number">1</span>,
                 scope: CardinalityScope::Organization,
-                namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+                namespace: <span class="prelude-val">Some</span>(Custom),
             },
             CardinalityLimit {
                 id: <span class="string">"limit3"</span>.to_owned(),
@@ -1428,7 +1502,7 @@
                 },
                 limit: <span class="number">1</span>,
                 scope: CardinalityScope::Organization,
-                namespace: <span class="prelude-val">Some</span>(MetricNamespace::Spans),
+                namespace: <span class="prelude-val">Some</span>(Spans),
             },
             CardinalityLimit {
                 id: <span class="string">"unknown_skipped"</span>.to_owned(),
@@ -1439,17 +1513,17 @@
                 },
                 limit: <span class="number">1</span>,
                 scope: CardinalityScope::Unknown,
-                namespace: <span class="prelude-val">Some</span>(MetricNamespace::Transactions),
+                namespace: <span class="prelude-val">Some</span>(Transactions),
             },
         ];
 
         <span class="kw">let </span>entries = [
-            Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>),
-            Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>),
-            Entry::new(EntryId(<span class="number">2</span>), MetricNamespace::Spans, <span class="number">2</span>),
-            Entry::new(EntryId(<span class="number">3</span>), MetricNamespace::Spans, <span class="number">3</span>),
-            Entry::new(EntryId(<span class="number">4</span>), MetricNamespace::Transactions, <span class="number">4</span>),
-            Entry::new(EntryId(<span class="number">5</span>), MetricNamespace::Transactions, <span class="number">5</span>),
+            Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>),
+            Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="string">"b"</span>, <span class="number">1</span>),
+            Entry::new(EntryId(<span class="number">2</span>), Spans, <span class="string">"c"</span>, <span class="number">2</span>),
+            Entry::new(EntryId(<span class="number">3</span>), Spans, <span class="string">"d"</span>, <span class="number">3</span>),
+            Entry::new(EntryId(<span class="number">4</span>), Transactions, <span class="string">"e"</span>, <span class="number">4</span>),
+            Entry::new(EntryId(<span class="number">5</span>), Transactions, <span class="string">"f"</span>, <span class="number">5</span>),
         ];
 
         <span class="comment">// Run multiple times to make sure caching does not interfere.
@@ -1459,9 +1533,9 @@
             <span class="comment">// 2 transactions + 1 span + 1 custom (4) accepted -&gt; 2 (6-4) rejected.
             </span><span class="macro">assert_eq!</span>(rejected.len(), <span class="number">2</span>);
             <span class="comment">// 1 custom rejected.
-            </span><span class="macro">assert!</span>(rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">0</span>)) || rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">1</span>)));
+            </span><span class="macro">assert!</span>(rejected.contains_any([<span class="number">0</span>, <span class="number">1</span>]));
             <span class="comment">// 1 span rejected.
-            </span><span class="macro">assert!</span>(rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">2</span>)) || rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">3</span>)));
+            </span><span class="macro">assert!</span>(rejected.contains_any([<span class="number">2</span>, <span class="number">3</span>]));
             <span class="comment">// 2 transactions accepted -&gt; no rejections.
             </span><span class="macro">assert!</span>(!rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">4</span>)));
             <span class="macro">assert!</span>(!rejected.contains(<span class="kw-2">&amp;</span>EntryId(<span class="number">5</span>)));
@@ -1490,8 +1564,8 @@
             namespace: <span class="prelude-val">None</span>,
         }];
 
-        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>)];
-        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">1</span>)];
+        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"a"</span>, <span class="number">0</span>)];
+        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="string">"b"</span>, <span class="number">1</span>)];
 
         <span class="comment">// Accept different entries for different scopes.
         </span><span class="kw">let </span>rejected = limiter.test_limits(scoping1, limits, entries1);
@@ -1521,13 +1595,13 @@
             window,
             limit: <span class="number">100</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
         <span class="macro">macro_rules! </span>test {
             (<span class="macro-nonterminal">$r</span>:expr) =&gt; {{
                 <span class="kw">let </span>entries = <span class="macro-nonterminal">$r
-                    </span>.map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
+                    </span>.map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), Custom, <span class="string">"foo"</span>, i))
                     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
                 limiter.test_limits(scoping, limits, entries)
@@ -1605,13 +1679,13 @@
             window,
             limit: <span class="number">100</span>,
             scope: CardinalityScope::Organization,
-            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+            namespace: <span class="prelude-val">Some</span>(Custom),
         }];
 
         <span class="macro">macro_rules! </span>test {
             (<span class="macro-nonterminal">$r</span>:expr) =&gt; {{
                 <span class="kw">let </span>entries = <span class="macro-nonterminal">$r
-                    </span>.map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
+                    </span>.map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), Custom, <span class="string">"foo"</span>, i))
                     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
                 limiter.test_limits(scoping, limits, entries)

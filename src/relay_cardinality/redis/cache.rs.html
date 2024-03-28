@@ -386,6 +386,15 @@
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
@@ -584,14 +593,17 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
 
+    <span class="kw">use </span><span class="kw">crate</span>::limiter::{Entry, EntryId};
+    <span class="kw">use </span><span class="kw">crate</span>::redis::quota::PartialQuotaScoping;
     <span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>build_scoping(organization_id: OrganizationId, window: SlidingWindow) -&gt; QuotaScoping {
-        QuotaScoping::new(
+        PartialQuotaScoping::new(
             Scoping {
                 organization_id,
                 project_id: ProjectId::new(<span class="number">1</span>),
@@ -606,6 +618,12 @@
             },
         )
         .unwrap()
+        .complete(Entry {
+            id: EntryId(<span class="number">0</span>),
+            namespace: MetricNamespace::Spans,
+            name: <span class="string">"foobar"</span>,
+            hash: <span class="number">123</span>,
+        })
     }
 
     <span class="attr">#[test]

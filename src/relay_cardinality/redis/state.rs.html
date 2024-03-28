@@ -154,11 +154,34 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::metric;
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+
+<span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use crate</span>::{
-    limiter::{EntryId, Scoping},
-    redis::quota::QuotaScoping,
+    limiter::{Entry, EntryId, Scoping},
+    redis::quota::{PartialQuotaScoping, QuotaScoping},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterSets},
     CardinalityLimit,
 };
@@ -168,12 +191,15 @@
 /// Also tracks amount of cache hits and misses as well as amount of
 /// items accepted and rejected. These metrics are reported via statsd on drop.
 </span><span class="kw">pub struct </span>LimitState&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Entries which are relevant for the quota.
-    </span><span class="kw">pub </span>entries: Vec&lt;RedisEntry&gt;,
-    <span class="doccomment">/// Scoping of the quota.
-    </span><span class="kw">pub </span>scope: QuotaScoping,
     <span class="doccomment">/// The limit of the quota.
     </span><span class="kw">pub </span>limit: u64,
+
+    <span class="doccomment">/// Scoping of the quota.
+    </span>partial_scope: PartialQuotaScoping,
+    <span class="doccomment">/// Entries grouped by quota scoping.
+    ///
+    /// Contained scopes are a superset of `scope`.
+    </span>scopes: BTreeMap&lt;QuotaScoping, Vec&lt;RedisEntry&gt;&gt;,
 
     <span class="doccomment">/// The original cardinality limit.
     </span>cardinality_limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit,
@@ -195,8 +221,8 @@
     /// Returns `None` if the cardinality limit scope is [`Unknown`](crate::CardinalityScope::Unknown).
     </span><span class="kw">pub fn </span>new(scoping: Scoping, cardinality_limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            entries: Vec::new(),
-            scope: QuotaScoping::new(scoping, cardinality_limit)<span class="question-mark">?</span>,
+            partial_scope: PartialQuotaScoping::new(scoping, cardinality_limit)<span class="question-mark">?</span>,
+            scopes: BTreeMap::new(),
             limit: cardinality_limit.limit,
             cardinality_limit,
             scoping,
@@ -217,6 +243,22 @@
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
     }
 
+    <span class="doccomment">/// Returns a [`QuotaScoping`] if the `entry` matches the limit contained in the state.
+    </span><span class="kw">pub fn </span>matching_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, entry: Entry) -&gt; <span class="prelude-ty">Option</span>&lt;QuotaScoping&gt; {
+        <span class="kw">if </span><span class="self">self</span>.partial_scope.matches(<span class="kw-2">&amp;</span>entry) {
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.partial_scope.complete(entry))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
+
+    <span class="doccomment">/// Adds an entry to the state.
+    ///
+    /// The `scope` must be extracted from the state with [`Self::matching_scope`] first.
+    </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: QuotaScoping, entry: RedisEntry) {
+        <span class="self">self</span>.scopes.entry(scope).or_default().push(entry)
+    }
+
     <span class="doccomment">/// Returns the underlying cardinality limit id.
     </span><span class="kw">pub fn </span>id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str {
         <span class="kw-2">&amp;</span><span class="self">self</span>.cardinality_limit.id
@@ -227,9 +269,9 @@
         <span class="self">self</span>.cardinality_limit
     }
 
-    <span class="doccomment">/// Removes all contained [`RedisEntry`] items and returns them.
-    </span><span class="kw">pub fn </span>take_entries(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;RedisEntry&gt; {
-        std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.entries)
+    <span class="doccomment">/// Removes all contained scopes and entries and returns them.
+    </span><span class="kw">pub fn </span>take_scopes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (QuotaScoping, Vec&lt;RedisEntry&gt;)&gt; {
+        std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.scopes).into_iter()
     }
 
     <span class="doccomment">/// Increases the cache hit counter.

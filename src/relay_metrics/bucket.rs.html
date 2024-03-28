@@ -1388,6 +1388,10 @@
 <a href="#1386" id="1386">1386</a>
 <a href="#1387" id="1387">1387</a>
 <a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
@@ -2107,6 +2111,10 @@
 <span class="kw">impl </span>CardinalityItem <span class="kw">for </span>Bucket {
     <span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt; {
         <span class="self">self</span>.name.try_namespace()
+    }
+
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.name
     }
 
     <span class="kw">fn </span>to_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {

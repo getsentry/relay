@@ -527,6 +527,21 @@
 <a href="#525" id="525">525</a>
 <a href="#526" id="526">526</a>
 <a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>hashbrown::HashSet;
@@ -559,7 +574,7 @@
     <span class="doccomment">/// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    </span><span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, E, R&gt;(
+    </span><span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -567,7 +582,7 @@
         rejections: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
-        </span>E: IntoIterator&lt;Item = Entry&gt;,
+        </span>E: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
         R: Rejections&lt;<span class="lifetime">'a</span>&gt;;
 }
 
@@ -580,16 +595,21 @@
     ///
     /// If this method returns `None` the item is automatically rejected.
     </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;;
+
+    <span class="doccomment">/// Name of the item.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str;
 }
 
 <span class="doccomment">/// A single entry to check cardinality for.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>Entry {
+</span><span class="kw">pub struct </span>Entry&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Opaque entry Id, used to keep track of indices and buckets.
     </span><span class="kw">pub </span>id: EntryId,
 
-    <span class="doccomment">/// Metric namespace to which the cardinality limit is scoped.
+    <span class="doccomment">/// Metric namespace to which the cardinality limit can be scoped.
     </span><span class="kw">pub </span>namespace: MetricNamespace,
+    <span class="doccomment">/// Name to which the cardinality limit can be scoped.
+    </span><span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="doccomment">/// Hash of the metric name and tags.
     </span><span class="kw">pub </span>hash: u32,
 }
@@ -602,12 +622,13 @@
 </span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 </span><span class="kw">pub struct </span>EntryId(<span class="kw">pub </span>usize);
 
-<span class="kw">impl </span>Entry {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Entry&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Creates a new entry.
-    </span><span class="kw">pub fn </span>new(id: EntryId, namespace: MetricNamespace, hash: u32) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(id: EntryId, namespace: MetricNamespace, name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, hash: u32) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             id,
             namespace,
+            name,
             hash,
         }
     }
@@ -641,7 +662,12 @@
 
         <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             <span class="kw">let </span>entries = items.iter().enumerate().filter_map(|(id, item)| {
-                <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.namespace()<span class="question-mark">?</span>, item.to_hash()))
+                <span class="prelude-val">Some</span>(Entry::new(
+                    EntryId(id),
+                    item.namespace()<span class="question-mark">?</span>,
+                    item.name(),
+                    item.to_hash(),
+                ))
             });
 
             <span class="kw">let </span><span class="kw-2">mut </span>rejections = RejectionTracker::default();
@@ -774,6 +800,10 @@
         <span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt; {
             <span class="self">self</span>.namespace
         }
+
+        <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+            <span class="string">"foobar"
+        </span>}
     }
 
     <span class="kw">fn </span>build_limits() -&gt; [CardinalityLimit; <span class="number">1</span>] {
@@ -843,7 +873,7 @@
         <span class="kw">struct </span>RejectAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -851,7 +881,7 @@
                 rejections: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&gt;,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
                 T: Rejections&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="kw">for </span>entry <span class="kw">in </span>entries {
@@ -885,7 +915,7 @@
         <span class="kw">struct </span>AcceptAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>AcceptAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 _limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -893,7 +923,7 @@
                 _rejections: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&gt;,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
                 T: Rejections&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="prelude-val">Ok</span>(())
@@ -919,7 +949,7 @@
         <span class="kw">struct </span>RejectEvenLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectEvenLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -927,7 +957,7 @@
                 rejections: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&gt;,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
                 T: Rejections&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="macro">assert_eq!</span>(scoping, build_scoping());
@@ -974,7 +1004,7 @@
         <span class="kw">struct </span>RejectLimits;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectLimits {
-            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -982,7 +1012,7 @@
                 rejections: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&gt;,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
                 T: Rejections&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="kw">for </span>entry <span class="kw">in </span>entries {
