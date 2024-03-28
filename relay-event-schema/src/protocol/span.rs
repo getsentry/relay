@@ -270,6 +270,26 @@ pub struct SpanData {
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The input messages to an AI model call
+    #[metastructure(field = "ai.input_messages")]
+    pub ai_input_messages: Annotated<Value>,
+
+    /// The number of tokens used to generate the response to an AI call
+    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
+    pub ai_completion_tokens_used: Annotated<Value>,
+
+    /// The number of tokens used to process a request for an AI call
+    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
+    pub ai_prompt_tokens_used: Annotated<Value>,
+
+    /// The total number of tokens used to for an AI call
+    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
+    pub ai_total_tokens_used: Annotated<Value>,
+
+    /// The responses to an AI model call
+    #[metastructure(field = "ai.responses")]
+    pub ai_responses: Annotated<Value>,
+
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
@@ -606,6 +626,11 @@ mod tests {
             resource_render_blocking_status: ~,
             server_address: ~,
             http_response_status_code: ~,
+            ai_input_messages: ~,
+            ai_completion_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_total_tokens_used: ~,
+            ai_responses: ~,
             thread_name: ~,
             transaction: ~,
             ui_component_name: ~,

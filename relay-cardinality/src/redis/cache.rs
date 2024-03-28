@@ -196,14 +196,17 @@ impl ScopedCache {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::ProjectId;
 
+    use crate::limiter::{Entry, EntryId};
+    use crate::redis::quota::PartialQuotaScoping;
     use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
     use super::*;
 
     fn build_scoping(organization_id: OrganizationId, window: SlidingWindow) -> QuotaScoping {
-        QuotaScoping::new(
+        PartialQuotaScoping::new(
             Scoping {
                 organization_id,
                 project_id: ProjectId::new(1),
@@ -218,6 +221,12 @@ mod tests {
             },
         )
         .unwrap()
+        .complete(Entry {
+            id: EntryId(0),
+            namespace: MetricNamespace::Spans,
+            name: "foobar",
+            hash: 123,
+        })
     }
 
     #[test]

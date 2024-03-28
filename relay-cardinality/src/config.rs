@@ -44,6 +44,9 @@ pub enum CardinalityScope {
     /// The limit will be enforced for a specific project.
     Project,
 
+    /// A per metric name cardinality limit.
+    Name,
+
     /// Any other scope that is not known by this Relay.
     #[serde(other)]
     Unknown,

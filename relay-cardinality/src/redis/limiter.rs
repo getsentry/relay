@@ -7,7 +7,8 @@ use crate::{
     limiter::{Entry, Limiter, Rejections, Scoping},
     redis::{
         cache::{Cache, CacheOutcome},
-        script::{CardinalityScript, Status},
+        quota::QuotaScoping,
+        script::{CardinalityScript, CardinalityScriptResult, Status},
         state::{LimitState, RedisEntry},
     },
     statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
@@ -54,44 +55,55 @@ impl RedisSetLimiter {
     /// Returns an iterator over all entries which have been accepted.
     fn check_limits(
         &self,
-        con: &mut Connection,
+        connection: &mut Connection<'_>,
         state: &mut LimitState<'_>,
         timestamp: UnixTimestamp,
-    ) -> Result<CheckedLimits> {
-        let scope = state.scope;
+    ) -> Result<Vec<CheckedLimits>> {
         let limit = state.limit;
-        let entries = state.take_entries();
+
+        let scopes = state.take_scopes();
+
+        let mut num_hashes: u64 = 0;
+
+        let mut pipeline = self.script.pipe();
+        for (scope, entries) in &scopes {
+            let keys = scope
+                .slots(timestamp)
+                .map(|slot| scope.into_redis_key(slot));
+
+            let hashes = entries.iter().map(|entry| entry.hash);
+            num_hashes += hashes.len() as u64;
+
+            // The expiry is a off by `window.granularity_seconds`,
+            // but since this is only used for cleanup, this is not an issue.
+            pipeline.add_invocation(limit, scope.redis_key_ttl(), hashes, keys);
+        }
 
         metric!(
-            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = num_hashes,
             id = state.id(),
         );
 
-        let keys = scope
-            .slots(timestamp)
-            .map(|slot| scope.into_redis_key(slot));
-        let hashes = entries.iter().map(|entry| entry.hash);
+        let results = pipeline.invoke(connection)?;
 
-        // The expiry is a off by `window.granularity_seconds`,
-        // but since this is only used for cleanup, this is not an issue.
-        let result = self
-            .script
-            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)?;
-
-        metric!(
-            histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            id = state.id(),
-        );
-
-        Ok(CheckedLimits {
-            entries,
-            statuses: result.statuses,
-        })
+        debug_assert_eq!(results.len(), scopes.len());
+        scopes
+            .into_iter()
+            .zip(results)
+            .inspect(|(_, result)| {
+                metric!(
+                    histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
+                        result.cardinality,
+                    id = state.id(),
+                );
+            })
+            .map(|((scope, entries), result)| CheckedLimits::new(scope, entries, result))
+            .collect()
     }
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<'a, E, R>(
+    fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -99,7 +111,7 @@ impl Limiter for RedisSetLimiter {
         rejections: &mut R,
     ) -> Result<()>
     where
-        E: IntoIterator<Item = Entry>,
+        E: IntoIterator<Item = Entry<'b>>,
         R: Rejections<'a>,
     {
         #[cfg(not(test))]
@@ -113,12 +125,12 @@ impl Limiter for RedisSetLimiter {
         let cache = self.cache.read(timestamp); // Acquire a read lock.
         for entry in entries {
             for state in states.iter_mut() {
-                if !state.scope.matches(&entry) {
+                let Some(scope) = state.matching_scope(entry) else {
                     // Entry not relevant for limit.
                     continue;
-                }
+                };
 
-                match cache.check(state.scope, entry.hash, state.limit) {
+                match cache.check(scope, entry.hash, state.limit) {
                     CacheOutcome::Accepted => {
                         // Accepted already, nothing to do.
                         state.cache_hit();
@@ -132,7 +144,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Unknown => {
                         // Add the entry to the state -> needs to be checked with Redis.
-                        state.entries.push(RedisEntry::new(entry.id, entry.hash));
+                        state.add(scope, RedisEntry::new(entry.id, entry.hash));
                         state.cache_miss();
                     }
                 }
@@ -144,7 +156,7 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for mut state in states {
-            if state.entries.is_empty() {
+            if state.is_empty() {
                 continue;
             }
 
@@ -152,20 +164,22 @@ impl Limiter for RedisSetLimiter {
                 self.check_limits(&mut connection, &mut state, timestamp)
             })?;
 
-            // This always acquires a write lock, but we only hit this
-            // if we previously didn't satisfy the request from the cache,
-            // -> there is a very high chance we actually need the lock.
-            let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
-            for (entry, status) in results {
-                if status.is_rejected() {
-                    rejections.reject(state.cardinality_limit(), entry.id);
-                    state.rejected();
-                } else {
-                    cache.accept(entry.hash);
-                    state.accepted();
+            for result in results {
+                // This always acquires a write lock, but we only hit this
+                // if we previously didn't satisfy the request from the cache,
+                // -> there is a very high chance we actually need the lock.
+                let mut cache = self.cache.update(result.scope, timestamp); // Acquire a write lock.
+                for (entry, status) in result {
+                    if status.is_rejected() {
+                        rejections.reject(state.cardinality_limit(), entry.id);
+                        state.rejected();
+                    } else {
+                        cache.accept(entry.hash);
+                        state.accepted();
+                    }
                 }
+                drop(cache); // Give up the cache lock!
             }
-            drop(cache); // Give up the cache lock!
         }
 
         Ok(())
@@ -173,8 +187,25 @@ impl Limiter for RedisSetLimiter {
 }
 
 struct CheckedLimits {
+    scope: QuotaScoping,
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
+}
+
+impl CheckedLimits {
+    fn new(
+        scope: QuotaScoping,
+        entries: Vec<RedisEntry>,
+        result: CardinalityScriptResult,
+    ) -> Result<Self> {
+        result.validate(entries.len())?;
+
+        Ok(Self {
+            scope,
+            entries,
+            statuses: result.statuses,
+        })
+    }
 }
 
 impl IntoIterator for CheckedLimits {
@@ -196,7 +227,7 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicU64;
 
-    use relay_base_schema::metrics::MetricNamespace;
+    use relay_base_schema::metrics::MetricNamespace::*;
     use relay_base_schema::project::ProjectId;
     use relay_redis::{redis, RedisConfigOptions};
 
@@ -239,6 +270,12 @@ mod tests {
 
     #[derive(Debug, Default, PartialEq, Eq)]
     struct Rejections(HashSet<EntryId>);
+
+    impl Rejections {
+        fn contains_any(&self, ids: impl IntoIterator<Item = usize>) -> bool {
+            ids.into_iter().any(|id| self.0.contains(&EntryId(id)))
+        }
+    }
 
     impl<'a> super::Rejections<'a> for Rejections {
         fn reject(&mut self, _limit: &'a CardinalityLimit, entry_id: EntryId) {
@@ -304,14 +341,14 @@ mod tests {
                 .collect()
         }
 
-        fn test_limits<I>(
+        fn test_limits<'a, I>(
             &self,
             scoping: Scoping,
-            limits: &[CardinalityLimit],
+            limits: &'a [CardinalityLimit],
             entries: I,
         ) -> Rejections
         where
-            I: IntoIterator<Item = Entry>,
+            I: IntoIterator<Item = Entry<'a>>,
         {
             let mut outcomes = Rejections::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut outcomes)
@@ -325,12 +362,12 @@ mod tests {
         let limiter = build_limiter();
 
         let entries = [
-            Entry::new(EntryId(0), MetricNamespace::Custom, 0),
-            Entry::new(EntryId(1), MetricNamespace::Custom, 1),
-            Entry::new(EntryId(2), MetricNamespace::Custom, 2),
-            Entry::new(EntryId(3), MetricNamespace::Custom, 3),
-            Entry::new(EntryId(4), MetricNamespace::Custom, 4),
-            Entry::new(EntryId(5), MetricNamespace::Custom, 5),
+            Entry::new(EntryId(0), Custom, "a", 0),
+            Entry::new(EntryId(1), Custom, "b", 1),
+            Entry::new(EntryId(2), Custom, "c", 2),
+            Entry::new(EntryId(3), Custom, "d", 3),
+            Entry::new(EntryId(4), Custom, "e", 4),
+            Entry::new(EntryId(5), Custom, "f", 5),
         ];
 
         let scoping = new_scoping(&limiter);
@@ -343,7 +380,7 @@ mod tests {
             },
             limit: 5,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         };
 
         // 6 items, limit is 5 -> 1 rejection.
@@ -360,6 +397,38 @@ mod tests {
         limit.limit = 6;
         let rejected3 = limiter.test_limits(scoping, &[limit], entries);
         assert_eq!(rejected3.len(), 0);
+    }
+
+    #[test]
+    fn test_limiter_name_limit() {
+        let limiter = build_limiter();
+
+        let entries = [
+            Entry::new(EntryId(0), Custom, "a", 0),
+            Entry::new(EntryId(1), Custom, "a", 1),
+            Entry::new(EntryId(2), Custom, "a", 2),
+            Entry::new(EntryId(3), Custom, "b", 3),
+            Entry::new(EntryId(4), Custom, "b", 4),
+            Entry::new(EntryId(5), Custom, "b", 5),
+        ];
+
+        let scoping = new_scoping(&limiter);
+        let limit = CardinalityLimit {
+            id: "limit".to_owned(),
+            passive: false,
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 2,
+            scope: CardinalityScope::Name,
+            namespace: Some(Custom),
+        };
+
+        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        assert_eq!(rejected.len(), 2);
+        assert!(rejected.contains_any([0, 1, 2]));
+        assert!(rejected.contains_any([3, 4, 5]));
     }
 
     #[test]
@@ -387,15 +456,15 @@ mod tests {
             },
             limit: 1,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
-        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        let entries1 = [Entry::new(EntryId(0), Custom, "a", 0)];
         assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
         assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
 
         // Make sure `entries2` is not accepted.
-        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
+        let entries2 = [Entry::new(EntryId(1), Custom, "a", 1)];
         assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
         assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
 
@@ -448,17 +517,17 @@ mod tests {
             },
             limit: 10_000,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
         let entries = (0..50)
-            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i as usize), Custom, "a", i))
             .collect::<Vec<_>>();
         let rejected = limiter.test_limits(scoping, limits, entries);
         assert_eq!(rejected.len(), 0);
 
         let entries = (100..150)
-            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i as usize), Custom, "a", i))
             .collect::<Vec<_>>();
         let rejected = limiter.test_limits(scoping, limits, entries);
         assert_eq!(rejected.len(), 0);
@@ -478,11 +547,11 @@ mod tests {
             },
             limit: 80_000,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
         let entries = (0..100_000)
-            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i as usize), Custom, "a", i))
             .collect::<Vec<_>>();
 
         let rejected = limiter.test_limits(scoping, limits, entries);
@@ -504,11 +573,11 @@ mod tests {
             window,
             limit: 1,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
-        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
-        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
+        let entries1 = [Entry::new(EntryId(0), Custom, "a", 0)];
+        let entries2 = [Entry::new(EntryId(1), Custom, "b", 1)];
 
         // 1 item and limit is 1 -> No rejections.
         let rejected = limiter.test_limits(scoping, limits, entries1);
@@ -553,9 +622,9 @@ mod tests {
             namespace: None,
         }];
 
-        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
-        let entries2 = [Entry::new(EntryId(0), MetricNamespace::Spans, 1)];
-        let entries3 = [Entry::new(EntryId(0), MetricNamespace::Transactions, 2)];
+        let entries1 = [Entry::new(EntryId(0), Custom, "a", 0)];
+        let entries2 = [Entry::new(EntryId(0), Spans, "b", 1)];
+        let entries3 = [Entry::new(EntryId(0), Transactions, "c", 2)];
 
         let rejected = limiter.test_limits(scoping, limits, entries1);
         assert_eq!(rejected.len(), 0);
@@ -582,7 +651,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Organization,
-                namespace: Some(MetricNamespace::Custom),
+                namespace: Some(Custom),
             },
             CardinalityLimit {
                 id: "limit2".to_owned(),
@@ -593,7 +662,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Organization,
-                namespace: Some(MetricNamespace::Custom),
+                namespace: Some(Custom),
             },
             CardinalityLimit {
                 id: "limit3".to_owned(),
@@ -604,7 +673,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Organization,
-                namespace: Some(MetricNamespace::Spans),
+                namespace: Some(Spans),
             },
             CardinalityLimit {
                 id: "unknown_skipped".to_owned(),
@@ -615,17 +684,17 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Unknown,
-                namespace: Some(MetricNamespace::Transactions),
+                namespace: Some(Transactions),
             },
         ];
 
         let entries = [
-            Entry::new(EntryId(0), MetricNamespace::Custom, 0),
-            Entry::new(EntryId(1), MetricNamespace::Custom, 1),
-            Entry::new(EntryId(2), MetricNamespace::Spans, 2),
-            Entry::new(EntryId(3), MetricNamespace::Spans, 3),
-            Entry::new(EntryId(4), MetricNamespace::Transactions, 4),
-            Entry::new(EntryId(5), MetricNamespace::Transactions, 5),
+            Entry::new(EntryId(0), Custom, "a", 0),
+            Entry::new(EntryId(1), Custom, "b", 1),
+            Entry::new(EntryId(2), Spans, "c", 2),
+            Entry::new(EntryId(3), Spans, "d", 3),
+            Entry::new(EntryId(4), Transactions, "e", 4),
+            Entry::new(EntryId(5), Transactions, "f", 5),
         ];
 
         // Run multiple times to make sure caching does not interfere.
@@ -635,9 +704,9 @@ mod tests {
             // 2 transactions + 1 span + 1 custom (4) accepted -> 2 (6-4) rejected.
             assert_eq!(rejected.len(), 2);
             // 1 custom rejected.
-            assert!(rejected.contains(&EntryId(0)) || rejected.contains(&EntryId(1)));
+            assert!(rejected.contains_any([0, 1]));
             // 1 span rejected.
-            assert!(rejected.contains(&EntryId(2)) || rejected.contains(&EntryId(3)));
+            assert!(rejected.contains_any([2, 3]));
             // 2 transactions accepted -> no rejections.
             assert!(!rejected.contains(&EntryId(4)));
             assert!(!rejected.contains(&EntryId(5)));
@@ -666,8 +735,8 @@ mod tests {
             namespace: None,
         }];
 
-        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
-        let entries2 = [Entry::new(EntryId(0), MetricNamespace::Custom, 1)];
+        let entries1 = [Entry::new(EntryId(0), Custom, "a", 0)];
+        let entries2 = [Entry::new(EntryId(0), Custom, "b", 1)];
 
         // Accept different entries for different scopes.
         let rejected = limiter.test_limits(scoping1, limits, entries1);
@@ -697,13 +766,13 @@ mod tests {
             window,
             limit: 100,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
         macro_rules! test {
             ($r:expr) => {{
                 let entries = $r
-                    .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+                    .map(|i| Entry::new(EntryId(i as usize), Custom, "foo", i))
                     .collect::<Vec<_>>();
 
                 limiter.test_limits(scoping, limits, entries)
@@ -781,13 +850,13 @@ mod tests {
             window,
             limit: 100,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(Custom),
         }];
 
         macro_rules! test {
             ($r:expr) => {{
                 let entries = $r
-                    .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+                    .map(|i| Entry::new(EntryId(i as usize), Custom, "foo", i))
                     .collect::<Vec<_>>();
 
                 limiter.test_limits(scoping, limits, entries)

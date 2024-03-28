@@ -13,7 +13,7 @@ use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
 };
-use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -1102,10 +1102,19 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) =
+        let (enforcement, mut rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
         enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
         envelope.update();
+
+        // Special case: Expose active rate limits for all metric namespaces if there is at least
+        // one metrics item in the Envelope to communicate backoff to SDKs. This is necessary
+        // because `EnvelopeLimiter` cannot not check metrics without parsing item contents.
+        if envelope.envelope().items().any(|i| i.ty().is_metrics()) {
+            let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
+            metrics_scoping.namespace = MetricNamespaceScoping::Any;
+            rate_limits.merge(self.rate_limits.check_with_quotas(quotas, metrics_scoping));
+        }
 
         let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above
@@ -1178,15 +1187,10 @@ impl Project {
             return CheckedBuckets::NoScoping(len);
         };
 
-        let item_scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-            namespace: None,
-        };
-
-        let limits = self
-            .rate_limits()
-            .check_with_quotas(project_state.get_quotas(), item_scoping);
+        let limits = self.rate_limits().check_with_quotas(
+            project_state.get_quotas(),
+            scoping.item(DataCategory::MetricBucket),
+        );
 
         if limits.is_limited() {
             let mode = project_state.get_extraction_mode();
