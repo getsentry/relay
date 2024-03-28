@@ -413,10 +413,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
             continue;
         }
 
-        let mut value = name_value.next().unwrap_or_default().to_owned();
-        protocol::validate_tag_value(&mut value);
-
-        map.insert(name.to_owned(), value);
+        if let Ok(value) = protocol::unescape_tag_value(name_value.next().unwrap_or_default()) {
+            map.insert(name.to_owned(), value);
+        }
     }
 
     Some(map)
@@ -593,8 +592,12 @@ pub struct Bucket {
     /// omitted.
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
+    /// `/[a-zA-Z0-9_/.-]+/`.
+    ///
+    /// Tag values can contain unicode characters and must match the regular expression
+    /// `/[\w\d\_:/@.{}\[\]$- ]+/`. All other characters must be encoded as hexadecimal unicode
+    /// escape in the form `\u{XXXX}`. Additionally, `\t`, `\r`, `\n`, `\'`, `\"`, and `\\` are
+    /// allowed.
     ///
     /// # Example
     ///

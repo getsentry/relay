@@ -3947,6 +3947,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "tokio",
+ "unescaper",
 ]
 
 [[package]]
@@ -5913,6 +5914,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b72f89f0ca32e4db1c04e2a72f5345d59796d4866a1ee0609084569f73683dc8"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "unescaper"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0adf6ad32eb5b3cadff915f7b770faaac8f7ff0476633aa29eb0d9584d889d34"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
