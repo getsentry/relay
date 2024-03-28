@@ -270,8 +270,8 @@
     }
 
     <span class="doccomment">/// Removes all contained scopes and entries and returns them.
-    </span><span class="kw">pub fn </span>take_scopes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (QuotaScoping, Vec&lt;RedisEntry&gt;)&gt; {
-        std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.scopes).into_iter()
+    </span><span class="kw">pub fn </span>take_scopes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; BTreeMap&lt;QuotaScoping, Vec&lt;RedisEntry&gt;&gt; {
+        std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.scopes)
     }
 
     <span class="doccomment">/// Increases the cache hit counter.

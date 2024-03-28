@@ -286,8 +286,8 @@
 }
 
 <span class="kw">enum </span>PooledClientInner {
-    Cluster(PooledConnection&lt;redis::cluster::ClusterClient&gt;),
-    Single(PooledConnection&lt;redis::Client&gt;),
+    Cluster(Box&lt;PooledConnection&lt;redis::cluster::ClusterClient&gt;&gt;),
+    Single(Box&lt;PooledConnection&lt;redis::Client&gt;&gt;),
 }
 
 <span class="doccomment">/// A pooled Redis client.
@@ -409,10 +409,10 @@
     </span><span class="kw">pub fn </span>client(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PooledClient, RedisError&gt; {
         <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self</span>.inner {
             RedisPoolInner::Cluster(<span class="kw-2">ref </span>pool) =&gt; {
-                PooledClientInner::Cluster(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>)
+                PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>))
             }
             RedisPoolInner::Single(<span class="kw-2">ref </span>pool) =&gt; {
-                PooledClientInner::Single(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>)
+                PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>))
             }
         };
 

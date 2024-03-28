@@ -859,6 +859,34 @@
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -869,7 +897,7 @@
     redis::{
         cache::{Cache, CacheOutcome},
         quota::QuotaScoping,
-        script::{CardinalityScript, Status},
+        script::{CardinalityScript, CardinalityScriptResult, Status},
         state::{LimitState, RedisEntry},
     },
     statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
@@ -916,39 +944,50 @@
     /// Returns an iterator over all entries which have been accepted.
     </span><span class="kw">fn </span>check_limits(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        con: <span class="kw-2">&amp;mut </span>Connection,
-        state: <span class="kw-2">&amp;</span>LimitState&lt;<span class="lifetime">'_</span>&gt;,
-        scope: QuotaScoping,
-        entries: Vec&lt;RedisEntry&gt;,
+        connection: <span class="kw-2">&amp;mut </span>Connection&lt;<span class="lifetime">'_</span>&gt;,
+        state: <span class="kw-2">&amp;mut </span>LimitState&lt;<span class="lifetime">'_</span>&gt;,
         timestamp: UnixTimestamp,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedLimits&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;CheckedLimits&gt;&gt; {
         <span class="kw">let </span>limit = state.limit;
 
+        <span class="kw">let </span>scopes = state.take_scopes();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>num_hashes: u64 = <span class="number">0</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>pipeline = <span class="self">self</span>.script.pipe();
+        <span class="kw">for </span>(scope, entries) <span class="kw">in </span><span class="kw-2">&amp;</span>scopes {
+            <span class="kw">let </span>keys = scope
+                .slots(timestamp)
+                .map(|slot| scope.into_redis_key(slot));
+
+            <span class="kw">let </span>hashes = entries.iter().map(|entry| entry.hash);
+            num_hashes += hashes.len() <span class="kw">as </span>u64;
+
+            <span class="comment">// The expiry is a off by `window.granularity_seconds`,
+            // but since this is only used for cleanup, this is not an issue.
+            </span>pipeline.add_invocation(limit, scope.redis_key_ttl(), hashes, keys);
+        }
+
         <span class="macro">metric!</span>(
-            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() <span class="kw">as </span>u64,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = num_hashes,
             id = state.id(),
         );
 
-        <span class="kw">let </span>keys = scope
-            .slots(timestamp)
-            .map(|slot| scope.into_redis_key(slot));
-        <span class="kw">let </span>hashes = entries.iter().map(|entry| entry.hash);
+        <span class="kw">let </span>results = pipeline.invoke(connection)<span class="question-mark">?</span>;
 
-        <span class="comment">// The expiry is a off by `window.granularity_seconds`,
-        // but since this is only used for cleanup, this is not an issue.
-        </span><span class="kw">let </span>result = <span class="self">self
-            </span>.script
-            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)<span class="question-mark">?</span>;
-
-        <span class="macro">metric!</span>(
-            histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            id = state.id(),
-        );
-
-        <span class="prelude-val">Ok</span>(CheckedLimits {
-            entries,
-            statuses: result.statuses,
-        })
+        <span class="macro">debug_assert_eq!</span>(results.len(), scopes.len());
+        scopes
+            .into_iter()
+            .zip(results)
+            .inspect(|(<span class="kw">_</span>, result)| {
+                <span class="macro">metric!</span>(
+                    histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
+                        result.cardinality,
+                    id = state.id(),
+                );
+            })
+            .map(|((scope, entries), result)| CheckedLimits::new(scope, entries, result))
+            .collect()
     }
 }
 
@@ -1006,16 +1045,16 @@
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="kw">for </span><span class="kw-2">mut </span>state <span class="kw">in </span>states {
-            <span class="kw">for </span>(scope, entries) <span class="kw">in </span>state.take_scopes() {
-                <span class="kw">let </span>results = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
-                    <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;</span>state, scope, entries, timestamp)
-                })<span class="question-mark">?</span>;
+            <span class="kw">let </span>results = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
+                <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;mut </span>state, timestamp)
+            })<span class="question-mark">?</span>;
 
+            <span class="kw">for </span>result <span class="kw">in </span>results {
                 <span class="comment">// This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
                 // -&gt; there is a very high chance we actually need the lock.
-                </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(scope, timestamp); <span class="comment">// Acquire a write lock.
-                </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
+                </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(result.scope, timestamp); <span class="comment">// Acquire a write lock.
+                </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>result {
                     <span class="kw">if </span>status.is_rejected() {
                         rejections.reject(state.cardinality_limit(), entry.id);
                         state.rejected();
@@ -1033,8 +1072,25 @@
 }
 
 <span class="kw">struct </span>CheckedLimits {
+    scope: QuotaScoping,
     entries: Vec&lt;RedisEntry&gt;,
     statuses: Vec&lt;Status&gt;,
+}
+
+<span class="kw">impl </span>CheckedLimits {
+    <span class="kw">fn </span>new(
+        scope: QuotaScoping,
+        entries: Vec&lt;RedisEntry&gt;,
+        result: CardinalityScriptResult,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        result.validate(entries.len())<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            scope,
+            entries,
+            statuses: result.statuses,
+        })
+    }
 }
 
 <span class="kw">impl </span>IntoIterator <span class="kw">for </span>CheckedLimits {
