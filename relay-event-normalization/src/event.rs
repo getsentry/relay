@@ -1515,7 +1515,7 @@ mod tests {
 
         assert_eq!(event.level.value().unwrap().to_string(), "info");
         assert_eq!(event.ty.value().unwrap().to_string(), "transaction");
-        assert_eq!(event.platform.value().unwrap().to_owned(), "other");
+        assert_eq!(event.platform.as_str().unwrap(), "other");
     }
 
     #[test]
