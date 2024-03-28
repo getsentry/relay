@@ -112,17 +112,21 @@ def test_feedback_event_with_processing(
     }
 
 
-def test_feedback_events_without_processing(mini_sentry, relay_chain):
-    relay = relay_chain(min_relay_version="latest")
-
+@pytest.mark.parametrize("use_feedback_topic", (False, True))
+def test_feedback_events_without_processing(
+    mini_sentry, relay_chain, use_feedback_topic
+):
     project_id = 42
     mini_sentry.add_basic_project_config(
         project_id,
         extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
     )
+    mini_sentry.set_global_config_option(
+        "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
+    )
 
     replay_item = generate_feedback_sdk_event()
-
+    relay = relay_chain(min_relay_version="latest")
     relay.send_user_feedback(42, replay_item)
 
     envelope = mini_sentry.captured_events.get(timeout=20)
