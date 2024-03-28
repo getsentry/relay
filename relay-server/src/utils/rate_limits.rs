@@ -340,6 +340,8 @@ pub struct Enforcement {
     spans: CategoryLimit,
     /// The combined rate limit for metrics extracted from spans.
     span_metrics: CategoryLimit,
+    /// The combined rate limit for user-reports.
+    user_reports_v2: CategoryLimit,
     /// The combined profile chunk item rate limit.
     profile_chunks: CategoryLimit,
 }
@@ -372,6 +374,7 @@ impl Enforcement {
             event_metrics,
             spans,
             span_metrics,
+            user_reports_v2,
             profile_chunks,
         } = self;
 
@@ -384,6 +387,7 @@ impl Enforcement {
             event_metrics,
             spans,
             span_metrics,
+            user_reports_v2,
             profile_chunks,
         ];
 
