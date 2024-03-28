@@ -106,7 +106,7 @@ pub struct ItemScoping<'a> {
     /// Scoping of the data.
     pub scoping: &'a Scoping,
 
-    /// Namespace if applicable. `None` matches any namespace.
+    /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
 }
 
@@ -147,7 +147,17 @@ impl ItemScoping<'_> {
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
     ///
-    /// If the list of namespaces is empty, this method returns `true`.
+    /// Matching behavior depends on the passed namespaces and the namespace of the scoping:
+    ///  - If the list of namespaces is empty, this check always returns `true`.
+    ///  - If the list of namespaces contains at least one namespace, a namespace on the scoping is
+    ///    required. [`MetricNamespaceScoping::None`] will not match.
+    ///  - If the namespace of this scoping is [`MetricNamespaceScoping::Any`], this check will
+    ///    always return true.
+    ///  - Otherwise, an exact match of the scoping's namespace must be found in the list.
+    ///
+    /// `namespace` can be either a slice, an iterator, or a reference to an
+    /// `Option<MetricNamespace>`. In case of `None`, this method behaves like an empty list and
+    /// permits any namespace.
     pub(crate) fn matches_namespaces<'a, I>(&self, namespaces: I) -> bool
     where
         I: IntoIterator<Item = &'a MetricNamespace>,
