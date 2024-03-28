@@ -307,7 +307,10 @@ def replay_events_consumer(kafka_consumer):
 @pytest.fixture
 def feedback_consumer(kafka_consumer):
     return lambda timeout=None: FeedbackConsumer(
-        timeout=timeout, *kafka_consumer("feedback")  # Corresponds to key in processing_config["processing"]["topics"]
+        timeout=timeout,
+        *kafka_consumer(
+            "feedback"
+        ),  # Corresponds to key in processing_config["processing"]["topics"]
     )
 
 

@@ -45,7 +45,11 @@ def generate_feedback_sdk_event():
 
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
-    mini_sentry, relay_with_processing, events_consumer, feedback_consumer, use_feedback_topic,
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    feedback_consumer,
+    use_feedback_topic,
 ):
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
