@@ -36,7 +36,7 @@ impl FromRedisValue for Status {
 #[derive(Debug)]
 pub struct CardinalityScriptResult {
     /// Cardinality of the limit.
-    pub cardinality: u64,
+    pub cardinality: u32,
     /// Status for each hash passed to the script.
     pub statuses: Vec<Status>,
 }
@@ -124,7 +124,7 @@ impl CardinalityScript {
     /// Returns a [`redis::ScriptInvocation`] with all keys and arguments prepared.
     fn prepare_invocation(
         &self,
-        limit: u64,
+        limit: u32,
         expire: u64,
         hashes: impl Iterator<Item = u32>,
         keys: impl Iterator<Item = String>,
@@ -156,7 +156,7 @@ impl<'a> CardinalityScriptPipeline<'a> {
     /// Adds another invocation of the script to the pipeline.
     pub fn add_invocation(
         &mut self,
-        limit: u64,
+        limit: u32,
         expire: u64,
         hashes: impl Iterator<Item = u32>,
         keys: impl Iterator<Item = String>,
@@ -196,7 +196,7 @@ mod tests {
         fn invoke_one(
             &self,
             con: &mut Connection,
-            limit: u64,
+            limit: u32,
             expire: u64,
             hashes: impl Iterator<Item = u32>,
             keys: impl Iterator<Item = String>,

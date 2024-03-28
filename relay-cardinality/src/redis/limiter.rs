@@ -91,7 +91,7 @@ impl RedisSetLimiter {
             .inspect(|(_, result)| {
                 metric!(
                     histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
-                        result.cardinality,
+                        result.cardinality as u64,
                     id = state.id(),
                 );
             })
@@ -188,7 +188,7 @@ impl Limiter for RedisSetLimiter {
 
 struct CheckedLimits {
     scope: QuotaScoping,
-    cardinality: u64,
+    cardinality: u32,
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
 }
@@ -292,7 +292,7 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u64) {
+        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u32) {
             let Some(r) = self.reports.get(limit) else {
                 panic!("expected cardinality report for limit {limit:?}");
             };

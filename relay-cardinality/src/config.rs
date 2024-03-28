@@ -28,7 +28,7 @@ pub struct CardinalityLimit {
     /// The sliding window to enforce the cardinality limits in.
     pub window: SlidingWindow,
     /// The cardinality limit.
-    pub limit: u64,
+    pub limit: u32,
 
     /// Scope which the limit applies to.
     pub scope: CardinalityScope,

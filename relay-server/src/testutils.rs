@@ -14,6 +14,8 @@ use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+#[cfg(feature = "processing")]
+use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::EnvelopeProcessorService;
@@ -125,8 +127,9 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         .filter(|_| config.processing_enabled())
         .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
 
+    let config = Arc::new(config);
     EnvelopeProcessorService::new(
-        Arc::new(config),
+        Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
@@ -136,9 +139,15 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         upstream_relay,
         test_store,
         #[cfg(feature = "processing")]
-        _aggregator,
+        _aggregator.clone(),
         #[cfg(feature = "processing")]
         None,
+        #[cfg(feature = "processing")]
+        MetricStats::new(
+            config,
+            GlobalConfigHandle::fixed(Default::default()),
+            _aggregator,
+        ),
     )
 }
 

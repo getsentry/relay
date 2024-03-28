@@ -48,6 +48,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
+    crate::metric_stats::MetricStats,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -929,6 +930,8 @@ struct InnerProcessor {
     cardinality_limiter: Option<CardinalityLimiter>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<Store>>,
+    #[cfg(feature = "processing")]
+    metric_stats: MetricStats,
 }
 
 impl EnvelopeProcessorService {
@@ -945,6 +948,7 @@ impl EnvelopeProcessorService {
         test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
         #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
+        #[cfg(feature = "processing")] metric_stats: MetricStats,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -991,6 +995,8 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             #[cfg(feature = "processing")]
             store_forwarder,
+            #[cfg(feature = "processing")]
+            metric_stats,
             config,
         };
 
@@ -2175,6 +2181,12 @@ impl EnvelopeProcessorService {
                     tags.passive = limit.passive,
                     "Cardinality Limit"
                 );
+            }
+        }
+
+        for (limit, reports) in limits.cardinality_reports() {
+            for report in reports {
+                self.inner.metric_stats.cardinality(scoping, limit, report);
             }
         }
 

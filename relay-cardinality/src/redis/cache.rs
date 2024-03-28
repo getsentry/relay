@@ -96,7 +96,7 @@ impl<'a> CacheRead<'a> {
         Self { inner, timestamp }
     }
 
-    pub fn check(&self, scope: &QuotaScoping, hash: u32, limit: u64) -> CacheOutcome {
+    pub fn check(&self, scope: &QuotaScoping, hash: u32, limit: u32) -> CacheOutcome {
         let Some(cache) = self.inner.cache.get(scope) else {
             return CacheOutcome::Unknown;
         };
@@ -166,7 +166,7 @@ struct ScopedCache {
 }
 
 impl ScopedCache {
-    fn check(&self, slot: Slot, hash: u32, limit: u64) -> CacheOutcome {
+    fn check(&self, slot: Slot, hash: u32, limit: u32) -> CacheOutcome {
         if slot != self.current_slot {
             return CacheOutcome::Unknown;
         }
@@ -174,7 +174,7 @@ impl ScopedCache {
         if self.hashes.contains(&hash) {
             // Local cache copy contains the hash -> accept it straight away
             CacheOutcome::Accepted
-        } else if self.hashes.len() as u64 >= limit {
+        } else if self.hashes.len().try_into().unwrap_or(u32::MAX) >= limit {
             // We have more or the same amount of items in the local cache as the cardinality
             // limit -> this new item/hash is rejected.
             CacheOutcome::Rejected

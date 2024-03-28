@@ -16,7 +16,7 @@ use crate::{
 #[derive(Debug)]
 pub struct LimitState<'a> {
     /// The limit of the quota.
-    pub limit: u64,
+    pub limit: u32,
 
     /// Scoping of the quota.
     partial_scope: PartialQuotaScoping,
