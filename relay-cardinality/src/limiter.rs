@@ -30,7 +30,7 @@ pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<'a, E, R>(
+    fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -38,7 +38,7 @@ pub trait Limiter {
         rejections: &mut R,
     ) -> Result<()>
     where
-        E: IntoIterator<Item = Entry>,
+        E: IntoIterator<Item = Entry<'b>>,
         R: Rejections<'a>;
 }
 
@@ -51,16 +51,21 @@ pub trait CardinalityItem {
     ///
     /// If this method returns `None` the item is automatically rejected.
     fn namespace(&self) -> Option<MetricNamespace>;
+
+    /// Name of the item.
+    fn name(&self) -> &str;
 }
 
 /// A single entry to check cardinality for.
 #[derive(Clone, Copy, Debug)]
-pub struct Entry {
+pub struct Entry<'a> {
     /// Opaque entry Id, used to keep track of indices and buckets.
     pub id: EntryId,
 
-    /// Metric namespace to which the cardinality limit is scoped.
+    /// Metric namespace to which the cardinality limit can be scoped.
     pub namespace: MetricNamespace,
+    /// Name to which the cardinality limit can be scoped.
+    pub name: &'a str,
     /// Hash of the metric name and tags.
     pub hash: u32,
 }
@@ -73,12 +78,13 @@ pub struct Entry {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct EntryId(pub usize);
 
-impl Entry {
+impl<'a> Entry<'a> {
     /// Creates a new entry.
-    pub fn new(id: EntryId, namespace: MetricNamespace, hash: u32) -> Self {
+    pub fn new(id: EntryId, namespace: MetricNamespace, name: &'a str, hash: u32) -> Self {
         Self {
             id,
             namespace,
+            name,
             hash,
         }
     }
@@ -112,7 +118,12 @@ impl<T: Limiter> CardinalityLimiter<T> {
 
         metric!(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             let entries = items.iter().enumerate().filter_map(|(id, item)| {
-                Some(Entry::new(EntryId(id), item.namespace()?, item.to_hash()))
+                Some(Entry::new(
+                    EntryId(id),
+                    item.namespace()?,
+                    item.name(),
+                    item.to_hash(),
+                ))
             });
 
             let mut rejections = RejectionTracker::default();
@@ -245,6 +256,10 @@ mod tests {
         fn namespace(&self) -> Option<MetricNamespace> {
             self.namespace
         }
+
+        fn name(&self) -> &str {
+            "foobar"
+        }
     }
 
     fn build_limits() -> [CardinalityLimit; 1] {
@@ -314,7 +329,7 @@ mod tests {
         struct RejectAllLimiter;
 
         impl Limiter for RejectAllLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -322,7 +337,7 @@ mod tests {
                 rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
+                I: IntoIterator<Item = Entry<'b>>,
                 T: Rejections<'a>,
             {
                 for entry in entries {
@@ -356,7 +371,7 @@ mod tests {
         struct AcceptAllLimiter;
 
         impl Limiter for AcceptAllLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 _limits: &'a [CardinalityLimit],
@@ -364,7 +379,7 @@ mod tests {
                 _rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
+                I: IntoIterator<Item = Entry<'b>>,
                 T: Rejections<'a>,
             {
                 Ok(())
@@ -390,7 +405,7 @@ mod tests {
         struct RejectEvenLimiter;
 
         impl Limiter for RejectEvenLimiter {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -398,7 +413,7 @@ mod tests {
                 rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
+                I: IntoIterator<Item = Entry<'b>>,
                 T: Rejections<'a>,
             {
                 assert_eq!(scoping, build_scoping());
@@ -445,7 +460,7 @@ mod tests {
         struct RejectLimits;
 
         impl Limiter for RejectLimits {
-            fn check_cardinality_limits<'a, I, T>(
+            fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -453,7 +468,7 @@ mod tests {
                 rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry>,
+                I: IntoIterator<Item = Entry<'b>>,
                 T: Rejections<'a>,
             {
                 for entry in entries {
