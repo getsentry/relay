@@ -128,6 +128,7 @@ pub struct TopicAssignments {
     #[serde(alias = "shared-resources-usage")]
     pub cogs: TopicAssignment,
     /// Feedback events topic name.
+    #[serde(alias = "ingest-feedback-events")]
     pub feedback: TopicAssignment,
 }
 
