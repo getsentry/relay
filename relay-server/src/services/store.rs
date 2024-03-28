@@ -246,21 +246,6 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::Session | ItemType::Sessions => {
-                    self.produce_sessions(
-                        scoping.organization_id,
-                        scoping.project_id,
-                        retention,
-                        client,
-                        item,
-                    )?;
-                }
-                ItemType::MetricBuckets => self.produce_metrics(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    item,
-                    retention,
-                )?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
