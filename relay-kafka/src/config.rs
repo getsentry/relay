@@ -80,93 +80,62 @@ impl KafkaTopic {
     }
 }
 
-/// Configuration for topics.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct TopicAssignments {
-    /// Simple events topic name.
-    #[serde(alias = "ingest-events")]
-    pub events: TopicAssignment,
-    /// Events with attachments topic name.
-    #[serde(alias = "ingest-attachments")]
-    pub attachments: TopicAssignment,
-    /// Transaction events topic name.
-    #[serde(alias = "ingest-transactions")]
-    pub transactions: TopicAssignment,
-    /// Outcomes topic name.
-    pub outcomes: TopicAssignment,
-    /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
-    #[serde(alias = "outcomes-billing")]
-    pub outcomes_billing: Option<TopicAssignment>,
-    /// Topic name for metrics extracted from sessions, aka release health.
-    #[serde(alias = "metrics", alias = "ingest-metrics")]
-    pub metrics_sessions: TopicAssignment,
-    /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
-    #[serde(alias = "metrics_transactions", alias = "ingest-performance-metrics")]
-    pub metrics_generic: TopicAssignment,
-    /// Stacktrace topic name
-    pub profiles: TopicAssignment,
-    /// Replay Events topic name.
-    #[serde(alias = "ingest-replay-events")]
-    pub replay_events: TopicAssignment,
-    /// Recordings topic name.
-    #[serde(alias = "ingest-replay-recordings")]
-    pub replay_recordings: TopicAssignment,
-    /// Monitor check-ins.
-    #[serde(alias = "ingest-monitors")]
-    pub monitors: TopicAssignment,
-    /// Standalone spans without a transaction.
-    #[serde(alias = "snuba-spans")]
-    pub spans: TopicAssignment,
-    /// Summary for metrics collected during a span.
-    #[serde(alias = "snuba-metrics-summaries")]
-    pub metrics_summaries: TopicAssignment,
-    /// COGS measurements.
-    #[serde(alias = "shared-resources-usage")]
-    pub cogs: TopicAssignment,
+macro_rules! define_topic_assignments {
+    ($struct_name:ident {
+        $($field_name:ident : ($kafka_topic:path, $default_topic: literal)),* $(,)? }) => {
+
+        /// Configuration for topics.
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(default)]
+        pub struct TopicAssignments {
+            $(
+                /// Topic name for $default_topic
+                #[serde(alias = $default_topic)]
+                pub $field_name: TopicAssignment,
+            )*
+        }
+
+        impl TopicAssignments{
+            /// Get a topic assignment by [`KafkaTopic`] value
+            #[must_use]
+            pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
+                match kafka_topic {
+                    $(
+                        $kafka_topic => &self.$field_name,
+                    )*
+                }
+            }
+        }
+
+        impl Default for TopicAssignments {
+            fn default() -> Self {
+                Self {
+                    $(
+                        $field_name: $default_topic.to_owned().into(),
+                    )*
+
+                }
+            }
+        }
+    };
 }
 
-impl TopicAssignments {
-    /// Get a topic assignment by [`KafkaTopic`] value
-    #[must_use]
-    pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
-        match kafka_topic {
-            KafkaTopic::Attachments => &self.attachments,
-            KafkaTopic::Events => &self.events,
-            KafkaTopic::Transactions => &self.transactions,
-            KafkaTopic::Outcomes => &self.outcomes,
-            KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
-            KafkaTopic::MetricsSessions => &self.metrics_sessions,
-            KafkaTopic::MetricsGeneric => &self.metrics_generic,
-            KafkaTopic::Profiles => &self.profiles,
-            KafkaTopic::ReplayEvents => &self.replay_events,
-            KafkaTopic::ReplayRecordings => &self.replay_recordings,
-            KafkaTopic::Monitors => &self.monitors,
-            KafkaTopic::Spans => &self.spans,
-            KafkaTopic::MetricsSummaries => &self.metrics_summaries,
-            KafkaTopic::Cogs => &self.cogs,
-        }
-    }
-}
-
-impl Default for TopicAssignments {
-    fn default() -> Self {
-        Self {
-            events: "ingest-events".to_owned().into(),
-            attachments: "ingest-attachments".to_owned().into(),
-            transactions: "ingest-transactions".to_owned().into(),
-            outcomes: "outcomes".to_owned().into(),
-            outcomes_billing: None,
-            metrics_sessions: "ingest-metrics".to_owned().into(),
-            metrics_generic: "ingest-performance-metrics".to_owned().into(),
-            profiles: "profiles".to_owned().into(),
-            replay_events: "ingest-replay-events".to_owned().into(),
-            replay_recordings: "ingest-replay-recordings".to_owned().into(),
-            monitors: "ingest-monitors".to_owned().into(),
-            spans: "snuba-spans".to_owned().into(),
-            metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
-            cogs: "shared-resources-usage".to_owned().into(),
-        }
+define_topic_assignments! {
+    TopicAssignments {
+        events: (KafkaTopic::Events, "ingest-events"),
+        attachments: (KafkaTopic::Attachments, "ingest-attachments"),
+        transactions: (KafkaTopic::Transactions, "ingest-transactions"),
+        outcomes: (KafkaTopic::Outcomes, "outcomes"),
+        outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing"),
+        metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics"),
+        metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics"),
+        profiles: (KafkaTopic::Profiles, "profiles"),
+        replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events"),
+        replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings"),
+        monitors: (KafkaTopic::Monitors, "ingest-monitors"),
+        spans: (KafkaTopic::Spans, "snuba-spans"),
+        metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries"),
+        cogs: (KafkaTopic::Cogs, "shared-resources-usage"),
     }
 }
 
@@ -446,5 +415,28 @@ transactions: "ingest-transactions-kafka-topic"
             };
         assert_eq!(shards, 65000);
         assert_eq!(3, mapping.len());
+    }
+
+    #[test]
+    fn test_default_topic_is_valid() {
+        let topic_assignments = TopicAssignments::default();
+
+        // A few topics are not defined currently, remove this once added
+        let currrently_undefined_topics = [
+            "ingest-transactions".to_string(),
+            "profiles".to_string(),
+            "ingest-monitors".to_string(),
+        ];
+
+        for topic in KafkaTopic::iter() {
+            match topic_assignments.get(*topic) {
+                TopicAssignment::Primary(logical_topic_name) => {
+                    if !currrently_undefined_topics.contains(logical_topic_name) {
+                        assert!(sentry_kafka_schemas::get_schema(logical_topic_name, None).is_ok());
+                    }
+                }
+                _ => panic!("invalid default"),
+            }
+        }
     }
 }
