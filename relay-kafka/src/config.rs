@@ -423,6 +423,7 @@ transactions: "ingest-transactions-kafka-topic"
 
         // A few topics are not defined currently, remove this once added
         let currrently_undefined_topics = [
+            "ingest-attachments".to_string(),
             "ingest-transactions".to_string(),
             "profiles".to_string(),
             "ingest-monitors".to_string(),
