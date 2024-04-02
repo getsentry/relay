@@ -155,8 +155,8 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     // The platform tag should not increase dimensionality in most cases, because most
     // transactions are specific to one platform.
-    // NOTE: we might want to reconsider light normalization a little and include the
-    // `relay_event_normalization::is_valid_platform` into light normalization.
+    // NOTE: we might want to reconsider normalization a little and include the
+    // `relay_event_normalization::is_valid_platform` into normalization.
     let platform = match event.platform.as_str() {
         Some(platform) if relay_event_normalization::is_valid_platform(platform) => platform,
         _ => "other",
@@ -166,7 +166,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         // We assume that the trace context status is automatically set to unknown inside of the
-        // light event normalization step.
+        // normalization step.
         if let Some(status) = trace_context.status.value() {
             tags.insert(CommonTag::TransactionStatus, status.to_string());
         }
@@ -660,6 +660,7 @@ mod tests {
                 measurements: ~,
                 _metrics_summary: ~,
                 platform: ~,
+                was_transaction: ~,
                 other: {},
             },
         ]
@@ -1511,7 +1512,7 @@ mod tests {
 
     #[test]
     fn test_span_tags() {
-        // Status is normalized upstream in the light normalization step.
+        // Status is normalized upstream in the normalization step.
         let json = r#"
         {
             "type": "transaction",

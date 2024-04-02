@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
+import time
 
 import pytest
 import requests
+from requests.exceptions import HTTPError
 import queue
 
 from .test_envelope import generate_transaction_item
@@ -309,6 +311,43 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
+
+
+@pytest.mark.parametrize("ns", [None, "custom", "transactions"])
+def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["metric_bucket"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+            "namespace": ns,
+        }
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
+
+    # Send and ignore first request to populate caches
+    relay.send_metrics(project_id, metrics_payload)
+    time.sleep(1)
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_metrics(project_id, metrics_payload)
+
+    response = excinfo.value.response
+    assert response.status_code == 429
+
+    ns_component = ":" + ns if ns is not None else ""
+    assert (
+        response.headers["x-sentry-rate-limits"]
+        == f"60:metric_bucket:organization:static_disabled_quota{ns_component}"
+    )
 
 
 def test_global_metrics(mini_sentry, relay):
@@ -858,7 +897,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -1430,10 +1469,14 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 6
+    assert len(span_metrics) == 8
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] in ("c:spans/count_per_op@none", "c:spans/usage@none"):
+        if metric["name"] in (
+            "c:spans/count_per_op@none",
+            "c:spans/usage@none",
+            "d:spans/duration@millisecond",
+        ):
             continue
 
         # Ignore transaction spans

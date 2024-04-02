@@ -1,3 +1,4 @@
+import contextlib
 import json
 import signal
 import time
@@ -9,6 +10,7 @@ from queue import Empty
 
 import pytest
 import requests
+from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_metrics import metrics_by_name
@@ -564,10 +566,10 @@ def test_outcomes_forwarding_rate_limited(
     outcomes_consumer.assert_empty()
 
 
-def _get_event_payload(event_type):
-    if event_type == "error":
+def _get_event_payload(data_category):
+    if data_category == "error":
         return {"message": "hello"}
-    elif event_type == "transaction":
+    elif data_category == "transaction":
         now = datetime.utcnow()
         return {
             "type": "transaction",
@@ -592,6 +594,45 @@ def _get_event_payload(event_type):
                 }
             },
             "transaction": "hi",
+        }
+    elif data_category == "user_report_v2":
+        return {
+            "type": "userreportv2",
+            "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+            "timestamp": 1597977777.6189718,
+            "dist": "1.12",
+            "platform": "javascript",
+            "environment": "production",
+            "release": 42,
+            "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
+            "sdk": {"name": "name", "version": "veresion"},
+            "user": {
+                "id": "123",
+                "username": "user",
+                "email": "user@site.com",
+                "ip_address": "192.168.11.12",
+            },
+            "request": {
+                "url": None,
+                "headers": {
+                    "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                },
+            },
+            "contexts": {
+                "feedback": {
+                    "message": "test message",
+                    "contact_email": "test@example.com",
+                    "type": "feedback",
+                },
+                "trace": {
+                    "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                },
+                "replay": {
+                    "replay_id": "e2d42047b1c5431c8cba85ee2a8ab25d",
+                },
+            },
         }
     else:
         raise Exception("Invalid event type")
@@ -692,7 +733,8 @@ def _get_span_payload():
 
 
 @pytest.mark.parametrize(
-    "category,is_outcome_expected", [("session", False), ("transaction", True)]
+    "category,is_outcome_expected",
+    [("session", False), ("transaction", True), ("user_report_v2", True)],
 )
 def test_outcomes_rate_limit(
     relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
@@ -717,6 +759,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+    project_config["config"]["features"] = ["organizations:user-feedback-ingest"]
 
     outcomes_consumer = outcomes_consumer()
 
@@ -977,10 +1020,10 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     assert outcome == expected_outcome
 
 
-def test_outcomes_do_not_aggregate(
+def test_outcomes_aggregate_inbound_filters(
     relay, relay_with_processing, mini_sentry, outcomes_consumer
 ):
-    """Make sure that certain types are not aggregated"""
+    """Make sure that inbound filters outcomes are aggregated"""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
@@ -1001,42 +1044,27 @@ def test_outcomes_do_not_aggregate(
     outcomes_consumer = outcomes_consumer(timeout=1.2)
 
     # Send empty body twice
-    event_id1 = _send_event(relay)
-    event_id2 = _send_event(relay)
+    _send_event(relay)
+    _send_event(relay)
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 2, outcomes
+    outcomes = outcomes_consumer.get_outcomes(timeout=5)
+    assert len(outcomes) == 1, outcomes
 
     for outcome in outcomes:
         del outcome["timestamp"]
 
-    # Results in two outcomes, nothing aggregated:
-    expected_outcomes = {
-        event_id1: {
+    # Results in a single aggregated outcome:
+    assert outcomes == [
+        {
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
             "outcome": 1,
-            "event_id": event_id1,
-            "remote_addr": "127.0.0.1",
             "reason": "release-version",
             "category": 1,
-            "quantity": 1,
-        },
-        event_id2: {
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 1,
-            "event_id": event_id2,
-            "remote_addr": "127.0.0.1",
-            "reason": "release-version",
-            "category": 1,
-            "quantity": 1,
-        },
-    }
-    # Convert to dict to ignore sort order:
-    assert {x["event_id"]: x for x in outcomes} == expected_outcomes
+            "quantity": 2,
+        }
+    ]
 
 
 def test_graceful_shutdown(relay, mini_sentry):
@@ -1178,7 +1206,7 @@ def test_profile_outcomes(
         upstream = relay(upstream, config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1330,13 +1358,11 @@ def test_profile_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1386,7 +1412,7 @@ def test_profile_outcomes_too_many(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1421,13 +1447,11 @@ def test_profile_outcomes_too_many(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_too_many_profiles",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1508,13 +1532,11 @@ def test_profile_outcomes_data_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
-            "remote_addr": "127.0.0.1",
             "source": "processing-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1570,7 +1592,7 @@ def test_profile_outcomes_rate_limited(
     upstream = relay_with_processing(config)
 
     with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
         "rb",
     ) as f:
         profile = f.read()
@@ -1619,7 +1641,6 @@ def test_profile_outcomes_rate_limited(
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id", None)
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1695,9 +1716,13 @@ def test_global_rate_limit(
     assert_metrics_outcomes(metric_bucket_limit, 0)
 
     # Send more once the limit is hit and make sure they are rejected.
-    for _ in range(2):
+    send_buckets(1)
+    assert_metrics_outcomes(0, 1)
+
+    # Subsequent requests should expose the rate limit via 429
+    with pytest.raises(HTTPError, match="429 Client Error"):
         send_buckets(1)
-        assert_metrics_outcomes(0, 1)
+    assert_metrics_outcomes(0, 1)
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -1908,7 +1933,6 @@ def test_span_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_transaction",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
         {
@@ -1919,13 +1943,11 @@ def test_span_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "internal",
-            "remote_addr": "127.0.0.1",
             "source": "pop-relay",
         },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
-        outcome.pop("event_id")
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1960,6 +1982,7 @@ def test_global_rate_limit_by_namespace(
 
     global_reason_code = "global rate limit hit"
     transaction_reason_code = "global rate limit for transactions hit"
+    expect_429 = False
 
     unique_id = str(uuid.uuid4())
     projectconfig["config"]["quotas"] = [
@@ -2003,7 +2026,14 @@ def test_global_rate_limit_by_namespace(
             envelope.add_item(
                 Item(payload=PayloadRef(json=bucket), type="metric_buckets")
             )
-            relay.send_envelope(project_id, envelope)
+
+            maybe_raises = (
+                pytest.raises(HTTPError, match="429 Client Error")
+                if expect_429
+                else contextlib.nullcontext()
+            )
+            with maybe_raises:
+                relay.send_envelope(project_id, envelope)
 
         time.sleep(3)
 
@@ -2019,7 +2049,9 @@ def test_global_rate_limit_by_namespace(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
+    # The next request will trigger a rate limit, AFTER this request we should get 429s
     send_buckets(1, transaction_name, transaction_value, "d")
+    expect_429 = True
 
     # assert we hit the transaction throughput limit configured.
     outcomes = outcomes_consumer.get_outcomes()
@@ -2096,13 +2128,11 @@ def test_replay_outcomes_item_failed(
 
     expected = {
         "category": 7,
-        "event_id": "515539018c9b4260a6f999572f1661ee",
         "key_id": 123,
         "outcome": 3,
         "project_id": 42,
         "quantity": 2,
         "reason": "invalid_replay",
-        "remote_addr": "127.0.0.1",
         "source": "pop-relay",
     }
     expected["timestamp"] = outcomes[0]["timestamp"]

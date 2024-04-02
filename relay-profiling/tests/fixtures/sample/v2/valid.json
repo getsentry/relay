@@ -1,0 +1,64 @@
+{
+  "version": "2",
+  "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
+  "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
+  "timestamp": 1710805688.237,
+  "release": "0.1 (199)",
+  "platform": "cocoa",
+  "profile": {
+    "samples": [
+      {
+        "stack_id": 0,
+        "thread_id": "0x0000000102adc700",
+        "timestamp": 1710805788.500
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "0x0000000102adc700",
+        "timestamp": 1710805788.510
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "0x0000000102adc700",
+        "timestamp": 1710805788.520
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "0x0000000102adc700",
+        "timestamp": 1710805788.530
+      }
+    ],
+    "stacks": [
+      [0],
+      [1]
+    ],
+    "frames": [
+      {
+        "instruction_addr": "0xa722447ffffffffc"
+      },
+      {
+        "instruction_addr": "0x442e4b81f5031e58"
+      }
+    ],
+    "thread_metadata": {
+      "0x0000000102adc700": {
+        "name": "com.apple.main-thread"
+      },
+      "0x000000016d8fb180": {
+        "name": "com.apple.network.connections"
+      }
+    }
+  },
+  "debug_meta": {
+    "images": [
+      {
+        "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
+        "image_addr": "0x000000010258c000",
+        "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
+        "type": "macho",
+        "image_size": 1720320,
+        "image_vmaddr": "0x0000000100000000"
+      }
+    ]
+  }
+}

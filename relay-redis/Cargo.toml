@@ -19,7 +19,8 @@ redis = { workspace = true, optional = true, features = [
     "r2d2",
     "tls-native-tls",
     "keep-alive",
-] }
+    "script",
+], default-features = false }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

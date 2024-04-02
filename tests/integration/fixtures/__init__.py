@@ -318,12 +318,12 @@ class SentryLike:
         envelope.add_item(
             Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
-        self.send_envelope(project_id, envelope)
+        return self.send_envelope(project_id, envelope)
 
     def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
-        self.send_envelope(project_id, envelope)
+        return self.send_envelope(project_id, envelope)
 
     def send_metrics_batch(self, payload):
         packed, signature = SecretKey.parse(self.secret_key).pack(payload)

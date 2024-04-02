@@ -235,6 +235,7 @@ impl StoreService {
                     scoping.project_id,
                     scoping.key_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 ItemType::ReplayVideo => {
@@ -274,6 +275,13 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
+                ItemType::ProfileChunk => self.produce_profile_chunk(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    retention,
+                    item,
+                )?,
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope
@@ -533,7 +541,7 @@ impl StoreService {
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
             }
-            KafkaMessage::Span(span) => {
+            KafkaMessage::Span { message: span, .. } => {
                 let is_segment = span.is_segment;
                 let has_parent = span.parent_span_id.is_some();
                 let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
@@ -682,6 +690,7 @@ impl StoreService {
         project_id: ProjectId,
         key_id: Option<u64>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
@@ -689,6 +698,7 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
             headers: BTreeMap::from([(
                 "sampled".to_string(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
@@ -913,7 +923,13 @@ impl StoreService {
         self.produce(
             KafkaTopic::Spans,
             scoping.organization_id,
-            KafkaMessage::Span(span),
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
         )?;
 
         self.outcome_aggregator.send(TrackOutcome {
@@ -1028,6 +1044,29 @@ impl StoreService {
                 }
             }
         }
+    }
+
+    fn produce_profile_chunk(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfileChunkKafkaMessage {
+            organization_id,
+            project_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
+            payload: item.payload(),
+        };
+        self.produce(
+            KafkaTopic::Profiles,
+            organization_id,
+            KafkaMessage::ProfileChunk(message),
+        )?;
+        Ok(())
     }
 }
 
@@ -1260,6 +1299,7 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
+    retention_days: u16,
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
@@ -1399,6 +1439,15 @@ struct MetricsSummaryKafkaMessage<'a> {
     tags: BTreeMap<&'a str, &'a str>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+struct ProfileChunkKafkaMessage {
+    organization_id: u64,
+    project_id: ProjectId,
+    received: u64,
+    retention_days: u16,
+    payload: Bytes,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(transparent)]
 struct CogsKafkaMessage(Vec<u8>);
@@ -1422,9 +1471,15 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage<'a>),
+    Span {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanKafkaMessage<'a>,
+    },
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
     Cogs(CogsKafkaMessage),
+    ProfileChunk(ProfileChunkKafkaMessage),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1439,9 +1494,10 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Span(_) => "span",
+            KafkaMessage::Span { .. } => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
             KafkaMessage::Cogs(_) => "cogs",
+            KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
     }
 
@@ -1463,9 +1519,10 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_)
+            | Self::Span { .. }
             | Self::MetricsSummary(_)
-            | Self::Cogs(_) => Uuid::nil(),
+            | Self::Cogs(_)
+            | Self::ProfileChunk(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1492,6 +1549,12 @@ impl Message for KafkaMessage<'_> {
                 }
                 None
             }
+            KafkaMessage::Span { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
+            }
             _ => None,
         }
     }
@@ -1505,7 +1568,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span(message) => serde_json::to_vec(message)
+            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)

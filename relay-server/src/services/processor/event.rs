@@ -20,12 +20,6 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
-#[cfg(feature = "processing")]
-use {
-    relay_event_normalization::{StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::IpAddr,
-};
-
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
@@ -400,69 +394,8 @@ pub fn serialize<G: EventProcessing>(
     Ok(())
 }
 
-#[cfg(feature = "processing")]
-pub fn store<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let ProcessEnvelopeState {
-        ref mut event,
-        ref project_state,
-        ref managed_envelope,
-        ..
-    } = *state;
-
-    let key_id = project_state
-        .get_public_key_config()
-        .and_then(|k| Some(k.numeric_id?.to_string()));
-
-    let envelope = state.managed_envelope.envelope();
-
-    if key_id.is_none() {
-        relay_log::error!(
-            "project state for key {} is missing key id",
-            envelope.meta().public_key()
-        );
-    }
-
-    let store_config = StoreConfig {
-        project_id: Some(state.project_id.value()),
-        client_ip: envelope.meta().client_addr().map(IpAddr::from),
-        client: envelope.meta().client().map(str::to_owned),
-        key_id,
-        protocol_version: Some(envelope.meta().version().to_string()),
-        grouping_config: project_state.config.grouping_config.clone(),
-        user_agent: envelope.meta().user_agent().map(str::to_owned),
-        max_secs_in_future: Some(config.max_secs_in_future()),
-        max_secs_in_past: Some(config.max_secs_in_past()),
-        enable_trimming: Some(true),
-        is_renormalize: Some(false),
-        remove_other: Some(true),
-        normalize_user_agent: Some(true),
-        sent_at: envelope.sent_at(),
-        received_at: Some(managed_envelope.received_at()),
-        breakdowns: project_state.config.breakdowns_v2.clone(),
-        client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
-        replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
-        client_hints: envelope.meta().client_hints().to_owned(),
-        normalize_spans: false, // noop
-    };
-
-    let mut store_processor = StoreProcessor::new(store_config);
-    metric!(timer(RelayTimers::EventProcessingProcess), {
-        processor::process_value(event, &mut store_processor, ProcessingState::root())
-            .map_err(|_| ProcessingError::InvalidTransaction)?;
-        if has_unprintable_fields(event) {
-            metric!(counter(RelayCounters::EventCorrupted) += 1);
-        }
-    });
-
-    Ok(())
-}
-
 /// Checks if the Event includes unprintable fields.
-#[cfg(feature = "processing")]
-fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
+pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
         value.chars().any(|c| {
             c == '\u{fffd}' // unicode replacement character
@@ -514,6 +447,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::CheckIn => false,
         ItemType::Span => false,
         ItemType::OtelSpan => false,
+        ItemType::ProfileChunk => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,

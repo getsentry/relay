@@ -52,13 +52,13 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update(&self, scope: QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
+    pub fn update(&self, scope: &QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
         let mut inner = self.inner.write();
 
         inner.vacuum(timestamp);
 
         let slot = scope.active_slot(timestamp);
-        let cache = inner.cache.entry(scope).or_default();
+        let cache = inner.cache.entry_ref(scope).or_default();
 
         // If the slot is older, don't do anything and give up the lock early.
         if slot < cache.current_slot {
@@ -96,8 +96,8 @@ impl<'a> CacheRead<'a> {
         Self { inner, timestamp }
     }
 
-    pub fn check(&self, scope: QuotaScoping, hash: u32, limit: u64) -> CacheOutcome {
-        let Some(cache) = self.inner.cache.get(&scope) else {
+    pub fn check(&self, scope: &QuotaScoping, hash: u32, limit: u64) -> CacheOutcome {
+        let Some(cache) = self.inner.cache.get(scope) else {
             return CacheOutcome::Unknown;
         };
 
@@ -113,8 +113,8 @@ pub struct CacheUpdate<'a>(Option<MappedRwLockWriteGuard<'a, ScopedCache>>);
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    fn new(inner: RwLockWriteGuard<'a, Inner>, key: QuotaScoping) -> Self {
-        Self(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(&key)).ok())
+    fn new(inner: RwLockWriteGuard<'a, Inner>, key: &QuotaScoping) -> Self {
+        Self(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(key)).ok())
     }
 
     /// Creates a new noop [`CacheUpdate`] which does not require a lock.
@@ -196,14 +196,17 @@ impl ScopedCache {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::metrics::{MetricName, MetricNamespace};
     use relay_base_schema::project::ProjectId;
 
+    use crate::limiter::{Entry, EntryId};
+    use crate::redis::quota::PartialQuotaScoping;
     use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
     use super::*;
 
     fn build_scoping(organization_id: OrganizationId, window: SlidingWindow) -> QuotaScoping {
-        QuotaScoping::new(
+        PartialQuotaScoping::new(
             Scoping {
                 organization_id,
                 project_id: ProjectId::new(1),
@@ -211,6 +214,7 @@ mod tests {
             &CardinalityLimit {
                 id: String::new(),
                 passive: false,
+                report: false,
                 window,
                 limit: 100,
                 scope: CardinalityScope::Organization,
@@ -218,6 +222,12 @@ mod tests {
             },
         )
         .unwrap()
+        .complete(Entry {
+            id: EntryId(0),
+            namespace: MetricNamespace::Spans,
+            name: &MetricName::from("foobar"),
+            hash: 123,
+        })
     }
 
     #[test]
@@ -234,11 +244,11 @@ mod tests {
 
         {
             let cache = cache.read(now);
-            assert_eq!(cache.check(scope, 1, 1), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope, 1, 1), CacheOutcome::Unknown);
         }
 
         {
-            let mut cache = cache.update(scope, now);
+            let mut cache = cache.update(&scope, now);
             cache.accept(1);
             cache.accept(2);
         }
@@ -246,37 +256,37 @@ mod tests {
         {
             let r1 = cache.read(now);
             // All in cache, no matter the limit.
-            assert_eq!(r1.check(scope, 1, 1), CacheOutcome::Accepted);
-            assert_eq!(r1.check(scope, 1, 2), CacheOutcome::Accepted);
-            assert_eq!(r1.check(scope, 2, 1), CacheOutcome::Accepted);
+            assert_eq!(r1.check(&scope, 1, 1), CacheOutcome::Accepted);
+            assert_eq!(r1.check(&scope, 1, 2), CacheOutcome::Accepted);
+            assert_eq!(r1.check(&scope, 2, 1), CacheOutcome::Accepted);
 
             // Not in cache, depends on limit and amount of items in the cache.
-            assert_eq!(r1.check(scope, 3, 3), CacheOutcome::Unknown);
-            assert_eq!(r1.check(scope, 3, 2), CacheOutcome::Rejected);
+            assert_eq!(r1.check(&scope, 3, 3), CacheOutcome::Unknown);
+            assert_eq!(r1.check(&scope, 3, 2), CacheOutcome::Rejected);
 
             // Read concurrently from a future slot.
             let r2 = cache.read(future);
-            assert_eq!(r2.check(scope, 1, 1), CacheOutcome::Unknown);
-            assert_eq!(r2.check(scope, 2, 2), CacheOutcome::Unknown);
+            assert_eq!(r2.check(&scope, 1, 1), CacheOutcome::Unknown);
+            assert_eq!(r2.check(&scope, 2, 2), CacheOutcome::Unknown);
         }
 
         {
             // Move the cache into the future.
-            let mut cache = cache.update(scope, future);
+            let mut cache = cache.update(&scope, future);
             cache.accept(1);
         }
 
         {
             let future = cache.read(future);
             // The future only contains `1`.
-            assert_eq!(future.check(scope, 1, 1), CacheOutcome::Accepted);
-            assert_eq!(future.check(scope, 2, 1), CacheOutcome::Rejected);
+            assert_eq!(future.check(&scope, 1, 1), CacheOutcome::Accepted);
+            assert_eq!(future.check(&scope, 2, 1), CacheOutcome::Rejected);
 
             let past = cache.read(now);
             // The cache has no information about the past.
-            assert_eq!(past.check(scope, 1, 1), CacheOutcome::Unknown);
-            assert_eq!(past.check(scope, 2, 1), CacheOutcome::Unknown);
-            assert_eq!(past.check(scope, 3, 99), CacheOutcome::Unknown);
+            assert_eq!(past.check(&scope, 1, 1), CacheOutcome::Unknown);
+            assert_eq!(past.check(&scope, 2, 1), CacheOutcome::Unknown);
+            assert_eq!(past.check(&scope, 3, 99), CacheOutcome::Unknown);
         }
     }
 
@@ -294,26 +304,26 @@ mod tests {
         let now = UnixTimestamp::now();
 
         {
-            let mut cache = cache.update(scope1, now);
+            let mut cache = cache.update(&scope1, now);
             cache.accept(1);
         }
 
         {
-            let mut cache = cache.update(scope2, now);
+            let mut cache = cache.update(&scope2, now);
             cache.accept(1);
             cache.accept(2);
         }
 
         {
             let cache = cache.read(now);
-            assert_eq!(cache.check(scope1, 1, 99), CacheOutcome::Accepted);
-            assert_eq!(cache.check(scope1, 2, 99), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope1, 3, 99), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope2, 3, 1), CacheOutcome::Rejected);
-            assert_eq!(cache.check(scope2, 1, 99), CacheOutcome::Accepted);
-            assert_eq!(cache.check(scope2, 2, 99), CacheOutcome::Accepted);
-            assert_eq!(cache.check(scope2, 3, 99), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope2, 3, 2), CacheOutcome::Rejected);
+            assert_eq!(cache.check(&scope1, 1, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope1, 2, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope1, 3, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope2, 3, 1), CacheOutcome::Rejected);
+            assert_eq!(cache.check(&scope2, 1, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope2, 2, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope2, 3, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope2, 3, 2), CacheOutcome::Rejected);
         }
     }
 
@@ -334,53 +344,53 @@ mod tests {
         let future = now + Duration::from_secs(vacuum_interval.as_secs() * 3);
 
         {
-            let mut cache = cache.update(scope1, now);
+            let mut cache = cache.update(&scope1, now);
             cache.accept(10);
         }
 
         {
-            let mut cache = cache.update(scope2, now);
+            let mut cache = cache.update(&scope2, now);
             cache.accept(20);
         }
 
         {
             // Verify entries.
             let cache = cache.read(now);
-            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Accepted);
-            assert_eq!(cache.check(scope2, 20, 100), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope2, 20, 100), CacheOutcome::Accepted);
         }
 
         {
             // Fast forward time a little bit and stay within all bounds.
-            let mut cache = cache.update(scope2, in_interval);
+            let mut cache = cache.update(&scope2, in_interval);
             cache.accept(21);
         }
 
         {
             // Verify entries with old timestamp, values should still be there.
             let cache = cache.read(now);
-            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Accepted);
         }
 
         {
             // Fast forward time far in the future, should vacuum old values.
-            let mut cache = cache.update(scope2, future);
+            let mut cache = cache.update(&scope2, future);
             cache.accept(22);
         }
 
         {
             // Verify that there is no data with the original timestamp.
             let cache = cache.read(now);
-            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope1, 11, 100), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope2, 20, 100), CacheOutcome::Unknown);
-            assert_eq!(cache.check(scope2, 21, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope1, 11, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope2, 20, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(&scope2, 21, 100), CacheOutcome::Unknown);
         }
 
         {
             // Make sure the new/current values are cached.
             let cache = cache.read(future);
-            assert_eq!(cache.check(scope2, 22, 100), CacheOutcome::Accepted);
+            assert_eq!(cache.check(&scope2, 22, 100), CacheOutcome::Accepted);
         }
     }
 }

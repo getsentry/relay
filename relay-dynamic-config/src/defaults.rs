@@ -113,7 +113,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
 
-    let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
+    let app_start_condition = duration_condition.clone()
+        & RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     // `exclusive_time_light` is the metric with the most lenient condition.
@@ -400,37 +401,40 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
-            condition: Some(
-                duration_condition.clone() & is_mobile.clone() & app_start_condition.clone(),
-            ),
+            condition: None,
             tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(), // already guarded by condition on metric
+                // All modules:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                // Mobile module:
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(app_start_condition.clone()),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .when(app_start_condition.clone()),
                 Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
-                    .always(), // already guarded by condition on metric
+                    .when(app_start_condition.clone()),
             ],
         },
         MetricSpec {
@@ -463,7 +467,9 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:transactions/measurements.score.total@ratio".into(),
             field: Some("span.measurements.score.total.value".into()),
-            condition: Some(is_allowed_browser.clone()),
+            condition: Some(
+                is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+            ),
             tags: vec![
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
