@@ -66,6 +66,8 @@ pub enum SpanTagKey {
     /// The start type of the application when the span occurred.
     AppStartType,
     ReplayId,
+    CacheHit,
+    CacheItemSize,
 }
 
 impl SpanTagKey {
@@ -104,6 +106,8 @@ impl SpanTagKey {
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
+            SpanTagKey::CacheHit => "cache.hit",
+            SpanTagKey::CacheItemSize => "cache.item_size",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -406,6 +410,18 @@ pub fn extract_tags(
             }
         }
 
+        if span_op.starts_with("cache.") {
+            if let Some(cache_hit) = span.data.value().and_then(|data| data.cache_hit.value()) {
+                match cache_hit {
+                    Value::Bool(true) => span_tags.insert(SpanTagKey::CacheHit, "true".to_owned()),
+                    Value::Bool(false) => {
+                        span_tags.insert(SpanTagKey::CacheHit, "false".to_owned())
+                    }
+                    _ => None,
+                };
+            }
+        }
+
         if let Some(scrubbed_desc) = scrubbed_description {
             // Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
@@ -558,6 +574,27 @@ pub fn extract_measurements(span: &mut Span) {
     let Some(span_op) = span.op.as_str() else {
         return;
     };
+
+    if span_op.starts_with("cache.") {
+        if let Some(data) = span.data.value() {
+            if let Some(value) = match &data.cache_item_size.value() {
+                Some(Value::F64(f)) => Some(*f),
+                Some(Value::I64(i)) => Some(*i as f64),
+                Some(Value::U64(u)) => Some(*u as f64),
+                _ => None,
+            } {
+                let measurements = span.measurements.get_or_insert_with(Default::default);
+                measurements.insert(
+                    SpanTagKey::CacheItemSize.sentry_tag_key().into(),
+                    Measurement {
+                        value: value.into(),
+                        unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                    }
+                    .into(),
+                );
+            }
+        }
+    }
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
@@ -1281,6 +1318,83 @@ LIMIT 1
             Some("http://example.com")
         );
         assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
+    fn test_cache_extraction() {
+        let json = r#"
+            {
+                "spans": [
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "get my_key",
+                    "op": "cache.get_item",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "cache.hit": true,
+                        "cache.item_size": 8,
+                        "thread.id": "6286962688",
+                        "thread.name": "Thread-4 (process_request_thread)"
+
+                    },
+                    "hash": "e2fae740cccd3781"
+                },
+                {
+                    "timestamp": 1694732409.3145,
+                    "start_timestamp": 1694732408.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "get my_key",
+                    "op": "cache.get_item",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "cache.hit": false,
+                        "cache.item_size": 8,
+                        "thread.id": "6286962688",
+                        "thread.name": "Thread-4 (process_request_thread)"
+
+                    },
+                    "hash": "e2fae740cccd3781"
+                }
+            ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
+        println!("MEASUREMENTS!");
+        println!("{:?}", measurements_1);
+
+        assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
+        assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_debug_snapshot!(measurements_1, @r###"
+        Measurements(
+            {
+                "cache.item_size": Measurement {
+                    value: 8.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
     }
 
     #[test]
