@@ -1,5 +1,5 @@
 //! TODO: docs
-use crate::protocol::{Event, Span, TraceContext};
+use crate::protocol::{Event, ProfileContext, Span, TraceContext};
 
 macro_rules! map_fields {
     (
@@ -8,8 +8,11 @@ macro_rules! map_fields {
         ;
         mapped:
             $(span.$span_field:ident <=> event.$event_field:ident), *
-            trace:
-                $(span.$span_field_from_trace_context:ident <=> event.contexts.trace.$trace_context_field:ident), *
+            contexts:
+            $(
+                #$context_type:ty:
+                    $(span.$span_field_from_context:ident <=> context.$context_field:ident), *
+            )*
 
         ;
         fixed_for_span:
@@ -20,7 +23,6 @@ macro_rules! map_fields {
     ) => {
         impl From<&Event> for Span {
             fn from(event: &Event) -> Self {
-                let trace_context = event.context::<TraceContext>();
                 Self {
                     $(
                         $field: event.$field.clone(),
@@ -29,7 +31,10 @@ macro_rules! map_fields {
                         $span_field: event.$event_field.clone(),
                     )*
                     $(
-                        $span_field_from_trace_context: trace_context.map_or(None, |ctx|ctx.$trace_context_field.value().cloned()).into(),
+                        $(
+                            $span_field_from_context: event.context::<$context_type>()
+                                .map_or(None, |ctx|ctx.$context_field.value().cloned()).into(),
+                        )*
                     )*
                     $(
                         $fixed_span_field: $fixed_span_value.into(),
@@ -74,14 +79,17 @@ map_fields!(
     ;
     mapped:
         span.description <=> event.transaction
-        trace:
-            span.exclusive_time <=> event.contexts.trace.exclusive_time,
-            span.op <=> event.contexts.trace.op,
-            span.parent_span_id <=> event.contexts.trace.parent_span_id,
-            span.segment_id <=> event.contexts.trace.span_id,
-            span.span_id <=> event.contexts.trace.span_id,
-            span.status <=> event.contexts.trace.status,
-            span.trace_id <=> event.contexts.trace.trace_id
+        contexts:
+            #TraceContext:
+                span.exclusive_time <=> context.exclusive_time,
+                span.op <=> context.op,
+                span.parent_span_id <=> context.parent_span_id,
+                span.segment_id <=> context.span_id,
+                span.span_id <=> context.span_id,
+                span.status <=> context.status,
+                span.trace_id <=> context.trace_id
+            #ProfileContext:
+                span.profile_id <=> context.profile_id
     ;
     fixed_for_span:
         span.is_segment <= Some(true),
