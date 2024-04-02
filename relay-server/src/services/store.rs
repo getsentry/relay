@@ -249,6 +249,7 @@ impl StoreService {
                     scoping.project_id,
                     scoping.key_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 ItemType::ReplayVideo => {
@@ -292,6 +293,7 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 other => {
@@ -702,6 +704,7 @@ impl StoreService {
         project_id: ProjectId,
         key_id: Option<u64>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
@@ -709,6 +712,7 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
             headers: BTreeMap::from([(
                 "sampled".to_string(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
@@ -1061,12 +1065,14 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileChunkKafkaMessage {
             organization_id,
             project_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
             payload: item.payload(),
         };
         self.produce(
@@ -1307,6 +1313,7 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
+    retention_days: u16,
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
@@ -1451,6 +1458,7 @@ struct ProfileChunkKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
     received: u64,
+    retention_days: u16,
     payload: Bytes,
 }
 
