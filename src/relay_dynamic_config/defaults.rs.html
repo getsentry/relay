@@ -558,6 +558,12 @@
 <a href="#556" id="556">556</a>
 <a href="#557" id="557">557</a>
 <a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1003,6 +1009,9 @@
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction.op"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
                     .always(),
@@ -1028,6 +1037,9 @@
                 is_allowed_browser.clone() &amp; RuleCondition::eq(<span class="string">"span.was_transaction"</span>, <span class="bool-val">false</span>),
             ),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction.op"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
                     .always(),

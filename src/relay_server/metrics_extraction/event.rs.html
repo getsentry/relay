@@ -1507,6 +1507,8 @@
 <a href="#1505" id="1505">1505</a>
 <a href="#1506" id="1506">1506</a>
 <a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2957,6 +2959,8 @@
             <span class="string">"d:spans/webvital.score.weight.inp@ratio"</span>,
         ] {
             <span class="macro">assert!</span>(metrics.iter().any(|b| <span class="kw-2">&amp;*</span>b.name == mri));
+            <span class="macro">assert!</span>(metrics.iter().any(|b| b.tags.contains_key(<span class="string">"browser.name"</span>)));
+            <span class="macro">assert!</span>(metrics.iter().any(|b| b.tags.contains_key(<span class="string">"span.op"</span>)));
         }
     }
 
