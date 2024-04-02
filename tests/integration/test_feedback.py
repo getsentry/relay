@@ -58,9 +58,11 @@ def test_feedback_event_with_processing(
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
         consumer = feedback_consumer(timeout=20)
+        other_consumer = events_consumer(timeout=20)
     else:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
         consumer = events_consumer(timeout=20)
+        other_consumer = feedback_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
     relay = relay_with_processing()
@@ -110,6 +112,9 @@ def test_feedback_event_with_processing(
             "type": "feedback",
         },
     }
+
+    # test message wasn't dup'd to the wrong topic
+    other_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
