@@ -56,7 +56,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -1202,7 +1202,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn light_normalize_event<G: EventProcessing>(
+    fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
@@ -1235,8 +1235,32 @@ impl EnvelopeProcessorService {
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 is_validated: false,
             };
+
+            let is_last_relay_normalize = self.inner.config.processing_enabled();
+
+            let key_id = state
+                .project_state
+                .get_public_key_config()
+                .and_then(|key| Some(key.numeric_id?.to_string()));
+            if is_last_relay_normalize && key_id.is_none() {
+                relay_log::error!(
+                    "project state for key {} is missing key id",
+                    state.managed_envelope.envelope().meta().public_key()
+                );
+            }
+
             let normalization_config = NormalizationConfig {
+                project_id: Some(state.project_id.value()),
+                client: request_meta.client().map(str::to_owned),
+                key_id,
+                protocol_version: Some(request_meta.version().to_string()),
+                grouping_config: state.project_state.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                client_sample_rate: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.sample_rate),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
@@ -1264,6 +1288,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
+                remove_other: is_last_relay_normalize,
+                emit_event_errors: is_last_relay_normalize,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1272,6 +1298,11 @@ impl EnvelopeProcessorService {
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: true,
+                replay_id: state
+                    .managed_envelope
+                    .envelope()
+                    .dsc()
+                    .and_then(|ctx| ctx.replay_id),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -1280,6 +1311,9 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
+                if is_last_relay_normalize && event::has_unprintable_fields(event) {
+                    metric!(counter(RelayCounters::EventCorrupted) += 1);
+                }
                 Result::<(), ProcessingError>::Ok(())
             })
         })?;
@@ -1307,7 +1341,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1315,7 +1349,6 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
         });
 
@@ -1343,7 +1376,7 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
+        self.normalize_event(state)?;
         dynamic_sampling::normalize(state);
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
@@ -1373,7 +1406,6 @@ impl EnvelopeProcessorService {
             sampling_decision = if sampling_should_drop { "drop" } else { "keep" },
             {
                 if_processing!(self.inner.config, {
-                    event::store(state, &self.inner.config)?;
                     profile::process(state, &self.inner.config);
                 });
 
@@ -1966,6 +1998,8 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
+        use relay_quotas::RateLimits;
+
         relay_log::trace!("handle_rate_limit_buckets");
         let RateLimitBuckets { mut bucket_limiter } = message;
 
@@ -1978,44 +2012,31 @@ impl EnvelopeProcessorService {
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
+            let mut rate_limits = RateLimits::new();
 
-            let merged_rate_limits = [DataCategory::Transaction, DataCategory::Span]
-                .into_iter()
-                .flat_map(|category| {
-                    bucket_limiter.count(category).and_then(|count| {
-                        rate_limiter
-                            .is_rate_limited(
-                                quotas,
-                                ItemScoping {
-                                    category,
-                                    scoping: &scoping,
-                                    namespace: None,
-                                },
-                                count,
-                                over_accept_once,
-                            )
-                            .map_err(|e| {
-                                relay_log::error!(error = &e as &dyn Error);
-                            })
-                            // don't limit if there was a redis error (keep user data if budget is unknown)
-                            .ok()
-                    })
-                })
-                .reduce(|mut a, b| {
-                    a.merge(b);
-                    a
-                });
+            for category in [DataCategory::Transaction, DataCategory::Span] {
+                if let Some(count) = bucket_limiter.count(category) {
+                    match rate_limiter.is_rate_limited(
+                        quotas,
+                        scoping.item(category),
+                        count,
+                        over_accept_once,
+                    ) {
+                        Ok(limits) => rate_limits.merge(limits),
+                        Err(e) => relay_log::error!(error = &e as &dyn Error),
+                    }
+                }
+            }
 
-            if let Some(merged_rate_limits) = merged_rate_limits {
+            if rate_limits.is_limited() {
                 let was_enforced = bucket_limiter
-                    .enforce_limits(&merged_rate_limits, self.inner.outcome_aggregator.clone());
+                    .enforce_limits(&rate_limits, self.inner.outcome_aggregator.clone());
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
-                    self.inner.project_cache.send(UpdateRateLimits::new(
-                        scoping.project_key,
-                        merged_rate_limits,
-                    ));
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
                 }
             }
         }
@@ -2050,12 +2071,7 @@ impl EnvelopeProcessorService {
         buckets_by_ns
             .into_iter()
             .filter_map(|(namespace, buckets)| {
-                let item_scoping = ItemScoping {
-                    category: DataCategory::MetricBucket,
-                    scoping: &scoping,
-                    namespace: Some(namespace),
-                };
-
+                let item_scoping = scoping.metric_bucket(namespace);
                 (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
                     .then_some(buckets)
             })

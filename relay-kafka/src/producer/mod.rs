@@ -20,7 +20,7 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
-use crate::statsd::{KafkaGauges, KafkaHistograms};
+use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
 use utils::{Context, ThreadedProducer};
@@ -391,6 +391,7 @@ impl Producer {
             self.last_report.replace(Instant::now());
             metric!(
                 gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
+                variant = variant,
                 topic = topic_name
             );
         }
@@ -402,7 +403,13 @@ impl Producer {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
                     tags.variant = variant,
-                    "error sending kafka message"
+                    tags.topic = topic_name,
+                    "error sending kafka message",
+                );
+                metric!(
+                    counter(KafkaCounters::ProducerEnqueueError) += 1,
+                    variant = variant,
+                    topic = topic_name
                 );
                 ClientError::SendFailed(error)
             })

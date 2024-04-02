@@ -30,7 +30,6 @@
 //!
 //! ```
 
-use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -42,6 +41,7 @@ use uuid::Uuid;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::ErrorBoundary;
+use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
@@ -678,7 +678,7 @@ impl Item {
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            ItemType::UserReportV2 => None,
+            ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
             ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
