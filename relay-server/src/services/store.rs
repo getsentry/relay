@@ -187,14 +187,6 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let feedback_ingest_topic_rollout_rate = self
-            .global_config
-            .current()
-            .options
-            .feedback_ingest_topic_rollout_rate;
-        let use_feedback_topic =
-            is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate);
-
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
@@ -210,10 +202,17 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if use_feedback_topic
-            && (event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2))
-        {
-            KafkaTopic::Feedback
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
+            let feedback_ingest_topic_rollout_rate = self
+                .global_config
+                .current()
+                .options
+                .feedback_ingest_topic_rollout_rate;
+            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
+                KafkaTopic::Feedback
+            } else {
+                KafkaTopic::Events
+            }
         } else {
             KafkaTopic::Events
         };
