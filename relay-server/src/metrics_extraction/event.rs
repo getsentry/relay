@@ -1448,6 +1448,8 @@ mod tests {
             "d:spans/webvital.score.weight.inp@ratio",
         ] {
             assert!(metrics.iter().any(|b| &*b.name == mri));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("span.op")));
         }
     }
 
