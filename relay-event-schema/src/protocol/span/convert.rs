@@ -1,5 +1,5 @@
 //! TODO: docs
-use crate::protocol::{Event, Span};
+use crate::protocol::{Event, Span, TraceContext};
 
 macro_rules! map_fields {
     (
@@ -8,6 +8,9 @@ macro_rules! map_fields {
         ;
         mapped:
             $(span.$span_field:ident <=> event.$event_field:ident), *
+            trace:
+                $(span.$span_field_from_trace_context:ident <=> event.contexts.trace.$trace_context_field:ident), *
+
         ;
         fixed_for_span:
             $(span.$fixed_span_field:ident <= $fixed_span_value:expr), *
@@ -17,12 +20,16 @@ macro_rules! map_fields {
     ) => {
         impl From<&Event> for Span {
             fn from(event: &Event) -> Self {
+                let trace_context = event.context::<TraceContext>();
                 Self {
                     $(
                         $field: event.$field.clone(),
                     )*
                     $(
                         $span_field: event.$event_field.clone(),
+                    )*
+                    $(
+                        $span_field_from_trace_context: trace_context.map_or(None, |ctx|ctx.$trace_context_field.value().cloned()).into(),
                     )*
                     $(
                         $fixed_span_field: $fixed_span_value.into(),
@@ -44,6 +51,11 @@ macro_rules! map_fields {
                     $(
                         $fixed_event_field: $fixed_event_value.into(),
                     )*
+                    // contexts: Annotated::new(
+                    //     Contexts(
+
+                    //     )
+                    // )
                     ..Default::default()
                 }
             }
@@ -62,6 +74,14 @@ map_fields!(
     ;
     mapped:
         span.description <=> event.transaction
+        trace:
+            span.exclusive_time <=> event.contexts.trace.exclusive_time,
+            span.op <=> event.contexts.trace.op,
+            span.parent_span_id <=> event.contexts.trace.parent_span_id,
+            span.segment_id <=> event.contexts.trace.span_id,
+            span.span_id <=> event.contexts.trace.span_id,
+            span.status <=> event.contexts.trace.status,
+            span.trace_id <=> event.contexts.trace.trace_id
     ;
     fixed_for_span:
         span.is_segment <= Some(true),
