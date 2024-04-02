@@ -6,8 +6,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
-    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType, SpanId,
+    SpanStatus, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -376,7 +376,6 @@ impl Getter for SpanData {
 mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
@@ -486,87 +485,6 @@ mod tests {
         );
         assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
         assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
-    }
-
-    #[test]
-    fn span_from_event() {
-        let event = Annotated::<Event>::from_json(
-            r#"{
-                "contexts": {
-                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
-                    "trace": {
-                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                        "span_id": "FA90FDEAD5F74052",
-                        "type": "trace"
-                    }
-                },
-                "_metrics_summary": {
-                    "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
-                }
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        assert_debug_snapshot!(Span::from(&event), @r###"
-        Span {
-            timestamp: ~,
-            start_timestamp: ~,
-            exclusive_time: ~,
-            description: ~,
-            op: ~,
-            span_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            parent_span_id: ~,
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
-            segment_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            is_segment: true,
-            status: ~,
-            tags: ~,
-            origin: ~,
-            profile_id: EventId(
-                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
-            ),
-            data: ~,
-            sentry_tags: ~,
-            received: ~,
-            measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
-            platform: ~,
-            was_transaction: true,
-            other: {},
-        }
-        "###);
     }
 
     #[test]
