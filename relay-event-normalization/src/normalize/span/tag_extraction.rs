@@ -347,8 +347,8 @@ pub fn extract_tags(
                     scrubbed
                 };
                 if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.domain().map(|d| {
-                        let mut domain = d.to_lowercase();
+                    url.host_str().map(|h| {
+                        let mut domain = h.to_lowercase();
                         if let Some(port) = url.port() {
                             domain = format!("{domain}:{port}");
                         }
