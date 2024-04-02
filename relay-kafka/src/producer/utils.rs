@@ -20,7 +20,7 @@ impl ClientContext for Context {
         relay_statsd::metric!(gauge(KafkaGauges::MessageSize) = statistics.msg_size);
         relay_statsd::metric!(gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max);
 
-        for broker in statistics.brokers.values() {
+        for (_, broker) in statistics.brokers {
             relay_statsd::metric!(
                 gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt as u64,
                 broker_name = &broker.name

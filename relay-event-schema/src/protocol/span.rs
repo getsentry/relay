@@ -1,4 +1,4 @@
-mod conversion;
+mod convert;
 
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
