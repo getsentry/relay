@@ -184,9 +184,7 @@ class Sentry(SentryLike):
 
     def set_global_config_option(self, option_name, value):
         # must be called before initializing relay fixture
-        old_val = self.global_config["options"].get(option_name)
         self.global_config["options"][option_name] = value
-        return old_val
 
 
 def _get_project_id(public_key, project_configs):
