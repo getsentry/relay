@@ -2313,6 +2313,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
             "environment": "fake_environment",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
@@ -5849,6 +5850,81 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/count_per_op@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "cache",
+            "span.op": "cache.get_item",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/duration@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "true",
             "environment": "fake_environment",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
