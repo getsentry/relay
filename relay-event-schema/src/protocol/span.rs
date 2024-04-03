@@ -95,7 +95,7 @@ pub struct Span {
 
     /// Platform identifier.
     ///
-    /// See [`Event::platform`].
+    /// See [`Event::platform`](`crate::protocol::Event::platform`).
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
