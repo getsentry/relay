@@ -39,7 +39,7 @@ macro_rules! map_fields {
         contexts {
         $(
             $ContextType:ident {
-                $(span.$foo:ident $(, $(span.$span_field_from_context:ident),+)? <=> context.$context_field:ident), *
+                $(span.$primary_span_field:ident $(, $(span.$additional_span_field:ident),+)? <=> context.$context_field:ident), *
             }
         )*
         }
@@ -59,11 +59,11 @@ macro_rules! map_fields {
                     )*
                     $(
                         $(
-                            $foo: event.context::<$ContextType>()
+                            $primary_span_field: event.context::<$ContextType>()
                                 .map_or(None, |ctx|ctx.$context_field.value().cloned()).into(),
                             $(
                                 $(
-                                    $span_field_from_context: event.context::<$ContextType>()
+                                    $additional_span_field: event.context::<$ContextType>()
                                     .map_or(None, |ctx|ctx.$context_field.value().cloned()).into(),
                                 )+
                             )?
