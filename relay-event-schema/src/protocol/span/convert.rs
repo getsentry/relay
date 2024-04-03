@@ -14,38 +14,41 @@ use std::collections::BTreeMap;
 ///
 /// ```ignore
 /// map_fields!(
-///     top-level:
-///         span.received: event.received
-///     contexts:
-///         TraceContext:
-///             span.trace_id: context.trace_id
-///         ;
-///     ;
-///     fixed_for_span:
+///     top_level {
+///         span.received <=> event.received
+///     }
+///     contexts {
+///         TraceContext {
+///             span.trace_id <=> context.trace_id
+///         }
+///     }
+///     fixed_for_span {
 ///         // ...
-///     ;
-///     fixed_for_event:
+///     }
+///     fixed_for_event {
 ///         // ...
-///     ;
+///     }
 /// );
 /// ```
+#[macro_export]
 macro_rules! map_fields {
     (
-        top-level:
+        top_level {
             $(span.$span_field:ident <=> event.$event_field:ident), *
-        ;
-        contexts:
+        }
+        contexts {
         $(
-            $ContextType:ident:
+            $ContextType:ident {
                 $(span.$foo:ident $(, $(span.$span_field_from_context:ident),+)? <=> context.$context_field:ident), *
-            ;
+            }
         )*
-        ;
-        fixed_for_span:
+        }
+        fixed_for_span {
             $(span.$fixed_span_field:ident <= $fixed_span_value:expr), *
-        ;
-        fixed_for_event:
+        }
+        fixed_for_event {
             $($fixed_event_value:expr => span.$fixed_event_field:ident), *
+        }
     ) => {
         #[allow(clippy::needless_update)]
         impl From<&Event> for Span {
@@ -108,7 +111,7 @@ macro_rules! map_fields {
 // This macro call implements a bidirectional mapping between transaction event and segment spans,
 // allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
-    top-level:
+    top_level {
         span._metrics_summary <=> event._metrics_summary,
         span.description <=> event.transaction,
         span.measurements <=> event.measurements,
@@ -116,9 +119,9 @@ map_fields!(
         span.received <=> event.received,
         span.start_timestamp <=> event.start_timestamp,
         span.timestamp <=> event.timestamp
-    ;
-    contexts:
-        TraceContext:
+    }
+    contexts {
+        TraceContext {
             span.exclusive_time <=> context.exclusive_time,
             span.op <=> context.op,
             span.parent_span_id <=> context.parent_span_id,
@@ -126,18 +129,19 @@ map_fields!(
             span.span_id, span.segment_id <=> context.span_id,
             span.status <=> context.status,
             span.trace_id <=> context.trace_id
-        ;
-        ProfileContext:
+        }
+        ProfileContext {
             span.profile_id <=> context.profile_id
-        ;
-    ;
-    fixed_for_span:
+        }
+    }
+    fixed_for_span {
         // A transaction event corresponds to a segment span.
         span.is_segment <= Some(true),
         span.was_transaction <= true
-    ;
-    fixed_for_event:
+    }
+    fixed_for_event {
         // nothing yet
+    }
 );
 
 #[cfg(test)]
