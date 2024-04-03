@@ -82,15 +82,17 @@ macro_rules! map_fields {
     };
 }
 
+// This macro call implements a bidirectional mapping between transaction event and segment spans,
+// allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
     top-level:
         span._metrics_summary <=> event._metrics_summary,
+        span.description <=> event.transaction,
         span.measurements <=> event.measurements,
         span.platform <=> event.platform,
         span.received <=> event.received,
         span.start_timestamp <=> event.start_timestamp,
-        span.timestamp <=> event.timestamp,
-        span.description <=> event.transaction
+        span.timestamp <=> event.timestamp
     ;
     contexts:
         TraceContext:
@@ -107,6 +109,7 @@ map_fields!(
         ;
     ;
     fixed_for_span:
+        // A transaction event corresponds to a segment span.
         span.is_segment <= Some(true),
         span.was_transaction <= true
     ;
