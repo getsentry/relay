@@ -1307,6 +1307,26 @@ LIMIT 1
                         },
                         "hash": "8e7b6caca435801d",
                         "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.036243,
+                        "start_timestamp": 1711007391.034472,
+                        "exclusive_time": 1.770973,
+                        "description": "GET http://8.8.8.8/",
+                        "op": "http.client",
+                        "span_id": "872834c747983b2f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://8.8.8.8/"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
                     }
                 ]
             }
@@ -1320,13 +1340,19 @@ LIMIT 1
         extract_span_tags_from_event(&mut event, 200);
 
         let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
 
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
 
+        // Loopback IPs are allowed and parsed correctly
         assert_eq!(
             tags_1.get("domain").unwrap().as_str(),
             Some("127.0.0.1:10007")
         );
+
+        // Non-loopback IPs are not allowed
+        assert_eq!(tags_2.get("domain"), None);
     }
 
     #[test]
