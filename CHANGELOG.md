@@ -13,6 +13,7 @@
 
 **Internal**:
 
+- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
 - Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
 - Add data categories for continuous profiling. ([#3284](https://github.com/getsentry/relay/pull/3284), [#3303](https://github.com/getsentry/relay/pull/3303))
 - Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))

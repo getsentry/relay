@@ -1325,43 +1325,43 @@ LIMIT 1
         let json = r#"
             {
                 "spans": [
-                {
-                    "timestamp": 1694732408.3145,
-                    "start_timestamp": 1694732407.8367,
-                    "exclusive_time": 477.800131,
-                    "description": "get my_key",
-                    "op": "cache.get_item",
-                    "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
-                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                    "data": {
-                        "cache.hit": true,
-                        "cache.item_size": 8,
-                        "thread.id": "6286962688",
-                        "thread.name": "Thread-4 (process_request_thread)"
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": true,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
 
+                        },
+                        "hash": "e2fae740cccd3781"
                     },
-                    "hash": "e2fae740cccd3781"
-                },
-                {
-                    "timestamp": 1694732409.3145,
-                    "start_timestamp": 1694732408.8367,
-                    "exclusive_time": 477.800131,
-                    "description": "get my_key",
-                    "op": "cache.get_item",
-                    "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
-                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                    "data": {
-                        "cache.hit": false,
-                        "cache.item_size": 8,
-                        "thread.id": "6286962688",
-                        "thread.name": "Thread-4 (process_request_thread)"
+                    {
+                        "timestamp": 1694732409.3145,
+                        "start_timestamp": 1694732408.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": false,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
 
-                    },
-                    "hash": "e2fae740cccd3781"
-                }
-            ]
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
             }
         "#;
 
