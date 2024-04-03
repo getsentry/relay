@@ -8,17 +8,15 @@ use std::collections::BTreeMap;
 
 macro_rules! map_fields {
     (
-        common:
-            $($field:ident), *
-        ;
-        mapped:
+        top-level:
             $(span.$span_field:ident <=> event.$event_field:ident), *
-            contexts:
-            $(
-                #$ContextType:ident:
-                    $(span.$foo:ident $(, $(span.$span_field_from_context:ident),+)? <=> context.$context_field:ident), *
-            )*
-
+        ;
+        contexts:
+        $(
+            $ContextType:ident:
+                $(span.$foo:ident $(, $(span.$span_field_from_context:ident),+)? <=> context.$context_field:ident), *
+            ;
+        )*
         ;
         fixed_for_span:
             $(span.$fixed_span_field:ident <= $fixed_span_value:expr), *
@@ -26,12 +24,10 @@ macro_rules! map_fields {
         fixed_for_event:
             $($fixed_event_value:expr => span.$fixed_event_field:ident), *
     ) => {
+        #[allow(clippy::needless_update)]
         impl From<&Event> for Span {
             fn from(event: &Event) -> Self {
                 Self {
-                    $(
-                        $field: event.$field.clone(),
-                    )*
                     $(
                         $span_field: event.$event_field.clone(),
                     )*
@@ -55,12 +51,10 @@ macro_rules! map_fields {
             }
         }
 
+        #[allow(clippy::needless_update)]
         impl From<&Span> for Event {
             fn from(span: &Span) -> Self {
                 Self {
-                    $(
-                        $field: span.$field.clone(),
-                    )*
                     $(
                         $event_field: span.$span_field.clone(),
                     )*
@@ -89,26 +83,28 @@ macro_rules! map_fields {
 }
 
 map_fields!(
-    common:
-        _metrics_summary,
-        measurements,
-        platform,
-        received,
-        start_timestamp,
-        timestamp
-    ;
-    mapped:
+    top-level:
+        span._metrics_summary <=> event._metrics_summary,
+        span.measurements <=> event.measurements,
+        span.platform <=> event.platform,
+        span.received <=> event.received,
+        span.start_timestamp <=> event.start_timestamp,
+        span.timestamp <=> event.timestamp,
         span.description <=> event.transaction
-        contexts:
-            #TraceContext:
-                span.exclusive_time <=> context.exclusive_time,
-                span.op <=> context.op,
-                span.parent_span_id <=> context.parent_span_id,
-                span.span_id, span.segment_id <=> context.span_id,
-                span.status <=> context.status,
-                span.trace_id <=> context.trace_id
-            #ProfileContext:
-                span.profile_id <=> context.profile_id
+    ;
+    contexts:
+        TraceContext:
+            span.exclusive_time <=> context.exclusive_time,
+            span.op <=> context.op,
+            span.parent_span_id <=> context.parent_span_id,
+            // A transaction corresponds to a segment span, so span_id and segment_id have the same value:
+            span.span_id, span.segment_id <=> context.span_id,
+            span.status <=> context.status,
+            span.trace_id <=> context.trace_id
+        ;
+        ProfileContext:
+            span.profile_id <=> context.profile_id
+        ;
     ;
     fixed_for_span:
         span.is_segment <= Some(true),
