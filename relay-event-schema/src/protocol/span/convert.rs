@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 ///
 /// Example:
 ///
-/// ```skip
+/// ```ignore
 /// map_fields!(
 ///     top-level:
 ///         span.received: event.received
