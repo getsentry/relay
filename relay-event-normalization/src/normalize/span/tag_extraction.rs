@@ -107,7 +107,6 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
             SpanTagKey::CacheHit => "cache.hit",
-            SpanTagKey::CacheItemSize => "cache.item_size",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -411,14 +410,9 @@ pub fn extract_tags(
         }
 
         if span_op.starts_with("cache.") {
-            if let Some(cache_hit) = span.data.value().and_then(|data| data.cache_hit.value()) {
-                match cache_hit {
-                    Value::Bool(true) => span_tags.insert(SpanTagKey::CacheHit, "true".to_owned()),
-                    Value::Bool(false) => {
-                        span_tags.insert(SpanTagKey::CacheHit, "false".to_owned())
-                    }
-                    _ => None,
-                };
+            if let Some(Value::Bool(cache_hit)) = span.data.value().and_then(|data| data.cache_hit.value()) {
+                let tag_value = if cache_hit { "true" } else { "false" };
+                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
         }
 
@@ -585,7 +579,7 @@ pub fn extract_measurements(span: &mut Span) {
             } {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
-                    SpanTagKey::CacheItemSize.sentry_tag_key().into(),
+                    "cache.item_size".to_owned(),
                     Measurement {
                         value: value.into(),
                         unit: MetricUnit::Information(InformationUnit::Byte).into(),
@@ -1378,8 +1372,6 @@ LIMIT 1
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
         let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
-        println!("MEASUREMENTS!");
-        println!("{:?}", measurements_1);
 
         assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
