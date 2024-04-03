@@ -231,9 +231,17 @@ pub struct SpanData {
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<Value>,
 
-    /// Name of the database host.
+    /// Name of the web server host.
     #[metastructure(field = "server.address")]
     pub server_address: Annotated<Value>,
+
+    /// Whether cache was hit or miss on a read operation.
+    #[metastructure(field = "cache.hit")]
+    pub cache_hit: Annotated<Value>,
+
+    /// The size of the cache item.
+    #[metastructure(field = "cache.item_size")]
+    pub cache_item_size: Annotated<Value>,
 
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
@@ -512,6 +520,8 @@ mod tests {
             http_response_transfer_size: ~,
             resource_render_blocking_status: ~,
             server_address: ~,
+            cache_hit: ~,
+            cache_item_size: ~,
             http_response_status_code: ~,
             ai_input_messages: ~,
             ai_completion_tokens_used: ~,
