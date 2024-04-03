@@ -1075,6 +1075,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
                 "transaction": "gEt /api/:version/users/",
             },
@@ -1191,6 +1192,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
                 "transaction": "gEt /api/:version/users/",
             },
@@ -1307,6 +1309,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
                 "transaction": "gEt /api/:version/users/",
             },
