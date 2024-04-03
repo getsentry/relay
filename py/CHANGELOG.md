@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.56
+
+### Various fixes & improvements
+
+- feat(feedback): Emit outcomes for user feedback events (#3026) by @cmanallen
+- release: 0.8.55 (109ac110) by @getsentry-bot
+- feat(profiles): Add a new category to count profile chunks (#3303) by @phacops
+- release: 0.8.52 (65defad1) by @getsentry-bot
+- feat(profiles): Add a data category for continuous profiling (#3284) by @phacops
+
 ## 0.8.55
 
 - Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
