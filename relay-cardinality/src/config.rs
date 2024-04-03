@@ -9,17 +9,26 @@ use crate::SlidingWindow;
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
+
     /// Whether this is a passive limit.
     ///
     /// Passive limits are tracked separately to normal limits
     /// and are not enforced, but still evaluated.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub passive: bool,
+    /// If `true` additional reporting of cardinality is enabled.
+    ///
+    /// The cardinality limiter will keep track of every tracked limit
+    /// and record the current cardinality. The reported data is not per limit
+    /// but per scope. For example if [`Self::scope`] is set to [`CardinalityScope::Name`],
+    /// the current cardinality for each metric name is reported.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub report: bool,
 
     /// The sliding window to enforce the cardinality limits in.
     pub window: SlidingWindow,
     /// The cardinality limit.
-    pub limit: u64,
+    pub limit: u32,
 
     /// Scope which the limit applies to.
     pub scope: CardinalityScope,
@@ -61,6 +70,7 @@ mod tests {
         let limit = CardinalityLimit {
             id: "some_id".to_string(),
             passive: false,
+            report: false,
             window: SlidingWindow {
                 window_seconds: 3600,
                 granularity_seconds: 200,
