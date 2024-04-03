@@ -25,7 +25,7 @@ pub fn try_normalize_metric_name(name: &str) -> Option<Cow<'_, str>> {
         return None;
     }
 
-    let normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new("[^a-zA-Z0-9_/.]+").unwrap());
+    let normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new("[^a-zA-Z0-9_.]+").unwrap());
     Some(normalize_re.replace_all(name, "_"))
 }
 

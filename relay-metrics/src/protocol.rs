@@ -49,7 +49,6 @@ pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
 ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`, respectively.
 #[allow(unused)]
 pub(crate) fn escape_tag_value(raw: &str) -> String {
-    use std::fmt::Write;
     let mut escaped = String::with_capacity(raw.len());
 
     for c in raw.chars() {

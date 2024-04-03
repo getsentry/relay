@@ -537,7 +537,7 @@ pub struct Bucket {
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
     /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/\w[\w\d_-.]+/`. Note that the name must begin with a letter.
+    /// regular expression `/\w[\w\-.]*/`. Note that the name must begin with a letter.
     ///
     /// Per convention, dots separate metric names into components, where the leading components are
     /// considered namespaces and the final component is the name of the metric within its
@@ -592,12 +592,15 @@ pub struct Bucket {
     /// omitted.
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[a-zA-Z0-9_/.-]+/`.
+    /// `/[\w\-.\/]+/`.
     ///
-    /// Tag values can contain unicode characters and must match the regular expression
-    /// `/[\w\d\_:/@.{}\[\]$- ]+/`. All other characters must be encoded as hexadecimal unicode
-    /// escape in the form `\u{XXXX}`. Additionally, `\t`, `\r`, `\n`, `\'`, `\"`, and `\\` are
-    /// allowed.
+    /// Tag values can contain unicode characters with the following escaping rules:
+    ///  - Tab is escaped as `\t`.
+    ///  - Carriage return is escaped as `\r`.
+    ///  - Line feed is escaped as `\n`.
+    ///  - Backslash is escaped as `\\`.
+    ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`,
+    ///    respectively.
     ///
     /// # Example
     ///
