@@ -778,7 +778,7 @@
     </span><span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;MetricName&gt;,
 
     <span class="doccomment">/// The current cardinality.
-    </span><span class="kw">pub </span>cardinality: u64,
+    </span><span class="kw">pub </span>cardinality: u32,
 }
 
 <span class="doccomment">/// Accumulator of all cardinality limiter decisions.
@@ -793,7 +793,7 @@
     ///
     /// For example, with a name scoped limit can be called once for every
     /// metric name matching the limit.
-    </span><span class="kw">fn </span>cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport);
+    </span><span class="kw">fn </span>report_cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport);
 }
 
 <span class="doccomment">/// Limiter responsible to enforce limits.
@@ -938,7 +938,7 @@
     }
 
     <span class="attr">#[inline(always)]
-    </span><span class="kw">fn </span>cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport) {
+    </span><span class="kw">fn </span>report_cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport) {
         <span class="kw">if </span>!limit.report {
             <span class="kw">return</span>;
         }
@@ -1358,7 +1358,7 @@
                 </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
                 T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
-                reporter.cardinality(
+                reporter.report_cardinality(
                     <span class="kw-2">&amp;</span>limits[<span class="number">0</span>],
                     CardinalityReport {
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
@@ -1368,7 +1368,7 @@
                     },
                 );
 
-                reporter.cardinality(
+                reporter.report_cardinality(
                     <span class="kw-2">&amp;</span>limits[<span class="number">0</span>],
                     CardinalityReport {
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
@@ -1378,7 +1378,7 @@
                     },
                 );
 
-                reporter.cardinality(
+                reporter.report_cardinality(
                     <span class="kw-2">&amp;</span>limits[<span class="number">2</span>],
                     CardinalityReport {
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),

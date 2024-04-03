@@ -247,11 +247,90 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
+<span class="kw">use </span>relay_cardinality::{CardinalityLimit, CardinalityReport};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{
+    Aggregator, Bucket, BucketValue, GaugeValue, MergeBuckets, MetricName, UnixTimestamp,
+};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
@@ -264,6 +343,14 @@
 
     VOLUME_METRIC_MRI
         .get_or_init(|| <span class="string">"c:metric_stats/volume@none"</span>.into())
+        .clone()
+}
+
+<span class="kw">fn </span>cardinality_metric_mri() -&gt; MetricName {
+    <span class="kw">static </span>CARDINALITY_METRIC_MRI: OnceLock&lt;MetricName&gt; = OnceLock::new();
+
+    CARDINALITY_METRIC_MRI
+        .get_or_init(|| <span class="string">"g:metric_stats/cardinality@none"</span>.into())
         .clone()
 }
 
@@ -296,8 +383,8 @@
     }
 
     <span class="doccomment">/// Tracks the metric volume and outcome for the bucket.
-    </span><span class="kw">pub fn </span>track(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
-        <span class="kw">if </span>!<span class="self">self</span>.config.processing_enabled() || !<span class="self">self</span>.is_rolled_out(scoping.organization_id) {
+    </span><span class="kw">pub fn </span>track_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
+        <span class="kw">if </span>!<span class="self">self</span>.is_enabled(scoping) {
             <span class="kw">return</span>;
         }
 
@@ -313,6 +400,35 @@
         );
         <span class="self">self</span>.aggregator
             .send(MergeBuckets::new(scoping.project_key, <span class="macro">vec!</span>[volume]));
+    }
+
+    <span class="doccomment">/// Tracks the cardinality of a metric.
+    </span><span class="kw">pub fn </span>track_cardinality(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        scoping: Scoping,
+        limit: <span class="kw-2">&amp;</span>CardinalityLimit,
+        report: <span class="kw-2">&amp;</span>CardinalityReport,
+    ) {
+        <span class="kw">if </span>!<span class="self">self</span>.is_enabled(scoping) {
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(cardinality) = <span class="self">self</span>.to_cardinality_metric(limit, report) <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+
+        <span class="macro">relay_log::trace!</span>(
+            <span class="string">"Tracking cardinality '{}' for mri '{}': {}"</span>,
+            limit.id,
+            report.name.as_deref().unwrap_or(<span class="string">"-"</span>),
+            report.cardinality,
+        );
+        <span class="self">self</span>.aggregator
+            .send(MergeBuckets::new(scoping.project_key, <span class="macro">vec!</span>[cardinality]));
+    }
+
+    <span class="kw">fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) -&gt; bool {
+        <span class="self">self</span>.config.processing_enabled() &amp;&amp; <span class="self">self</span>.is_rolled_out(scoping.organization_id)
     }
 
     <span class="kw">fn </span>is_rolled_out(<span class="kw-2">&amp;</span><span class="self">self</span>, organization_id: u64) -&gt; bool {
@@ -354,6 +470,42 @@
             width: <span class="number">0</span>,
             name: volume_metric_mri(),
             value: BucketValue::Counter(volume.into()),
+            tags,
+            metadata: Default::default(),
+        })
+    }
+
+    <span class="kw">fn </span>to_cardinality_metric(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        limit: <span class="kw-2">&amp;</span>CardinalityLimit,
+        report: <span class="kw-2">&amp;</span>CardinalityReport,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
+        <span class="kw">let </span>cardinality = report.cardinality;
+        <span class="kw">if </span>cardinality == <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let </span>name = report.name.as_ref()<span class="question-mark">?</span>;
+        <span class="kw">let </span>namespace = name.namespace();
+
+        <span class="kw">if </span>!namespace.has_metric_stats() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let </span>tags = BTreeMap::from([
+            (<span class="string">"mri"</span>.to_owned(), name.to_string()),
+            (<span class="string">"mri.namespace"</span>.to_owned(), namespace.to_string()),
+            (
+                <span class="string">"cardinality.window"</span>.to_owned(),
+                limit.window.window_seconds.to_string(),
+            ),
+        ]);
+
+        <span class="prelude-val">Some</span>(Bucket {
+            timestamp: UnixTimestamp::now(),
+            width: <span class="number">0</span>,
+            name: cardinality_metric_mri(),
+            value: BucketValue::Gauge(GaugeValue::single(cardinality.into())),
             tags,
             metadata: Default::default(),
         })
@@ -412,10 +564,10 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
 
-        ms.track(scoping, bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, bucket.clone(), Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(<span class="number">41</span>);
-        ms.track(
+        ms.track_metric(
             scoping,
             bucket,
             Outcome::RateLimited(<span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"foobar"</span>))),
@@ -473,7 +625,7 @@
 
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 
@@ -487,7 +639,7 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket =
             Bucket::parse(<span class="string">b"transactions/rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 

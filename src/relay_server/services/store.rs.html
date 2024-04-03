@@ -1737,6 +1737,7 @@
 <a href="#1735" id="1735">1735</a>
 <a href="#1736" id="1736">1736</a>
 <a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2143,7 +2144,8 @@
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
             </span><span class="kw">if </span>has_success {
-                <span class="self">self</span>.metric_stats.track(scoping, bucket, Outcome::Accepted);
+                <span class="self">self</span>.metric_stats
+                    .track_metric(scoping, bucket, Outcome::Accepted);
             }
         }
 

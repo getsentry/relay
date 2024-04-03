@@ -339,6 +339,8 @@
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
 <a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -493,7 +495,7 @@
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
-                    metric_stats,
+                    metric_stats.clone(),
                 )<span class="question-mark">?
                 </span>.start_in(rt),
             ),
@@ -521,6 +523,8 @@
             </span>aggregator.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>metric_stats,
         )
         .spawn_handler(processor_rx);
 

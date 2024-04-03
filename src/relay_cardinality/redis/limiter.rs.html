@@ -1136,7 +1136,7 @@
             .inspect(|(<span class="kw">_</span>, result)| {
                 <span class="macro">metric!</span>(
                     histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
-                        result.cardinality,
+                        result.cardinality <span class="kw">as </span>u64,
                     id = state.id(),
                 );
             })
@@ -1208,7 +1208,7 @@
             })<span class="question-mark">?</span>;
 
             <span class="kw">for </span>result <span class="kw">in </span>results {
-                reporter.cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
 
                 <span class="comment">// This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -1233,7 +1233,7 @@
 
 <span class="kw">struct </span>CheckedLimits {
     scope: QuotaScoping,
-    cardinality: u64,
+    cardinality: u32,
     entries: Vec&lt;RedisEntry&gt;,
     statuses: Vec&lt;Status&gt;,
 }
@@ -1337,7 +1337,7 @@
         }
 
         <span class="attr">#[track_caller]
-        </span><span class="kw">fn </span>assert_cardinality(<span class="kw-2">&amp;</span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span>CardinalityLimit, cardinality: u64) {
+        </span><span class="kw">fn </span>assert_cardinality(<span class="kw-2">&amp;</span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span>CardinalityLimit, cardinality: u32) {
             <span class="kw">let </span><span class="prelude-val">Some</span>(r) = <span class="self">self</span>.reports.get(limit) <span class="kw">else </span>{
                 <span class="macro">panic!</span>(<span class="string">"expected cardinality report for limit {limit:?}"</span>);
             };
@@ -1351,7 +1351,7 @@
             <span class="self">self</span>.entries.insert(entry_id);
         }
 
-        <span class="kw">fn </span>cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport) {
+        <span class="kw">fn </span>report_cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport) {
             <span class="kw">let </span>reports = <span class="self">self</span>.reports.entry(limit.clone()).or_default();
             reports.push(report);
             reports.sort();
