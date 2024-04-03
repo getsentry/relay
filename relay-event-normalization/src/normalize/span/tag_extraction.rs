@@ -410,8 +410,10 @@ pub fn extract_tags(
         }
 
         if span_op.starts_with("cache.") {
-            if let Some(Value::Bool(cache_hit)) = span.data.value().and_then(|data| data.cache_hit.value()) {
-                let tag_value = if cache_hit { "true" } else { "false" };
+            if let Some(Value::Bool(cache_hit)) =
+                span.data.value().and_then(|data| data.cache_hit.value())
+            {
+                let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
         }
