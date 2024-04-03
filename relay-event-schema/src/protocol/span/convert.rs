@@ -6,6 +6,29 @@ use crate::protocol::{
 use relay_protocol::Annotated;
 use std::collections::BTreeMap;
 
+/// Implements the conversion between transaction events and segment spans.
+///
+/// Invoking this macro implements both `From<&Event> for Span` and `From<&Span> for Event`.
+///
+/// Example:
+///
+/// ```skip
+/// map_fields!(
+///     top-level:
+///         span.received: event.received
+///     contexts:
+///         TraceContext:
+///             span.trace_id: context.trace_id
+///         ;
+///     ;
+///     fixed_for_span:
+///         // ...
+///     ;
+///     fixed_for_event:
+///         // ...
+///     ;
+/// );
+/// ```
 macro_rules! map_fields {
     (
         top-level:
