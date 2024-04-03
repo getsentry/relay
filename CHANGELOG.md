@@ -18,6 +18,7 @@
 - Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
 - Extract metrics from transaction spans. ([#3273](https://github.com/getsentry/relay/pull/3273), [#3324](https://github.com/getsentry/relay/pull/3324))
 - Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
+- Implement cardinality metric stats. ([#3360](https://github.com/getsentry/relay/pull/3360))
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Implement metric name based cardinality limits. ([#3313](https://github.com/getsentry/relay/pull/3313))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282), [#3350](https://github.com/getsentry/relay/pull/3350))
