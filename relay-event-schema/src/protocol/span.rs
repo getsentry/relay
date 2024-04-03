@@ -266,7 +266,7 @@ pub struct SpanData {
     #[metastructure(field = "server.address")]
     pub server_address: Annotated<Value>,
 
-    /// Wether cache was hit or miss on a read operation.
+    /// Whether cache was hit or miss on a read operation.
     #[metastructure(field = "cache.hit")]
     pub cache_hit: Annotated<Value>,
 
