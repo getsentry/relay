@@ -43,7 +43,7 @@ struct NoopReporter;
 impl<'a> Reporter<'a> for NoopReporter {
     fn reject(&mut self, _limit_id: &'a CardinalityLimit, _entry_id: EntryId) {}
 
-    fn cardinality(&mut self, _limit: &'a CardinalityLimit, _report: CardinalityReport) {}
+    fn report_cardinality(&mut self, _limit: &'a CardinalityLimit, _report: CardinalityReport) {}
 }
 
 #[derive(Debug)]
@@ -58,7 +58,7 @@ struct Params {
 }
 
 impl Params {
-    fn new(limit: u64, rounds: usize, num_hashes: usize) -> Self {
+    fn new(limit: u32, rounds: usize, num_hashes: usize) -> Self {
         Self {
             limits: vec![CardinalityLimit {
                 id: "limit".to_owned(),
@@ -140,7 +140,7 @@ impl Params {
                     EntryId(usize::MAX - i as usize),
                     MetricNamespace::Custom,
                     &self.name,
-                    i as u32,
+                    i,
                 )
             })
             .collect::<Vec<_>>()

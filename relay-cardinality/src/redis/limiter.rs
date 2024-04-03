@@ -91,7 +91,7 @@ impl RedisSetLimiter {
             .inspect(|(_, result)| {
                 metric!(
                     histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
-                        result.cardinality,
+                        result.cardinality as u64,
                     id = state.id(),
                 );
             })
@@ -163,7 +163,7 @@ impl Limiter for RedisSetLimiter {
             })?;
 
             for result in results {
-                reporter.cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
 
                 // This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -188,7 +188,7 @@ impl Limiter for RedisSetLimiter {
 
 struct CheckedLimits {
     scope: QuotaScoping,
-    cardinality: u64,
+    cardinality: u32,
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
 }
@@ -292,7 +292,7 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u64) {
+        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u32) {
             let Some(r) = self.reports.get(limit) else {
                 panic!("expected cardinality report for limit {limit:?}");
             };
@@ -306,7 +306,7 @@ mod tests {
             self.entries.insert(entry_id);
         }
 
-        fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
+        fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
             let reports = self.reports.entry(limit.clone()).or_default();
             reports.push(report);
             reports.sort();

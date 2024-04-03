@@ -404,7 +404,8 @@ impl StoreService {
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
             if has_success {
-                self.metric_stats.track(scoping, bucket, Outcome::Accepted);
+                self.metric_stats
+                    .track_metric(scoping, bucket, Outcome::Accepted);
             }
         }
 
