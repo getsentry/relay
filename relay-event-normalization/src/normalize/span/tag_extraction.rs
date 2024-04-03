@@ -411,14 +411,9 @@ pub fn extract_tags(
         }
 
         if span_op.starts_with("cache.") {
-            if let Some(cache_hit) = span.data.value().and_then(|data| data.cache_hit.value()) {
-                match cache_hit {
-                    Value::Bool(true) => span_tags.insert(SpanTagKey::CacheHit, "true".to_owned()),
-                    Value::Bool(false) => {
-                        span_tags.insert(SpanTagKey::CacheHit, "false".to_owned())
-                    }
-                    _ => None,
-                };
+            if let Some(Value::Bool(cache_hit)) = span.data.value().and_then(|data| data.cache_hit.value()) {
+                let tag_value = if cache_hit { "true" } else { "false" };
+                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
         }
 
