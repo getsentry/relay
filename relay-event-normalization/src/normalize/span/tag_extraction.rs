@@ -67,7 +67,6 @@ pub enum SpanTagKey {
     AppStartType,
     ReplayId,
     CacheHit,
-    CacheItemSize,
 }
 
 impl SpanTagKey {
