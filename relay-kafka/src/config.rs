@@ -421,7 +421,7 @@ transactions: "ingest-transactions-kafka-topic"
     fn test_default_topic_is_valid() {
         let topic_assignments = TopicAssignments::default();
 
-        // A few topics are not defined currently, remove this once added
+        // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
         let currrently_undefined_topics = [
             "ingest-attachments".to_string(),
             "ingest-transactions".to_string(),
