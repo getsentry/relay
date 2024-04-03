@@ -93,7 +93,7 @@ macro_rules! map_fields {
                                 $(
                                     (<$ContextType as DefaultContext>::default_key().into(), ContextInner($ContextType {
                                         $(
-                                            $context_field: span.$foo.clone(),
+                                            $context_field: span.$primary_span_field.clone(),
                                         )*
                                         ..Default::default()
                                     }.into_context()).into()),
