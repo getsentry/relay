@@ -44,13 +44,15 @@ def processing_config(get_topic_name):
             ]
         if processing.get("topics") is None:
             metrics_topic = get_topic_name("metrics")
+            outcomes_topic = get_topic_name("outcomes")
             processing["topics"] = {
                 "events": get_topic_name("events"),
                 "attachments": get_topic_name("attachments"),
                 "transactions": get_topic_name("transactions"),
-                "outcomes": get_topic_name("outcomes"),
+                "outcomes": outcomes_topic,
+                "outcomes_billing": outcomes_topic,
                 "sessions": get_topic_name("sessions"),
-                "metrics": metrics_topic,
+                "metrics_sessions": metrics_topic,
                 "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
