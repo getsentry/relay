@@ -43,7 +43,7 @@ struct NoopReporter;
 impl<'a> Reporter<'a> for NoopReporter {
     fn reject(&mut self, _limit_id: &'a CardinalityLimit, _entry_id: EntryId) {}
 
-    fn cardinality(&mut self, _limit: &'a CardinalityLimit, _report: CardinalityReport) {}
+    fn report_cardinality(&mut self, _limit: &'a CardinalityLimit, _report: CardinalityReport) {}
 }
 
 #[derive(Debug)]

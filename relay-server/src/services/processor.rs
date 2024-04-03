@@ -2186,7 +2186,9 @@ impl EnvelopeProcessorService {
 
         for (limit, reports) in limits.cardinality_reports() {
             for report in reports {
-                self.inner.metric_stats.cardinality(scoping, limit, report);
+                self.inner
+                    .metric_stats
+                    .track_cardinality(scoping, limit, report);
             }
         }
 

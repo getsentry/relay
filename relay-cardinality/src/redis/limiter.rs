@@ -163,7 +163,7 @@ impl Limiter for RedisSetLimiter {
             })?;
 
             for result in results {
-                reporter.cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
 
                 // This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -306,7 +306,7 @@ mod tests {
             self.entries.insert(entry_id);
         }
 
-        fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
+        fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
             let reports = self.reports.entry(limit.clone()).or_default();
             reports.push(report);
             reports.sort();

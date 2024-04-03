@@ -58,7 +58,7 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track(&self, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
+    pub fn track_metric(&self, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
         if !self.is_enabled(scoping) {
             return;
         }
@@ -78,7 +78,7 @@ impl MetricStats {
     }
 
     /// Tracks the cardinality of a metric.
-    pub fn cardinality(
+    pub fn track_cardinality(
         &self,
         scoping: Scoping,
         limit: &CardinalityLimit,
@@ -239,10 +239,10 @@ mod tests {
         let scoping = scoping();
         let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
 
-        ms.track(scoping, bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, bucket.clone(), Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(41);
-        ms.track(
+        ms.track_metric(
             scoping,
             bucket,
             Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
@@ -300,7 +300,7 @@ mod tests {
 
         let scoping = scoping();
         let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 
@@ -314,7 +314,7 @@ mod tests {
         let scoping = scoping();
         let bucket =
             Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, bucket, Outcome::Accepted);
 
         drop(ms);
 
