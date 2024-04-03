@@ -1,11 +1,13 @@
+mod convert;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
-    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType, SpanId,
+    SpanStatus, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -93,7 +95,7 @@ pub struct Span {
 
     /// Platform identifier.
     ///
-    /// See [`Event::platform`].
+    /// See [`Event::platform`](`crate::protocol::Event::platform`).
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
@@ -105,39 +107,6 @@ pub struct Span {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
-}
-
-impl From<&Event> for Span {
-    fn from(event: &Event) -> Self {
-        let mut span = Self {
-            _metrics_summary: event._metrics_summary.clone(),
-            description: event.transaction.clone(),
-            is_segment: Some(true).into(),
-            received: event.received.clone(),
-            start_timestamp: event.start_timestamp.clone(),
-            timestamp: event.timestamp.clone(),
-            measurements: event.measurements.clone(),
-            platform: event.platform.clone(),
-            was_transaction: true.into(),
-            ..Default::default()
-        };
-
-        if let Some(trace_context) = event.context::<TraceContext>().cloned() {
-            span.exclusive_time = trace_context.exclusive_time;
-            span.op = trace_context.op;
-            span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
-            span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
-            span.trace_id = trace_context.trace_id;
-        }
-
-        if let Some(profile_context) = event.context::<ProfileContext>() {
-            span.profile_id = profile_context.profile_id.clone();
-        }
-
-        span
-    }
 }
 
 impl Getter for Span {
@@ -374,7 +343,6 @@ impl Getter for SpanData {
 mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
@@ -484,87 +452,6 @@ mod tests {
         );
         assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
         assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
-    }
-
-    #[test]
-    fn span_from_event() {
-        let event = Annotated::<Event>::from_json(
-            r#"{
-                "contexts": {
-                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
-                    "trace": {
-                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                        "span_id": "FA90FDEAD5F74052",
-                        "type": "trace"
-                    }
-                },
-                "_metrics_summary": {
-                    "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
-                }
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        assert_debug_snapshot!(Span::from(&event), @r###"
-        Span {
-            timestamp: ~,
-            start_timestamp: ~,
-            exclusive_time: ~,
-            description: ~,
-            op: ~,
-            span_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            parent_span_id: ~,
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
-            segment_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            is_segment: true,
-            status: ~,
-            tags: ~,
-            origin: ~,
-            profile_id: EventId(
-                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
-            ),
-            data: ~,
-            sentry_tags: ~,
-            received: ~,
-            measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
-            platform: ~,
-            was_transaction: true,
-            other: {},
-        }
-        "###);
     }
 
     #[test]
