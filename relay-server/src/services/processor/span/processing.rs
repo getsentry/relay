@@ -81,6 +81,16 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
+        if let Some(transaction) = convert_to_transaction(&annotated_span) {
+            // TODO: check version in global config
+            // TODO: make sure that transaction is normalized, even if processing relay is configured to
+            //       skip normalization.
+            // TODO: test performance score total metric is extracted only once.
+            // TODO: item headers that prevent circular extraction
+
+            todo!();
+        }
+
         if let Err(e) = normalize(
             &mut annotated_span,
             normalize_span_config.clone(),
@@ -490,4 +500,9 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     }
 
     Ok(span)
+}
+
+fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
+    let span = annotated_span.value()?;
+    Event::try_from(span).ok()
 }

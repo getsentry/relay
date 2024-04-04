@@ -1,6 +1,6 @@
 //! Processor code related to standalone spans.
 
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;

@@ -78,9 +78,15 @@ macro_rules! map_fields {
         }
 
         #[allow(clippy::needless_update)]
-        impl From<&Span> for Event {
-            fn from(span: &Span) -> Self {
-                Self {
+        impl TryFrom<&Span> for Event {
+            type Error = ();
+
+            fn try_from(span: &Span) -> Result<Self, ()> {
+                if !span.is_segment.value().unwrap_or(&false) {
+                    // Only segment spans can become transactions.
+                    return Err(());
+                }
+                Ok(Self {
                     $(
                         $event_field: span.$span_field.clone(),
                     )*
@@ -102,7 +108,7 @@ macro_rules! map_fields {
                         )
                     ),
                     ..Default::default()
-                }
+                })
             }
         }
     };
@@ -252,7 +258,7 @@ mod tests {
         }
         "###);
 
-        let roundtripped = Event::from(&span_from_event);
+        let roundtripped = Event::try_from(&span_from_event).unwrap();
         assert_eq!(event, roundtripped);
     }
 }
