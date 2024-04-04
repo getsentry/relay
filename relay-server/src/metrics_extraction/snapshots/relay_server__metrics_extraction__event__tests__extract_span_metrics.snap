@@ -2317,6 +2317,9 @@ expression: metrics
         tags: {
             "cache.hit": "false",
             "environment": "fake_environment",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5877,6 +5880,9 @@ expression: metrics
         tags: {
             "cache.hit": "false",
             "environment": "fake_environment",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5972,6 +5978,9 @@ expression: metrics
         tags: {
             "cache.hit": "true",
             "environment": "fake_environment",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",

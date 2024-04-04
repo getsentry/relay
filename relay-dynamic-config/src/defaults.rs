@@ -135,9 +135,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_cache.clone())
         & duration_condition.clone();
 
-    let know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-            & duration_condition.clone();
+    let know_modules_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_http.clone()
+        | is_cache.clone())
+        & duration_condition.clone();
 
     [
         MetricSpec {
