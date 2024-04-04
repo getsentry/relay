@@ -297,14 +297,18 @@ def envelope_with_spans(
     return envelope
 
 
+@pytest.mark.parametrize("extract_transaction", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
+    transactions_consumer,
+    extract_transaction,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
 
     relay = relay_with_processing(
         options={
@@ -321,8 +325,11 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
     ]
+    if extract_transaction:
+        project_config["config"]["features"].append(
+            "projects:extract-transaction-from-segment-span"
+        )
 
     duration = timedelta(milliseconds=500)
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
@@ -391,7 +398,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
+    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=7))
 
     for span in spans:
         span.pop("received", None)
@@ -504,6 +511,21 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
+
+    spans_consumer.assert_empty()
+
+    # If transaction extraction is enabled, expect transactions:
+    if extract_transaction:
+        expected_transactions = (
+            6  # TODO: modify test input to make is_segment false for some
+        )
+        transactions = [
+            transactions_consumer.get_event()[0] for _ in range(expected_transactions)
+        ]
+        print(transactions)
+        # assert transactions == [] # TODO
+
+    transactions_consumer.assert_empty()
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
@@ -691,6 +713,8 @@ def test_span_ingestion(
             "value": [500.0],
         },
     ]
+
+    metrics_consumer.assert_empty()
 
 
 def test_span_extraction_with_metrics_summary(

@@ -3,6 +3,7 @@ use crate::protocol::{
     ContextInner, Contexts, DefaultContext, Event, ProfileContext, Span, TraceContext,
 };
 
+use relay_base_schema::events::EventType;
 use relay_protocol::Annotated;
 use std::collections::BTreeMap;
 
@@ -47,7 +48,7 @@ macro_rules! map_fields {
             $(span.$fixed_span_field:ident <= $fixed_span_value:expr), *
         }
         fixed_for_event {
-            $($fixed_event_value:expr => span.$fixed_event_field:ident), *
+            $($fixed_event_value:expr => event.$fixed_event_field:ident), *
         }
     ) => {
         #[allow(clippy::needless_update)]
@@ -146,7 +147,7 @@ map_fields!(
         span.was_transaction <= true
     }
     fixed_for_event {
-        // nothing yet
+        EventType::Transaction => event.ty
     }
 );
 

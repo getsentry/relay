@@ -14,7 +14,7 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, EventId, Span, SpanData};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -63,11 +63,10 @@ pub fn process(
         &user_agent_info,
     );
 
-    // Ownership aerobics:
-    let envelope_headers = state.envelope().headers().clone(); // TODO(jjbayer): Would be nice to not clone here.
-    let project_state = state.project_state.clone();
-    let sampling_project_state = state.sampling_project_state.clone();
-    let reservoir_counters = state.reservoir.counters();
+    let mut extracted_transactions = vec![];
+    let should_extract_transactions = state
+        .project_state
+        .has_feature(Feature::ExtractTransactionFromSegmentSpan);
 
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
@@ -89,24 +88,9 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        if let Some(transaction) = convert_to_transaction(&annotated_span) {
-            match Envelope::try_from_event(envelope_headers.clone(), transaction) {
-                Ok(envelope) => {
-                    addrs.envelope_processor.send(ProcessEnvelope {
-                        envelope: ManagedEnvelope::standalone(
-                            envelope,
-                            addrs.outcome_aggregator.clone(),
-                            addrs.test_store.clone(),
-                            ProcessingGroup::Transaction,
-                        ),
-                        project_state: project_state.clone(),
-                        sampling_project_state: sampling_project_state.clone(),
-                        reservoir_counters: reservoir_counters.clone(),
-                    });
-                }
-                Err(e) => {
-                    relay_log::error!("Failed to create event envelope: {e}");
-                }
+        if should_extract_transactions {
+            if let Some(transaction) = convert_to_transaction(&annotated_span) {
+                extracted_transactions.push(transaction);
             }
         }
 
@@ -170,17 +154,46 @@ pub fn process(
 
         ItemAction::Keep
     });
+
+    for mut transaction in extracted_transactions {
+        // Give each transaction event a new random ID:
+        transaction.id = EventId::new().into();
+
+        // Enqueue a full processing request for every extracted transaction item.
+        match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
+            Ok(mut envelope) => {
+                // for item in envelope.items_mut() {
+                //     item.set_spans_extracted
+                // }
+
+                addrs.envelope_processor.send(ProcessEnvelope {
+                    envelope: ManagedEnvelope::standalone(
+                        envelope,
+                        addrs.outcome_aggregator.clone(),
+                        addrs.test_store.clone(),
+                        ProcessingGroup::Transaction,
+                    ),
+                    project_state: state.project_state.clone(),
+                    sampling_project_state: state.sampling_project_state.clone(),
+                    reservoir_counters: state.reservoir.counters().clone(),
+                });
+            }
+            Err(e) => {
+                relay_log::error!("Failed to create event envelope: {e}");
+            }
+        }
+    }
 }
 
 pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     // Only extract spans from transactions (not errors).
-    if state.event_type() != Some(EventType::Transaction) {
+    if dbg!(state.event_type()) != Some(EventType::Transaction) {
         return;
     };
 
-    if !state
+    if !dbg!(state
         .project_state
-        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent))
     {
         return;
     }

@@ -31,7 +31,7 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 ///
 /// Returns `None` when [`tag_extraction::extract_span_tags`] clears the span, which it shouldn't.
 pub fn extract_transaction_span(event: &Event, max_tag_value_size: usize) -> Option<Span> {
-    let mut spans = [Span::from(event).into()];
+    let mut spans = [dbg!(Span::from(event)).into()];
 
     tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size);
 

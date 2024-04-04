@@ -1409,7 +1409,7 @@ impl EnvelopeProcessorService {
                     profile::process(state, &self.inner.config);
                 });
 
-                if state.has_event() {
+                if dbg!(state.has_event()) {
                     event::scrub(state)?;
                     if_processing!(self.inner.config, {
                         span::extract_from_event(state, &self.inner.config);
