@@ -3370,6 +3370,7 @@ expression: metrics
             "environment": "fake_environment",
             "release": "1.2.3",
             "span.description": "Cold Start",
+            "span.group": "2d675185edfeb30c",
             "span.op": "app.start.cold",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
