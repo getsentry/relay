@@ -66,6 +66,7 @@ pub enum SpanTagKey {
     /// The start type of the application when the span occurred.
     AppStartType,
     ReplayId,
+    CacheHit,
 }
 
 impl SpanTagKey {
@@ -104,6 +105,7 @@ impl SpanTagKey {
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
+            SpanTagKey::CacheHit => "cache.hit",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -347,8 +349,8 @@ pub fn extract_tags(
                     scrubbed
                 };
                 if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.domain().map(|d| {
-                        let mut domain = d.to_lowercase();
+                    url.host_str().map(|h| {
+                        let mut domain = h.to_lowercase();
                         if let Some(port) = url.port() {
                             domain = format!("{domain}:{port}");
                         }
@@ -403,6 +405,15 @@ pub fn extract_tags(
         if !span_op.starts_with("db.redis") {
             if let Some(dom) = domain {
                 span_tags.insert(SpanTagKey::Domain, dom);
+            }
+        }
+
+        if span_op.starts_with("cache.") {
+            if let Some(Value::Bool(cache_hit)) =
+                span.data.value().and_then(|data| data.cache_hit.value())
+            {
+                let tag_value = if *cache_hit { "true" } else { "false" };
+                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
         }
 
@@ -558,6 +569,27 @@ pub fn extract_measurements(span: &mut Span) {
     let Some(span_op) = span.op.as_str() else {
         return;
     };
+
+    if span_op.starts_with("cache.") {
+        if let Some(data) = span.data.value() {
+            if let Some(value) = match &data.cache_item_size.value() {
+                Some(Value::F64(f)) => Some(*f),
+                Some(Value::I64(i)) => Some(*i as f64),
+                Some(Value::U64(u)) => Some(*u as f64),
+                _ => None,
+            } {
+                let measurements = span.measurements.get_or_insert_with(Default::default);
+                measurements.insert(
+                    "cache.item_size".to_owned(),
+                    Measurement {
+                        value: value.into(),
+                        unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                    }
+                    .into(),
+                );
+            }
+        }
+    }
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
@@ -1281,6 +1313,163 @@ LIMIT 1
             Some("http://example.com")
         );
         assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
+    fn test_cache_extraction() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": true,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
+                    },
+                    {
+                        "timestamp": 1694732409.3145,
+                        "start_timestamp": 1694732408.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": false,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
+        assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_debug_snapshot!(measurements_1, @r###"
+        Measurements(
+            {
+                "cache.item_size": Measurement {
+                    value: 8.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_http_client_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1711007391.89278,
+                        "start_timestamp": 1711007391.891537,
+                        "exclusive_time": 1.243114,
+                        "description": "POST http://127.0.0.1:10007/data",
+                        "op": "http.client",
+                        "span_id": "8e635823db6a742a",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "POST",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://127.0.0.1:10007/data"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.036243,
+                        "start_timestamp": 1711007391.034472,
+                        "exclusive_time": 1.770973,
+                        "description": "GET http://8.8.8.8/",
+                        "op": "http.client",
+                        "span_id": "872834c747983b2f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://8.8.8.8/"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+
+        // Descriptions with loopback IPs preserve the IP and port but strip the URL path
+        assert_eq!(
+            tags_1.get("description").unwrap().as_str(),
+            Some("POST http://127.0.0.1:10007")
+        );
+        // Domains of loopback IP descriptions preserve the IP and port
+        assert_eq!(
+            tags_1.get("domain").unwrap().as_str(),
+            Some("127.0.0.1:10007")
+        );
+
+        // Descriptions with non-loopback IPs scrub the IP naively
+        assert_eq!(
+            tags_2.get("description").unwrap().as_str(),
+            Some("GET http://*.8.8")
+        );
+        // Domains of non-loopback IP descriptions are omitted
+        assert_eq!(tags_2.get("domain"), None);
     }
 
     #[test]
