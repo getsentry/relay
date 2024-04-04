@@ -1,5 +1,5 @@
 use hash32::Hasher;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::hash::Hash;
 
 use relay_base_schema::metrics::{MetricName, MetricNamespace};
@@ -114,7 +114,15 @@ impl QuotaScoping {
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
         let name = DisplayOptMinus(self.name.as_deref().map(fnv32));
 
-        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}")
+        // Use a pre-allocated buffer instead of `format!()`, benchmarks have shown
+        // this does have quite a big impact when cardinality limiting a high amount
+        // of different metric names.
+        let mut result = String::with_capacity(200);
+        write!(
+            &mut result,
+            "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}"
+        ).expect("formatting into a string never fails");
+        result
     }
 }
 
