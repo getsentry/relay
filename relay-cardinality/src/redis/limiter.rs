@@ -307,9 +307,7 @@ mod tests {
         }
 
         fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
-            let reports = self.reports.entry(limit.clone()).or_default();
-            reports.push(report);
-            reports.sort();
+            self.reports.entry(limit.clone()).or_default().push(report);
         }
     }
 
@@ -383,6 +381,9 @@ mod tests {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)
                 .unwrap();
+            for reports in reporter.reports.values_mut() {
+                reports.sort();
+            }
             reporter
         }
     }
