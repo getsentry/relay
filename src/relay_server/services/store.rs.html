@@ -1738,6 +1738,14 @@
 <a href="#1736" id="1736">1736</a>
 <a href="#1737" id="1737">1737</a>
 <a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1756,8 +1764,8 @@
 
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
-    SetView,
+    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricName,
+    MetricNamespace, SetView,
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -2397,7 +2405,7 @@
             MetricNamespace::Sessions =&gt; KafkaTopic::MetricsSessions,
             MetricNamespace::Unsupported =&gt; {
                 relay_log::with_scope(
-                    |scope| scope.set_extra(<span class="string">"metric_message.name"</span>, message.name.into()),
+                    |scope| scope.set_extra(<span class="string">"metric_message.name"</span>, message.name.as_ref().into()),
                     || <span class="macro">relay_log::error!</span>(<span class="string">"store service dropping unknown metric usecase"</span>),
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -2994,7 +3002,7 @@
 </span><span class="kw">struct </span>MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
     org_id: u64,
     project_id: ProjectId,
-    name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+    name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>MetricName,
     <span class="attr">#[serde(flatten)]
     </span>value: MetricValue&lt;<span class="lifetime">'a</span>&gt;,
     timestamp: UnixTimestamp,
@@ -3230,7 +3238,15 @@
             KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">"attachment"</span>,
             KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">"attachment_chunk"</span>,
             KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">"user_report"</span>,
-            KafkaMessage::Metric { .. } =&gt; <span class="string">"metric"</span>,
+            KafkaMessage::Metric { message, .. } =&gt; <span class="kw">match </span>message.name.namespace() {
+                MetricNamespace::Sessions =&gt; <span class="string">"metric_sessions"</span>,
+                MetricNamespace::Transactions =&gt; <span class="string">"metric_transactions"</span>,
+                MetricNamespace::Spans =&gt; <span class="string">"metric_spans"</span>,
+                MetricNamespace::Profiles =&gt; <span class="string">"metric_profiles"</span>,
+                MetricNamespace::Custom =&gt; <span class="string">"metric_custom"</span>,
+                MetricNamespace::Stats =&gt; <span class="string">"metric_metric_stats"</span>,
+                MetricNamespace::Unsupported =&gt; <span class="string">"metric_unsupported"</span>,
+            },
             KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">"profile"</span>,
             KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">"replay_event"</span>,
             KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">"replay_recording_not_chunked"</span>,
