@@ -236,7 +236,7 @@ impl IntoIterator for CheckedLimits {
     }
 }
 
-/// Buckets the amount of scopes contained in a scope into a metric tag.
+/// Buckets the amount of scopes contained in a state into a metric tag.
 fn num_scopes_tag(state: &LimitState<'_>) -> &'static str {
     match state.scopes().len() {
         0 => "0",
