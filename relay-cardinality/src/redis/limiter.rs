@@ -61,7 +61,7 @@ impl RedisSetLimiter {
     ) -> Result<Vec<CheckedLimits>> {
         let limit = state.limit;
 
-        let scopes = std::mem::take(state.scopes_mut());
+        let scopes = state.take_scopes();
 
         let mut num_hashes: u64 = 0;
 
