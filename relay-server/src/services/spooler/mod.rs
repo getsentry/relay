@@ -689,9 +689,9 @@ impl OnDisk {
         }
     }
 
-    /// Estimates the db size by multiplying `page_count * page_size`.
+    /// Estimates the db size by summing the size of all stored envelopes.
     async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
-        let size: i64 = sql::current_size()
+        let size: i64 = sql::estimate_size()
             .fetch_one(&self.db)
             .await
             .and_then(|r| r.try_get(0))
@@ -1557,7 +1557,7 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r#"
+        assert_debug_snapshot!(captures, @r###"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -1569,26 +1569,31 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
-            "buffer.disk_size:1031|h",
+            "buffer.disk_size:777|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1372|h",
-            "buffer.disk_size:1372|h",
-            "buffer.envelopes_written:1|c",
-            "buffer.envelopes_disk_count:5|g",
+            "buffer.disk_size:1036|h",
+            "buffer.reads:1|c",
+            "buffer.envelopes_read:-4|c",
+            "buffer.envelopes_disk_count:0|g",
+            "buffer.reads:1|c",
+            "buffer.envelopes_mem:10000|h",
+            "buffer.envelopes_mem_count:5|g",
+            "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.disk_size:1713|h",
+            "buffer.envelopes_written:5|c",
+            "buffer.envelopes_disk_count:5|g",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
             "buffer.envelopes_read:-5|c",
             "buffer.envelopes_disk_count:0|g",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
-            "buffer.disk_size:8|h",
+            "buffer.disk_size:0|h",
             "buffer.reads:1|c",
         ]
-        "#);
+        "###);
     }
 
     pub enum TestHealth {
