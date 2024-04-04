@@ -132,11 +132,14 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         | is_mobile.clone()
         | is_interaction
         | is_http.clone())
-        & duration_condition.clone();
+        | is_cache.clone() & duration_condition.clone();
 
-    let know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-            & duration_condition.clone();
+    let know_modules_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_http.clone()
+        | is_cache.clone())
+        & duration_condition.clone();
 
     [
         MetricSpec {
@@ -285,7 +288,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/cache.item_size@byte".into(),
-            field: Some("span.data.cache\\.item_size".into()),
+            field: Some("span.data.cache.item_size".into()),
             condition: Some(is_cache.clone()),
             tags: vec![
                 Tag::with_key("environment")

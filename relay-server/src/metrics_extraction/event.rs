@@ -414,7 +414,7 @@ mod tests {
                     "status": "ok",
                     "data": {
                         "cache.hit": false,
-                        "cache.item_size": 8,
+                        "cache.item_size": 8
                     }
                 },
                 {
@@ -892,7 +892,7 @@ mod tests {
                     "status": "ok",
                     "data": {
                         "cache.hit": false,
-                        "cache.item_size": 10,
+                        "cache.item_size": 10
                     }
                 },
                 {
