@@ -6,7 +6,7 @@ use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
 
 use crate::services::processor::SpanGroup;
-use crate::{envelope::ItemType, services::processor::ProcessEnvelopeState, utils::ItemAction};
+use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
 mod processing;
@@ -14,19 +14,16 @@ mod processing;
 pub use processing::*;
 
 pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
-    let standalone_span_ingestion_enabled = state
+    let standalone_span_ingestion_disabled = !state
         .project_state
         .has_feature(Feature::StandaloneSpanIngestion);
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::OtelSpan | ItemType::Span => {
-            if !standalone_span_ingestion_enabled {
-                relay_log::warn!("dropping span because feature is disabled");
-                ItemAction::DropSilently
-            } else {
-                ItemAction::Keep
-            }
+    state.managed_envelope.retain_items(|item| {
+        if item.is_span() && standalone_span_ingestion_disabled {
+            relay_log::warn!("dropping span because feature is disabled");
+            ItemAction::DropSilently
+        } else {
+            ItemAction::Keep
         }
-        _ => ItemAction::Keep,
     });
 }
 

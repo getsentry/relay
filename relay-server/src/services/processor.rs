@@ -1525,6 +1525,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
+
         if_processing!(self.inner.config, {
             span::process(
                 state,
