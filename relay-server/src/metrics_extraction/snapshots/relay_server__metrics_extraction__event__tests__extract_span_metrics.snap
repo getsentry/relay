@@ -2369,7 +2369,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3296,7 +3295,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.group": "247104252ec2b753",
             "span.op": "ui.load",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3372,7 +3370,6 @@ expression: metrics
             "environment": "fake_environment",
             "release": "1.2.3",
             "span.description": "Cold Start",
-            "span.group": "2d675185edfeb30c",
             "span.op": "app.start.cold",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5929,7 +5926,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6809,7 +6805,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.group": "e674f9eca1d88a4d",
             "span.op": "ui.interaction.click",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
