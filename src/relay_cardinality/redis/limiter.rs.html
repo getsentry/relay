@@ -1064,6 +1064,7 @@
 <a href="#1062" id="1062">1062</a>
 <a href="#1063" id="1063">1063</a>
 <a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1394,9 +1395,7 @@
         }
 
         <span class="kw">fn </span>report_cardinality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, report: CardinalityReport) {
-            <span class="kw">let </span>reports = <span class="self">self</span>.reports.entry(limit.clone()).or_default();
-            reports.push(report);
-            reports.sort();
+            <span class="self">self</span>.reports.entry(limit.clone()).or_default().push(report);
         }
     }
 
@@ -1470,6 +1469,9 @@
             <span class="kw">let </span><span class="kw-2">mut </span>reporter = TestReporter::default();
             <span class="self">self</span>.check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>reporter)
                 .unwrap();
+            <span class="kw">for </span>reports <span class="kw">in </span>reporter.reports.values_mut() {
+                reports.sort();
+            }
             reporter
         }
     }
