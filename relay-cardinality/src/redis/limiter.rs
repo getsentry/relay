@@ -158,9 +158,12 @@ impl Limiter for RedisSetLimiter {
                 continue;
             }
 
-            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
-                self.check_limits(&mut connection, &mut state, timestamp)
-            })?;
+            let results = metric!(
+                timer(CardinalityLimiterTimers::Redis),
+                id = state.id(),
+                scopes = num_scopes_tag(&state),
+                { self.check_limits(&mut connection, &mut state, timestamp) }
+            )?;
 
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report());
@@ -230,6 +233,24 @@ impl IntoIterator for CheckedLimits {
             "expected same amount of entries as statuses"
         );
         std::iter::zip(self.entries, self.statuses)
+    }
+}
+
+/// Buckets the amount of scopes contained in a state into a metric tag.
+fn num_scopes_tag(state: &LimitState<'_>) -> &'static str {
+    match state.scopes().len() {
+        0 => "0",
+        1 => "1",
+        2 => "2",
+        3 => "3",
+        4 => "4",
+        5 => "5",
+        6..=10 => "10",
+        11..=25 => "25",
+        26..=50 => "50",
+        51..=100 => "100",
+        101..=500 => "500",
+        _ => "> 500",
     }
 }
 
