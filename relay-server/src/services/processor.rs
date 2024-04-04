@@ -1242,13 +1242,18 @@ impl EnvelopeProcessorService {
                 is_validated: false,
             };
 
-            let is_last_relay_normalize = self.inner.config.processing_enabled();
+            // Under normal operation, envelopes should go through PoP relays
+            // and then processing relays. However, during incidents, envelopes
+            // may go straight to processing without going through PoPs. Relays
+            // should run full normalization in both cases.
+            let full_normalization =
+                self.inner.config.full_normalize_events() || self.inner.config.processing_enabled();
 
             let key_id = state
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
-            if is_last_relay_normalize && key_id.is_none() {
+            if full_normalization && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
                     state.managed_envelope.envelope().meta().public_key()
@@ -1294,8 +1299,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                remove_other: is_last_relay_normalize,
-                emit_event_errors: is_last_relay_normalize,
+                remove_other: full_normalization,
+                emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1317,7 +1322,7 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
-                if is_last_relay_normalize && event::has_unprintable_fields(event) {
+                if full_normalization && event::has_unprintable_fields(event) {
                     metric!(counter(RelayCounters::EventCorrupted) += 1);
                 }
                 Result::<(), ProcessingError>::Ok(())
@@ -1347,7 +1352,9 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.normalize_event(state)?;
+        if self.should_normalize(state.envelope()) {
+            self.normalize_event(state)?;
+        }
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1368,6 +1375,18 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Whether the event in the envelope should be normalized.
+    ///
+    /// Under normal operation, envelopes should go through PoP relays and then
+    /// processing relays. However, during incidents, envelopes may go straight
+    /// to processing without going through PoPs. Events should be normalized in
+    /// both cases, but should not be normalized twice (for efficiency).
+    fn should_normalize(&self, envelope: &Envelope) -> bool {
+        let skip_normalization =
+            self.inner.config.normalization_disabled() && envelope.meta().is_from_internal_relay();
+        !skip_normalization
+    }
+
     /// Processes only transactions and transaction-related items.
     fn process_transactions(
         &self,
@@ -1382,7 +1401,9 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.normalize_event(state)?;
+        if self.should_normalize(state.envelope()) {
+            self.normalize_event(state)?;
+        }
         dynamic_sampling::normalize(state);
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
