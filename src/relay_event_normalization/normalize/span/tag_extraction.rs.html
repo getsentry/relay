@@ -1612,6 +1612,88 @@
 <a href="#1610" id="1610">1610</a>
 <a href="#1611" id="1611">1611</a>
 <a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
+<a href="#1622" id="1622">1622</a>
+<a href="#1623" id="1623">1623</a>
+<a href="#1624" id="1624">1624</a>
+<a href="#1625" id="1625">1625</a>
+<a href="#1626" id="1626">1626</a>
+<a href="#1627" id="1627">1627</a>
+<a href="#1628" id="1628">1628</a>
+<a href="#1629" id="1629">1629</a>
+<a href="#1630" id="1630">1630</a>
+<a href="#1631" id="1631">1631</a>
+<a href="#1632" id="1632">1632</a>
+<a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1963,8 +2045,8 @@
                     scrubbed
                 };
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.domain().map(|d| {
-                        <span class="kw">let </span><span class="kw-2">mut </span>domain = d.to_lowercase();
+                    url.host_str().map(|h| {
+                        <span class="kw">let </span><span class="kw-2">mut </span>domain = h.to_lowercase();
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = url.port() {
                             domain = <span class="macro">format!</span>(<span class="string">"{domain}:{port}"</span>);
                         }
@@ -3002,6 +3084,88 @@ LIMIT 1
             },
         )
         "###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_http_client_domain() {
+        <span class="kw">let </span>json = <span class="string">r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1711007391.89278,
+                        "start_timestamp": 1711007391.891537,
+                        "exclusive_time": 1.243114,
+                        "description": "POST http://127.0.0.1:10007/data",
+                        "op": "http.client",
+                        "span_id": "8e635823db6a742a",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "POST",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://127.0.0.1:10007/data"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.036243,
+                        "start_timestamp": 1711007391.034472,
+                        "exclusive_time": 1.770973,
+                        "description": "GET http://8.8.8.8/",
+                        "op": "http.client",
+                        "span_id": "872834c747983b2f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://8.8.8.8/"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    }
+                ]
+            }
+        "#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>);
+
+        <span class="kw">let </span>span_1 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
+        <span class="kw">let </span>span_2 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
+
+        <span class="kw">let </span>tags_1 = <span class="macro">get_value!</span>(span_1.sentry_tags).unwrap();
+        <span class="kw">let </span>tags_2 = <span class="macro">get_value!</span>(span_2.sentry_tags).unwrap();
+
+        <span class="comment">// Descriptions with loopback IPs preserve the IP and port but strip the URL path
+        </span><span class="macro">assert_eq!</span>(
+            tags_1.get(<span class="string">"description"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"POST http://127.0.0.1:10007"</span>)
+        );
+        <span class="comment">// Domains of loopback IP descriptions preserve the IP and port
+        </span><span class="macro">assert_eq!</span>(
+            tags_1.get(<span class="string">"domain"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"127.0.0.1:10007"</span>)
+        );
+
+        <span class="comment">// Descriptions with non-loopback IPs scrub the IP naively
+        </span><span class="macro">assert_eq!</span>(
+            tags_2.get(<span class="string">"description"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"GET http://*.8.8"</span>)
+        );
+        <span class="comment">// Domains of non-loopback IP descriptions are omitted
+        </span><span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"domain"</span>), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
