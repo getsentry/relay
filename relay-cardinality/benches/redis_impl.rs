@@ -196,7 +196,7 @@ pub fn bench_simple(c: &mut Criterion) {
 
         for params in params {
             g.throughput(criterion::Throughput::Elements(params.rounds as u64));
-            g.bench_with_input(BenchmarkId::new("simple", &params), &params, |b, params| {
+            g.bench_with_input(BenchmarkId::new("simple", params), params, |b, params| {
                 b.iter_batched(
                     || {
                         let limiter = build_limiter(redis.clone(), true);
