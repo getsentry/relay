@@ -97,3 +97,59 @@ pub(crate) fn hash_set_value(string: &str) -> u32 {
     hasher.write(string.as_bytes());
     hasher.finish32()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unescape_tag_value() {
+        // No escaping
+        assert_eq!(unescape_tag_value("plain").unwrap(), "plain");
+        assert_eq!(unescape_tag_value("plain text").unwrap(), "plain text");
+        assert_eq!(unescape_tag_value("plain%text").unwrap(), "plain%text");
+
+        // Escape sequences
+        assert_eq!(
+            unescape_tag_value("plain \\\\ text").unwrap(),
+            "plain \\ text"
+        );
+        assert_eq!(
+            unescape_tag_value("plain\\u{2c}text").unwrap(),
+            "plain,text"
+        );
+        assert_eq!(
+            unescape_tag_value("plain\\u{7c}text").unwrap(),
+            "plain|text"
+        );
+
+        // Alternate escape sequences
+        assert_eq!(
+            unescape_tag_value("plain \\u{5c} text").unwrap(),
+            "plain \\ text"
+        );
+
+        // These are control characters and therefore stripped
+        assert_eq!(unescape_tag_value("plain\\ntext").unwrap(), "plaintext");
+        assert_eq!(unescape_tag_value("plain\\rtext").unwrap(), "plaintext");
+        assert_eq!(unescape_tag_value("plain\\ttext").unwrap(), "plaintext");
+    }
+
+    #[test]
+    fn test_escape_tag_value() {
+        // No escaping
+        assert_eq!(escape_tag_value("plain"), "plain");
+        assert_eq!(escape_tag_value("plain text"), "plain text");
+        assert_eq!(escape_tag_value("plain%text"), "plain%text");
+
+        // Escape sequences
+        assert_eq!(escape_tag_value("plain \\ text"), "plain \\\\ text");
+        assert_eq!(escape_tag_value("plain,text"), "plain\\u{2c}text");
+        assert_eq!(escape_tag_value("plain|text"), "plain\\u{7c}text");
+
+        // These are control characters and therefore stripped
+        assert_eq!(escape_tag_value("plain\ntext"), "plain\\ntext");
+        assert_eq!(escape_tag_value("plain\rtext"), "plain\\rtext");
+        assert_eq!(escape_tag_value("plain\ttext"), "plain\\ttext");
+    }
+}
