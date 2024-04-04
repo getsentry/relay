@@ -173,8 +173,16 @@
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>hash32::Hasher;
-<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::hash::Hash;
 
 <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
@@ -289,7 +297,15 @@
         <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">""</span>);
         <span class="kw">let </span>name = DisplayOptMinus(<span class="self">self</span>.name.as_deref().map(fnv32));
 
-        <span class="macro">format!</span>(<span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}"</span>)
+        <span class="comment">// Use a pre-allocated buffer instead of `format!()`, benchmarks have shown
+        // this does have quite a big impact when cardinality limiting a high amount
+        // of different metric names.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>result = String::with_capacity(<span class="number">200</span>);
+        <span class="macro">write!</span>(
+            <span class="kw-2">&amp;mut </span>result,
+            <span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}"
+        </span>).expect(<span class="string">"formatting into a string never fails"</span>);
+        result
     }
 }
 
