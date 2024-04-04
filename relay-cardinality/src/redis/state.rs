@@ -102,9 +102,14 @@ impl<'a> LimitState<'a> {
         self.cardinality_limit
     }
 
-    /// Removes all contained scopes and entries and returns them.
-    pub fn take_scopes(&mut self) -> BTreeMap<QuotaScoping, Vec<RedisEntry>> {
-        std::mem::take(&mut self.scopes)
+    /// Returns a reference to all contained scopes.
+    pub fn scopes(&self) -> &BTreeMap<QuotaScoping, Vec<RedisEntry>> {
+        &self.scopes
+    }
+
+    /// Returns a mutable reference to all contained scopes.
+    pub fn scopes_mut(&mut self) -> &mut BTreeMap<QuotaScoping, Vec<RedisEntry>> {
+        &mut self.scopes
     }
 
     /// Increases the cache hit counter.
