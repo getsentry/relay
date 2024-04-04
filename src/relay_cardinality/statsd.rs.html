@@ -128,6 +128,7 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Counter metrics for the Relay Cardinality Limiter.
@@ -189,6 +190,7 @@
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `scopes`: The amount of scopes checked with a single Redis call.
     </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
     </span>Redis,
     <span class="doccomment">/// Timer tracking the amount of time spent removing expired values
