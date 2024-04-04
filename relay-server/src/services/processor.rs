@@ -909,15 +909,17 @@ pub struct EnvelopeProcessorService {
     inner: Arc<InnerProcessor>,
 }
 
-struct Addrs {
-    project_cache: Addr<ProjectCache>,
-    outcome_aggregator: Addr<TrackOutcome>,
+/// Contains the addresses of services that the processor publishes to.
+pub struct Addrs {
+    pub envelope_processor: Addr<EnvelopeProcessor>,
+    pub project_cache: Addr<ProjectCache>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
-    aggregator: Addr<Aggregator>,
-    upstream_relay: Addr<UpstreamRelay>,
-    test_store: Addr<TestStore>,
+    pub aggregator: Addr<Aggregator>,
+    pub upstream_relay: Addr<UpstreamRelay>,
+    pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<Addr<Store>>,
+    pub store_forwarder: Option<Addr<Store>>,
 }
 
 struct InnerProcessor {
@@ -940,18 +942,12 @@ struct InnerProcessor {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        project_cache: Addr<ProjectCache>,
-        upstream_relay: Addr<UpstreamRelay>,
-        test_store: Addr<TestStore>,
-        #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
-        #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
+        addrs: Addrs,
         #[cfg(feature = "processing")] metric_stats: MetricStats,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -973,16 +969,7 @@ impl EnvelopeProcessorService {
             rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            addrs: Addrs {
-                project_cache,
-                outcome_aggregator,
-                upstream_relay,
-                test_store,
-                #[cfg(feature = "processing")]
-                aggregator,
-                #[cfg(feature = "processing")]
-                store_forwarder,
-            },
+            addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
             metric_meta_store: redis.clone().map(|pool| {
@@ -1536,7 +1523,12 @@ impl EnvelopeProcessorService {
         let global_config = self.inner.global_config.current();
 
         if_processing!(self.inner.config, {
-            span::process(state, self.inner.config.clone(), &global_config);
+            span::process(
+                state,
+                self.inner.config.clone(),
+                &global_config,
+                &self.inner.addrs,
+            );
             self.enforce_quotas(state)?;
         });
         Ok(())

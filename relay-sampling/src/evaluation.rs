@@ -65,6 +65,11 @@ impl<'a> ReservoirEvaluator<'a> {
         }
     }
 
+    /// Returns a shared reference to the reservoir counters.
+    pub fn counters(&self) -> ReservoirCounters {
+        self.counters.clone()
+    }
+
     /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.

@@ -20,19 +20,21 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+    Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
+    TransactionGroup,
 };
-use crate::utils::ItemAction;
+use crate::utils::{ItemAction, ManagedEnvelope};
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
     config: Arc<Config>,
     global_config: &GlobalConfig,
+    addrs: &Addrs,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -61,6 +63,12 @@ pub fn process(
         &user_agent_info,
     );
 
+    // Ownership aerobics:
+    let envelope_headers = state.envelope().headers().clone(); // TODO(jjbayer): Would be nice to not clone here.
+    let project_state = state.project_state.clone();
+    let sampling_project_state = state.sampling_project_state.clone();
+    let reservoir_counters = state.reservoir.counters();
+
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -82,13 +90,24 @@ pub fn process(
         };
 
         if let Some(transaction) = convert_to_transaction(&annotated_span) {
-            // TODO: check version in global config
-            // TODO: make sure that transaction is normalized, even if processing relay is configured to
-            //       skip normalization.
-            // TODO: test performance score total metric is extracted only once.
-            // TODO: item headers that prevent circular extraction
-
-            todo!();
+            match Envelope::try_from_event(envelope_headers.clone(), transaction) {
+                Ok(envelope) => {
+                    addrs.envelope_processor.send(ProcessEnvelope {
+                        envelope: ManagedEnvelope::standalone(
+                            envelope,
+                            addrs.outcome_aggregator.clone(),
+                            addrs.test_store.clone(),
+                            ProcessingGroup::Transaction,
+                        ),
+                        project_state: project_state.clone(),
+                        sampling_project_state: sampling_project_state.clone(),
+                        reservoir_counters: reservoir_counters.clone(),
+                    });
+                }
+                Err(e) => {
+                    relay_log::error!("Failed to create event envelope: {e}");
+                }
+            }
         }
 
         if let Err(e) = normalize(

@@ -42,7 +42,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
-use relay_event_schema::protocol::{EventId, EventType};
+use relay_event_schema::protocol::{Event, EventId, EventType};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
@@ -1058,6 +1058,21 @@ impl Envelope {
     /// Creates an envelope from the provided parts.
     pub fn from_parts(headers: EnvelopeHeaders, items: Items) -> Box<Self> {
         Box::new(Self { items, headers })
+    }
+
+    /// Creates an envelope from an event, plus headers.
+    pub fn try_from_event(
+        mut headers: EnvelopeHeaders,
+        event: Event,
+    ) -> Result<Box<Self>, serde_json::Error> {
+        headers.event_id = event.id.value().copied();
+        let event_type = event.ty.value().copied().unwrap_or_default();
+
+        let serialized = Annotated::new(event).to_json()?;
+        let mut item = Item::new(ItemType::from_event_type(event_type));
+        item.set_payload(ContentType::Json, serialized);
+
+        Ok(Self::from_parts(headers, smallvec::smallvec![item]))
     }
 
     /// Creates an envelope from request information.

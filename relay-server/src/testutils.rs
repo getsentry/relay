@@ -18,7 +18,7 @@ use crate::extractors::RequestMeta;
 use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::EnvelopeProcessorService;
+use crate::services::processor::{self, EnvelopeProcessorService};
 use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
 
@@ -119,7 +119,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
     #[cfg(feature = "processing")]
-    let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
     let redis = config
@@ -134,19 +134,22 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         Cogs::noop(),
         #[cfg(feature = "processing")]
         redis,
-        outcome_aggregator,
-        project_cache,
-        upstream_relay,
-        test_store,
-        #[cfg(feature = "processing")]
-        _aggregator.clone(),
-        #[cfg(feature = "processing")]
-        None,
+        processor::Addrs {
+            envelope_processor: Addr::custom().0,
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
+            test_store,
+            #[cfg(feature = "processing")]
+            aggregator: aggregator.clone(),
+            #[cfg(feature = "processing")]
+            store_forwarder: None,
+        },
         #[cfg(feature = "processing")]
         MetricStats::new(
             config,
             GlobalConfigHandle::fixed(Default::default()),
-            _aggregator,
+            aggregator,
         ),
     )
 }
