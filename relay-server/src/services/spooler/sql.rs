@@ -70,10 +70,10 @@ pub fn delete<'a>(key: QueueKey) -> Query<'a, Sqlite, SqliteArguments<'a>> {
         .bind(key.sampling_key.to_string())
 }
 
-/// Creates a query which fetches the `envelopes` table size.
+/// Creates a query which fetches the number of used database pages multiplied by the page size.
 ///
-/// This info used to calculate the current allocated database size.
-pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+/// This info used to estimate the current allocated database size.
+pub fn estimate_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query(
         r#"SELECT (page_count - freelist_count) * page_size as size FROM pragma_page_count(), pragma_freelist_count(), pragma_page_size();"#,
     )
