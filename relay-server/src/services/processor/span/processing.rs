@@ -464,11 +464,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         }
     }
 
-    // `is_segment` is set by `extract_span`.
-    exclusive_time
-        .value()
-        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
-
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| match value.value() {
             Some(s) => {
