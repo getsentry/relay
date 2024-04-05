@@ -1298,7 +1298,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
             ]
         );
     }
@@ -1321,7 +1320,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
             ]
         );
     }
@@ -1344,7 +1342,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
             ]
         );
     }
@@ -1367,7 +1364,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
             ]
         );
     }
@@ -1480,7 +1476,7 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config, 200);
 
-        assert_eq!(metrics.len(), 5);
+        assert_eq!(metrics.len(), 4);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
 
         assert_eq!(&*metrics[1].name, "d:spans/exclusive_time@millisecond");
@@ -1497,9 +1493,6 @@ mod tests {
             "d:spans/exclusive_time_light@millisecond"
         );
 
-        assert_eq!(&*metrics[3].name, "c:spans/count_per_op@none");
-        assert_eq!(&*metrics[3].tags["span.op"], "db.query");
-
-        assert_eq!(&*metrics[4].name, "d:spans/duration@millisecond");
+        assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
     }
 }

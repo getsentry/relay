@@ -365,23 +365,6 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "c:spans/count_per_op@none".into(),
-            field: None,
-            condition: Some(duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("span.category")
-                    .from_field("span.sentry_tags.category")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.system")
-                    .from_field("span.sentry_tags.system")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
             condition: None,

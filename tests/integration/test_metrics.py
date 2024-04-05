@@ -1473,7 +1473,6 @@ def test_span_metrics(
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
-            "c:spans/count_per_op@none",
             "c:spans/usage@none",
             "d:spans/duration@millisecond",
         ):
