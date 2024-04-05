@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+
+**Breaking Changes**:
+Kafka topic configuration keys now support the default topic name ([#3361](https://github.com/getsentry/relay/pull/3361/)).
+
+The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`.
+
 **Features**:
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
