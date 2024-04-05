@@ -194,7 +194,7 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-/// Scrub a `Url::Host` object. For both IP addresses and qualified domain names, run the string through a scrubber.
+/// Scrub a `Url::Host` object. For domain names, run the string through a scrubber. For IP addresses, return the IP address as-is.
 ///
 /// # Arguments
 ///
@@ -205,8 +205,8 @@ fn scrub_file(description: &str) -> Option<String> {
 /// A host `String`, or `None` if scrubbing fails.
 pub fn scrub_host(host: Option<Host<&str>>) -> Option<String> {
     return match host {
-        Some(Host::Ipv4(ip)) => Some(scrub_domain_name(ip.to_string())),
-        Some(Host::Ipv6(ip)) => Some(scrub_domain_name(ip.to_string())),
+        Some(Host::Ipv4(ip)) => Some(ip.to_string()),
+        Some(Host::Ipv6(ip)) => Some(ip.to_string()),
         Some(Host::Domain(domain)) => Some(scrub_domain_name(String::from(domain))),
         None => None,
     };
