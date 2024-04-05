@@ -74,7 +74,9 @@ pub fn delete<'a>(key: QueueKey) -> Query<'a, Sqlite, SqliteArguments<'a>> {
 ///
 /// This info used to calculate the current allocated database size.
 pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query(r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes""#)
+    sqlx::query(
+        r#"SELECT (page_count - freelist_count) * page_size as size FROM pragma_page_count(), pragma_freelist_count(), pragma_page_size();"#,
+    )
 }
 
 /// Creates the query to select only 1 record's `received_at` from the database.

@@ -1496,7 +1496,7 @@ mod tests {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": "4KB",
-                    "max_disk_size": "20KB",
+                    "max_disk_size": "40KB",
                 }
             }
         }))
@@ -1557,7 +1557,7 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r#"
+        assert_debug_snapshot!(captures, @r###"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -1569,26 +1569,25 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
-            "buffer.disk_size:1031|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1372|h",
-            "buffer.disk_size:1372|h",
+            "buffer.disk_size:24576|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:5|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1713|h",
+            "buffer.disk_size:24576|h",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
             "buffer.envelopes_read:-5|c",
             "buffer.envelopes_disk_count:0|g",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
-            "buffer.disk_size:8|h",
-            "buffer.reads:1|c",
+            "buffer.disk_size:24576|h",
         ]
-        "#);
+        "###);
     }
 
     pub enum TestHealth {
