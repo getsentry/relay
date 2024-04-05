@@ -1299,7 +1299,6 @@ mod tests {
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1323,7 +1322,6 @@ mod tests {
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1347,7 +1345,6 @@ mod tests {
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1371,7 +1368,6 @@ mod tests {
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
                 "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
