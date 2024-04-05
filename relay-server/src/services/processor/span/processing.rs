@@ -431,7 +431,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
-        ref exclusive_time,
         ref mut tags,
         ref mut sentry_tags,
         ref mut start_timestamp,
