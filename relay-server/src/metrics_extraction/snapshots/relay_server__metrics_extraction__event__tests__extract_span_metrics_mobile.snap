@@ -481,39 +481,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1619420400),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "default",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1619420400),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1619420400),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -595,40 +562,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976302),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.category": "app",
-                "span.op": "app.start.cold",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976302),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976302),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -708,39 +641,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "ui.load.initial_display",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -826,40 +726,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.category": "app",
-                "span.op": "app.start.cold",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -908,39 +774,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "custom.op",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "custom.op",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
             },
             metadata: BucketMetadata {
@@ -1034,39 +867,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "contentprovider.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -1151,39 +951,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "application.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -1268,39 +1035,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "activity.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "d:spans/duration@millisecond",
             ),
             value: Distribution(
@@ -1372,39 +1106,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "process.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_op@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "span.op": "process.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "c:spans/count_per_segment@none",
-            ),
-            value: Counter(
-                1.0,
-            ),
-            tags: {
-                "release": "1.2.3",
-                "transaction": "gEt /api/:version/users/",
             },
             metadata: BucketMetadata {
                 merges: 1,
