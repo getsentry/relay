@@ -88,9 +88,10 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        if should_extract_transactions {
+        if should_extract_transactions && !item.transaction_extracted() {
             if let Some(transaction) = convert_to_transaction(&annotated_span) {
                 extracted_transactions.push(transaction);
+                item.set_transaction_extracted(true);
             }
         }
 
@@ -162,9 +163,11 @@ pub fn process(
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
-                // for item in envelope.items_mut() {
-                //     item.set_spans_extracted
-                // }
+                // We don't want to extract spans from a transaction extracted from spans, so
+                // set the spans_extracted flag:
+                for item in envelope.items_mut() {
+                    item.set_spans_extracted(true);
+                }
 
                 addrs.envelope_processor.send(ProcessEnvelope {
                     envelope: ManagedEnvelope::standalone(
@@ -187,9 +190,13 @@ pub fn process(
 
 pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     // Only extract spans from transactions (not errors).
-    if dbg!(state.event_type()) != Some(EventType::Transaction) {
+    if state.event_type() != Some(EventType::Transaction) {
         return;
     };
+
+    if state.spans_extracted {
+        return;
+    }
 
     if !dbg!(state
         .project_state

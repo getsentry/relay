@@ -554,6 +554,14 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// Whether or not a transaction has been extracted from a segment span.
+    #[serde(default, skip_serializing_if = "is_false")]
+    transaction_extracted: bool,
+
+    /// Whether or not spans have been extracted from a transaction.
+    #[serde(default, skip_serializing_if = "is_false")]
+    spans_extracted: bool,
+
     /// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -628,6 +636,8 @@ impl Item {
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                transaction_extracted: false,
+                spans_extracted: false,
                 sampled: true,
             },
             payload: Bytes::new(),
@@ -831,6 +841,26 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
+    }
+
+    /// Returns the transaction extracted flag.
+    pub fn transaction_extracted(&self) -> bool {
+        self.headers.transaction_extracted
+    }
+
+    /// Sets the transaction extracted flag.
+    pub fn set_transaction_extracted(&mut self, transaction_extracted: bool) {
+        self.headers.transaction_extracted = transaction_extracted;
+    }
+
+    /// Returns the spans extracted flag.
+    pub fn spans_extracted(&self) -> bool {
+        self.headers.spans_extracted
+    }
+
+    /// Sets the spans extracted flag.
+    pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
+        self.headers.spans_extracted = spans_extracted;
     }
 
     /// Gets the `sampled` flag.

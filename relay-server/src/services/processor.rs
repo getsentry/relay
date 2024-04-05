@@ -572,6 +572,11 @@ struct ProcessEnvelopeState<'a, Group> {
     /// Track whether transaction metrics were already extracted.
     event_metrics_extracted: bool,
 
+    /// Track whether spans were already extracted.
+    ///
+    /// Only applies to envelopes with a transaction item.
+    spans_extracted: bool,
+
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -1060,6 +1065,7 @@ impl EnvelopeProcessorService {
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
+            spans_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
             extracted_metrics: Default::default(),

@@ -42,6 +42,11 @@ fn set_event_exclusive_time(
         return;
     };
 
+    if trace_context.exclusive_time.value().is_some() {
+        // Exclusive time already set, respect.
+        return;
+    }
+
     let Some(span_id) = trace_context.span_id.value() else {
         return;
     };
@@ -126,6 +131,7 @@ pub fn compute_span_exclusive_time(event: &mut Event) {
         intervals.sort_unstable_by_key(|interval| interval.start);
     }
 
+    // TODO: Test exclusive_time on extracted transaction
     set_event_exclusive_time(event_interval, contexts, &span_map);
 
     for span in spans.iter_mut() {

@@ -519,6 +519,7 @@ def test_span_ingestion(
         expected_transactions = (
             6  # TODO: modify test input to make is_segment false for some
         )
+
         transactions = [
             transactions_consumer.get_event()[0] for _ in range(expected_transactions)
         ]
