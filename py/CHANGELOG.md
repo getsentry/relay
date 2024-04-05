@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Kafka topic configuration keys now support the default topic name ([#3361](https://github.com/getsentry/relay/pull/3361/)).
+
 ## 0.8.55
 
 - Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
