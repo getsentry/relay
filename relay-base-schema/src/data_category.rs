@@ -78,6 +78,13 @@ pub enum DataCategory {
     /// This is a count of profile chunks received. It will not be used for billing but will be
     /// useful for customers to track what's being dropped.
     ProfileChunk = 18,
+    ///
+    /// MetricHour
+    ///
+    /// Reserved by billing to summarize the bucketed product of metric volume
+    /// and metric cardinality.  Defined here so as not to clash with future
+    /// categories.
+    MetricHour = 19,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -112,6 +119,7 @@ impl DataCategory {
             "span_indexed" => Self::SpanIndexed,
             "profile_duration" => Self::ProfileDuration,
             "profile_chunk" => Self::ProfileChunk,
+            "metric_hour" => Self::MetricHour,
             _ => Self::Unknown,
         }
     }
@@ -139,6 +147,7 @@ impl DataCategory {
             Self::SpanIndexed => "span_indexed",
             Self::ProfileDuration => "profile_duration",
             Self::ProfileChunk => "profile_chunk",
+            Self::MetricHour => "metric_hour",
             Self::Unknown => "unknown",
         }
     }
