@@ -16,8 +16,8 @@ use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricNamespace,
-    SetView,
+    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricName,
+    MetricNamespace, SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -235,6 +235,7 @@ impl StoreService {
                     scoping.project_id,
                     scoping.key_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 ItemType::ReplayVideo => {
@@ -278,6 +279,7 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 other => {
@@ -402,7 +404,8 @@ impl StoreService {
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
             if has_success {
-                self.metric_stats.track(scoping, bucket, Outcome::Accepted);
+                self.metric_stats
+                    .track_metric(scoping, bucket, Outcome::Accepted);
             }
         }
 
@@ -654,7 +657,7 @@ impl StoreService {
             MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
             MetricNamespace::Unsupported => {
                 relay_log::with_scope(
-                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    |scope| scope.set_extra("metric_message.name", message.name.as_ref().into()),
                     || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
@@ -688,6 +691,7 @@ impl StoreService {
         project_id: ProjectId,
         key_id: Option<u64>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
@@ -695,6 +699,7 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
             headers: BTreeMap::from([(
                 "sampled".to_string(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
@@ -1047,12 +1052,14 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileChunkKafkaMessage {
             organization_id,
             project_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            retention_days,
             payload: item.payload(),
         };
         self.produce(
@@ -1247,7 +1254,7 @@ struct SessionKafkaMessage {
 struct MetricKafkaMessage<'a> {
     org_id: u64,
     project_id: ProjectId,
-    name: &'a str,
+    name: &'a MetricName,
     #[serde(flatten)]
     value: MetricValue<'a>,
     timestamp: UnixTimestamp,
@@ -1293,6 +1300,7 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
+    retention_days: u16,
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
@@ -1437,6 +1445,7 @@ struct ProfileChunkKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
     received: u64,
+    retention_days: u16,
     payload: Bytes,
 }
 
@@ -1481,7 +1490,15 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Attachment(_) => "attachment",
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
-            KafkaMessage::Metric { .. } => "metric",
+            KafkaMessage::Metric { message, .. } => match message.name.namespace() {
+                MetricNamespace::Sessions => "metric_sessions",
+                MetricNamespace::Transactions => "metric_transactions",
+                MetricNamespace::Spans => "metric_spans",
+                MetricNamespace::Profiles => "metric_profiles",
+                MetricNamespace::Custom => "metric_custom",
+                MetricNamespace::Stats => "metric_metric_stats",
+                MetricNamespace::Unsupported => "metric_unsupported",
+            },
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",

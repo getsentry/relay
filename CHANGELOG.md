@@ -14,6 +14,10 @@ The previous aliases `metrics` and `metrics_transactions` are no longer supporte
 - Drop `event_id` and `remote_addr` from all outcomes. ([#3319](https://github.com/getsentry/relay/pull/3319))
 - Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
+- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
+- Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
+- Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
+- Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 
 **Internal**:
 
@@ -22,6 +26,7 @@ The previous aliases `metrics` and `metrics_transactions` are no longer supporte
 - Apply rate limits to span metrics. ([#3255](https://github.com/getsentry/relay/pull/3255))
 - Extract metrics from transaction spans. ([#3273](https://github.com/getsentry/relay/pull/3273), [#3324](https://github.com/getsentry/relay/pull/3324))
 - Implement volume metric stats. ([#3281](https://github.com/getsentry/relay/pull/3281))
+- Implement cardinality metric stats. ([#3360](https://github.com/getsentry/relay/pull/3360))
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Implement metric name based cardinality limits. ([#3313](https://github.com/getsentry/relay/pull/3313))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282), [#3350](https://github.com/getsentry/relay/pull/3350))
@@ -30,7 +35,9 @@ The previous aliases `metrics` and `metrics_transactions` are no longer supporte
 - Collect duration for all spans. ([#3322](https://github.com/getsentry/relay/pull/3322))
 - Add `project_id` as part of the span Kafka message headers. ([#3320](https://github.com/getsentry/relay/pull/3320))
 - Stop producing to sessions topic, the feature is now fully migrated to metrics. ([#3271](https://github.com/getsentry/relay/pull/3271))
+- Pass `retention_days` in the Kafka profile messages. ([#3362](https://github.com/getsentry/relay/pull/3362))
 - Support and expose namespaces for metric rate limit propagation via the `x-sentry-rate-limits` header. ([#3347](https://github.com/getsentry/relay/pull/3347))
+- Tag span duration metric by group for all ops supporting description scrubbing. ([#3370](https://github.com/getsentry/relay/pull/3370))
 
 ## 24.3.0
 

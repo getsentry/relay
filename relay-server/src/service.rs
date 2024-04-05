@@ -152,7 +152,7 @@ impl ServiceState {
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
-                    metric_stats,
+                    metric_stats.clone(),
                 )?
                 .start_in(rt),
             ),
@@ -180,6 +180,8 @@ impl ServiceState {
             aggregator.clone(),
             #[cfg(feature = "processing")]
             store.clone(),
+            #[cfg(feature = "processing")]
+            metric_stats,
         )
         .spawn_handler(processor_rx);
 

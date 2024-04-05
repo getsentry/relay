@@ -91,7 +91,7 @@ impl RedisSetLimiter {
             .inspect(|(_, result)| {
                 metric!(
                     histogram(CardinalityLimiterHistograms::RedisSetCardinality) =
-                        result.cardinality,
+                        result.cardinality as u64,
                     id = state.id(),
                 );
             })
@@ -158,12 +158,15 @@ impl Limiter for RedisSetLimiter {
                 continue;
             }
 
-            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id(), {
-                self.check_limits(&mut connection, &mut state, timestamp)
-            })?;
+            let results = metric!(
+                timer(CardinalityLimiterTimers::Redis),
+                id = state.id(),
+                scopes = num_scopes_tag(&state),
+                { self.check_limits(&mut connection, &mut state, timestamp) }
+            )?;
 
             for result in results {
-                reporter.cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
 
                 // This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -188,7 +191,7 @@ impl Limiter for RedisSetLimiter {
 
 struct CheckedLimits {
     scope: QuotaScoping,
-    cardinality: u64,
+    cardinality: u32,
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
 }
@@ -230,6 +233,24 @@ impl IntoIterator for CheckedLimits {
             "expected same amount of entries as statuses"
         );
         std::iter::zip(self.entries, self.statuses)
+    }
+}
+
+/// Buckets the amount of scopes contained in a state into a metric tag.
+fn num_scopes_tag(state: &LimitState<'_>) -> &'static str {
+    match state.scopes().len() {
+        0 => "0",
+        1 => "1",
+        2 => "2",
+        3 => "3",
+        4 => "4",
+        5 => "5",
+        6..=10 => "10",
+        11..=25 => "25",
+        26..=50 => "50",
+        51..=100 => "100",
+        101..=500 => "500",
+        _ => "> 500",
     }
 }
 
@@ -292,7 +313,7 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u64) {
+        fn assert_cardinality(&self, limit: &CardinalityLimit, cardinality: u32) {
             let Some(r) = self.reports.get(limit) else {
                 panic!("expected cardinality report for limit {limit:?}");
             };
@@ -306,10 +327,8 @@ mod tests {
             self.entries.insert(entry_id);
         }
 
-        fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
-            let reports = self.reports.entry(limit.clone()).or_default();
-            reports.push(report);
-            reports.sort();
+        fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
+            self.reports.entry(limit.clone()).or_default().push(report);
         }
     }
 
@@ -383,6 +402,9 @@ mod tests {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)
                 .unwrap();
+            for reports in reporter.reports.values_mut() {
+                reports.sort();
+            }
             reporter
         }
     }

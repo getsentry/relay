@@ -897,7 +897,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -1469,11 +1469,10 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 8
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
-            "c:spans/count_per_op@none",
             "c:spans/usage@none",
             "d:spans/duration@millisecond",
         ):
