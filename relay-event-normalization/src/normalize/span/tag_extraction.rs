@@ -2,7 +2,9 @@
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::net::IpAddr;
 use std::ops::ControlFlow;
+use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -15,10 +17,12 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{normalize_domain, scrub_span_description};
+use crate::span::description::scrub_span_description;
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
+
+use super::description::{concatenate_host_and_port, scrub_domain_name};
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -358,16 +362,25 @@ pub fn extract_tags(
                     })
                 }) {
                     Some(domain)
-                } else if let Some(server_host) = span
+                } else if let Some(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    let lowercase_host = server_host.to_lowercase();
-                    let (domain, port) = match lowercase_host.split_once(':') {
+                    let lowercase_address = server_address.to_lowercase();
+
+                    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+                    let (domain, port) = match lowercase_address.split_once(':') {
                         Some((domain, port)) => (domain, port.parse::<u16>().ok()),
-                        None => (server_host, None),
+                        None => (server_address, None),
+                    };
+
+                    // Leave IP addresses alone. Scrub qualified domain names
+                    let domain = if let Ok(address) = IpAddr::from_str(domain) {
+                        address.to_string()
+                    } else {
+                        scrub_domain_name(domain.to_string())
                     };
 
                     if let Some(url_scheme) = span
@@ -378,10 +391,14 @@ pub fn extract_tags(
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            format!("{url_scheme}://{lowercase_host}"),
+                            format!("{url_scheme}://{lowercase_address}"),
                         );
                     }
-                    normalize_domain(domain, port)
+
+                    Some(String::from(concatenate_host_and_port(
+                        Some(domain.as_str()),
+                        port,
+                    )))
                 } else {
                     None
                 }

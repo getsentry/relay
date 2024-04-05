@@ -10,7 +10,7 @@ use std::path::Path;
 
 use itertools::Itertools;
 use relay_event_schema::protocol::Span;
-use url::Url;
+use url::{Host, Url};
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
@@ -165,9 +165,10 @@ fn scrub_http(string: &str) -> Option<String> {
 
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
-            let host = url.host().map(|h| h.to_string())?;
-            let domain = normalize_domain(host.as_str(), url.port())?;
             let scheme = url.scheme();
+            let scrubbed_host = scrub_host(url.host())?;
+
+            let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
 
             format!("{method} {scheme}://{domain}")
         }
@@ -193,19 +194,36 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-/// Normalize the domain and port of a URL.
+/// Scrub a `Url::Host` object. For both IP addresses and qualified domain names, run the string through a scrubber.
 ///
 /// # Arguments
 ///
-/// * `domain` - The domain of the URL.
-/// * `port` - The port of the URL.
+/// * `host` - `Url::Host`
 ///
 /// # Returns
 ///
-/// The normalized domain and port as a `String`, or `None` if normalization fails.
-pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
-        return Some(allow_listed);
+/// A host `String`, or `None` if scrubbing fails.
+pub fn scrub_host(host: Option<Host<&str>>) -> Option<String> {
+    return match host {
+        Some(Host::Ipv4(ip)) => Some(scrub_domain_name(ip.to_string())),
+        Some(Host::Ipv6(ip)) => Some(scrub_domain_name(ip.to_string())),
+        Some(Host::Domain(domain)) => Some(scrub_domain_name(String::from(domain))),
+        None => None,
+    };
+}
+
+/// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
+///
+/// # Arguments
+///
+/// * `domain` - Domain name (e.g., "my.domain.com")
+///
+/// # Returns
+///
+/// The scrubbed domain as a `String`, or `None` if normalization fails.
+pub fn scrub_domain_name(domain: String) -> String {
+    if DOMAIN_ALLOW_LIST.contains(&domain.as_str()) {
+        return domain;
     }
 
     let mut tokens = domain.rsplitn(3, '.');
@@ -213,31 +231,41 @@ pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
     let domain = tokens.next();
     let prefix = tokens.next().map(|_| "*");
 
-    let mut replaced = prefix
+    return prefix
         .iter()
         .chain(domain.iter())
         .chain(tld.iter())
         .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-
-    if replaced.is_empty() {
-        return None;
-    }
-    Some(replaced)
 }
 
 /// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
+const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
 
-fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
-        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
-        return Some(with_port);
+/// Concatenate an optional host and port
+///
+/// # Arguments
+///
+/// * `host` - Hostname string
+/// * `port` - Port number
+///
+/// # Returns
+///
+/// Either an empty string or concatenated host and port
+pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> String {
+    // If there's no host, don't bother returning just the port
+    if host.is_none() {
+        return String::from("");
     }
-    None
+
+    let host = host.unwrap();
+
+    if port.is_none() {
+        return host.to_string();
+    }
+
+    let port = port.unwrap();
+
+    return format!("{host}:{port}");
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
@@ -293,10 +321,9 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let domain = url
-                .domain()
-                .and_then(|d| normalize_domain(d, url.port()))
-                .unwrap_or("".into());
+            let scrubbed_host = scrub_host(url.host())?;
+            let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
+
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             let mut output_segments = vec![];
             for (i, segment) in url.path_segments().into_iter().flatten().enumerate() {
