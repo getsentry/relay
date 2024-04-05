@@ -82,15 +82,15 @@ impl KafkaTopic {
 
 macro_rules! define_topic_assignments {
     ($struct_name:ident {
-        $($field_name:ident : ($kafka_topic:path, $default_topic: literal)),* $(,)? }) => {
+        $($field_name:ident : ($kafka_topic:path, $default_topic: literal, $doc: literal)),* $(,)? }) => {
 
         /// Configuration for topics.
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(default)]
         pub struct TopicAssignments {
             $(
-                /// Topic name for $default_topic
                 #[serde(alias = $default_topic)]
+                #[doc=$doc]
                 pub $field_name: TopicAssignment,
             )*
         }
@@ -122,20 +122,20 @@ macro_rules! define_topic_assignments {
 
 define_topic_assignments! {
     TopicAssignments {
-        events: (KafkaTopic::Events, "ingest-events"),
-        attachments: (KafkaTopic::Attachments, "ingest-attachments"),
-        transactions: (KafkaTopic::Transactions, "ingest-transactions"),
-        outcomes: (KafkaTopic::Outcomes, "outcomes"),
-        outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing"),
-        metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics"),
-        metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics"),
-        profiles: (KafkaTopic::Profiles, "profiles"),
-        replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events"),
-        replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings"),
-        monitors: (KafkaTopic::Monitors, "ingest-monitors"),
-        spans: (KafkaTopic::Spans, "snuba-spans"),
-        metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries"),
-        cogs: (KafkaTopic::Cogs, "shared-resources-usage"),
+        events: (KafkaTopic::Events, "ingest-events", "Simple events topic name."),
+        attachments: (KafkaTopic::Attachments, "ingest-attachments", "Events with attachments topic name."),
+        transactions: (KafkaTopic::Transactions, "ingest-transactions", "Transaction events topic name."),
+        outcomes: (KafkaTopic::Outcomes, "outcomes", "Outcomes topic name."),
+        outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing", "Outcomes topic name for billing critical outcomes."),
+        metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
+        metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
+        profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
+        replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
+        replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
+        monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
+        spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
+        metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
+        cogs: (KafkaTopic::Cogs, "shared-resources-usage", "COGS measurements."),
     }
 }
 
