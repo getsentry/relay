@@ -413,10 +413,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
             continue;
         }
 
-        let mut value = name_value.next().unwrap_or_default().to_owned();
-        protocol::validate_tag_value(&mut value);
-
-        map.insert(name.to_owned(), value);
+        if let Ok(value) = protocol::unescape_tag_value(name_value.next().unwrap_or_default()) {
+            map.insert(name.to_owned(), value);
+        }
     }
 
     Some(map)
@@ -538,7 +537,7 @@ pub struct Bucket {
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
     /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/\w[\w\d_-.]+/`. Note that the name must begin with a letter.
+    /// regular expression `/\w[\w\-.]*/`. Note that the name must begin with a letter.
     ///
     /// Per convention, dots separate metric names into components, where the leading components are
     /// considered namespaces and the final component is the name of the metric within its
@@ -593,8 +592,15 @@ pub struct Bucket {
     /// omitted.
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
+    /// `/[\w\-.\/]+/`.
+    ///
+    /// Tag values can contain unicode characters with the following escaping rules:
+    ///  - Tab is escaped as `\t`.
+    ///  - Carriage return is escaped as `\r`.
+    ///  - Line feed is escaped as `\n`.
+    ///  - Backslash is escaped as `\\`.
+    ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`,
+    ///    respectively.
     ///
     /// # Example
     ///
@@ -1128,6 +1134,18 @@ mod tests {
             {
                 "bar": "baz",
                 "foo": "",
+            }
+            "#);
+    }
+
+    #[test]
+    fn test_parse_tags_escaped() {
+        let s = "transactions/foo:17.5|d|#foo:😅\\u{2c}🚀";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric.tags, @r#"
+            {
+                "foo": "😅,🚀",
             }
             "#);
     }

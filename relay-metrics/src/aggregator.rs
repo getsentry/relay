@@ -95,7 +95,7 @@ impl BucketKey {
 /// Note that this does not necessarily match the exact memory footprint of the tags,
 /// because data structures or their serialization have overheads.
 pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
-    tags.iter().map(|(k, v)| k.capacity() + v.capacity()).sum()
+    tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
 /// Configuration value for [`AggregatorConfig::shift_key`].
