@@ -59,6 +59,7 @@ pub(crate) fn escape_tag_value(raw: &str) -> String {
             '\\' => escaped.push_str("\\\\"),
             '|' => escaped.push_str("\\u{7c}"),
             ',' => escaped.push_str("\\u{2c}"),
+            _ if c.is_control() => (),
             _ => escaped.push(c),
         }
     }
@@ -72,7 +73,7 @@ pub(crate) fn escape_tag_value(raw: &str) -> String {
 /// unicode characters. In addition to that, unicode escape sequences for all characters will be
 /// resolved.
 ///
-/// ASCII control characters are stripped from the resulting string. This is equivalent to
+/// Control characters are stripped from the resulting string. This is equivalent to
 /// [`validate_tag_value`].
 pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
     let mut unescaped = unescaper::unescape(escaped)?;
@@ -82,10 +83,10 @@ pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError>
 
 /// Validates a tag value.
 ///
-/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are
-/// stripped out.
+/// Tag values are never entirely rejected, but invalid characters (control characters) are stripped
+/// out.
 pub(crate) fn validate_tag_value(tag_value: &mut String) {
-    tag_value.retain(|c| !c.is_ascii_control());
+    tag_value.retain(|c| !c.is_control());
 }
 
 /// Hashes the given set value.
@@ -122,6 +123,7 @@ mod tests {
             unescape_tag_value("plain\\u{7c}text").unwrap(),
             "plain|text"
         );
+        assert_eq!(unescape_tag_value("plain 😅").unwrap(), "plain 😅");
 
         // Alternate escape sequences
         assert_eq!(
@@ -133,6 +135,7 @@ mod tests {
         assert_eq!(unescape_tag_value("plain\\ntext").unwrap(), "plaintext");
         assert_eq!(unescape_tag_value("plain\\rtext").unwrap(), "plaintext");
         assert_eq!(unescape_tag_value("plain\\ttext").unwrap(), "plaintext");
+        assert_eq!(unescape_tag_value("plain\u{7}text").unwrap(), "plaintext");
     }
 
     #[test]
@@ -146,10 +149,15 @@ mod tests {
         assert_eq!(escape_tag_value("plain \\ text"), "plain \\\\ text");
         assert_eq!(escape_tag_value("plain,text"), "plain\\u{2c}text");
         assert_eq!(escape_tag_value("plain|text"), "plain\\u{7c}text");
+        assert_eq!(escape_tag_value("plain 😅"), "plain 😅");
 
-        // These are control characters and therefore stripped
+        // Escapable control characters (may be stripped by the parser)
         assert_eq!(escape_tag_value("plain\ntext"), "plain\\ntext");
         assert_eq!(escape_tag_value("plain\rtext"), "plain\\rtext");
         assert_eq!(escape_tag_value("plain\ttext"), "plain\\ttext");
+
+        // Unescapable control characters
+        assert_eq!(escape_tag_value("plain\u{07}text"), "plaintext");
+        assert_eq!(escape_tag_value("plain\u{9c}text"), "plaintext");
     }
 }

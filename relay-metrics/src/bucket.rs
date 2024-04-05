@@ -1140,12 +1140,12 @@ mod tests {
 
     #[test]
     fn test_parse_tags_escaped() {
-        let s = "transactions/foo:17.5|d|#foo:bar\\u{2c}baz";
+        let s = "transactions/foo:17.5|d|#foo:😅\\u{2c}🚀";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric.tags, @r#"
             {
-                "foo": "bar,baz",
+                "foo": "😅,🚀",
             }
             "#);
     }
