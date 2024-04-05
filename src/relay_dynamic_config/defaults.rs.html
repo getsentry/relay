@@ -982,12 +982,12 @@
                 Tag::with_key(<span class="string">"transaction.op"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
                     .always(),
+                Tag::with_key(<span class="string">"span.group"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                    .when(know_modules_condition.clone() | app_start_condition.clone()),
                 <span class="comment">// Mobile module:
                 </span>Tag::with_key(<span class="string">"span.description"</span>)
                     .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .when(app_start_condition.clone()),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
                     .when(app_start_condition.clone()),
                 Tag::with_key(<span class="string">"device.class"</span>)
                     .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
