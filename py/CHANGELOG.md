@@ -1,8 +1,5 @@
 # Changelog
 
-## Unreleased
-- Kafka topic configuration keys now support the default topic name ([#3361](https://github.com/getsentry/relay/pull/3361/)).
-
 ## 0.8.56
 
 ### Various fixes & improvements
