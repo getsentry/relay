@@ -241,6 +241,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "d9dc18637d441612",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -342,6 +343,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -443,6 +445,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "488f09b46e5978be",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -542,6 +545,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -643,6 +647,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -746,6 +751,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -849,6 +855,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -952,6 +959,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1055,6 +1063,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1158,6 +1167,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1261,6 +1271,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1365,6 +1376,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1468,6 +1480,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "4f9711d2d09963b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1672,6 +1685,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1875,6 +1889,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -1979,6 +1994,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -2281,6 +2297,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "3f955cbde39e04b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -2455,6 +2472,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -2556,6 +2574,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -2657,6 +2676,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -2759,6 +2779,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3529,6 +3550,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3706,6 +3728,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3880,6 +3903,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "d9dc18637d441612",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -3981,6 +4005,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4082,6 +4107,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "488f09b46e5978be",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4181,6 +4207,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4284,6 +4311,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4387,6 +4415,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4490,6 +4519,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4593,6 +4623,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4696,6 +4727,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4799,6 +4831,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -4903,6 +4936,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5006,6 +5040,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "4f9711d2d09963b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5210,6 +5245,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5413,6 +5449,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5517,6 +5554,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5819,6 +5857,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "3f955cbde39e04b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -5993,6 +6032,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6094,6 +6134,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6195,6 +6236,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6295,6 +6337,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6397,6 +6440,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6574,6 +6618,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "7f402250846262be",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6672,6 +6717,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",

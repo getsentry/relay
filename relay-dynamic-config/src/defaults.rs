@@ -416,12 +416,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(know_modules_condition.clone() | app_start_condition.clone()),
                 // Mobile module:
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
                     .when(app_start_condition.clone()),
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
