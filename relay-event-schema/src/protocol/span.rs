@@ -6,8 +6,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType, SpanId,
-    SpanStatus, Timestamp, TraceId,
+    EventId, Measurements, MetricsSummary, OperationType, OriginType, SpanId, SpanStatus, Tags,
+    Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -59,7 +59,7 @@ pub struct Span {
 
     /// Arbitrary tags on a span, like on the top-level event.
     #[metastructure(pii = "maybe")]
-    pub tags: Annotated<Object<JsonLenientString>>,
+    pub tags: Annotated<Tags>,
 
     /// The origin of the span indicates what created the span (see [OriginType] docs).
     #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
@@ -128,7 +128,7 @@ impl Getter for Span {
             "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
-                    self.tags.value()?.get(key)?.as_str()?.into()
+                    self.tags.value()?.get(key)?.into()
                 } else if let Some(key) = path.strip_prefix("data.") {
                     self.data.value()?.get_value(key)?
                 } else if let Some(key) = path.strip_prefix("sentry_tags.") {

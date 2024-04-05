@@ -486,7 +486,7 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         });
     }
     if let Some(tags) = tags.value_mut() {
-        tags.retain(|_, value| !value.value().is_empty())
+        tags.retain(|tag| !tag.value().is_empty())
     }
 
     Ok(span)

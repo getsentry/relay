@@ -910,6 +910,7 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        span.tags = span.annotated_tags.clone().into_iter().collect();
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -1350,6 +1351,8 @@ struct SpanKafkaMessage<'a> {
     start_timestamp: f64,
     #[serde(rename(deserialize = "timestamp"), skip_serializing)]
     end_timestamp: f64,
+    #[serde(default, rename(deserialize = "tags"), skip_serializing)]
+    annotated_tags: Vec<(String, String)>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<&'a RawValue>,
@@ -1385,8 +1388,8 @@ struct SpanKafkaMessage<'a> {
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<&'a RawValue>,
+    #[serde(skip_deserializing, skip_serializing_if = "BTreeMap::is_empty")]
+    tags: BTreeMap<String, String>,
     trace_id: &'a str,
 
     #[serde(borrow, default, skip_serializing)]

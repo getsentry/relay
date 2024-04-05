@@ -1287,3 +1287,89 @@ def test_rate_limit_metrics_consistent(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "tags, expected_tags",
+    [
+        (
+            {
+                "some": "tag",
+                "other": "value",
+            },
+            {
+                "some": "tag",
+                "other": "value",
+            },
+        ),
+        (
+            {
+                "some": 1,
+                "other": True,
+            },
+            {
+                "some": "1",
+                "other": "True",
+            },
+        ),
+    ],
+)
+def test_span_extraction_with_tags(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    tags,
+    expected_tags,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+
+    event_id = "e022a2da91e9495d944c291fe065972d"
+    event = make_transaction(
+        {
+            "event_id": event_id,
+            "tags": tags,
+        }
+    )
+
+    relay.send_event(project_id, event)
+
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
+    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+
+    transaction_span = spans_consumer.get_span()
+    del transaction_span["received"]
+    assert transaction_span == {
+        "description": "hi",
+        "duration_ms": duration_ms,
+        "event_id": event_id,
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {
+            "op": "hi",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "transaction": "hi",
+            "transaction.op": "hi",
+        },
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(
+            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+        ),
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "tags": expected_tags,
+    }
+
+    spans_consumer.assert_empty()
