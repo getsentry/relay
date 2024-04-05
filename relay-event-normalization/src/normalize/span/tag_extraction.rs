@@ -1452,24 +1452,20 @@ LIMIT 1
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
 
-        // Descriptions with loopback IPs preserve the IP and port but strip the URL path
         assert_eq!(
             tags_1.get("description").unwrap().as_str(),
             Some("POST http://127.0.0.1:10007")
         );
-        // Domains of loopback IP descriptions preserve the IP and port
         assert_eq!(
             tags_1.get("domain").unwrap().as_str(),
             Some("127.0.0.1:10007")
         );
 
-        // Descriptions with non-loopback IPs scrub the IP naively
         assert_eq!(
             tags_2.get("description").unwrap().as_str(),
-            Some("GET http://*.8.8")
+            Some("GET http://8.8.8.8")
         );
-        // Domains of non-loopback IP descriptions are omitted
-        assert_eq!(tags_2.get("domain"), None);
+        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("8.8.8.8"));
     }
 
     #[test]

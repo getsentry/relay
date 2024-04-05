@@ -507,6 +507,27 @@ mod tests {
     );
 
     span_description_test!(
+        localhost,
+        "GET https://localhost/data",
+        "http.client",
+        "GET https://localhost"
+    );
+
+    span_description_test!(
+        loopback,
+        "GET https://127.0.0.1/data",
+        "http.client",
+        "GET https://127.0.0.1"
+    );
+
+    span_description_test!(
+        ip_address,
+        "GET https://8.8.8.8/data",
+        "http.client",
+        "GET https://8.8.8.8"
+    );
+
+    span_description_test!(
         path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
         "http.client",
