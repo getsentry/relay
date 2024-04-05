@@ -35,6 +35,8 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Type definitions for Sentry metrics.
 
 </span><span class="kw">mod </span>mri;
@@ -51,10 +53,11 @@
 <span class="doccomment">/// Validates a metric name and normalizes it. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, dashes, slashes and periods.
+/// underscores, dashes, and periods. The implementation will further replace dashes with
+/// underscores.
 ///
-/// The function validates that the first character of the metric must be ASCII alphanumeric,
-/// later consecutive invalid characters in the name will be replaced with underscores.
+/// The function validates that the first character of the metric must be ASCII alphanumeric, later
+/// consecutive invalid characters in the name will be replaced with underscores.
 </span><span class="kw">pub fn </span>try_normalize_metric_name(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt; {
     <span class="kw">static </span>NORMALIZE_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
 
@@ -62,7 +65,8 @@
         <span class="kw">return </span><span class="prelude-val">None</span>;
     }
 
-    <span class="kw">let </span>normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new(<span class="string">"[^a-zA-Z0-9_/.]+"</span>).unwrap());
+    <span class="comment">// Note: `-` intentionally missing from this list.
+    </span><span class="kw">let </span>normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new(<span class="string">"[^a-zA-Z0-9_.]+"</span>).unwrap());
     <span class="prelude-val">Some</span>(normalize_re.replace_all(name, <span class="string">"_"</span>))
 }
 

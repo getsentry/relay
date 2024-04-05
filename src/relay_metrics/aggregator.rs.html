@@ -1596,7 +1596,7 @@
 /// Note that this does not necessarily match the exact memory footprint of the tags,
 /// because data structures or their serialization have overheads.
 </span><span class="kw">pub fn </span>tags_cost(tags: <span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;) -&gt; usize {
-    tags.iter().map(|(k, v)| k.capacity() + v.capacity()).sum()
+    tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
 <span class="doccomment">/// Configuration value for [`AggregatorConfig::shift_key`].
