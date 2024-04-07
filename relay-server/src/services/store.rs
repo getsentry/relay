@@ -1031,7 +1031,7 @@ impl StoreService {
                         project_id,
                         received,
                         retention_days,
-                        segment_id: segment_id.unwrap_or_default(),
+                        segment_id,
                         span_id,
                         sum,
                         tags,
@@ -1378,8 +1378,7 @@ struct SpanKafkaMessage<'a> {
     /// Number of days until these data should be deleted.
     #[serde(default)]
     retention_days: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    segment_id: Option<&'a str>,
+    segment_id: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
@@ -1387,7 +1386,7 @@ struct SpanKafkaMessage<'a> {
     start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tags: Option<&'a RawValue>,
-    trace_id: &'a str,
+    trace_id: EventId,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
@@ -1427,7 +1426,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     retention_days: u16,
     segment_id: &'a str,
     span_id: &'a str,
-    trace_id: &'a str,
+    trace_id: EventId,
 
     count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1518,6 +1517,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1528,7 +1528,6 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span { .. }
             | Self::MetricsSummary(_)
             | Self::Cogs(_)
             | Self::ProfileChunk(_) => Uuid::nil(),
