@@ -1031,7 +1031,7 @@ impl StoreService {
                         project_id,
                         received,
                         retention_days,
-                        segment_id,
+                        segment_id: segment_id.unwrap_or_default(),
                         span_id,
                         sum,
                         tags,
@@ -1378,7 +1378,8 @@ struct SpanKafkaMessage<'a> {
     /// Number of days until these data should be deleted.
     #[serde(default)]
     retention_days: u16,
-    segment_id: &'a str,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    segment_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
