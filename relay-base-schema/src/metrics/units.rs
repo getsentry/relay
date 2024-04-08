@@ -17,7 +17,7 @@ pub enum MetricUnit {
     Information(InformationUnit),
     /// Fractions such as percentages, defaulting to `"ratio"`.
     Fraction(FractionUnit),
-    /// user-defined units without builtin conversion or default.
+    /// User-defined units without built-in conversion or default.
     Custom(CustomUnit),
     /// Untyped value without a unit (`""`).
     #[default]
@@ -308,14 +308,21 @@ impl fmt::Display for FractionUnit {
 
 const CUSTOM_UNIT_MAX_SIZE: usize = 15;
 
+/// Returns `true` if the given byte is an ASCII word character.
+fn is_word_char(c: u8) -> bool {
+    matches!(c, b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z' | b'_')
+}
+
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
+    ///
+    /// Custom units must consist of ASCII alphanumeric characters, underscores, and digits.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if !s.is_ascii() {
+        if s.is_empty() || s.bytes().any(|c| !is_word_char(c)) {
             return Err(ParseMetricUnitError(()));
         }
 
@@ -368,6 +375,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_empty_unit() {
+        assert_eq!(MetricUnit::None, "".parse().unwrap());
+    }
+
+    #[test]
     fn test_custom_unit_parse() {
         assert_eq!("foo", CustomUnit::parse("Foo").unwrap().as_str());
         assert_eq!(
@@ -375,5 +387,14 @@ mod tests {
             CustomUnit::parse("0123456789abcde").unwrap().as_str()
         );
         assert!(CustomUnit::parse("this_is_a_unit_that_is_too_long").is_err());
+    }
+
+    #[test]
+    fn test_custom_unit_invalid_char() {
+        assert!(CustomUnit::parse("").is_err()); // `MetricUnit::parse` supports this
+        assert!(CustomUnit::parse("foo bar").is_err());
+        assert!(CustomUnit::parse("foo/bar").is_err());
+        assert!(CustomUnit::parse("foo-bar").is_err());
+        assert!(CustomUnit::parse("föö").is_err());
     }
 }
