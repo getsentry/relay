@@ -220,9 +220,9 @@ pub enum RelayTimers {
     /// Time in milliseconds spent deserializing an event from JSON bytes into the native data
     /// structure on which Relay operates.
     EventProcessingDeserialize,
-    /// Time in milliseconds spent running light normalization on an event. Light normalization
-    /// happens before envelope filtering and metrics extraction.
-    EventProcessingLightNormalization,
+    /// Time in milliseconds spent running normalization on an event. Normalization
+    /// happens before envelope filtering and metric extraction.
+    EventProcessingNormalization,
     /// Time in milliseconds spent running inbound data filters on an event.
     EventProcessingFiltering,
     /// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -388,9 +388,7 @@ impl TimerMetric for RelayTimers {
     fn name(&self) -> &'static str {
         match self {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
-            RelayTimers::EventProcessingLightNormalization => {
-                "event_processing.light_normalization"
-            }
+            RelayTimers::EventProcessingNormalization => "event_processing.normalization",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",

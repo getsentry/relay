@@ -16,7 +16,7 @@ use crate::{
 #[derive(Debug)]
 pub struct LimitState<'a> {
     /// The limit of the quota.
-    pub limit: u64,
+    pub limit: u32,
 
     /// Scoping of the quota.
     partial_scope: PartialQuotaScoping,
@@ -100,6 +100,11 @@ impl<'a> LimitState<'a> {
     /// Returns the underlying cardinality limit.
     pub fn cardinality_limit(&self) -> &'a CardinalityLimit {
         self.cardinality_limit
+    }
+
+    /// Returns a reference to all contained scopes.
+    pub fn scopes(&self) -> &BTreeMap<QuotaScoping, Vec<RedisEntry>> {
+        &self.scopes
     }
 
     /// Removes all contained scopes and entries and returns them.

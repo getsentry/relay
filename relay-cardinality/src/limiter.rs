@@ -44,7 +44,7 @@ pub struct CardinalityReport {
     pub name: Option<MetricName>,
 
     /// The current cardinality.
-    pub cardinality: u64,
+    pub cardinality: u32,
 }
 
 /// Accumulator of all cardinality limiter decisions.
@@ -59,7 +59,7 @@ pub trait Reporter<'a> {
     ///
     /// For example, with a name scoped limit can be called once for every
     /// metric name matching the limit.
-    fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport);
+    fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport);
 }
 
 /// Limiter responsible to enforce limits.
@@ -204,7 +204,7 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     }
 
     #[inline(always)]
-    fn cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
+    fn report_cardinality(&mut self, limit: &'a CardinalityLimit, report: CardinalityReport) {
         if !limit.report {
             return;
         }
@@ -624,7 +624,7 @@ mod tests {
                 I: IntoIterator<Item = Entry<'b>>,
                 T: Reporter<'a>,
             {
-                reporter.cardinality(
+                reporter.report_cardinality(
                     &limits[0],
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
@@ -634,7 +634,7 @@ mod tests {
                     },
                 );
 
-                reporter.cardinality(
+                reporter.report_cardinality(
                     &limits[0],
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
@@ -644,7 +644,7 @@ mod tests {
                     },
                 );
 
-                reporter.cardinality(
+                reporter.report_cardinality(
                     &limits[2],
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
