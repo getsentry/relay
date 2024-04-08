@@ -379,6 +379,27 @@
 <a href="#377" id="377">377</a>
 <a href="#378" id="378">378</a>
 <a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
@@ -398,7 +419,7 @@
     </span>Information(InformationUnit),
     <span class="doccomment">/// Fractions such as percentages, defaulting to `"ratio"`.
     </span>Fraction(FractionUnit),
-    <span class="doccomment">/// user-defined units without builtin conversion or default.
+    <span class="doccomment">/// User-defined units without built-in conversion or default.
     </span>Custom(CustomUnit),
     <span class="doccomment">/// Untyped value without a unit (`""`).
     </span><span class="attr">#[default]
@@ -689,14 +710,21 @@
 
 <span class="kw">const </span>CUSTOM_UNIT_MAX_SIZE: usize = <span class="number">15</span>;
 
+<span class="doccomment">/// Returns `true` if the given byte is an ASCII word character.
+</span><span class="kw">fn </span>is_word_char(c: u8) -&gt; bool {
+    <span class="macro">matches!</span>(c, <span class="string">b'0'</span>..=<span class="string">b'9' </span>| <span class="string">b'a'</span>..=<span class="string">b'z' </span>| <span class="string">b'A'</span>..=<span class="string">b'Z' </span>| <span class="string">b'_'</span>)
+}
+
 <span class="doccomment">/// Custom user-defined units without builtin conversion.
 </span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 </span><span class="kw">pub struct </span>CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 <span class="kw">impl </span>CustomUnit {
     <span class="doccomment">/// Parses a `CustomUnit` from a string.
+    ///
+    /// Custom units must consist of ASCII alphanumeric characters, underscores, and digits.
     </span><span class="kw">pub fn </span>parse(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricUnitError&gt; {
-        <span class="kw">if </span>!s.is_ascii() {
+        <span class="kw">if </span>s.is_empty() || s.bytes().any(|c| !is_word_char(c)) {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ParseMetricUnitError(()));
         }
 
@@ -749,6 +777,11 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_empty_unit() {
+        <span class="macro">assert_eq!</span>(MetricUnit::None, <span class="string">""</span>.parse().unwrap());
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_custom_unit_parse() {
         <span class="macro">assert_eq!</span>(<span class="string">"foo"</span>, CustomUnit::parse(<span class="string">"Foo"</span>).unwrap().as_str());
         <span class="macro">assert_eq!</span>(
@@ -756,6 +789,15 @@
             CustomUnit::parse(<span class="string">"0123456789abcde"</span>).unwrap().as_str()
         );
         <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"this_is_a_unit_that_is_too_long"</span>).is_err());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_custom_unit_invalid_char() {
+        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">""</span>).is_err()); <span class="comment">// `MetricUnit::parse` supports this
+        </span><span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"foo bar"</span>).is_err());
+        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"foo/bar"</span>).is_err());
+        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"foo-bar"</span>).is_err());
+        <span class="macro">assert!</span>(CustomUnit::parse(<span class="string">"föö"</span>).is_err());
     }
 }
 </code></pre></div></section></main></body></html>
