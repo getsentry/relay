@@ -487,12 +487,6 @@
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
 <a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -926,7 +920,6 @@
         .as_mut()
         .ok_or(<span class="macro">anyhow::anyhow!</span>(<span class="string">"empty span"</span>))<span class="question-mark">?</span>;
     <span class="kw">let </span>Span {
-        <span class="kw-2">ref </span>exclusive_time,
         <span class="kw-2">ref mut </span>tags,
         <span class="kw-2">ref mut </span>sentry_tags,
         <span class="kw-2">ref mut </span>start_timestamp,
@@ -958,11 +951,6 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"start_timestamp hard-required for spans"</span>));
         }
     }
-
-    <span class="comment">// `is_segment` is set by `extract_span`.
-    </span>exclusive_time
-        .value()
-        .ok_or(<span class="macro">anyhow::anyhow!</span>(<span class="string">"missing exclusive_time"</span>))<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| <span class="kw">match </span>value.value() {
