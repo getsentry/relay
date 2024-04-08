@@ -395,10 +395,7 @@ pub fn extract_tags(
                         );
                     }
 
-                    Some(String::from(concatenate_host_and_port(
-                        Some(domain.as_str()),
-                        port,
-                    )))
+                    Some(concatenate_host_and_port(Some(domain.as_str()), port))
                 } else {
                     None
                 }

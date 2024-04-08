@@ -204,12 +204,12 @@ fn scrub_file(description: &str) -> Option<String> {
 ///
 /// A host `String`, or `None` if scrubbing fails.
 pub fn scrub_host(host: Option<Host<&str>>) -> Option<String> {
-    return match host {
+    match host {
         Some(Host::Ipv4(ip)) => Some(ip.to_string()),
         Some(Host::Ipv6(ip)) => Some(ip.to_string()),
         Some(Host::Domain(domain)) => Some(scrub_domain_name(String::from(domain))),
         None => None,
-    };
+    }
 }
 
 /// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
@@ -265,7 +265,7 @@ pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Strin
 
     let port = port.unwrap();
 
-    return format!("{host}:{port}");
+    format!("{host}:{port}")
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
