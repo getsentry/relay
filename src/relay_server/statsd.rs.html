@@ -751,8 +751,6 @@
 <a href="#749" id="749">749</a>
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -975,9 +973,9 @@
     <span class="doccomment">/// Time in milliseconds spent deserializing an event from JSON bytes into the native data
     /// structure on which Relay operates.
     </span>EventProcessingDeserialize,
-    <span class="doccomment">/// Time in milliseconds spent running light normalization on an event. Light normalization
-    /// happens before envelope filtering and metrics extraction.
-    </span>EventProcessingLightNormalization,
+    <span class="doccomment">/// Time in milliseconds spent running normalization on an event. Normalization
+    /// happens before envelope filtering and metric extraction.
+    </span>EventProcessingNormalization,
     <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.
     </span>EventProcessingFiltering,
     <span class="doccomment">/// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -1143,9 +1141,7 @@
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             RelayTimers::EventProcessingDeserialize =&gt; <span class="string">"event_processing.deserialize"</span>,
-            RelayTimers::EventProcessingLightNormalization =&gt; {
-                <span class="string">"event_processing.light_normalization"
-            </span>}
+            RelayTimers::EventProcessingNormalization =&gt; <span class="string">"event_processing.normalization"</span>,
             RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,

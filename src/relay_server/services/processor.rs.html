@@ -4615,7 +4615,7 @@
                     .and_then(|ctx| ctx.replay_id),
             };
 
-            <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
+            <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingNormalization), {
                 validate_event_timestamps(event, <span class="kw-2">&amp;</span>event_validation_config)
                     .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
