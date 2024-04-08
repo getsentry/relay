@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug fixes:**
+
+- Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
+
 **Features**:
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
@@ -14,6 +18,10 @@
 - Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
+
+**Bug Fixes**:
+
+- Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385))
 
 **Internal**:
 

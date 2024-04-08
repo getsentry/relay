@@ -1452,7 +1452,7 @@ mod tests {
     }
 
     #[test]
-    fn test_light_normalization_respects_is_renormalize() {
+    fn test_normalization_respects_is_renormalize() {
         let mut event = Annotated::<Event>::from_json(
             r#"
             {
