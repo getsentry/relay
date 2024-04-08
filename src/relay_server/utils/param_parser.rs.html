@@ -364,24 +364,24 @@
     <span class="kw">let </span><span class="kw-2">mut </span>ret_vals = <span class="macro">vec!</span>[];
     <span class="kw">let </span><span class="kw-2">mut </span>state = IndexingState::Starting;
     <span class="comment">//first iterate by byte (so we can get correct offsets)
-    </span><span class="kw">for </span>(idx, by) <span class="kw">in </span>full_string.as_bytes().iter().enumerate() {
+    </span><span class="kw">for </span>(idx, by) <span class="kw">in </span>full_string.bytes().enumerate() {
         <span class="kw">match </span>state {
             IndexingState::Starting =&gt; {
-                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b'[' </span>{
+                <span class="kw">if </span>by == <span class="string">b'[' </span>{
                     state = IndexingState::Accumulating(idx + <span class="number">1</span>)
                 }
             }
             IndexingState::LookingForLeftParenthesis =&gt; {
-                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b'[' </span>{
+                <span class="kw">if </span>by == <span class="string">b'[' </span>{
                     state = IndexingState::Accumulating(idx + <span class="number">1</span>);
-                } <span class="kw">else if </span>by == <span class="kw-2">&amp;</span><span class="string">b'=' </span>{
+                } <span class="kw">else if </span>by == <span class="string">b'=' </span>{
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(ret_vals);
                 } <span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Err</span>(());
                 }
             }
             IndexingState::Accumulating(start_idx) =&gt; {
-                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b']' </span>{
+                <span class="kw">if </span>by == <span class="string">b']' </span>{
                     <span class="kw">let </span>slice = <span class="kw-2">&amp;</span>full_string[start_idx..idx];
                     ret_vals.push(slice);
                     state = IndexingState::LookingForLeftParenthesis;
