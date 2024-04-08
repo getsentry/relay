@@ -27,7 +27,7 @@ use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::utils::ItemAction;
+use crate::utils::{sample, ItemAction};
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -143,7 +143,11 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn extract_from_event(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    config: &Config,
+    global_config: &GlobalConfig,
+) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -153,6 +157,10 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, co
         .project_state
         .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
+        return;
+    }
+
+    if !sample(global_config.options.span_extraction_sample_rate) {
         return;
     }
 

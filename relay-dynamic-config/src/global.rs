@@ -156,6 +156,21 @@ pub struct Options {
     )]
     pub metric_stats_rollout_rate: f32,
 
+    /// Overall sampling of span extraction.
+    ///
+    /// This number represents the fraction of transactions for which
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    ///
+    /// Any value below 1.0 will cause the product to break, so use with caution.
+    #[serde(
+        rename = "relay.span-extraction.sample-rate",
+        deserialize_with = "default_on_error",
+        default = "one",
+        skip_serializing_if = "is_one"
+    )]
+    pub span_extraction_sample_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
@@ -285,6 +300,14 @@ pub enum BucketEncoding {
 /// Returns `true` if this value is equal to `Default::default()`.
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     *t == T::default()
+}
+
+fn one() -> f32 {
+    1.0
+}
+
+fn is_one(value: &f32) -> bool {
+    *value == 1.0
 }
 
 fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>
