@@ -59,6 +59,7 @@ pub enum CardinalityLimiterTimers {
     ///
     /// This metric is tagged with:
     ///  - `id`: The id of the enforced limit.
+    ///  - `scopes`: The amount of scopes checked with a single Redis call.
     #[cfg(feature = "redis")]
     Redis,
     /// Timer tracking the amount of time spent removing expired values

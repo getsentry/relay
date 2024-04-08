@@ -349,8 +349,8 @@ pub fn extract_tags(
                     scrubbed
                 };
                 if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.domain().map(|d| {
-                        let mut domain = d.to_lowercase();
+                    url.host_str().map(|h| {
+                        let mut domain = h.to_lowercase();
                         if let Some(port) = url.port() {
                             domain = format!("{domain}:{port}");
                         }
@@ -1388,6 +1388,88 @@ LIMIT 1
             },
         )
         "###);
+    }
+
+    #[test]
+    fn test_http_client_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1711007391.89278,
+                        "start_timestamp": 1711007391.891537,
+                        "exclusive_time": 1.243114,
+                        "description": "POST http://127.0.0.1:10007/data",
+                        "op": "http.client",
+                        "span_id": "8e635823db6a742a",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "POST",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://127.0.0.1:10007/data"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.036243,
+                        "start_timestamp": 1711007391.034472,
+                        "exclusive_time": 1.770973,
+                        "description": "GET http://8.8.8.8/",
+                        "op": "http.client",
+                        "span_id": "872834c747983b2f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://8.8.8.8/"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+
+        // Descriptions with loopback IPs preserve the IP and port but strip the URL path
+        assert_eq!(
+            tags_1.get("description").unwrap().as_str(),
+            Some("POST http://127.0.0.1:10007")
+        );
+        // Domains of loopback IP descriptions preserve the IP and port
+        assert_eq!(
+            tags_1.get("domain").unwrap().as_str(),
+            Some("127.0.0.1:10007")
+        );
+
+        // Descriptions with non-loopback IPs scrub the IP naively
+        assert_eq!(
+            tags_2.get("description").unwrap().as_str(),
+            Some("GET http://*.8.8")
+        );
+        // Domains of non-loopback IP descriptions are omitted
+        assert_eq!(tags_2.get("domain"), None);
     }
 
     #[test]
