@@ -88,13 +88,6 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        if should_extract_transactions && !item.transaction_extracted() {
-            if let Some(transaction) = convert_to_transaction(&annotated_span) {
-                extracted_transactions.push(transaction);
-                item.set_transaction_extracted(true);
-            }
-        }
-
         if let Err(e) = normalize(
             &mut annotated_span,
             normalize_span_config.clone(),
@@ -104,6 +97,13 @@ pub fn process(
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
+
+        if should_extract_transactions && !item.transaction_extracted() {
+            if let Some(transaction) = convert_to_transaction(&annotated_span) {
+                extracted_transactions.push(transaction);
+                item.set_transaction_extracted(true);
+            }
+        }
 
         if let Some(config) = span_metrics_extraction_config {
             let Some(span) = annotated_span.value_mut() else {
@@ -198,9 +198,9 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, co
         return;
     }
 
-    if !dbg!(state
+    if !state
         .project_state
-        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent))
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
         return;
     }
@@ -543,5 +543,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
 
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
     let span = annotated_span.value()?;
-    Event::try_from(span).ok()
+    relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
+    dbg!(Event::try_from(span).ok())
 }
