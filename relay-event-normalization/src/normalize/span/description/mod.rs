@@ -166,7 +166,7 @@ fn scrub_http(string: &str) -> Option<String> {
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let scheme = url.scheme();
-            let scrubbed_host = scrub_host(url.host())?;
+            let scrubbed_host = url.host().map(scrub_host).unwrap_or(String::from(""));
 
             let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
 
@@ -203,12 +203,11 @@ fn scrub_file(description: &str) -> Option<String> {
 /// # Returns
 ///
 /// A host `String`, or `None` if scrubbing fails.
-pub fn scrub_host(host: Option<Host<&str>>) -> Option<String> {
+pub fn scrub_host(host: Host<&str>) -> String {
     match host {
-        Some(Host::Ipv4(ip)) => Some(ip.to_string()),
-        Some(Host::Ipv6(ip)) => Some(ip.to_string()),
-        Some(Host::Domain(domain)) => Some(scrub_domain_name(String::from(domain))),
-        None => None,
+        Host::Ipv4(ip) => ip.to_string(),
+        Host::Ipv6(ip) => ip.to_string(),
+        Host::Domain(domain) => scrub_domain_name(String::from(domain)),
     }
 }
 
@@ -321,7 +320,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let scrubbed_host = scrub_host(url.host())?;
+            let scrubbed_host = url.host().map(scrub_host).unwrap_or(String::from(""));
             let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
 
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
