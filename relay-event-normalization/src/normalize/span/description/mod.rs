@@ -289,11 +289,11 @@ const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
 /// # Returns
 ///
 /// Either an empty string or concatenated host and port
-pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> String {
+pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
     match (host, port) {
-        (None, _) => String::from(""),
-        (host, None) => host.unwrap().to_string(),
-        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (None, _) => Cow::Borrowed(""),
+        (host, None) => Cow::Borrowed(host.unwrap()),
+        (Some(host), Some(port)) => Cow::Owned(format!("{host}:{port}")),
     }
 }
 
