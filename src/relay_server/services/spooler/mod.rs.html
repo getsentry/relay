@@ -1882,6 +1882,80 @@
 <a href="#1880" id="1880">1880</a>
 <a href="#1881" id="1881">1881</a>
 <a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -2573,9 +2647,9 @@
         }
     }
 
-    <span class="doccomment">/// Estimates the db size by multiplying `page_count * page_size`.
+    <span class="doccomment">/// Estimates the db size by multiplying `used_page_count * page_size`.
     </span><span class="kw">async fn </span>estimate_spool_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;i64, BufferError&gt; {
-        <span class="kw">let </span>size: i64 = sql::current_size()
+        <span class="kw">let </span>size: i64 = sql::estimate_size()
             .fetch_one(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
             .<span class="kw">await
             </span>.and_then(|r| r.try_get(<span class="number">0</span>))
@@ -3152,7 +3226,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::str::FromStr;
     <span class="kw">use </span>std::sync::Mutex;
-    <span class="kw">use </span>std::time::Duration;
+    <span class="kw">use </span>std::time::{Duration, Instant};
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>rand::Rng;
@@ -3380,7 +3454,7 @@
                 <span class="string">"envelopes"</span>: {
                     <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     <span class="string">"max_memory_size"</span>: <span class="string">"4KB"</span>,
-                    <span class="string">"max_disk_size"</span>: <span class="string">"20KB"</span>,
+                    <span class="string">"max_disk_size"</span>: <span class="string">"40KB"</span>,
                 }
             }
         }))
@@ -3441,7 +3515,7 @@
             .filter(|name| name.contains(<span class="string">"buffer."</span>))
             .collect();
 
-        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -3453,26 +3527,25 @@
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
-            "buffer.disk_size:1031|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1372|h",
-            "buffer.disk_size:1372|h",
+            "buffer.disk_size:24576|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:5|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1713|h",
+            "buffer.disk_size:24576|h",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
             "buffer.envelopes_read:-5|c",
             "buffer.envelopes_disk_count:0|g",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
-            "buffer.disk_size:8|h",
-            "buffer.reads:1|c",
+            "buffer.disk_size:24576|h",
         ]
-        "#</span>);
+        "###</span>);
     }
 
     <span class="kw">pub enum </span>TestHealth {
@@ -3763,5 +3836,80 @@
         <span class="kw">let </span>index = index.lock().unwrap().clone();
         <span class="macro">assert_eq!</span>(index.len(), <span class="number">100</span>);
     }
+
+    <span class="attr">#[ignore] </span><span class="comment">// Slow. Should probably be a criterion benchmark.
+    </span><span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>compare_counts() {
+        <span class="kw">let </span>path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        <span class="kw">let </span>options = SqliteConnectOptions::new()
+            .filename(path)
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(<span class="bool-val">true</span>);
+
+        <span class="kw">let </span>db = sqlx::SqlitePool::connect_with(options).<span class="kw">await</span>.unwrap();
+
+        <span class="macro">println!</span>(<span class="string">"Migrating..."</span>);
+        <span class="macro">sqlx::migrate!</span>(<span class="string">"../migrations"</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap();
+
+        <span class="kw">let </span>transaction = db.begin().<span class="kw">await</span>.unwrap();
+
+        <span class="comment">// println!("Inserting...");
+        </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder = sqlx::QueryBuilder::new(
+            <span class="string">"INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) "</span>,
+        );
+        <span class="kw">let </span>n = <span class="number">10000</span>;
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..n {
+            <span class="kw">if </span>(i % <span class="number">100</span>) == <span class="number">0 </span>{
+                <span class="macro">println!</span>(<span class="string">"Batch {i} of {n}"</span>);
+            }
+
+            <span class="kw">let </span>chunk = (<span class="number">0</span>..<span class="number">5000</span>).map(|<span class="kw">_</span>| (<span class="string">""</span>, <span class="string">""</span>, <span class="string">"this is my chunk how do you like it"</span>, <span class="string">""</span>));
+            <span class="kw">let </span>query = query_builder
+                .push_values(chunk, |<span class="kw-2">mut </span>b, (key1, key2, value, received_at)| {
+                    b.push_bind(received_at)
+                        .push_bind(key1)
+                        .push_bind(key2)
+                        .push_bind(value);
+                })
+                .build();
+
+            query.execute(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap();
+
+            query_builder.reset();
+        }
+        transaction.commit().<span class="kw">await</span>.unwrap();
+
+        <span class="kw">let </span>t = Instant::now();
+        <span class="kw">let </span>q = sqlx::query(
+            <span class="string">r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes" AND aggregate = FALSE"#</span>,
+        );
+        <span class="kw">let </span>pgsize: i64 = q.fetch_one(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap().get(<span class="number">0</span>);
+        <span class="macro">println!</span>(<span class="string">"pgsize: {} {:?}"</span>, pgsize, t.elapsed());
+
+        <span class="kw">let </span>t = Instant::now();
+        <span class="kw">let </span>q = sqlx::query(
+            <span class="string">r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes" AND aggregate = TRUE"#</span>,
+        );
+        <span class="kw">let </span>pgsize_agg: i64 = q.fetch_one(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap().get(<span class="number">0</span>);
+        <span class="macro">println!</span>(<span class="string">"pgsize_agg: {} {:?}"</span>, pgsize_agg, t.elapsed());
+
+        <span class="kw">let </span>t = Instant::now();
+        <span class="kw">let </span>q = sqlx::query(<span class="string">r#"SELECT SUM(length(envelope)) FROM envelopes"#</span>);
+        <span class="kw">let </span>brute_force: i64 = q.fetch_one(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap().get(<span class="number">0</span>);
+        <span class="macro">println!</span>(<span class="string">"brute_force: {} {:?}"</span>, brute_force, t.elapsed());
+
+        <span class="kw">let </span>t = Instant::now();
+        <span class="kw">let </span>q = sqlx::query(
+            <span class="string">r#"SELECT (page_count - freelist_count) * page_size as size FROM pragma_page_count(), pragma_freelist_count(), pragma_page_size();"#</span>,
+        );
+        <span class="kw">let </span>pragma: i64 = q.fetch_one(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap().get(<span class="number">0</span>);
+        <span class="macro">println!</span>(<span class="string">"pragma: {} {:?}"</span>, pragma, t.elapsed());
+
+        <span class="comment">// Result:
+        // pgsize =      2'408'464'463 t.elapsed() = 7.007533833s
+        // pgsize_agg =  2'408'464'463 t.elapsed() = 5.010104791s
+        // brute_force = 1'750'000'000 t.elapsed() = 7.893590875s
+        // pragma =      3'036'307'456 t.elapsed() = 213.417µs
+    </span>}
 }
 </code></pre></div></section></main></body></html>
