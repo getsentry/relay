@@ -689,7 +689,7 @@ impl OnDisk {
         }
     }
 
-    /// Estimates the db size by multiplying `page_count * page_size`.
+    /// Estimates the db size by multiplying `used_page_count * page_size`.
     async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
         let size: i64 = sql::estimate_size()
             .fetch_one(&self.db)
