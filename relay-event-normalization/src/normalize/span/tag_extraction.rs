@@ -1466,6 +1466,7 @@ LIMIT 1
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
 
+        // Allow loopback IPs
         assert_eq!(
             tags_1.get("description").unwrap().as_str(),
             Some("POST http://127.0.0.1:10007")
@@ -1475,11 +1476,12 @@ LIMIT 1
             Some("127.0.0.1:10007")
         );
 
+        // Scrub other IPs
         assert_eq!(
             tags_2.get("description").unwrap().as_str(),
-            Some("GET http://8.8.8.8")
+            Some("GET http://*.*.*.*")
         );
-        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("8.8.8.8"));
+        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
     }
 
     #[test]

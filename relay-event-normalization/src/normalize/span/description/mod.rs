@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
 
 use itertools::Itertools;
@@ -205,11 +206,49 @@ fn scrub_file(description: &str) -> Option<String> {
 /// A host `String`, or `None` if scrubbing fails.
 pub fn scrub_host(host: Host<&str>) -> String {
     match host {
-        Host::Ipv4(ip) => ip.to_string(),
-        Host::Ipv6(ip) => ip.to_string(),
+        Host::Ipv4(ip) => scrub_ipv4(ip),
+        Host::Ipv6(ip) => scrub_ipv6(ip),
         Host::Domain(domain) => scrub_domain_name(String::from(domain)),
     }
 }
+
+/// Scrub an IPV4 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
+///
+/// # Arguments
+///
+/// * `ip` - IP to be scrubbed
+///
+/// # Returns
+///
+/// Scrubbed string
+pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
+    if IPV4_ALLOW_LIST.contains(&ip.to_string().as_str()) {
+        return ip.to_string();
+    }
+
+    return String::from("*.*.*.*");
+}
+
+const IPV4_ALLOW_LIST: [&str; 1] = ["127.0.0.1"];
+
+/// Scrub an IPV6 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
+///
+/// # Arguments
+///
+/// * `ip` - IP to be scrubbed
+///
+/// # Returns
+///
+/// Scrubbed string
+pub fn scrub_ipv6(ip: Ipv6Addr) -> String {
+    if IPV6_ALLOW_LIST.contains(&ip.to_string().as_str()) {
+        return ip.to_string();
+    }
+
+    return String::from("*:*:*:*:*:*:*:*");
+}
+
+const IPV6_ALLOW_LIST: [&str; 1] = ["::1"];
 
 /// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
 ///
@@ -550,7 +589,7 @@ mod tests {
         ip_address,
         "GET https://8.8.8.8/data",
         "http.client",
-        "GET https://8.8.8.8"
+        "GET https://*.*.*.*"
     );
 
     span_description_test!(
