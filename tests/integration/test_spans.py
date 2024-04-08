@@ -523,8 +523,17 @@ def test_span_ingestion(
         transactions = [
             transactions_consumer.get_event()[0] for _ in range(expected_transactions)
         ]
-        print(transactions)
-        # assert transactions == [] # TODO
+
+        assert len(transactions) == expected_transactions
+        for transaction in transactions:
+            # Not checking all individual fields here, most should be tested in convert.rs
+
+            # SDK gets taken from the header:
+            if sdk := transaction.get("sdk"):
+                assert sdk == {"name": "raven-node", "version": "2.6.3"}
+
+            # No errors during normalization:
+            assert not transaction.get("errors")
 
     transactions_consumer.assert_empty()
 
