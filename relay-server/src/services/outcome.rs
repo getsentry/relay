@@ -80,6 +80,7 @@ impl OutcomeId {
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+    const CARDINALITY_LIMITED: OutcomeId = OutcomeId(6);
 
     pub fn as_u8(self) -> u8 {
         self.0
@@ -102,6 +103,7 @@ trait TrackOutcomeLike {
             OutcomeId::INVALID => "invalid",
             OutcomeId::ABUSE => "abuse",
             OutcomeId::CLIENT_DISCARD => "client_discard",
+            OutcomeId::CARDINALITY_LIMITED => "cardinality_limited",
             _ => "<unknown>",
         }
     }
@@ -188,7 +190,7 @@ impl Outcome {
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => OutcomeId::RATE_LIMITED,
+            Outcome::CardinalityLimited => OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
@@ -197,17 +199,16 @@ impl Outcome {
     }
 
     /// Returns the `reason` code field of this outcome.
-    pub fn to_reason(&self) -> Option<Cow<str>> {
+    pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
-            //TODO can we do better ? (not re copying the string )
-            Outcome::RateLimited(code_opt) => code_opt
-                .as_ref()
-                .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::RateLimited(code_opt) => {
+                code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
+            }
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => Some(Cow::Borrowed("cardinality_limited")),
+            Outcome::CardinalityLimited => None,
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
