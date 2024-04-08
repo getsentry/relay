@@ -78,7 +78,6 @@ pub enum DataCategory {
     /// This is a count of profile chunks received. It will not be used for billing but will be
     /// useful for customers to track what's being dropped.
     ProfileChunk = 18,
-    ///
     /// MetricHour
     ///
     /// Reserved by billing to summarize the bucketed product of metric volume
