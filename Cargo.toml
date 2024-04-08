@@ -168,6 +168,7 @@ tower-http = { version = "0.4.0", default-features = false }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 uaparser = "0.6.0"
+unescaper = "0.1.4"
 unicase = "2.6.0"
 url = "2.1.1"
 utf16string = "0.2.0"

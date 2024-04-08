@@ -431,7 +431,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
-        ref exclusive_time,
         ref mut tags,
         ref mut sentry_tags,
         ref mut start_timestamp,
@@ -463,11 +462,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
             return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
         }
     }
-
-    // `is_segment` is set by `extract_span`.
-    exclusive_time
-        .value()
-        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
 
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| match value.value() {
