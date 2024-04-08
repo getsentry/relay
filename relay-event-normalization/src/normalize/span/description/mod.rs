@@ -290,20 +290,11 @@ const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
 ///
 /// Either an empty string or concatenated host and port
 pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> String {
-    // If there's no host, don't bother returning just the port
-    if host.is_none() {
-        return String::from("");
+    match (host, port) {
+        (None, _) => String::from(""),
+        (host, None) => host.unwrap().to_string(),
+        (Some(host), Some(port)) => format!("{host}:{port}"),
     }
-
-    let host = host.unwrap();
-
-    if port.is_none() {
-        return host.to_string();
-    }
-
-    let port = port.unwrap();
-
-    format!("{host}:{port}")
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
