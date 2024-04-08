@@ -226,7 +226,7 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
         return ip.to_string();
     }
 
-    return String::from("*.*.*.*");
+    String::from("*.*.*.*")
 }
 
 const IPV4_ALLOW_LIST: [&str; 1] = ["127.0.0.1"];
@@ -245,7 +245,7 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> String {
         return ip.to_string();
     }
 
-    return String::from("*:*:*:*:*:*:*:*");
+    String::from("*:*:*:*:*:*:*:*")
 }
 
 const IPV6_ALLOW_LIST: [&str; 1] = ["::1"];
