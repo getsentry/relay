@@ -1014,18 +1014,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    /// True if normalization shouldn't run for events coming from internal relays. Defaults to `false`.
+    /// Granularity of normalization this event should do.
     #[serde(default)]
-    pub disable_normalization: bool,
-    /// Force relay to run full normalization. Defaults to `false`.
-    ///
-    /// Full normalization includes additional steps that break future
-    /// compatibility and should only run in the last layer of relays.
-    /// Processing relays run it by default, even if the flag is disabled.
-    ///
-    /// This config has no effect if normalization doesn't run.
-    #[serde(default)]
-    pub full_normalize: bool,
+    pub normalize_events: NormalizeEvents,
 }
 
 impl Default for Processing {
@@ -1044,10 +1035,27 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            disable_normalization: false,
-            full_normalize: false,
+            normalize_events: NormalizeEvents::Default,
         }
     }
+}
+
+/// Configuration for the level of normalization this Relay should do.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizeEvents {
+    /// Disables normalization for events coming from internal relays.
+    Disabled,
+    /// Runs normalization, excluding steps that break future compatibility.
+    ///
+    /// Processing relays run [`NormalizeEvents::Full`] if this option is set.
+    #[default]
+    Default,
+    /// Run full normalization.
+    ///
+    /// It includes steps that break future compatibility and should only run in
+    /// the last layer of relays.
+    Full,
 }
 
 /// Configuration values for the outcome aggregator
@@ -2177,14 +2185,9 @@ impl Config {
         self.values.processing.enabled
     }
 
-    /// True if normalization shouldn't run for events coming from internal relays.
-    pub fn normalization_disabled(&self) -> bool {
-        self.values.processing.disable_normalization
-    }
-
-    /// True if Relay should run full normalization.
-    pub fn full_normalize_events(&self) -> bool {
-        self.values.processing.full_normalize
+    /// Granularity of normalization this Relay should do.
+    pub fn normalization(&self) -> &NormalizeEvents {
+        &self.values.processing.normalize_events
     }
 
     /// The path to the GeoIp database required for event processing.

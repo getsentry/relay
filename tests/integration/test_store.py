@@ -1320,27 +1320,19 @@ def test_kafka_ssl(relay_with_processing):
 
 
 @pytest.mark.parametrize(
-    "disable_normalization, full_normalize, expect_full_normalization",
-    [
-        (False, False, False),
-        (False, True, True),
-        (True, False, False),
-        (True, True, True),
-    ],
+    "normalize_events",
+    ["disabled", "default", "full"],
 )
 def test_relay_normalization(
-    mini_sentry, relay, disable_normalization, full_normalize, expect_full_normalization
+    mini_sentry,
+    relay,
+    normalize_events,
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
         upstream=mini_sentry,
-        options={
-            "processing": {
-                "disable_normalization": disable_normalization,
-                "full_normalize": full_normalize,
-            }
-        },
+        options={"processing": {"normalize_events": normalize_events}},
     )
 
     event = {"dist": "   foo   ", "other": {"should i be deleted": True}}
@@ -1348,26 +1340,26 @@ def test_relay_normalization(
 
     ingested = mini_sentry.captured_events.get(timeout=1).get_event()
 
-    assert ingested["dist"] == "foo"
-    # Non-processing relays are expected to run some normalization, and the full
-    # normalization depending on the configuration.
-    if expect_full_normalization:
-        assert ingested["other"] is None
-    else:
+    if normalize_events == "disabled":
+        assert ingested["dist"] == "   foo   "
         assert ingested["other"] == {"should i be deleted": True}
+    elif normalize_events == "default":
+        assert ingested["dist"] == "foo"
+        assert ingested["other"] == {"should i be deleted": True}
+    else:
+        assert ingested["dist"] == "foo"
+        assert ingested["other"] is None
 
 
 @pytest.mark.parametrize(
-    "disable_normalization, full_normalize, from_internal, expect_normalization",
+    "normalize_events, from_internal, expect_full_normalization",
     [
-        (False, False, False, True),
-        (False, False, True, True),
-        (False, True, False, True),
-        (False, True, True, True),
-        (True, False, False, True),
-        (True, False, True, False),
-        (True, True, False, True),
-        (True, True, True, False),
+        ("disabled", False, True),
+        ("disabled", True, False),
+        ("default", False, True),
+        ("default", True, True),
+        ("full", False, True),
+        ("full", True, True),
     ],
 )
 def test_processing_relay_normalization(
@@ -1375,20 +1367,16 @@ def test_processing_relay_normalization(
     events_consumer,
     relay_with_processing,
     relay_credentials,
-    disable_normalization,
-    full_normalize,
+    normalize_events,
     from_internal,
-    expect_normalization,
+    expect_full_normalization,
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()
     credentials = relay_credentials()
     relay_config = {
-        "processing": {
-            "disable_normalization": disable_normalization,
-            "full_normalize": full_normalize,
-        }
+        "processing": {"normalize_events": normalize_events},
     }
     if from_internal:
         relay_config["auth"] = {
@@ -1412,7 +1400,7 @@ def test_processing_relay_normalization(
 
     # Processing relays run full normalization if they need to, or don't run
     # normalization at all.
-    if expect_normalization:
+    if expect_full_normalization:
         assert ingested["dist"] == "foo"
         assert ingested["other"] is None
     else:
@@ -1435,18 +1423,14 @@ def test_relay_chain_normalization(
                 "internal": True,
             },
         },
-        options={
-            "processing": {
-                "disable_normalization": True,
-            }
-        },
+        options={"processing": {"normalize_events": "disabled"}},
     )
     relay = relay(
         processing,
         credentials=credentials,
         options={
             "processing": {
-                "full_normalize": True,
+                "normalize_events": "full",
             }
         },
     )
