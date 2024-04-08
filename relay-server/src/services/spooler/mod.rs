@@ -689,9 +689,9 @@ impl OnDisk {
         }
     }
 
-    /// Estimates the db size by multiplying `page_count * page_size`.
+    /// Estimates the db size by multiplying `used_page_count * page_size`.
     async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
-        let size: i64 = sql::current_size()
+        let size: i64 = sql::estimate_size()
             .fetch_one(&self.db)
             .await
             .and_then(|r| r.try_get(0))
@@ -1268,7 +1268,7 @@ impl Drop for BufferService {
 mod tests {
     use std::str::FromStr;
     use std::sync::Mutex;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
     use rand::Rng;
@@ -1496,7 +1496,7 @@ mod tests {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": "4KB",
-                    "max_disk_size": "20KB",
+                    "max_disk_size": "40KB",
                 }
             }
         }))
@@ -1557,7 +1557,7 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r#"
+        assert_debug_snapshot!(captures, @r###"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -1569,26 +1569,25 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
-            "buffer.disk_size:1031|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1372|h",
-            "buffer.disk_size:1372|h",
+            "buffer.disk_size:24576|h",
+            "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:5|g",
             "buffer.writes:1|c",
-            "buffer.disk_size:1713|h",
+            "buffer.disk_size:24576|h",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
             "buffer.envelopes_read:-5|c",
             "buffer.envelopes_disk_count:0|g",
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
-            "buffer.disk_size:8|h",
-            "buffer.reads:1|c",
+            "buffer.disk_size:24576|h",
         ]
-        "#);
+        "###);
     }
 
     pub enum TestHealth {
@@ -1878,5 +1877,80 @@ mod tests {
         assert_eq!(envelopes.len(), 200);
         let index = index.lock().unwrap().clone();
         assert_eq!(index.len(), 100);
+    }
+
+    #[ignore] // Slow. Should probably be a criterion benchmark.
+    #[tokio::test]
+    async fn compare_counts() {
+        let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(true);
+
+        let db = sqlx::SqlitePool::connect_with(options).await.unwrap();
+
+        println!("Migrating...");
+        sqlx::migrate!("../migrations").run(&db).await.unwrap();
+
+        let transaction = db.begin().await.unwrap();
+
+        // println!("Inserting...");
+        let mut query_builder = sqlx::QueryBuilder::new(
+            "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ",
+        );
+        let n = 10000;
+        for i in 0..n {
+            if (i % 100) == 0 {
+                println!("Batch {i} of {n}");
+            }
+
+            let chunk = (0..5000).map(|_| ("", "", "this is my chunk how do you like it", ""));
+            let query = query_builder
+                .push_values(chunk, |mut b, (key1, key2, value, received_at)| {
+                    b.push_bind(received_at)
+                        .push_bind(key1)
+                        .push_bind(key2)
+                        .push_bind(value);
+                })
+                .build();
+
+            query.execute(&db).await.unwrap();
+
+            query_builder.reset();
+        }
+        transaction.commit().await.unwrap();
+
+        let t = Instant::now();
+        let q = sqlx::query(
+            r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes" AND aggregate = FALSE"#,
+        );
+        let pgsize: i64 = q.fetch_one(&db).await.unwrap().get(0);
+        println!("pgsize: {} {:?}", pgsize, t.elapsed());
+
+        let t = Instant::now();
+        let q = sqlx::query(
+            r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes" AND aggregate = TRUE"#,
+        );
+        let pgsize_agg: i64 = q.fetch_one(&db).await.unwrap().get(0);
+        println!("pgsize_agg: {} {:?}", pgsize_agg, t.elapsed());
+
+        let t = Instant::now();
+        let q = sqlx::query(r#"SELECT SUM(length(envelope)) FROM envelopes"#);
+        let brute_force: i64 = q.fetch_one(&db).await.unwrap().get(0);
+        println!("brute_force: {} {:?}", brute_force, t.elapsed());
+
+        let t = Instant::now();
+        let q = sqlx::query(
+            r#"SELECT (page_count - freelist_count) * page_size as size FROM pragma_page_count(), pragma_freelist_count(), pragma_page_size();"#,
+        );
+        let pragma: i64 = q.fetch_one(&db).await.unwrap().get(0);
+        println!("pragma: {} {:?}", pragma, t.elapsed());
+
+        // Result:
+        // pgsize =      2'408'464'463 t.elapsed() = 7.007533833s
+        // pgsize_agg =  2'408'464'463 t.elapsed() = 5.010104791s
+        // brute_force = 1'750'000'000 t.elapsed() = 7.893590875s
+        // pragma =      3'036'307'456 t.elapsed() = 213.417µs
     }
 }

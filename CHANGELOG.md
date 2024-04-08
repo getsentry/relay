@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug fixes:**
+
+- Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
+
 **Features**:
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
