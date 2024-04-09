@@ -1170,6 +1170,11 @@ impl EnvelopeProcessorService {
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)
                         .max_tag_value_length,
+                    self.inner
+                        .global_config
+                        .current()
+                        .options
+                        .span_extraction_sample_rate,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);

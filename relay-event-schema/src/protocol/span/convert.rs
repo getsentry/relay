@@ -56,7 +56,7 @@ macro_rules! map_fields {
             fn from(event: &Event) -> Self {
                 Self {
                     $(
-                        $span_field: event.$event_field.clone(),
+                        $span_field: event.$event_field.clone().map_value(Into::into),
                     )*
                     $(
                         $(
@@ -91,7 +91,7 @@ macro_rules! map_fields {
                 }
                 let event = Self {
                     $(
-                        $event_field: span.$span_field.clone(),
+                        $event_field: span.$span_field.clone().map_value(Into::into),
                     )*
                     $(
                         $fixed_event_field: $fixed_event_value.into(),
@@ -136,6 +136,7 @@ map_fields!(
         span.platform <=> event.platform,
         span.received <=> event.received,
         span.start_timestamp <=> event.start_timestamp,
+        span.tags <=> event.tags,
         span.timestamp <=> event.timestamp
     }
     contexts {
@@ -154,7 +155,7 @@ map_fields!(
     }
     fixed_for_span {
         // A transaction event corresponds to a segment span.
-        span.is_segment <= Some(true),
+        span.is_segment <= true,
         span.was_transaction <= true
     }
     fixed_for_event {

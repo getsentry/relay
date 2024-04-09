@@ -1,15 +1,13 @@
 //! Implements filtering for events originating from the localhost
-use relay_event_schema::protocol::Event;
-use url::Url;
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterConfig, FilterStatKey, Filterable};
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
 /// Check if the event originates from the local host.
-pub fn matches(event: &Event) -> bool {
-    if let Some(ip_addr) = get_ip_addr(event) {
+fn matches<F: Filterable>(item: &F) -> bool {
+    if let Some(ip_addr) = item.ip_addr() {
         for &local_ip in LOCAL_IPS {
             if local_ip == ip_addr {
                 return true;
@@ -17,7 +15,7 @@ pub fn matches(event: &Event) -> bool {
         }
     }
 
-    if let Some(url) = get_url(event) {
+    if let Some(url) = item.url() {
         if let Some(host) = url.host_str() {
             for &local_domain in LOCAL_DOMAINS {
                 if host == local_domain {
@@ -34,29 +32,19 @@ pub fn matches(event: &Event) -> bool {
 }
 
 /// Filters events originating from the local host.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
-    if matches(event) {
+    if matches(item) {
         return Err(FilterStatKey::Localhost);
     }
     Ok(())
 }
 
-fn get_ip_addr(event: &Event) -> Option<&str> {
-    let user = event.user.value()?;
-    Some(user.ip_address.value()?.as_ref())
-}
-
-fn get_url(event: &Event) -> Option<Url> {
-    let url_str = event.request.value()?.url.value()?;
-    Url::parse(url_str).ok()
-}
-
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{IpAddr, Request, User};
+    use relay_event_schema::protocol::{Event, IpAddr, Request, User};
     use relay_protocol::Annotated;
 
     use super::*;
