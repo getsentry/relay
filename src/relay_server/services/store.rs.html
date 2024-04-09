@@ -1746,6 +1746,12 @@
 <a href="#1744" id="1744">1744</a>
 <a href="#1745" id="1745">1745</a>
 <a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -3098,7 +3104,6 @@
     </span>start_timestamp: f64,
     <span class="attr">#[serde(rename(deserialize = <span class="string">"timestamp"</span>), skip_serializing)]
     </span>end_timestamp: f64,
-
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>description: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
     <span class="attr">#[serde(default)]
@@ -3133,13 +3138,20 @@
     span_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="attr">#[serde(default)]
     </span>start_timestamp_ms: u64,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"none_or_empty_object"</span>)]
     </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
     trace_id: EventId,
 
     <span class="attr">#[serde(borrow, default, skip_serializing)]
     </span>platform: Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="comment">// We only use this for logging for now
 </span>}
+
+<span class="kw">fn </span>none_or_empty_object(value: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RawValue&gt;) -&gt; bool {
+    <span class="kw">match </span>value {
+        <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
+        <span class="prelude-val">Some</span>(raw) =&gt; raw.get() == <span class="string">"{}"</span>,
+    }
+}
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>SpanMetricsSummary {

@@ -258,6 +258,7 @@
 <a href="#256" id="256">256</a>
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{
     ContextInner, Contexts, DefaultContext, Event, ProfileContext, Span, TraceContext,
@@ -315,7 +316,7 @@
             <span class="kw">fn </span>from(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="self">Self </span>{
                 <span class="self">Self </span>{
                     $(
-                        <span class="macro-nonterminal">$span_field</span>: event.<span class="macro-nonterminal">$event_field</span>.clone(),
+                        <span class="macro-nonterminal">$span_field</span>: event.<span class="macro-nonterminal">$event_field</span>.clone().map_value(Into::into),
                     )*
                     $(
                         $(
@@ -342,7 +343,7 @@
             <span class="kw">fn </span>from(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="self">Self </span>{
                 <span class="self">Self </span>{
                     $(
-                        <span class="macro-nonterminal">$event_field</span>: span.<span class="macro-nonterminal">$span_field</span>.clone(),
+                        <span class="macro-nonterminal">$event_field</span>: span.<span class="macro-nonterminal">$span_field</span>.clone().map_value(Into::into),
                     )*
                     $(
                         <span class="macro-nonterminal">$fixed_event_field</span>: <span class="macro-nonterminal">$fixed_event_value</span>.into(),
@@ -378,6 +379,7 @@
         span.platform &lt;=&gt; event.platform,
         span.received &lt;=&gt; event.received,
         span.start_timestamp &lt;=&gt; event.start_timestamp,
+        span.tags &lt;=&gt; event.tags,
         span.timestamp &lt;=&gt; event.timestamp
     }
     contexts {
@@ -396,7 +398,7 @@
     }
     fixed_for_span {
         <span class="comment">// A transaction event corresponds to a segment span.
-        </span>span.is_segment &lt;= <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+        </span>span.is_segment &lt;= <span class="bool-val">true</span>,
         span.was_transaction &lt;= <span class="bool-val">true
     </span>}
     fixed_for_event {
