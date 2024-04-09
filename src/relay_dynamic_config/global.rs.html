@@ -471,6 +471,22 @@
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -628,6 +644,22 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>metric_stats_rollout_rate: f32,
+
+    <span class="doccomment">/// Overall sampling of span extraction.
+    ///
+    /// This number represents the fraction of transactions for which
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    ///
+    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
+    ///
+    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
+    </span><span class="attr">#[serde(
+        rename = <span class="string">"relay.span-extraction.sample-rate"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]

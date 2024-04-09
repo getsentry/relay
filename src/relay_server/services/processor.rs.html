@@ -3302,6 +3302,10 @@
 <a href="#3300" id="3300">3300</a>
 <a href="#3301" id="3301">3301</a>
 <a href="#3302" id="3302">3302</a>
+<a href="#3303" id="3303">3303</a>
+<a href="#3304" id="3304">3304</a>
+<a href="#3305" id="3305">3305</a>
+<a href="#3306" id="3306">3306</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4722,7 +4726,11 @@
                 <span class="kw">if </span>state.has_event() {
                     event::scrub(state)<span class="question-mark">?</span>;
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                        span::extract_from_event(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+                        span::extract_from_event(
+                            state,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+                        );
                     });
                 }
 
