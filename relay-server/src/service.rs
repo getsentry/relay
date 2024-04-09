@@ -20,7 +20,7 @@ use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
@@ -172,15 +172,16 @@ impl ServiceState {
             cogs,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            upstream_relay.clone(),
-            test_store.clone(),
-            #[cfg(feature = "processing")]
-            aggregator.clone(),
-            #[cfg(feature = "processing")]
-            store.clone(),
-            #[cfg(feature = "processing")]
+            processor::Addrs {
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                upstream_relay: upstream_relay.clone(),
+                test_store: test_store.clone(),
+                #[cfg(feature = "processing")]
+                aggregator: aggregator.clone(),
+                #[cfg(feature = "processing")]
+                store_forwarder: store.clone(),
+            },
             metric_stats,
         )
         .spawn_handler(processor_rx);
