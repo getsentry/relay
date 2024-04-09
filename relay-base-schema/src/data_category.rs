@@ -81,7 +81,7 @@ pub enum DataCategory {
     /// MetricHour
     ///
     /// Reserved by billing to summarize the bucketed product of metric volume
-    /// and metric cardinality.  Defined here so as not to clash with future
+    /// and metric cardinality. Defined here so as not to clash with future
     /// categories.
     MetricHour = 19,
     //
