@@ -3135,7 +3135,7 @@
     </span>start_timestamp_ms: u64,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
-    trace_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+    trace_id: EventId,
 
     <span class="attr">#[serde(borrow, default, skip_serializing)]
     </span>platform: Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="comment">// We only use this for logging for now
@@ -3175,7 +3175,7 @@
     retention_days: u16,
     segment_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     span_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-    trace_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+    trace_id: EventId,
 
     count: u64,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
@@ -3266,6 +3266,7 @@
             <span class="self">Self</span>::AttachmentChunk(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::UserReport(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
+            <span class="self">Self</span>::Span { message, .. } =&gt; message.trace_id.<span class="number">0</span>,
 
             <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -3276,7 +3277,6 @@
             <span class="comment">// Random partitioning
             </span><span class="self">Self</span>::Profile(<span class="kw">_</span>)
             | <span class="self">Self</span>::ReplayRecordingNotChunked(<span class="kw">_</span>)
-            | <span class="self">Self</span>::Span { .. }
             | <span class="self">Self</span>::MetricsSummary(<span class="kw">_</span>)
             | <span class="self">Self</span>::Cogs(<span class="kw">_</span>)
             | <span class="self">Self</span>::ProfileChunk(<span class="kw">_</span>) =&gt; Uuid::nil(),
