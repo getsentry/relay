@@ -1498,6 +1498,12 @@
 <a href="#1496" id="1496">1496</a>
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1507,6 +1513,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::{<span class="self">self</span>, Extractable};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
+<span class="kw">use </span><span class="kw">crate</span>::utils::sample;
 
 <span class="kw">impl </span>Extractable <span class="kw">for </span>Event {
     <span class="kw">fn </span>category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DataCategory {
@@ -1548,8 +1555,13 @@
     event: <span class="kw-2">&amp;</span>Event,
     config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
     max_tag_value_size: usize,
+    span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 ) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
+
+    <span class="kw">if </span>!sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
+        <span class="kw">return </span>metrics;
+    }
 
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
@@ -2516,7 +2528,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
     }
 
@@ -2651,7 +2663,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
     }
 
@@ -2712,7 +2724,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -2748,7 +2760,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>usage_metrics = metrics
             .into_iter()
@@ -2974,7 +2986,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"c:spans/usage@none"</span>);
