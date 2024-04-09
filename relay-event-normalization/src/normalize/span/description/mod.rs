@@ -32,8 +32,8 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 const MAX_EXTENSION_LENGTH: usize = 10;
 
 /// IP addresses that are preserved during scrubbing
-const IPV4_ALLOW_LIST: [&str; 1] = ["127.0.0.1"];
-const IPV6_ALLOW_LIST: [&str; 1] = ["::1"];
+const IPV4_ALLOW_LIST: [Ipv4Addr; 1] = [Ipv4Addr::LOCALHOST];
+const IPV6_ALLOW_LIST: [Ipv6Addr; 1] = [Ipv6Addr::LOCALHOST];
 
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
@@ -229,7 +229,7 @@ pub fn scrub_host(host: Host<&str>) -> String {
 ///
 /// Scrubbed string
 pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
-    if IPV4_ALLOW_LIST.contains(&ip.to_string().as_str()) {
+    if IPV4_ALLOW_LIST.contains(&ip) {
         return ip.to_string();
     }
 
@@ -246,7 +246,7 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
 ///
 /// Scrubbed string
 pub fn scrub_ipv6(ip: Ipv6Addr) -> String {
-    if IPV6_ALLOW_LIST.contains(&ip.to_string().as_str()) {
+    if IPV6_ALLOW_LIST.contains(&ip) {
         return ip.to_string();
     }
 
