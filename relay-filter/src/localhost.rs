@@ -8,8 +8,8 @@ const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
 /// Check if the event originates from the local host.
-pub fn matches(event: &Event) -> bool {
-    if let Some(ip_addr) = get_ip_addr(event) {
+pub fn matches<F: Filterable>(item: &F) -> bool {
+    if let Some(ip_addr) = item.ip_addr() {
         for &local_ip in LOCAL_IPS {
             if local_ip == ip_addr {
                 return true;
@@ -17,7 +17,7 @@ pub fn matches(event: &Event) -> bool {
         }
     }
 
-    if let Some(url) = get_url(event) {
+    if let Some(url) = item.url() {
         if let Some(host) = url.host_str() {
             for &local_domain in LOCAL_DOMAINS {
                 if host == local_domain {
@@ -45,16 +45,6 @@ where
         return Err(FilterStatKey::Localhost);
     }
     Ok(())
-}
-
-fn get_ip_addr(event: &Event) -> Option<&str> {
-    let user = event.user.value()?;
-    Some(user.ip_address.value()?.as_ref())
-}
-
-fn get_url(event: &Event) -> Option<Url> {
-    let url_str = event.request.value()?.url.value()?;
-    Url::parse(url_str).ok()
 }
 
 #[cfg(test)]

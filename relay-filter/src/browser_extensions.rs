@@ -82,12 +82,12 @@ const ANONYMOUS_FRAMES: [&str; 2] = ["<anonymous>", "[native code]"];
 
 /// Check if the event originates from known problematic browser extensions.
 pub fn matches<F: Filterable>(item: &F) -> bool {
-    if let Some(ex_val) = item.exception_value() {
+    if let Some(ex_val) = get_exception_value(item) {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
             return true;
         }
     }
-    if let Some(ex_source) = item.exception_source() {
+    if let Some(ex_source) = get_exception_source(item) {
         if EXTENSION_EXC_SOURCES.is_match(ex_source) {
             return true;
         }
@@ -111,19 +111,19 @@ where
     }
 }
 
-fn get_first_exception(event: &Event) -> Option<&Exception> {
-    let values = event.exceptions.value()?;
+fn get_first_exception<F: Filterable>(item: &F) -> Option<&Exception> {
+    let values = item.exceptions()?;
     let exceptions = values.values.value()?;
     exceptions.first()?.value()
 }
 
-fn get_exception_value(event: &Event) -> Option<&str> {
-    let exception = get_first_exception(event)?;
+fn get_exception_value<F: Filterable>(item: &F) -> Option<&str> {
+    let exception = get_first_exception(item)?;
     Some(exception.value.value()?.as_str())
 }
 
-fn get_exception_source(event: &Event) -> Option<&str> {
-    let exception = get_first_exception(event)?;
+fn get_exception_source<F: Filterable>(item: &F) -> Option<&str> {
+    let exception = get_first_exception(item)?;
     let frames = exception.stacktrace.value()?.frames.value()?;
     // Iterate from the tail and get the first frame which is not anonymous.
     for f in frames.iter().rev() {

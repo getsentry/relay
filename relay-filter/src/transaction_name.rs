@@ -37,7 +37,7 @@ mod tests {
 
     use super::*;
 
-    fn _get_patterns() -> GlobPatterns {
+    fn _get_config() -> IgnoreTransactionsFilterConfig {
         let patterns_raw = [
             "*healthcheck*",
             "*healthy*",
@@ -57,13 +57,16 @@ mod tests {
         .map(|val| val.to_string())
         .to_vec();
 
-        GlobPatterns::new(patterns_raw)
+        IgnoreTransactionsFilterConfig {
+            patterns: GlobPatterns::new(patterns_raw),
+            is_enabled: true,
+        }
     }
 
     /// tests matching for various transactions
     #[test]
     fn test_matches() {
-        let patterns = _get_patterns();
+        let config = _get_config();
 
         let transaction_names = [
             "a/b/healthcheck/c",
@@ -97,7 +100,10 @@ mod tests {
                 ty: Annotated::new(EventType::Transaction),
                 ..Event::default()
             };
-            assert!(matches(&event, &patterns), "Did not match `{name}`")
+            assert!(
+                should_filter(&event, &config).is_err(),
+                "Did not match `{name}`"
+            )
         }
     }
     /// tests non matching transactions transactions
@@ -118,7 +124,7 @@ mod tests {
             "notready",
             "already",
         ];
-        let patterns = _get_patterns();
+        let config = _get_config();
 
         for name in transaction_names {
             let event = Event {
@@ -127,7 +133,7 @@ mod tests {
                 ..Event::default()
             };
             assert!(
-                !matches(&event, &patterns),
+                should_filter(&event, &config).is_ok(),
                 "Did match `{name}` but it shouldn't have."
             )
         }
@@ -140,9 +146,9 @@ mod tests {
             ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
-        let patterns = _get_patterns();
+        let config = _get_config();
         assert!(
-            !matches(&event, &patterns),
+            should_filter(&event, &config).is_ok(),
             "Did match with empty transaction but it shouldn't have."
         )
     }
@@ -154,10 +160,7 @@ mod tests {
             ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
-        let config = IgnoreTransactionsFilterConfig {
-            patterns: _get_patterns(),
-            is_enabled: true,
-        };
+        let config = _get_config();
 
         let filter_result = should_filter(&event, &config);
         assert_eq!(
@@ -195,13 +198,9 @@ mod tests {
             ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
-        let filter_result = should_filter(
-            &event,
-            &IgnoreTransactionsFilterConfig {
-                patterns: _get_patterns(),
-                is_enabled: false,
-            },
-        );
+        let mut config = _get_config();
+        config.is_enabled = false;
+        let filter_result = should_filter(&event, &config);
         assert_eq!(
             filter_result,
             Ok(()),
@@ -216,13 +215,7 @@ mod tests {
             ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
-        let filter_result = should_filter(
-            &event,
-            &IgnoreTransactionsFilterConfig {
-                patterns: _get_patterns(),
-                is_enabled: true,
-            },
-        );
+        let filter_result = should_filter(&event, &_get_config());
         assert_eq!(
             filter_result,
             Ok(()),
@@ -232,10 +225,7 @@ mod tests {
 
     #[test]
     fn test_only_filters_transactions_not_anything_else() {
-        let config = IgnoreTransactionsFilterConfig {
-            patterns: _get_patterns(),
-            is_enabled: true,
-        };
+        let config = _get_config();
 
         for event_type in [EventType::Transaction, EventType::Error, EventType::Csp] {
             let expect_to_filter = event_type == EventType::Transaction;
