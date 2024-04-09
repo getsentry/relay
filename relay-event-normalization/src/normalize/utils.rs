@@ -42,6 +42,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
         .tags
         .value()
         .and_then(|tags| tags.get("http.status_code"))
+        .and_then(|v| v.as_str())
         .map(|v| v.to_owned())
     {
         return Some(status_code);

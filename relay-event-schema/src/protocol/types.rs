@@ -886,6 +886,12 @@ impl std::ops::DerefMut for JsonLenientString {
     }
 }
 
+impl From<JsonLenientString> for String {
+    fn from(value: JsonLenientString) -> Self {
+        value.0
+    }
+}
+
 impl FromValue for JsonLenientString {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {

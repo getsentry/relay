@@ -55,7 +55,7 @@ macro_rules! map_fields {
             fn from(event: &Event) -> Self {
                 Self {
                     $(
-                        $span_field: event.$event_field.clone(),
+                        $span_field: event.$event_field.clone().map_value(Into::into),
                     )*
                     $(
                         $(
@@ -82,7 +82,7 @@ macro_rules! map_fields {
             fn from(span: &Span) -> Self {
                 Self {
                     $(
-                        $event_field: span.$span_field.clone(),
+                        $event_field: span.$span_field.clone().map_value(Into::into),
                     )*
                     $(
                         $fixed_event_field: $fixed_event_value.into(),
