@@ -115,16 +115,6 @@ macro_rules! map_fields {
                             )*
                             contexts
                         })
-                            // BTreeMap::from([
-                            //     $(
-                            //         (<$ContextType as DefaultContext>::default_key().into(), ContextInner($ContextType {
-                            //             $(
-                            //                 $context_field: span.$primary_span_field.clone(),
-                            //             )*
-                            //             ..Default::default()
-                            //         }.into_context()).into()),
-                            //     )*
-                            // ]),
                     ),
                     ..Default::default()
                 };

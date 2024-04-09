@@ -69,20 +69,12 @@ fn extract_span_metrics_for_event(
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            relay_log::trace!(
-                "Extracting metrics from transaction span {:?}",
-                transaction_span.span_id,
-            );
             output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    relay_log::trace!(
-                        "Extracting metrics from transaction span {:?}",
-                        span.span_id
-                    );
                     output.extend(generic::extract_metrics(span, config));
                 }
             }
