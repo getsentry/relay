@@ -530,6 +530,43 @@
 <a href="#528" id="528">528</a>
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -561,6 +598,13 @@
 
 <span class="doccomment">/// A list of patterns for resource span ops we'd like to ingest.
 </span><span class="kw">const </span>RESOURCE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"resource.script"</span>, <span class="string">"resource.css"</span>, <span class="string">"resource.img"</span>];
+
+<span class="kw">const </span>CACHE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
+    <span class="string">"cache.get_item"</span>,
+    <span class="string">"cache.save"</span>,
+    <span class="string">"cache.clear"</span>,
+    <span class="string">"cache.delete_item"</span>,
+];
 
 <span class="doccomment">/// Adds configuration for extracting metrics from spans.
 ///
@@ -598,6 +642,8 @@
             | RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
             | RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">"span.op"</span>, RESOURCE_SPAN_OPS);
+
+    <span class="kw">let </span>is_cache = RuleCondition::glob(<span class="string">"span.op"</span>, CACHE_SPAN_OPS);
 
     <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">"span.op"</span>, MOBILE_OPS);
 
@@ -740,6 +786,10 @@
                 </span>Tag::with_key(<span class="string">"span.status_code"</span>)
                     .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
                     .when(is_http.clone()),
+                <span class="comment">// Cache module
+                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
+                    .when(is_cache.clone()),
             ],
         },
         MetricSpec {
@@ -795,7 +845,31 @@
                 </span>Tag::with_key(<span class="string">"span.status_code"</span>)
                     .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
                     .when(is_http.clone()),
+                <span class="comment">// Cache module
+                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.cache_hit"</span>)
+                    .when(is_cache.clone()),
             ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">"d:spans/cache.item_size@byte"</span>.into(),
+            field: <span class="prelude-val">Some</span>(<span class="string">"span.data.cache\\.item_size"</span>.into()),
+            condition: <span class="prelude-val">Some</span>(is_cache.clone()),
+            tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"environment"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"transaction"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.cache_hit"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+            </span>],
         },
         MetricSpec {
             category: DataCategory::Span,
