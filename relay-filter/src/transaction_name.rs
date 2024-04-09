@@ -10,7 +10,7 @@ fn matches(transaction: Option<&str>, patterns: &GlobPatterns) -> bool {
     transaction.map_or(false, |transaction| patterns.is_match(transaction))
 }
 
-/// Filters [Transaction](EventType::Transaction) events based on a list of provided transaction
+/// Filters [Transaction](relay_event_schema::protocol::EventType::Transaction) events based on a list of provided transaction
 /// name globs.
 pub fn should_filter<F: Filterable>(
     item: &F,
