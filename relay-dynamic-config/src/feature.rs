@@ -10,6 +10,11 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay`.
     #[serde(rename = "organizations:session-replay")]
     SessionReplay,
+    /// Enables ingestion of mobile Session Replays.
+    ///
+    /// Serialized as `organizations:session-replay-mobile`.
+    #[serde(rename = "organizations:session-replay-mobile")]
+    SessionReplayMobile,
     /// Enables data scrubbing of replay recording payloads.
     ///
     /// Serialized as `organizations:session-replay-recording-scrubbing`.
