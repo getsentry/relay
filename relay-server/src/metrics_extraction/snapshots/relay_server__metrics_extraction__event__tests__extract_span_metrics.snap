@@ -4903,23 +4903,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "c:spans/count_per_op@none",
-        ),
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "cache",
-            "span.op": "cache.get_item",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "d:spans/duration@millisecond",
         ),
         value: Distribution(
