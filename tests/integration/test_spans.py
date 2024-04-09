@@ -49,7 +49,7 @@ def test_span_extraction(
         project_config["config"]["features"].append("projects:discard-transaction")
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
     event["spans"] = [
@@ -325,7 +325,7 @@ def test_span_ingestion(
     ]
 
     duration = timedelta(milliseconds=500)
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
@@ -869,10 +869,10 @@ def test_span_reject_invalid_timestamps(
     duration = timedelta(milliseconds=500)
     yesterday_delta = timedelta(days=1)
 
-    end_yesterday = datetime.utcnow().replace(tzinfo=timezone.utc) - yesterday_delta
+    end_yesterday = datetime.now(timezone.utc) - yesterday_delta
     start_yesterday = end_yesterday - duration
 
-    end_today = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    end_today = datetime.now(timezone.utc) - timedelta(seconds=1)
     start_today = end_today - duration
 
     envelope = Envelope()
@@ -978,7 +978,7 @@ def test_span_ingestion_with_performance_scores(
     ]
 
     duration = timedelta(milliseconds=500)
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - duration
 
     envelope = Envelope()
@@ -1134,7 +1134,7 @@ def test_rate_limit_indexed_consistent(
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)
@@ -1182,11 +1182,11 @@ def test_rate_limit_indexed_consistent_extracted(
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
     event["spans"] = [
@@ -1252,7 +1252,7 @@ def test_rate_limit_metrics_consistent(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)
