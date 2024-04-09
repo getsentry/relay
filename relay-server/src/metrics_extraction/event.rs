@@ -7,6 +7,7 @@ use relay_quotas::DataCategory;
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
+use crate::utils::sample;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -48,8 +49,13 @@ pub fn extract_metrics(
     event: &Event,
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
+    span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
+
+    if !sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+        return metrics;
+    }
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
@@ -413,7 +419,8 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 8
                     }
                 },
                 {
@@ -890,7 +897,21 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 10
+                    }
+                },
+                {
+                    "description": "GET cache:user:{456}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": true
                     }
                 },
                 {
@@ -1016,7 +1037,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1151,7 +1172,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1212,7 +1233,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1248,7 +1269,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1474,7 +1495,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
 
         assert_eq!(metrics.len(), 4);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
