@@ -1418,7 +1418,11 @@ impl EnvelopeProcessorService {
                 if state.has_event() {
                     event::scrub(state)?;
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(state, &self.inner.config);
+                        span::extract_from_event(
+                            state,
+                            &self.inner.config,
+                            &self.inner.global_config.current(),
+                        );
                     });
                 }
 

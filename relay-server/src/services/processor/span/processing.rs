@@ -27,7 +27,7 @@ use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::utils::ItemAction;
+use crate::utils::{sample, ItemAction};
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -143,7 +143,11 @@ pub fn process(
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn extract_from_event(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    config: &Config,
+    global_config: &GlobalConfig,
+) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -154,6 +158,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState<TransactionGroup>, co
         .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
         return;
+    }
+
+    if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
+        if !sample(sample_rate) {
+            return;
+        }
     }
 
     let mut add_span = |span: Annotated<Span>| {
@@ -484,4 +494,131 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     }
 
     Ok(span)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use bytes::Bytes;
+    use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::{
+        Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
+    };
+    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+    use relay_system::Addr;
+
+    use crate::envelope::Envelope;
+    use crate::services::processor::ProcessingGroup;
+    use crate::services::project::ProjectState;
+    use crate::utils::ManagedEnvelope;
+
+    use super::*;
+
+    fn state() -> ProcessEnvelopeState<'static, TransactionGroup> {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"transaction\"}\n{}\n",
+        );
+
+        let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
+        let mut project_state = ProjectState::allowed();
+        project_state
+            .config
+            .features
+            .0
+            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
+
+        let event = Event {
+            ty: EventType::Transaction.into(),
+            start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
+            timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
+
+            contexts: Contexts(BTreeMap::from([(
+                "trace".into(),
+                ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    exclusive_time: 1000.0.into(),
+                    ..Default::default()
+                })))
+                .into(),
+            )]))
+            .into(),
+            ..Default::default()
+        };
+
+        let managed_envelope = ManagedEnvelope::standalone(
+            dummy_envelope,
+            Addr::dummy(),
+            Addr::dummy(),
+            ProcessingGroup::Transaction,
+        );
+
+        ProcessEnvelopeState {
+            event: Annotated::from(event),
+            metrics: Default::default(),
+            sample_rates: None,
+            extracted_metrics: Default::default(),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            project_id: ProjectId::new(42),
+            managed_envelope: managed_envelope.try_into().unwrap(),
+            profile_id: None,
+            event_metrics_extracted: false,
+            reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
+        }
+    }
+
+    #[test]
+    fn extract_sampled_default() {
+        let config = Config::default();
+        let global_config = GlobalConfig::default();
+        assert!(global_config.options.span_extraction_sample_rate.is_none());
+        let mut state = state();
+        extract_from_event(&mut state, &config, &global_config);
+        assert!(
+            state
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            state.envelope()
+        );
+    }
+
+    #[test]
+    fn extract_sampled_explicit() {
+        let config = Config::default();
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(1.0);
+        let mut state = state();
+        extract_from_event(&mut state, &config, &global_config);
+        assert!(
+            state
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            state.envelope()
+        );
+    }
+
+    #[test]
+    fn extract_sampled_dropped() {
+        let config = Config::default();
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(0.0);
+        let mut state = state();
+        extract_from_event(&mut state, &config, &global_config);
+        assert!(
+            !state
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::Span),
+            "{:?}",
+            state.envelope()
+        );
+    }
 }
