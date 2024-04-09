@@ -20,10 +20,6 @@
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
 
-**Bug Fixes**:
-
-- Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385), [#3401](https://github.com/getsentry/relay/pull/3401))
-
 **Internal**:
 
 - Enable `db.redis` span metrics extraction. ([#3283](https://github.com/getsentry/relay/pull/3283))
