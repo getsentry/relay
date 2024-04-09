@@ -326,6 +326,7 @@ def test_span_ingestion(
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
     ]
+    project_config["config"]["transactionMetrics"] = {"version": 1}
     if extract_transaction:
         project_config["config"]["features"].append(
             "projects:extract-transaction-from-segment-span"
@@ -546,7 +547,7 @@ def test_span_ingestion(
             pass
 
     expected_timestamp = int(end.timestamp())
-    expected_metrics = [
+    expected_span_metrics = [
         {
             "name": "c:spans/usage@none",
             "org_id": 1,
@@ -685,7 +686,25 @@ def test_span_ingestion(
             "value": [500.0],
         },
     ]
-    assert metrics == expected_metrics
+    assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
+
+    transaction_duration_metrics = [
+        m for m in metrics if m["name"] == "d:transactions/duration@millisecond"
+    ]
+    assert {
+        (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
+    } == {
+        ("d:transactions/duration@millisecond", "<unlabeled transaction>"),
+        ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
+        ("d:transactions/duration@millisecond", "my 1st OTel span"),
+        ("d:transactions/duration@millisecond", "my 2nd OTel span"),
+        ("d:transactions/duration@millisecond", "my 3rd protobuf OTel span"),
+        ("d:transactions/duration@millisecond", 'test \\" with \\" escaped \\" chars'),
+    }
+
+    # Make sure we're not double-reporting:
+    for m in transaction_duration_metrics:
+        len(m["value"]) == 1
 
     metrics_consumer.assert_empty()
 

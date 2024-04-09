@@ -1038,7 +1038,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1173,7 +1173,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1234,7 +1234,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1270,7 +1270,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1496,7 +1496,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200);
 
         assert_eq!(metrics.len(), 4);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
