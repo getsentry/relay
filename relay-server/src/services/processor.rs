@@ -1311,7 +1311,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
             };
 
-            metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+            metric!(timer(RelayTimers::EventProcessingNormalization), {
                 validate_event_timestamps(event, &event_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 validate_transaction(event, &tx_validation_config)
