@@ -292,7 +292,7 @@ pub fn scrub_domain_name(domain: String) -> String {
 pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
     match (host, port) {
         (None, _) => Cow::Borrowed(""),
-        (host, None) => Cow::Borrowed(host.unwrap()),
+        (Some(host), None) => Cow::Borrowed(host),
         (Some(host), Some(port)) => Cow::Owned(format!("{host}:{port}")),
     }
 }
