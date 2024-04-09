@@ -935,6 +935,7 @@
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1131,7 +1132,8 @@
             | DataCategory::Monitor
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
-            | DataCategory::ProfileChunk =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
+            | DataCategory::ProfileChunk
+            | DataCategory::MetricHour =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),
             DataCategory::ProfileDuration =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Milliseconds),
