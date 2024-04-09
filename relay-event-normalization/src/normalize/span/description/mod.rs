@@ -31,6 +31,13 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 /// Some bundlers attach characters to the end of a filename, try to catch those.
 const MAX_EXTENSION_LENGTH: usize = 10;
 
+/// IP addresses that are preserved during scrubbing
+const IPV4_ALLOW_LIST: [&str; 1] = ["127.0.0.1"];
+const IPV6_ALLOW_LIST: [&str; 1] = ["::1"];
+
+/// Domain names that are preserved during scrubbing
+const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
@@ -229,8 +236,6 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
     String::from("*.*.*.*")
 }
 
-const IPV4_ALLOW_LIST: [&str; 1] = ["127.0.0.1"];
-
 /// Scrub an IPV6 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
 ///
 /// # Arguments
@@ -247,8 +252,6 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> String {
 
     String::from("*:*:*:*:*:*:*:*")
 }
-
-const IPV6_ALLOW_LIST: [&str; 1] = ["::1"];
 
 /// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
 ///
@@ -275,9 +278,6 @@ pub fn scrub_domain_name(domain: String) -> String {
         .chain(tld.iter())
         .join(".");
 }
-
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
 
 /// Concatenate an optional host and port
 ///
