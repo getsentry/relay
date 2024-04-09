@@ -3306,6 +3306,10 @@
 <a href="#3304" id="3304">3304</a>
 <a href="#3305" id="3305">3305</a>
 <a href="#3306" id="3306">3306</a>
+<a href="#3307" id="3307">3307</a>
+<a href="#3308" id="3308">3308</a>
+<a href="#3309" id="3309">3309</a>
+<a href="#3310" id="3310">3310</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4217,18 +4221,25 @@
     inner: Arc&lt;InnerProcessor&gt;,
 }
 
+<span class="doccomment">/// Contains the addresses of services that the processor publishes to.
+</span><span class="kw">pub struct </span>Addrs {
+    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
+    <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">pub </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
+}
+
 <span class="kw">struct </span>InnerProcessor {
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
-    project_cache: Addr&lt;ProjectCache&gt;,
-    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>aggregator: Addr&lt;Aggregator&gt;,
-    upstream_relay: Addr&lt;UpstreamRelay&gt;,
-    test_store: Addr&lt;TestStore&gt;,
+    addrs: Addrs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
@@ -4237,25 +4248,17 @@
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>metric_stats: MetricStats,
 }
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
-    </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        project_cache: Addr&lt;ProjectCache&gt;,
-        upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        test_store: Addr&lt;TestStore&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
+        addrs: Addrs,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>metric_stats: MetricStats,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
@@ -4277,13 +4280,8 @@
             </span>rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            project_cache,
-            outcome_aggregator,
-            upstream_relay,
-            test_store,
+            addrs,
             geoip_lookup,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>aggregator,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
@@ -4301,8 +4299,6 @@
                     )
                 })
                 .map(CardinalityLimiter::new),
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>store_forwarder,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>metric_stats,
             config,
@@ -4427,6 +4423,7 @@
 
         <span class="kw">if </span>limits.is_limited() {
             <span class="self">self</span>.inner
+                .addrs
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
@@ -4439,7 +4436,7 @@
         enforcement.track_outcomes(
             state.envelope(),
             <span class="kw-2">&amp;</span>state.managed_envelope.scoping(),
-            <span class="self">self</span>.inner.outcome_aggregator.clone(),
+            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
         );
 
         <span class="prelude-val">Ok</span>(())
@@ -4799,7 +4796,7 @@
         report::process_client_reports(
             state,
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="self">self</span>.inner.outcome_aggregator.clone(),
+            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
         );
 
         <span class="prelude-val">Ok</span>(())
@@ -5003,7 +5000,7 @@
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),
-                            <span class="self">self</span>.inner.project_cache.clone(),
+                            <span class="self">self</span>.inner.addrs.project_cache.clone(),
                         );
 
                         <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.managed_envelope.envelope().is_empty() {
@@ -5126,6 +5123,7 @@
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
         <span class="self">self</span>.inner
+            .addrs
             .project_cache
             .send(MergeBuckets::new(public_key, buckets));
     }
@@ -5176,6 +5174,7 @@
 
             <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
             <span class="self">self</span>.inner
+                .addrs
                 .project_cache
                 .send(MergeBuckets::new(public_key, buckets));
         }
@@ -5202,6 +5201,7 @@
                 <span class="prelude-val">Ok</span>(meta) =&gt; {
                     <span class="macro">relay_log::trace!</span>(<span class="string">"adding metric metadata to project cache"</span>);
                     <span class="self">self</span>.inner
+                        .addrs
                         .project_cache
                         .send(AddMetricMeta { project_key, meta });
                 }
@@ -5236,7 +5236,7 @@
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="self">self</span>.inner.store_forwarder.clone() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="self">self</span>.inner.addrs.store_forwarder.clone() {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"sending envelope to kafka"</span>);
                 store_forwarder.send(StoreEnvelope { envelope });
                 <span class="kw">return</span>;
@@ -5246,7 +5246,10 @@
         <span class="comment">// If we are in capture mode, we stash away the event instead of forwarding it.
         </span><span class="kw">if </span>Capture::should_capture(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.config) {
             <span class="macro">relay_log::trace!</span>(<span class="string">"capturing envelope in memory"</span>);
-            <span class="self">self</span>.inner.test_store.send(Capture::accepted(envelope));
+            <span class="self">self</span>.inner
+                .addrs
+                .test_store
+                .send(Capture::accepted(envelope));
             <span class="kw">return</span>;
         }
 
@@ -5265,12 +5268,15 @@
 
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(body) =&gt; {
-                <span class="self">self</span>.inner.upstream_relay.send(SendRequest(SendEnvelope {
-                    envelope,
-                    body,
-                    http_encoding,
-                    project_cache: <span class="self">self</span>.inner.project_cache.clone(),
-                }));
+                <span class="self">self</span>.inner
+                    .addrs
+                    .upstream_relay
+                    .send(SendRequest(SendEnvelope {
+                        envelope,
+                        body,
+                        http_encoding,
+                        project_cache: <span class="self">self</span>.inner.addrs.project_cache.clone(),
+                    }));
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="comment">// Errors are only logged for what we consider an internal discard reason. These
@@ -5304,8 +5310,8 @@
 
         <span class="kw">let </span>envelope = ManagedEnvelope::standalone(
             envelope,
-            <span class="self">self</span>.inner.outcome_aggregator.clone(),
-            <span class="self">self</span>.inner.test_store.clone(),
+            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
+            <span class="self">self</span>.inner.addrs.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
@@ -5348,11 +5354,12 @@
 
             <span class="kw">if </span>rate_limits.is_limited() {
                 <span class="kw">let </span>was_enforced = bucket_limiter
-                    .enforce_limits(<span class="kw-2">&amp;</span>rate_limits, <span class="self">self</span>.inner.outcome_aggregator.clone());
+                    .enforce_limits(<span class="kw-2">&amp;</span>rate_limits, <span class="self">self</span>.inner.addrs.outcome_aggregator.clone());
 
                 <span class="kw">if </span>was_enforced {
                     <span class="comment">// Update the rate limits in the project cache.
                     </span><span class="self">self</span>.inner
+                        .addrs
                         .project_cache
                         .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
                 }
@@ -5364,6 +5371,7 @@
 
         <span class="kw">if </span>!buckets.is_empty() {
             <span class="self">self</span>.inner
+                .addrs
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
         }
@@ -5422,13 +5430,13 @@
 
                 <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 utils::reject_metrics(
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.outcome_aggregator,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
                     quantities,
                     <span class="kw-2">*</span>item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                <span class="self">self</span>.inner.project_cache.send(UpdateRateLimits::new(
+                <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
                     item_scoping.scoping.project_key,
                     limits,
                 ));
@@ -5510,7 +5518,7 @@
 
         <span class="comment">// Log outcomes for rejected buckets.
         </span>utils::reject_metrics(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.outcome_aggregator,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
             utils::extract_metric_quantities(limits.rejected(), mode),
             scoping,
             Outcome::CardinalityLimited,
@@ -5619,8 +5627,8 @@
 
                     <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
                         envelope,
-                        <span class="self">self</span>.inner.outcome_aggregator.clone(),
-                        <span class="self">self</span>.inner.test_store.clone(),
+                        <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
+                        <span class="self">self</span>.inner.addrs.test_store.clone(),
                         ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
@@ -5665,10 +5673,10 @@
             encoded,
             http_encoding,
             quantities,
-            outcome_aggregator: <span class="self">self</span>.inner.outcome_aggregator.clone(),
+            outcome_aggregator: <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
         };
 
-        <span class="self">self</span>.inner.upstream_relay.send(SendRequest(request));
+        <span class="self">self</span>.inner.addrs.upstream_relay.send(SendRequest(request));
     }
 
     <span class="doccomment">/// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
@@ -5727,7 +5735,7 @@
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.store_forwarder {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.addrs.store_forwarder {
                 <span class="kw">return </span><span class="self">self</span>.encode_metrics_processing(message, store_forwarder);
             }
         }
@@ -5761,8 +5769,8 @@
 
         <span class="kw">let </span>envelope = ManagedEnvelope::standalone(
             envelope,
-            <span class="self">self</span>.inner.outcome_aggregator.clone(),
-            <span class="self">self</span>.inner.test_store.clone(),
+            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
+            <span class="self">self</span>.inner.addrs.test_store.clone(),
             ProcessingGroup::Metrics,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
