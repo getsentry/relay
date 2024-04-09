@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ParseAuthError","ParseDsnError","ParseProjectIdError","Scheme","UuidVariant","UuidVersion"],"fn":["random_uuid"],"mod":["protocol"],"struct":["Auth","BreakpadFormat","CodeId","DebugId","Dsn","ParseCodeIdError","ParseDebugIdError","ProjectId","Uuid"]};
