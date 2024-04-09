@@ -765,6 +765,10 @@
 <a href="#763" id="763">763</a>
 <a href="#764" id="764">764</a>
 <a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements generic filtering based on the [`RuleCondition`] DSL.
 //!
 //! Multiple generic filters can be defined and they are going to be checked in FIFO order. The
@@ -774,8 +778,8 @@
 </span><span class="kw">use </span>std::iter::FusedIterator;
 
 <span class="kw">use crate</span>::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
-<span class="kw">use </span>relay_event_schema::protocol::Event;
-<span class="kw">use </span>relay_protocol::RuleCondition;
+
+<span class="kw">use </span>relay_protocol::{Getter, RuleCondition};
 
 <span class="doccomment">/// Maximum supported version of the generic filters schema.
 ///
@@ -792,15 +796,19 @@
 }
 
 <span class="doccomment">/// Checks events by patterns in their error messages.
-</span><span class="kw">fn </span>matches(event: <span class="kw-2">&amp;</span>Event, condition: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RuleCondition&gt;) -&gt; bool {
+</span><span class="kw">fn </span>matches&lt;F: Getter&gt;(item: <span class="kw-2">&amp;</span>F, condition: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RuleCondition&gt;) -&gt; bool {
     <span class="comment">// TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
-    </span>condition.map_or(<span class="bool-val">false</span>, |condition| condition.matches(event))
+    </span>condition.map_or(<span class="bool-val">false</span>, |condition| condition.matches(item))
 }
 
-<span class="doccomment">/// Filters events by patterns in their error messages.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>should_filter(
-    event: <span class="kw-2">&amp;</span>Event,
+<span class="doccomment">/// Filters events by any generic condition.
+///
+/// Note that conditions may have type-specific getter strings, e.g. `"event.some_field"`. In order
+/// to make such a generic filter apply to non-Event types, make sure that the [`Getter`] implementation
+/// for that type maps `"event.some_field"` to the corresponding field on that type.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>should_filter&lt;F: Getter&gt;(
+    item: <span class="kw-2">&amp;</span>F,
     project_filters: <span class="kw-2">&amp;</span>GenericFiltersConfig,
     global_filters: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GenericFiltersConfig&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
@@ -812,7 +820,7 @@
     );
 
     <span class="kw">for </span>filter_config <span class="kw">in </span>filters {
-        <span class="kw">if </span>filter_config.is_enabled &amp;&amp; matches(event, filter_config.condition) {
+        <span class="kw">if </span>filter_config.is_enabled &amp;&amp; matches(item, filter_config.condition) {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::GenericFilter(filter_config.id.to_owned()));
         }
     }
@@ -940,7 +948,7 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use </span>relay_event_schema::protocol::LenientString;
+    <span class="kw">use </span>relay_event_schema::protocol::{Event, LenientString};
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="kw">fn </span>mock_filters() -&gt; GenericFiltersMap {

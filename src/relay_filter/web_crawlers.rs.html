@@ -159,14 +159,12 @@
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_event_schema::protocol::Event;
 
-<span class="kw">use crate</span>::{FilterConfig, FilterStatKey};
+<span class="kw">use crate</span>::{FilterConfig, FilterStatKey, Filterable};
 
 <span class="kw">static </span>WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
@@ -211,8 +209,8 @@
 });
 
 <span class="doccomment">/// Checks if the event originates from a known web crawler.
-</span><span class="kw">pub fn </span>matches(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = event.user_agent() {
+</span><span class="kw">fn </span>matches(user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
         WEB_CRAWLERS.is_match(user_agent) &amp;&amp; !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } <span class="kw">else </span>{
         <span class="bool-val">false
@@ -220,12 +218,12 @@
 }
 
 <span class="doccomment">/// Filters events originating from a known web crawler.
-</span><span class="kw">pub fn </span>should_filter(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
+</span><span class="kw">pub fn </span>should_filter&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
     <span class="kw">if </span>!config.is_enabled {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">if </span>matches(event) {
+    <span class="kw">if </span>matches(item.user_agent()) {
         <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::WebCrawlers);
     }
 

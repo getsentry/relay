@@ -467,32 +467,27 @@
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
 <a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering for events originating from CSP endpoints
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
 
-</span><span class="kw">use </span>relay_event_schema::protocol::{Event, EventType};
+</span><span class="kw">use </span>relay_event_schema::protocol::Csp;
 
-<span class="kw">use crate</span>::{CspFilterConfig, FilterStatKey};
+<span class="kw">use crate</span>::{CspFilterConfig, FilterStatKey, Filterable};
 
 <span class="doccomment">/// Checks if the event is a CSP Event from one of the disallowed sources.
-</span><span class="kw">pub fn </span>matches&lt;It, S&gt;(event: <span class="kw-2">&amp;</span>Event, disallowed_sources: It) -&gt; bool
+</span><span class="kw">fn </span>matches&lt;It, S&gt;(csp: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Csp&gt;, disallowed_sources: It) -&gt; bool
 <span class="kw">where
     </span>It: IntoIterator&lt;Item = S&gt;,
     S: AsRef&lt;str&gt;,
 {
-    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Csp) {
-        <span class="kw">return </span><span class="bool-val">false</span>;
-    }
-
     <span class="comment">// parse the sources for easy processing
     </span><span class="kw">let </span>disallowed_sources: Vec&lt;SchemeDomainPort&gt; = disallowed_sources
         .into_iter()
         .map(|origin| -&gt; SchemeDomainPort { origin.as_ref().into() })
         .collect();
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(csp) = event.csp.value() {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(csp) = csp {
         <span class="kw">if </span>matches_any_origin(csp.blocked_uri.as_str(), <span class="kw-2">&amp;</span>disallowed_sources) {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
@@ -507,8 +502,11 @@
 </span>}
 
 <span class="doccomment">/// Filters CSP events based on disallowed sources.
-</span><span class="kw">pub fn </span>should_filter(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>CspFilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
-    <span class="kw">if </span>matches(event, <span class="kw-2">&amp;</span>config.disallowed_sources) {
+</span><span class="kw">pub fn </span>should_filter&lt;F&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>CspFilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt;
+<span class="kw">where
+    </span>F: Filterable,
+{
+    <span class="kw">if </span>matches(item.csp(), <span class="kw-2">&amp;</span>config.disallowed_sources) {
         <span class="prelude-val">Err</span>(FilterStatKey::InvalidCsp)
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(())
@@ -629,7 +627,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_event_schema::protocol::Csp;
+    <span class="kw">use </span>relay_event_schema::protocol::{Csp, Event, EventType};
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;

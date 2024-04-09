@@ -305,9 +305,9 @@
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_event_schema::protocol::{Event, Exception};
+<span class="kw">use </span>relay_event_schema::protocol::Exception;
 
-<span class="kw">use crate</span>::{FilterConfig, FilterStatKey};
+<span class="kw">use crate</span>::{FilterConfig, FilterStatKey, Filterable};
 
 <span class="kw">static </span>EXTENSION_EXC_VALUES: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
@@ -384,13 +384,13 @@
 </span><span class="kw">const </span>ANONYMOUS_FRAMES: [<span class="kw-2">&amp;</span>str; <span class="number">2</span>] = [<span class="string">"&lt;anonymous&gt;"</span>, <span class="string">"[native code]"</span>];
 
 <span class="doccomment">/// Check if the event originates from known problematic browser extensions.
-</span><span class="kw">pub fn </span>matches(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(ex_val) = get_exception_value(event) {
+</span><span class="kw">fn </span>matches&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F) -&gt; bool {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ex_val) = get_exception_value(item) {
         <span class="kw">if </span>EXTENSION_EXC_VALUES.is_match(ex_val) {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
     }
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(ex_source) = get_exception_source(event) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ex_source) = get_exception_source(item) {
         <span class="kw">if </span>EXTENSION_EXC_SOURCES.is_match(ex_source) {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
@@ -399,31 +399,31 @@
 </span>}
 
 <span class="doccomment">/// Filters events originating from known problematic browser extensions.
-</span><span class="kw">pub fn </span>should_filter(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
+</span><span class="kw">pub fn </span>should_filter&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
     <span class="kw">if </span>!config.is_enabled {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">if </span>matches(event) {
+    <span class="kw">if </span>matches(item) {
         <span class="prelude-val">Err</span>(FilterStatKey::BrowserExtensions)
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">fn </span>get_first_exception(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Exception&gt; {
-    <span class="kw">let </span>values = event.exceptions.value()<span class="question-mark">?</span>;
+<span class="kw">fn </span>get_first_exception&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Exception&gt; {
+    <span class="kw">let </span>values = item.exceptions()<span class="question-mark">?</span>;
     <span class="kw">let </span>exceptions = values.values.value()<span class="question-mark">?</span>;
     exceptions.first()<span class="question-mark">?</span>.value()
 }
 
-<span class="kw">fn </span>get_exception_value(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span>exception = get_first_exception(event)<span class="question-mark">?</span>;
+<span class="kw">fn </span>get_exception_value&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">let </span>exception = get_first_exception(item)<span class="question-mark">?</span>;
     <span class="prelude-val">Some</span>(exception.value.value()<span class="question-mark">?</span>.as_str())
 }
 
-<span class="kw">fn </span>get_exception_source(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span>exception = get_first_exception(event)<span class="question-mark">?</span>;
+<span class="kw">fn </span>get_exception_source&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">let </span>exception = get_first_exception(item)<span class="question-mark">?</span>;
     <span class="kw">let </span>frames = exception.stacktrace.value()<span class="question-mark">?</span>.frames.value()<span class="question-mark">?</span>;
     <span class="comment">// Iterate from the tail and get the first frame which is not anonymous.
     </span><span class="kw">for </span>f <span class="kw">in </span>frames.iter().rev() {
@@ -439,7 +439,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_event_schema::protocol::{
-        Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
+        Event, Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
     };
     <span class="kw">use </span>relay_protocol::Annotated;
 

@@ -175,30 +175,16 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from the localhost
-</span><span class="kw">use </span>relay_event_schema::protocol::Event;
-<span class="kw">use </span>url::Url;
 
-<span class="kw">use crate</span>::{FilterConfig, FilterStatKey};
+</span><span class="kw">use crate</span>::{FilterConfig, FilterStatKey, Filterable};
 
 <span class="kw">const </span>LOCAL_IPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"127.0.0.1"</span>, <span class="string">"::1"</span>];
 <span class="kw">const </span>LOCAL_DOMAINS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"127.0.0.1"</span>, <span class="string">"localhost"</span>];
 
 <span class="doccomment">/// Check if the event originates from the local host.
-</span><span class="kw">pub fn </span>matches(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_addr) = get_ip_addr(event) {
+</span><span class="kw">fn </span>matches&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F) -&gt; bool {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_addr) = item.ip_addr() {
         <span class="kw">for </span><span class="kw-2">&amp;</span>local_ip <span class="kw">in </span>LOCAL_IPS {
             <span class="kw">if </span>local_ip == ip_addr {
                 <span class="kw">return </span><span class="bool-val">true</span>;
@@ -206,7 +192,7 @@
         }
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(url) = get_url(event) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(url) = item.url() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(host) = url.host_str() {
             <span class="kw">for </span><span class="kw-2">&amp;</span>local_domain <span class="kw">in </span>LOCAL_DOMAINS {
                 <span class="kw">if </span>host == local_domain {
@@ -223,29 +209,19 @@
 </span>}
 
 <span class="doccomment">/// Filters events originating from the local host.
-</span><span class="kw">pub fn </span>should_filter(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
+</span><span class="kw">pub fn </span>should_filter&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
     <span class="kw">if </span>!config.is_enabled {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">if </span>matches(event) {
+    <span class="kw">if </span>matches(item) {
         <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::Localhost);
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>get_ip_addr(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span>user = event.user.value()<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(user.ip_address.value()<span class="question-mark">?</span>.as_ref())
-}
-
-<span class="kw">fn </span>get_url(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;Url&gt; {
-    <span class="kw">let </span>url_str = event.request.value()<span class="question-mark">?</span>.url.value()<span class="question-mark">?</span>;
-    Url::parse(url_str).ok()
-}
-
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_event_schema::protocol::{IpAddr, Request, User};
+    <span class="kw">use </span>relay_event_schema::protocol::{Event, IpAddr, Request, User};
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;

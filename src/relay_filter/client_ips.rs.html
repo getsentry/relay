@@ -138,7 +138,7 @@
 /// The client IP is the address of the originator of the event. If it was forwarded through
 /// multiple proxies, this address should be derived from the `X-Forwarded-For` header. Otherwise,
 /// it is the remote socket address.
-</span><span class="kw">pub fn </span>matches&lt;It, S&gt;(client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;, blacklisted_ips: It) -&gt; bool
+</span><span class="kw">fn </span>matches&lt;It, S&gt;(client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;, blacklisted_ips: It) -&gt; bool
 <span class="kw">where
     </span>It: IntoIterator&lt;Item = S&gt;,
     S: AsRef&lt;str&gt;,

@@ -70,6 +70,7 @@
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
 <a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering.
 //!
 //! Events may be filtered base on the following configurable criteria.
@@ -86,7 +87,7 @@
 
 </span><span class="kw">use </span>std::net::IpAddr;
 
-<span class="kw">use </span>relay_event_schema::protocol::Event;
+<span class="kw">use </span>relay_protocol::Getter;
 
 <span class="kw">pub mod </span>browser_extensions;
 <span class="kw">pub mod </span>client_ips;
@@ -100,6 +101,7 @@
 
 <span class="kw">mod </span>common;
 <span class="kw">mod </span>config;
+<span class="kw">mod </span>interface;
 <span class="kw">mod </span>releases;
 
 <span class="attr">#[cfg(test)]
@@ -108,15 +110,15 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::common::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::config::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::csp::matches_any_origin;
-
 <span class="kw">pub use </span><span class="kw">crate</span>::generic::are_generic_filters_supported;
+<span class="kw">pub use </span>interface::Filterable;
 
 <span class="doccomment">/// Checks whether an event should be filtered for a particular configuration.
 ///
 /// If the event should be filtered, the `Err` returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
-</span><span class="kw">pub fn </span>should_filter(
-    event: <span class="kw-2">&amp;</span>Event,
+</span><span class="kw">pub fn </span>should_filter&lt;F: Filterable + Getter&gt;(
+    item: <span class="kw-2">&amp;</span>F,
     client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     config: <span class="kw-2">&amp;</span>ProjectFiltersConfig,
     global_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GenericFiltersConfig&gt;,
@@ -124,19 +126,19 @@
     <span class="comment">// In order to maintain backwards compatibility, we still want to run the old matching logic,
     // but we will try to match generic filters first, since the goal is to eventually fade out the
     // the normal filters except for the ones that have complex conditions.
-    </span>generic::should_filter(event, <span class="kw-2">&amp;</span>config.generic, global_config)<span class="question-mark">?</span>;
+    </span>generic::should_filter(item, <span class="kw-2">&amp;</span>config.generic, global_config)<span class="question-mark">?</span>;
 
     <span class="comment">// The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.
-    </span>csp::should_filter(event, <span class="kw-2">&amp;</span>config.csp)<span class="question-mark">?</span>;
+    </span>csp::should_filter(item, <span class="kw-2">&amp;</span>config.csp)<span class="question-mark">?</span>;
     client_ips::should_filter(client_ip, <span class="kw-2">&amp;</span>config.client_ips)<span class="question-mark">?</span>;
-    releases::should_filter(event, <span class="kw-2">&amp;</span>config.releases)<span class="question-mark">?</span>;
-    error_messages::should_filter(event, <span class="kw-2">&amp;</span>config.error_messages)<span class="question-mark">?</span>;
-    localhost::should_filter(event, <span class="kw-2">&amp;</span>config.localhost)<span class="question-mark">?</span>;
-    browser_extensions::should_filter(event, <span class="kw-2">&amp;</span>config.browser_extensions)<span class="question-mark">?</span>;
-    legacy_browsers::should_filter(event, <span class="kw-2">&amp;</span>config.legacy_browsers)<span class="question-mark">?</span>;
-    web_crawlers::should_filter(event, <span class="kw-2">&amp;</span>config.web_crawlers)<span class="question-mark">?</span>;
-    transaction_name::should_filter(event, <span class="kw-2">&amp;</span>config.ignore_transactions)<span class="question-mark">?</span>;
+    releases::should_filter(item, <span class="kw-2">&amp;</span>config.releases)<span class="question-mark">?</span>;
+    error_messages::should_filter(item, <span class="kw-2">&amp;</span>config.error_messages)<span class="question-mark">?</span>;
+    localhost::should_filter(item, <span class="kw-2">&amp;</span>config.localhost)<span class="question-mark">?</span>;
+    browser_extensions::should_filter(item, <span class="kw-2">&amp;</span>config.browser_extensions)<span class="question-mark">?</span>;
+    legacy_browsers::should_filter(item, <span class="kw-2">&amp;</span>config.legacy_browsers)<span class="question-mark">?</span>;
+    web_crawlers::should_filter(item, <span class="kw-2">&amp;</span>config.web_crawlers)<span class="question-mark">?</span>;
+    transaction_name::should_filter(item, <span class="kw-2">&amp;</span>config.ignore_transactions)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }

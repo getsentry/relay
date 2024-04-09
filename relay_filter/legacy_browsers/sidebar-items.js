@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["matches","should_filter"]};
+window.SIDEBAR_ITEMS = {"fn":["should_filter"]};
