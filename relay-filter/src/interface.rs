@@ -24,7 +24,7 @@ pub trait Filterable {
     /// The transaction name. Only for transaction events.
     fn transaction(&self) -> Option<&str>;
 
-    /// The URL from which the data originates. Used for localhost filtering.
+    /// The URL from which the request originates. Used for localhost filtering.
     fn url(&self) -> Option<Url>;
 
     /// The user agent of the client that sent the data.
