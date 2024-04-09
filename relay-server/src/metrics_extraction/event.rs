@@ -46,26 +46,48 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &Event,
+    spans_extracted: bool,
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
+    // If spans were already extracted for an event,
+    // we rely on span processing to extract metrics.
+    if !spans_extracted {
+        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+    }
+
+    metrics
+}
+
+fn extract_span_metrics_for_event(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+    output: &mut Vec<Bucket>,
+) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            metrics.extend(generic::extract_metrics(&transaction_span, config));
+            relay_log::trace!(
+                "Extracting metrics from transaction span {:?}",
+                transaction_span.span_id,
+            );
+            output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    relay_log::trace!(
+                        "Extracting metrics from transaction span {:?}",
+                        span.span_id
+                    );
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
     });
-
-    metrics
 }
 
 #[cfg(test)]

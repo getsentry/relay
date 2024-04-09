@@ -1164,6 +1164,7 @@ impl EnvelopeProcessorService {
             if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
+                    state.spans_extracted,
                     config,
                     self.inner
                         .config

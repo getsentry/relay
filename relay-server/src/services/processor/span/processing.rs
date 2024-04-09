@@ -109,6 +109,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
+            relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
@@ -544,5 +545,5 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
     let span = annotated_span.value()?;
     relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
-    dbg!(Event::try_from(span).ok())
+    Event::try_from(span).ok()
 }
