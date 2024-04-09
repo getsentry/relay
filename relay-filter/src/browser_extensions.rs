@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Event, Exception};
+use relay_event_schema::protocol::Exception;
 
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
@@ -139,7 +139,7 @@ fn get_exception_source<F: Filterable>(item: &F) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{
-        Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
+        Event, Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
     };
     use relay_protocol::Annotated;
 

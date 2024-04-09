@@ -1,22 +1,34 @@
-//! TODO: docs
+//! This module contains the trait for items that can be filtered by Inbound Filters, plus
+//! the implementation for [`Event`].
 
 use relay_event_schema::protocol::{Csp, Event, EventType, Exception, LogEntry, Values};
 use url::Url;
 
-/// TODO: docs
+/// A data item to which filters can be applied.
 pub trait Filterable {
-    /// TODO: docs
-
+    /// The CSP report contained in the item. Only for CSP reports.
     fn csp(&self) -> Option<&Csp>;
-    fn exceptions(&self) -> Option<&Values<Exception>>;
-    fn ip_addr(&self) -> Option<&str>;
-    fn logentry(&self) -> Option<&LogEntry>;
-    fn release(&self) -> Option<&str>;
-    fn transaction(&self) -> Option<&str>;
-    fn url(&self) -> Option<Url>;
-    fn user_agent(&self) -> Option<&str>;
 
-    // fn exceptions(&self) -> Option<&Exce
+    /// The exception values of the item. Only for error events.
+    fn exceptions(&self) -> Option<&Values<Exception>>;
+
+    /// The IP address of the client that sent the data.
+    fn ip_addr(&self) -> Option<&str>;
+
+    /// The logentry message. Only for error events.
+    fn logentry(&self) -> Option<&LogEntry>;
+
+    /// The release string of the data item.
+    fn release(&self) -> Option<&str>;
+
+    /// The transaction name. Only for transaction events.
+    fn transaction(&self) -> Option<&str>;
+
+    /// The URL from which the data originates. Used for localhost filtering.
+    fn url(&self) -> Option<Url>;
+
+    /// The user agent of the client that sent the data.
+    fn user_agent(&self) -> Option<&str>;
 }
 
 impl Filterable for Event {

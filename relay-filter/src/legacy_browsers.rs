@@ -2,7 +2,6 @@
 
 use std::collections::BTreeSet;
 
-use relay_event_schema::protocol::Event;
 use relay_ua::UserAgent;
 
 use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig};

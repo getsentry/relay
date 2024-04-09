@@ -2,7 +2,6 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::Event;
 
 use crate::{FilterConfig, FilterStatKey, Filterable};
 

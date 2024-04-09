@@ -3,7 +3,6 @@
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
 use relay_common::glob3::GlobPatterns;
-use relay_event_schema::protocol::{Event, EventType};
 
 use crate::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
@@ -33,6 +32,7 @@ pub fn should_filter<F: Filterable>(
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::protocol::{Event, EventType};
     use relay_protocol::Annotated;
 
     use super::*;

@@ -14,7 +14,6 @@
 
 use std::net::IpAddr;
 
-use relay_event_schema::protocol::Event;
 use relay_protocol::Getter;
 
 pub mod browser_extensions;

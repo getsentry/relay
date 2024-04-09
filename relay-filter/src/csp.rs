@@ -2,7 +2,7 @@
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
 
-use relay_event_schema::protocol::{Csp, Event, EventType};
+use relay_event_schema::protocol::Csp;
 
 use crate::{CspFilterConfig, FilterStatKey, Filterable};
 
@@ -162,7 +162,7 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Csp;
+    use relay_event_schema::protocol::{Csp, Event, EventType};
     use relay_protocol::Annotated;
 
     use super::*;

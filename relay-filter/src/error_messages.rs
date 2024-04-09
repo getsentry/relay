@@ -6,7 +6,6 @@
 use std::borrow::Cow;
 
 use relay_common::glob3::GlobPatterns;
-use relay_event_schema::protocol::Event;
 
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
@@ -59,7 +58,7 @@ pub fn should_filter<F: Filterable>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{Exception, LogEntry, Values};
+    use relay_event_schema::protocol::{Event, Exception, LogEntry, Values};
     use relay_protocol::Annotated;
 
     use super::*;
