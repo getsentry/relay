@@ -166,10 +166,9 @@ pub struct Options {
     #[serde(
         rename = "relay.span-extraction.sample-rate",
         deserialize_with = "default_on_error",
-        default = "one",
-        skip_serializing_if = "is_one"
+        skip_serializing_if = "is_default"
     )]
-    pub span_extraction_sample_rate: f32,
+    pub span_extraction_sample_rate: Option<f32>,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -300,14 +299,6 @@ pub enum BucketEncoding {
 /// Returns `true` if this value is equal to `Default::default()`.
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     *t == T::default()
-}
-
-fn one() -> f32 {
-    1.0
-}
-
-fn is_one(value: &f32) -> bool {
-    *value == 1.0
 }
 
 fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>
