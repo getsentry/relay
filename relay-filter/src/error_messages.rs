@@ -8,11 +8,11 @@ use std::borrow::Cow;
 use relay_common::glob3::GlobPatterns;
 use relay_event_schema::protocol::Event;
 
-use crate::{ErrorMessagesFilterConfig, FilterStatKey};
+use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
 /// Checks events by patterns in their error messages.
-pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
-    if let Some(logentry) = event.logentry.value() {
+pub fn matches<F: Filterable>(item: &F, patterns: &GlobPatterns) -> bool {
+    if let Some(logentry) = item.logentry() {
         if let Some(message) = logentry.formatted.value() {
             if patterns.is_match(message.as_ref()) {
                 return true;
@@ -24,7 +24,7 @@ pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
         }
     }
 
-    if let Some(exception_values) = event.exceptions.value() {
+    if let Some(exception_values) = item.exceptions() {
         if let Some(exceptions) = exception_values.values.value() {
             for exception in exceptions {
                 if let Some(exception) = exception.value() {
@@ -46,11 +46,11 @@ pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
 }
 
 /// Filters events by patterns in their error messages.
-pub fn should_filter(
-    event: &Event,
+pub fn should_filter<F: Filterable>(
+    item: &F,
     config: &ErrorMessagesFilterConfig,
 ) -> Result<(), FilterStatKey> {
-    if matches(event, &config.patterns) {
+    if matches(item, &config.patterns) {
         Err(FilterStatKey::ErrorMessage)
     } else {
         Ok(())

@@ -2,19 +2,19 @@
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
 
-use relay_event_schema::protocol::{Event, EventType};
+use relay_event_schema::protocol::{Csp, Event, EventType};
 
-use crate::{CspFilterConfig, FilterStatKey};
+use crate::{CspFilterConfig, FilterStatKey, Filterable};
 
 /// Checks if the event is a CSP Event from one of the disallowed sources.
-pub fn matches<It, S>(event: &Event, disallowed_sources: It) -> bool
+pub fn matches<It, S>(csp: Option<&Csp>, disallowed_sources: It) -> bool
 where
     It: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    if event.ty.value() != Some(&EventType::Csp) {
-        return false;
-    }
+    // if event.ty.value() != Some(&EventType::Csp) {
+    //     return false;
+    // } // TODO: move to trait
 
     // parse the sources for easy processing
     let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
@@ -22,7 +22,7 @@ where
         .map(|origin| -> SchemeDomainPort { origin.as_ref().into() })
         .collect();
 
-    if let Some(csp) = event.csp.value() {
+    if let Some(csp) = csp {
         if matches_any_origin(csp.blocked_uri.as_str(), &disallowed_sources) {
             return true;
         }
@@ -37,8 +37,11 @@ where
 }
 
 /// Filters CSP events based on disallowed sources.
-pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
-    if matches(event, &config.disallowed_sources) {
+pub fn should_filter<F>(item: &F, config: &CspFilterConfig) -> Result<(), FilterStatKey>
+where
+    F: Filterable,
+{
+    if matches(item.csp(), &config.disallowed_sources) {
         Err(FilterStatKey::InvalidCsp)
     } else {
         Ok(())

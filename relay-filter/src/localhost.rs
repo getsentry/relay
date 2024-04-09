@@ -2,7 +2,7 @@
 use relay_event_schema::protocol::Event;
 use url::Url;
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterConfig, FilterStatKey, Filterable};
 
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
@@ -34,11 +34,14 @@ pub fn matches(event: &Event) -> bool {
 }
 
 /// Filters events originating from the local host.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+pub fn should_filter<F>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey>
+where
+    F: Filterable,
+{
     if !config.is_enabled {
         return Ok(());
     }
-    if matches(event) {
+    if matches(item) {
         return Err(FilterStatKey::Localhost);
     }
     Ok(())

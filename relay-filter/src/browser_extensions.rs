@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Exception};
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterConfig, FilterStatKey, Filterable};
 
 static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
@@ -81,13 +81,13 @@ static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
 const ANONYMOUS_FRAMES: [&str; 2] = ["<anonymous>", "[native code]"];
 
 /// Check if the event originates from known problematic browser extensions.
-pub fn matches(event: &Event) -> bool {
-    if let Some(ex_val) = get_exception_value(event) {
+pub fn matches<F: Filterable>(item: &F) -> bool {
+    if let Some(ex_val) = item.exception_value() {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
             return true;
         }
     }
-    if let Some(ex_source) = get_exception_source(event) {
+    if let Some(ex_source) = item.exception_source() {
         if EXTENSION_EXC_SOURCES.is_match(ex_source) {
             return true;
         }
@@ -96,12 +96,15 @@ pub fn matches(event: &Event) -> bool {
 }
 
 /// Filters events originating from known problematic browser extensions.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+pub fn should_filter<F>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey>
+where
+    F: Filterable,
+{
     if !config.is_enabled {
         return Ok(());
     }
 
-    if matches(event) {
+    if matches(item) {
         Err(FilterStatKey::BrowserExtensions)
     } else {
         Ok(())

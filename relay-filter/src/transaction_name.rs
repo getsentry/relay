@@ -5,30 +5,27 @@
 use relay_common::glob3::GlobPatterns;
 use relay_event_schema::protocol::{Event, EventType};
 
-use crate::{FilterStatKey, IgnoreTransactionsFilterConfig};
+use crate::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
-fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return false;
-    }
+fn matches(transaction: Option<&str>, patterns: &GlobPatterns) -> bool {
+    // if event.ty.value() != Some(&EventType::Transaction) {
+    //     return false;
+    // } // TODO: move to trait impl
 
-    event
-        .transaction
-        .value()
-        .map_or(false, |transaction| patterns.is_match(transaction))
+    transaction.map_or(false, |transaction| patterns.is_match(transaction))
 }
 
 /// Filters [Transaction](EventType::Transaction) events based on a list of provided transaction
 /// name globs.
-pub fn should_filter(
-    event: &Event,
+pub fn should_filter<F: Filterable>(
+    item: &F,
     config: &IgnoreTransactionsFilterConfig,
 ) -> Result<(), FilterStatKey> {
     if config.is_empty() {
         return Ok(());
     }
 
-    if matches(event, &config.patterns) {
+    if matches(item.transaction(), &config.patterns) {
         return Err(FilterStatKey::FilteredTransactions);
     }
     Ok(())
