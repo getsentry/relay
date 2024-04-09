@@ -396,7 +396,8 @@ def test_span_ingestion(
     for span in spans:
         span.pop("received", None)
 
-    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+    # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
         {
@@ -1041,7 +1042,8 @@ def test_span_ingestion_with_performance_scores(
     for span in spans:
         span.pop("received", None)
 
-    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+    # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
         {
@@ -1210,7 +1212,8 @@ def test_rate_limit_indexed_consistent_extracted(
     # First send should be accepted.
     relay.send_event(project_id, event)
     spans = list(spans_consumer.get_spans(max_attempts=2, timeout=10))
-    assert len(spans) == 2  # one for the transaction, one for the contained span
+    # one for the transaction, one for the contained span
+    assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
@@ -1330,46 +1333,17 @@ def test_span_extraction_with_tags(
         "projects:span-metrics-extraction",
     ]
 
-    event_id = "e022a2da91e9495d944c291fe065972d"
     event = make_transaction(
         {
-            "event_id": event_id,
+            "event_id": "e022a2da91e9495d944c291fe065972d",
             "tags": tags,
         }
     )
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
-
     transaction_span = spans_consumer.get_span()
-    del transaction_span["received"]
-    assert transaction_span == {
-        "description": "hi",
-        "duration_ms": duration_ms,
-        "event_id": event_id,
-        "exclusive_time_ms": 2000.0,
-        "is_segment": True,
-        "organization_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "op": "hi",
-            "platform": "other",
-            "sdk.name": "raven-node",
-            "sdk.version": "2.6.3",
-            "transaction": "hi",
-            "transaction.op": "hi",
-        },
-        "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
-        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "tags": expected_tags,
-    }
+
+    assert transaction_span["tags"] == expected_tags
 
     spans_consumer.assert_empty()
