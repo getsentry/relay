@@ -32,10 +32,7 @@ fn matches<F: Filterable>(item: &F) -> bool {
 }
 
 /// Filters events originating from the local host.
-pub fn should_filter<F>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey>
-where
-    F: Filterable,
-{
+pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
