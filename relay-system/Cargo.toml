@@ -17,7 +17,7 @@ futures = { workspace = true }
 once_cell = { workspace = true }
 relay-log = { workspace = true }
 relay-statsd = { workspace = true }
-tokio = { workspace = true, features = ["rt", "signal"] }
+tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time"] }
 
 [dev-dependencies]
 relay-statsd = { workspace = true, features = ["test"] }

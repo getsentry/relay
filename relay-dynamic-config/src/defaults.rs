@@ -402,40 +402,6 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "c:spans/count_per_op@none".into(),
-            field: None,
-            condition: Some(duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("span.category")
-                    .from_field("span.sentry_tags.category")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.system")
-                    .from_field("span.sentry_tags.system")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "c:spans/count_per_segment@none".into(),
-            field: None,
-            condition: Some(is_mobile_sdk.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(), // mobile only - already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
             condition: None,
@@ -453,12 +419,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(know_modules_condition.clone() | app_start_condition.clone()),
                 // Mobile module:
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
                     .when(app_start_condition.clone()),
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")

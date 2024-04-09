@@ -160,7 +160,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
                 "envelopes": {
                     "path": dbfile,
                     "max_memory_size": 0,
-                    "max_disk_size": "100",
+                    "max_disk_size": "24577",  # one more than the initial size
                 }
             },
         }
@@ -175,7 +175,9 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
         try:
             # These events will consume all the disk space and we will report not ready.
-            relay.send_event(project_key)
+            for i in range(20):
+                # It takes ~10 events to make SQLlite use more pages.
+                relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test
             mini_sentry.test_failures.clear()
