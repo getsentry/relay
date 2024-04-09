@@ -7,7 +7,7 @@ use relay_ua::UserAgent;
 use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
-pub fn matches(user_agent: &str, browsers: &BTreeSet<LegacyBrowser>) -> bool {
+fn matches(user_agent: &str, browsers: &BTreeSet<LegacyBrowser>) -> bool {
     let user_agent = relay_ua::parse_user_agent(user_agent);
 
     // remap IE Mobile to IE (sentry python, filter compatibility)

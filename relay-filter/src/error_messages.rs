@@ -10,7 +10,7 @@ use relay_common::glob3::GlobPatterns;
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
 /// Checks events by patterns in their error messages.
-pub fn matches<F: Filterable>(item: &F, patterns: &GlobPatterns) -> bool {
+fn matches<F: Filterable>(item: &F, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = item.logentry() {
         if let Some(message) = logentry.formatted.value() {
             if patterns.is_match(message.as_ref()) {

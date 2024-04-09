@@ -6,7 +6,7 @@ const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
 /// Check if the event originates from the local host.
-pub fn matches<F: Filterable>(item: &F) -> bool {
+fn matches<F: Filterable>(item: &F) -> bool {
     if let Some(ip_addr) = item.ip_addr() {
         for &local_ip in LOCAL_IPS {
             if local_ip == ip_addr {

@@ -81,7 +81,7 @@ static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
 const ANONYMOUS_FRAMES: [&str; 2] = ["<anonymous>", "[native code]"];
 
 /// Check if the event originates from known problematic browser extensions.
-pub fn matches<F: Filterable>(item: &F) -> bool {
+fn matches<F: Filterable>(item: &F) -> bool {
     if let Some(ex_val) = get_exception_value(item) {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
             return true;

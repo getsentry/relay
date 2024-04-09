@@ -7,7 +7,7 @@ use relay_event_schema::protocol::Csp;
 use crate::{CspFilterConfig, FilterStatKey, Filterable};
 
 /// Checks if the event is a CSP Event from one of the disallowed sources.
-pub fn matches<It, S>(csp: Option<&Csp>, disallowed_sources: It) -> bool
+fn matches<It, S>(csp: Option<&Csp>, disallowed_sources: It) -> bool
 where
     It: IntoIterator<Item = S>,
     S: AsRef<str>,
