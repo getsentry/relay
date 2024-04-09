@@ -31,7 +31,11 @@ fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
     condition.map_or(false, |condition| condition.matches(item))
 }
 
-/// Filters events by patterns in their error messages.
+/// Filters events by any generic condition.
+///
+/// Note that conditions may have type-specific getter strings, e.g. `"event.some_field"`. In order
+/// to make such a generic filter apply to non-Event types, make sure that the [`Getter`] implementation
+/// for that type maps `"event.some_field"` to the corresponding field on that type.
 pub(crate) fn should_filter<F: Getter>(
     item: &F,
     project_filters: &GenericFiltersConfig,

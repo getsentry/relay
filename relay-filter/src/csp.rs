@@ -12,10 +12,6 @@ where
     It: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    // if event.ty.value() != Some(&EventType::Csp) {
-    //     return false;
-    // } // TODO: move to trait
-
     // parse the sources for easy processing
     let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
         .into_iter()

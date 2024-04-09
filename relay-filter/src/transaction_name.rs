@@ -7,10 +7,6 @@ use relay_common::glob3::GlobPatterns;
 use crate::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
 fn matches(transaction: Option<&str>, patterns: &GlobPatterns) -> bool {
-    // if event.ty.value() != Some(&EventType::Transaction) {
-    //     return false;
-    // } // TODO: move to trait impl
-
     transaction.map_or(false, |transaction| patterns.is_match(transaction))
 }
 

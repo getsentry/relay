@@ -18,7 +18,7 @@ once_cell = { workspace = true }
 indexmap = { workspace = true }
 regex = { workspace = true }
 relay-common = { workspace = true }
-relay-event-schema = { workspace = true } # TODO: not needed?
+relay-event-schema = { workspace = true }
 relay-protocol = { workspace = true }
 relay-ua = { workspace = true }
 serde = { workspace = true }
