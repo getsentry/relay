@@ -349,8 +349,6 @@ impl Getter for SpanData {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
@@ -376,10 +374,6 @@ mod tests {
       "value": 9001.0,
       "unit": "byte"
     }
-  },
-  "tags": {
-    "foo": "bar",
-    "baz": 1
   }
 }"#;
         let mut measurements = Object::new();
@@ -403,14 +397,6 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),
             measurements: Annotated::new(Measurements(measurements)),
-            tags: BTreeMap::from([
-                (
-                    "foo".to_string(),
-                    JsonLenientString("bar".to_string()).into(),
-                ),
-                ("baz".to_string(), JsonLenientString("1".to_string()).into()),
-            ])
-            .into(),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());

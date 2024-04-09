@@ -1384,12 +1384,19 @@ struct SpanKafkaMessage<'a> {
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
     trace_id: &'a str,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+}
+
+fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
+    match value {
+        None => true,
+        Some(raw) => raw.get() == "{}",
+    }
 }
 
 #[derive(Debug, Deserialize)]
