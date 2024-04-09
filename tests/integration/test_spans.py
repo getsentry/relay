@@ -146,10 +146,26 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
 
+@pytest.mark.parametrize(
+    "sample_rate,expected_spans,expected_metrics",
+    [
+        (None, 2, 6),
+        (1.0, 2, 6),
+        (0.0, 0, 0),
+    ],
+)
 def test_span_extraction_with_sampling(
-    mini_sentry, relay_with_processing, spans_consumer, metrics_consumer
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    sample_rate,
+    expected_spans,
+    expected_metrics,
 ):
-    mini_sentry.global_config["options"] = {"relay.span-extraction.sample-rate": 0.0}
+    mini_sentry.global_config["options"] = {
+        "relay.span-extraction.sample-rate": sample_rate
+    }
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
@@ -183,11 +199,11 @@ def test_span_extraction_with_sampling(
     relay.send_event(project_id, event)
 
     spans = list(spans_consumer.get_spans(max_attempts=2))
-    assert len(spans) == 0
+    assert len(spans) == expected_spans
 
     metrics = list(metrics_consumer.get_metrics())
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
-    assert len(span_metrics) == 0
+    assert len(span_metrics) == expected_metrics
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
