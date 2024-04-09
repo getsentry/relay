@@ -2,9 +2,8 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::Event;
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterConfig, FilterStatKey, Filterable};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
@@ -49,8 +48,8 @@ static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Checks if the event originates from a known web crawler.
-pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = event.user_agent() {
+fn matches(user_agent: Option<&str>) -> bool {
+    if let Some(user_agent) = user_agent {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false
@@ -58,12 +57,12 @@ pub fn matches(event: &Event) -> bool {
 }
 
 /// Filters events originating from a known web crawler.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
-    if matches(event) {
+    if matches(item.user_agent()) {
         return Err(FilterStatKey::WebCrawlers);
     }
 
