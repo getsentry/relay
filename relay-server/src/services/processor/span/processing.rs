@@ -149,13 +149,13 @@ pub fn extract_from_event(
     global_config: &GlobalConfig,
 ) {
     // Only extract spans from transactions (not errors).
-    if dbg!(state.event_type()) != Some(EventType::Transaction) {
+    if state.event_type() != Some(EventType::Transaction) {
         return;
     };
 
-    if !dbg!(state
+    if !state
         .project_state
-        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent))
+        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
     {
         return;
     }
@@ -167,7 +167,7 @@ pub fn extract_from_event(
     }
 
     let mut add_span = |span: Annotated<Span>| {
-        let span = match dbg!(validate(span)) {
+        let span = match validate(span) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
@@ -204,12 +204,12 @@ pub fn extract_from_event(
         return;
     };
 
-    let Some(transaction_span) = dbg!(extract_transaction_span(
+    let Some(transaction_span) = extract_transaction_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-    )) else {
+    ) else {
         return;
     };
     // Add child spans as envelope items.
