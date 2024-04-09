@@ -135,7 +135,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         redis,
         processor::Addrs {
-            envelope_processor: Addr::custom().0,
+            envelope_processor: Addr::dummy(),
             outcome_aggregator,
             project_cache,
             upstream_relay,

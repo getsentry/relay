@@ -1187,7 +1187,7 @@ def test_rate_limit_indexed_consistent(
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)
@@ -1235,7 +1235,7 @@ def test_rate_limit_indexed_consistent_extracted(
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1305,7 +1305,7 @@ def test_rate_limit_metrics_consistent(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)
