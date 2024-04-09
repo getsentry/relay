@@ -21,11 +21,12 @@ relay-common = { workspace = true }
 relay-crash = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
-    "tower-axum-matched-path",
     "tracing",
 ], optional = true }
 sentry-core = { workspace = true }
-tokio = { workspace = true, default-features = false, features = ["sync"], optional = true }
+tokio = { workspace = true, default-features = false, features = [
+    "sync",
+], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true }

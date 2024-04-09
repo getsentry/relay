@@ -156,6 +156,22 @@ pub struct Options {
     )]
     pub metric_stats_rollout_rate: f32,
 
+    /// Overall sampling of span extraction.
+    ///
+    /// This number represents the fraction of transactions for which
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    ///
+    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
+    ///
+    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
+    #[serde(
+        rename = "relay.span-extraction.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_extraction_sample_rate: Option<f32>,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
