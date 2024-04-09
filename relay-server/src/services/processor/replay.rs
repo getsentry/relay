@@ -111,7 +111,7 @@ pub fn process(
 
     // If the envelope contained a mobile event and mobile replay is disabled drop
     // the envelope.
-    if (contains_mobile_event && !mobile_replay_enabled) {
+    if contains_mobile_event && !mobile_replay_enabled {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
