@@ -190,10 +190,7 @@ impl StoreService {
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event
-                    | ItemType::Transaction
-                    | ItemType::Security
-                    | ItemType::UserReportV2
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
         let client = envelope.meta().client();
@@ -202,17 +199,6 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
-            let feedback_ingest_topic_rollout_rate = self
-                .global_config
-                .current()
-                .options
-                .feedback_ingest_topic_rollout_rate;
-            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
-                KafkaTopic::Feedback
-            } else {
-                KafkaTopic::Events
-            }
         } else {
             KafkaTopic::Events
         };
@@ -235,6 +221,7 @@ impl StoreService {
                     attachments.push(attachment);
                 }
                 ItemType::UserReport => {
+                    // Crash report modal and older SDKs and feedback endpoints
                     debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -243,6 +230,21 @@ impl StoreService {
                         start_time,
                         item,
                     )?;
+                }
+                ItemType::UserReportV2 => {
+                    // The preferred, newest form of feedback. Main source is user feedback widget
+                    let global_config = self.global_config.current();
+                    let feedback_ingest_topic_rollout_rate =
+                        global_config.options.feedback_ingest_topic_rollout_rate;
+
+                    self.produce_user_report_v2(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        start_time,
+                        item,
+                        is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate),
+                    );
                 }
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
@@ -659,6 +661,31 @@ impl StoreService {
         });
 
         self.produce(KafkaTopic::Attachments, organization_id, message)
+    }
+
+    fn produce_user_report_v2(
+        &self,
+        event_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+        use_feedback_topic: bool,
+    ) -> Result<(), StoreError> {
+        // TODO:
+        let message = KafkaMessage::UserReportV2(UserReportV2KafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+        });
+
+        let topic = if use_feedback_topic {
+            KafkaTopic::Feedback
+        } else {
+            KafkaTopic::Events
+        };
+        self.produce(topic, organization_id, message)
     }
 
     fn send_metric_message(
@@ -1245,6 +1272,24 @@ struct UserReportKafkaMessage {
     event_id: EventId,
 }
 
+/// Container payload for user feedback messages.
+/// Derived from EventMessage after separating feedback to its own topic.
+#[derive(Debug, Serialize)]
+struct UserReportV2KafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// Time at which the event was received by Relay.
+    start_time: u64,
+    /// The event id.
+    event_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The client ip address.
+    remote_addr: Option<String>, //TODO: is this necessary or expected by anything downstream?
+    /// Attachments that are potentially relevant for processing.
+    attachments: Vec<ChunkedAttachment>, //TODO: is this necessary?
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
@@ -1482,6 +1527,7 @@ enum KafkaMessage<'a> {
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
+    UserReportV2(UserReportV2KafkaMessage),
     Metric {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
@@ -1510,6 +1556,8 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Attachment(_) => "attachment",
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
+            KafkaMessage::UserReportV2(_) => "event",
+            /// TODO: give feedback its own type?
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
@@ -1537,6 +1585,7 @@ impl Message for KafkaMessage<'_> {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
+            Self::UserReportV2(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::Span { message, .. } => message.trace_id.0,
 
