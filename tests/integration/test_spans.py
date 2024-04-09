@@ -396,7 +396,8 @@ def test_span_ingestion(
     for span in spans:
         span.pop("received", None)
 
-    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+    # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
         {
@@ -1041,7 +1042,8 @@ def test_span_ingestion_with_performance_scores(
     for span in spans:
         span.pop("received", None)
 
-    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+    # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])
 
     assert spans == [
         {
@@ -1210,7 +1212,8 @@ def test_rate_limit_indexed_consistent_extracted(
     # First send should be accepted.
     relay.send_event(project_id, event)
     spans = list(spans_consumer.get_spans(max_attempts=2, timeout=10))
-    assert len(spans) == 2  # one for the transaction, one for the contained span
+    # one for the transaction, one for the contained span
+    assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
@@ -1287,3 +1290,60 @@ def test_rate_limit_metrics_consistent(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "tags, expected_tags",
+    [
+        (
+            {
+                "some": "tag",
+                "other": "value",
+            },
+            {
+                "some": "tag",
+                "other": "value",
+            },
+        ),
+        (
+            {
+                "some": 1,
+                "other": True,
+            },
+            {
+                "some": "1",
+                "other": "True",
+            },
+        ),
+    ],
+)
+def test_span_extraction_with_tags(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    tags,
+    expected_tags,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+
+    event = make_transaction(
+        {
+            "event_id": "e022a2da91e9495d944c291fe065972d",
+            "tags": tags,
+        }
+    )
+
+    relay.send_event(project_id, event)
+
+    transaction_span = spans_consumer.get_span()
+
+    assert transaction_span["tags"] == expected_tags
+
+    spans_consumer.assert_empty()
