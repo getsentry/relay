@@ -182,6 +182,7 @@ mod tests {
     fn roundtrip() {
         let event = Annotated::<Event>::from_json(
             r#"{
+                "type": "transaction",
                 "contexts": {
                     "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
                     "trace": {

@@ -1527,9 +1527,9 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         span::filter(state);
 
-        let global_config = self.inner.global_config.current();
-
         if_processing!(self.inner.config, {
+            let global_config = self.inner.global_config.current();
+
             span::process(
                 state,
                 self.inner.config.clone(),
